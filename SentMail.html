@@ -1,0 +1,75 @@
+<div style="font-family: 'Arial', sans-serif; max-width: 680px; margin: 0 auto; color: #333;">
+
+  <!-- Header -->
+  <div style="border-bottom: 2px solid #0056b3; padding-bottom: 20px; margin-bottom: 20px;">
+    <h2 style="color: #0056b3; margin: 0; font-size: 22px; text-transform: uppercase;">Công ty TNHH CBI Law</h2>
+    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">BÁO GIÁ DỊCH VỤ PHÁP LÝ</p>
+  </div>
+
+  <!-- Body -->
+  <div style="font-size: 15px; line-height: 1.6;">
+
+    <p style="margin: 0 0 20px 0;">
+      Kính gửi: <strong>{{$context.data.lead.fullName}}</strong>,
+    </p>
+
+    <p style="margin: 0 0 20px 0;">
+      <strong>Công ty TNHH CBI Law</strong> trân trọng gửi đến Quý khách hàng báo giá số <strong>{{$context.data.quotationNumber}}</strong> theo yêu cầu. Chúng tôi cam kết cung cấp dịch vụ pháp lý với chất lượng chuyên nghiệp, tận tâm và đúng tiến độ.
+    </p>
+
+    <!-- Nội dung dịch vụ -->
+    <div style="background: #f9f9f9; padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid #0056b3;">
+      <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #0056b3; text-transform: uppercase;">Nội dung dịch vụ</h3>
+      <p style="margin: 0; font-size: 14px;">{{$context.data.description}}</p>
+    </div>
+
+    <!-- Bảng chi phí -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; text-align: left; font-size: 14px;">
+      <tr style="border-bottom: 1px solid #eee;">
+        <th style="padding: 12px 10px; color: #555; font-weight: normal;">Phí dịch vụ (chưa VAT)</th>
+        <td style="padding: 12px 10px; text-align: right; font-weight: bold;">{{$context.data.subTotal}} đ</td>
+      </tr>
+      <tr style="border-bottom: 1px solid #eee;">
+        <th style="padding: 12px 10px; color: #555; font-weight: normal;">VAT ({{$context.data.vat}}%)</th>
+        <td style="padding: 12px 10px; text-align: right;">{{$context.data.vatAmount}} đ</td>
+      </tr>
+      <tr style="background-color: #f4f6f8;">
+        <th style="padding: 12px 10px; font-weight: bold; color: #000; font-size: 15px;">TỔNG CỘNG</th>
+        <td style="padding: 12px 10px; text-align: right; font-weight: bold; color: #d9534f; font-size: 15px;">
+          {{$context.data.totalAmount}} đ
+        </td>
+      </tr>
+    </table>
+
+    <!-- Điều khoản thanh toán -->
+    <div style="margin-bottom: 30px;">
+      <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #555;">Điều khoản thanh toán:</h3>
+      <p style="margin: 0; color: #555; font-size: 14px;">{{$context.data.paymentTerms}}</p>
+    </div>
+
+    <!-- Nút xem báo giá -->
+    <div style="text-align: center; margin-bottom: 35px;">
+      <a href="{{$jobsMapByNodeKey.d2guu9alsig}}"
+         target="_blank"
+         style="display: inline-block; background: #0056b3; color: #fff; padding: 12px 28px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 14px;">
+         📄 Tải/Xem File Báo Giá
+      </a>
+      <div style="font-size: 12px; color: #999; margin-top: 8px;">(Nhấn vào nút trên để xem chi tiết file báo giá đính kèm)</div>
+    </div>
+
+    <!-- Lời kết -->
+    <p style="margin: 0 0 10px 0;">
+      Quý khách vui lòng xem xét và phản hồi trong vòng <strong>07 ngày làm việc</strong> kể từ ngày nhận báo giá. Nếu có bất kỳ thắc mắc nào, xin vui lòng liên hệ trực tiếp với chúng tôi để được hỗ trợ.
+    </p>
+    <p style="margin: 0 0 30px 0;">
+      Trân trọng cảm ơn sự tin tưởng của Quý khách!
+    </p>
+
+    <!-- Footer -->
+    <div style="border-top: 1px solid #eee; padding-top: 20px; font-size: 12px; color: #777; line-height: 1.6;">
+      <strong style="color: #333; font-size: 13px;">CÔNG TY TNHH CBI LAW</strong><br>
+      Email này được gửi tự động từ hệ thống quản lý của CBI Law. Vui lòng không trả lời trực tiếp email này.
+    </div>
+
+  </div>
+</div>
