@@ -72,7 +72,7 @@ const iconLabel = (icon, label, color) =>
       style: {
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
+        gap: 10,
         color: color || "inherit",
         fontFamily: FONT,
       },
@@ -798,6 +798,57 @@ const compareCreatedAt = (a, b) => {
 
 const normalizeFileParentId = (parentId) =>
   parentId === "root" || !parentId ? null : extractId(parentId);
+
+const getAttachment = (doc) => (Array.isArray(doc?.fileAttachment) ? doc.fileAttachment[0] : doc?.fileAttachment);
+
+const getRecordFileUrl = (record) => {
+  const attachment = getAttachment(record);
+  return getFullUrl(attachment?.url || attachment?.preview || record?.googleDriveUrl);
+};
+
+const getFileExtension = (record) => {
+  const attachment = getAttachment(record);
+  let ext = attachment?.extname || "";
+  const attachmentTitle = attachment?.title || attachment?.filename || "";
+  const rawName = record?.title || record?.name || attachmentTitle;
+  if (!ext && rawName.includes(".")) ext = rawName.split(".").pop();
+  if (!ext) return "";
+  return String(ext).startsWith(".") ? String(ext).toLowerCase() : `.${String(ext).toLowerCase()}`;
+};
+
+const getPreviewUrl = (record) => {
+  const fullUrl = getRecordFileUrl(record);
+  if (!fullUrl) return null;
+  const ext = getFileExtension(record);
+  const isOffice = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt"].includes(ext);
+  const attachment = getAttachment(record);
+  const isExternalPreview = !!record.googleDriveUrl && !attachment;
+
+  if (isOffice && !isExternalPreview) {
+    return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`;
+  }
+  return fullUrl;
+};
+
+const getFileSvgIcon = (ext) => {
+  return React.createElement(
+    "span",
+    { style: { fontSize: 16, display: "inline-flex", alignItems: "center", color: "#1890ff" } },
+    FileIcon
+  );
+};
+
+const ChevronDown = (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <polyline points="6 9 12 15 18 9"></polyline>
+  </svg>
+);
+
+const ChevronRight = (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </svg>
+);
 
 const addScopeFilters = (filter, moduleScope, internalCompanyId) => {
   const next = { ...(filter || {}) };
@@ -5407,7 +5458,7 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
 };
 
 // ==================== MAIN COMPONENT (UNIVERSAL DOCUMENT DASHBOARD) ====================
-const DocumentDashboard = () => {
+const CaseDocument = () => {
   const {
     currentUser,
     currentLawyerId,
@@ -5446,6 +5497,22 @@ const DocumentDashboard = () => {
     return map;
   }, [lawyerDirectory]);
 
+  // Tab & space management states
+  const [activeTabMode, setActiveTabMode] = useState("global");
+  const [activeSpace, setActiveSpace] = useState("company_shared"); // "company_shared", "trash", "recent"
+  const [selectedRecordId, setSelectedRecordId] = useState(null);
+
+  // Entities list for selector (when activeTabMode is not global/legal_ref/project_internal)
+  const [entities, setEntities] = useState([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(false);
+
+  // Recent Activity logs states
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activitySearchQuery, setActivitySearchQuery] = useState("");
+  const [activityActionFilter, setActivityActionFilter] = useState("all");
+  const [activityPage, setActivityPage] = useState(1);
+
   const [resolvedContext, setResolvedContext] = useState(CONTEXT);
 
   const [filterInternalCompanyId, setFilterInternalCompanyId] = useState(
@@ -5465,24 +5532,768 @@ const DocumentDashboard = () => {
     loadingUser,  // chờ user+lawyer load xong mới fetch để lọc permission đúng
   );
 
+  // Helper to fetch entities for the active tab mode
+  const fetchEntitiesForTab = useCallback(async (mode) => {
+    if (["global", "project_internal", "legal_reference"].includes(mode)) {
+      setEntities([]);
+      return;
+    }
+    setEntitiesLoading(true);
+    try {
+      let url = "";
+      let params = { pageSize: 1000, sort: ["-createdAt"] };
+      if (mode === "cases") {
+        url = "projects:list";
+        params = { pageSize: 1000, sort: ["-createdAt"], fields: ["id", "caseCode", "projectName", "description", "customerId"] };
+      } else if (mode === "customers") {
+        url = "customers:list";
+        params = { pageSize: 1000, sort: ["-createdAt"], fields: ["id", "customerName", "name", "phone", "email"] };
+      } else if (mode === "tasks") {
+        url = "tasks:list";
+        params = { pageSize: 1000, sort: ["-createdAt"], fields: ["id", "taskName", "name", "status", "projectId"] };
+      } else if (mode === "quotations") {
+        url = "quotations:list";
+        params = { pageSize: 1000, sort: ["-createdAt"], fields: ["id", "quotationCode", "name", "status", "projectId", "customerId"] };
+      } else if (mode === "contracts") {
+        url = "contracts:list";
+        params = { pageSize: 1000, sort: ["-createdAt"], fields: ["id", "contractCode", "contractName", "name", "projectId", "customerId"] };
+      } else if (mode === "internal_templates") {
+        url = "internalCompany:list";
+        params = { pageSize: 1000, sort: ["createdAt"] };
+      }
+
+      if (url) {
+        const res = await ctx.api.request({ url, params });
+        const list = res?.data?.data || [];
+        setEntities(list);
+        
+        // Auto-select first item if list is not empty
+        if (list.length > 0) {
+          const firstId = extractId(list[0].id);
+          setSelectedRecordId(firstId);
+          updateContextForRecord(mode, firstId, list[0]);
+        } else {
+          setSelectedRecordId(null);
+          updateContextForRecord(mode, null, null);
+        }
+      } else {
+        setEntities([]);
+        setSelectedRecordId(null);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch entities for tab", mode, e);
+      setEntities([]);
+      setSelectedRecordId(null);
+    } finally {
+      setEntitiesLoading(false);
+    }
+  }, []);
+
+  const updateContextForRecord = useCallback((mode, recordId, recordObj) => {
+    let customerId = null;
+    let projectId = null;
+    let projectInternalId = null;
+    let internalCompanyId = null;
+
+    if (recordId) {
+      if (mode === "cases") {
+        projectId = recordId;
+        customerId = recordObj ? (extractId(recordObj.customerId) || extractId(recordObj.customer)) : null;
+      } else if (mode === "customers") {
+        customerId = recordId;
+      } else if (mode === "tasks") {
+        projectId = recordObj ? (extractId(recordObj.projectId) || extractId(recordObj.project)) : null;
+        customerId = recordObj ? (extractId(recordObj.customerId) || extractId(recordObj.customer)) : null;
+      } else if (mode === "quotations") {
+        projectId = recordObj ? (extractId(recordObj.projectId) || extractId(recordObj.project)) : null;
+        customerId = recordObj ? (extractId(recordObj.customerId) || extractId(recordObj.customer)) : null;
+      } else if (mode === "contracts") {
+        projectId = recordObj ? (extractId(recordObj.projectId) || extractId(recordObj.project)) : null;
+        customerId = recordObj ? (extractId(recordObj.customerId) || extractId(recordObj.customer)) : null;
+      } else if (mode === "internal_templates") {
+        internalCompanyId = recordId;
+      }
+    }
+
+    const nextCtx = {
+      mode: mode,
+      modeSource: "auto",
+      respectFolderPermissions: resolvedContext.respectFolderPermissions,
+      recordId: recordId,
+      collection: MODE_COLLECTION[mode] || "Project",
+      customerId,
+      projectId,
+      projectInternalId,
+      internalCompanyId,
+      moduleScope: mode === "project_internal"
+        ? MODULE_SCOPE.PROJECT_INTERNAL
+        : MODE_SCOPE[mode] || resolvedContext.moduleScope || MODULE_SCOPE.CASE_DOCUMENT,
+    };
+    
+    setResolvedContext(nextCtx);
+    if (internalCompanyId) {
+      setFilterInternalCompanyId(String(internalCompanyId));
+    } else {
+      setFilterInternalCompanyId(null);
+    }
+    
+    // Reset selection & folder
+    setSelectedFolderId("root");
+    setExpandedFolderKeys([]);
+    setSelectedRowKeys([]);
+  }, [resolvedContext.respectFolderPermissions]);
+
+  const handleTabChange = useCallback((tabKey) => {
+    setActiveTabMode(tabKey);
+    setActiveSpace("company_shared");
+    if (["global", "project_internal", "legal_reference"].includes(tabKey)) {
+      setSelectedRecordId(null);
+      const nextCtx = {
+        mode: tabKey,
+        modeSource: "auto",
+        respectFolderPermissions: resolvedContext.respectFolderPermissions,
+        recordId: null,
+        collection: MODE_COLLECTION[tabKey] || "Project",
+        customerId: null,
+        projectId: null,
+        projectInternalId: null,
+        internalCompanyId: null,
+        moduleScope: tabKey === "project_internal"
+          ? MODULE_SCOPE.PROJECT_INTERNAL
+          : MODE_SCOPE[tabKey] || resolvedContext.moduleScope || MODULE_SCOPE.CASE_DOCUMENT,
+      };
+      setResolvedContext(nextCtx);
+      setFilterInternalCompanyId(null);
+      setSelectedFolderId("root");
+      setExpandedFolderKeys([]);
+      setSelectedRowKeys([]);
+    } else {
+      fetchEntitiesForTab(tabKey);
+    }
+  }, [resolvedContext.respectFolderPermissions, fetchEntitiesForTab]);
+
+  const handleRecordChange = useCallback((val) => {
+    setSelectedRecordId(val);
+    const matched = entities.find(e => extractId(e.id) === val);
+    updateContextForRecord(activeTabMode, val, matched);
+  }, [activeTabMode, entities, updateContextForRecord]);
+
+  const fetchActivityLogs = useCallback(async () => {
+    setActivityLoading(true);
+    try {
+      const res = await ctx.api.request({
+        url: "activity_log:list",
+        params: {
+          pageSize: 500,
+          sort: ["-changedAt"],
+          filter: JSON.stringify({
+            collectionName: { $in: ["Document", "Folder"] }
+          }),
+        },
+      });
+
+      const raw = res?.data?.data || [];
+
+      const titleMap = {};
+      for (const log of raw) {
+        if (log.fieldName === "title" && log.newValue && log.recordId) {
+          titleMap[log.recordId] = log.newValue;
+        }
+      }
+
+      const activeFolderIds = new Set(folders.map((f) => String(extractId(f.id))));
+      const activeDocIds = new Set(docs.map((d) => String(extractId(d.id))));
+
+      const filtered = raw
+        .filter((log) => !["fileIndex", "folderIndex"].includes(log.fieldName))
+        .map((log) => ({
+          ...log,
+          resolvedTitle: titleMap[log.recordId] || null,
+        }))
+        .filter((log) => {
+          const rId = String(log.recordId);
+          if (log.collectionName === "Folder") {
+            return activeFolderIds.has(rId);
+          } else if (log.collectionName === "Document") {
+            return activeDocIds.has(rId);
+          }
+          return false;
+        });
+
+      setActivityLogs(filtered);
+      setActivityPage(1);
+    } catch (e) {
+      console.error("Failed to fetch activity logs:", e);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [folders, docs]);
+
+  useEffect(() => {
+    if (activeSpace === "recent") {
+      fetchActivityLogs();
+    }
+  }, [activeSpace, fetchActivityLogs]);
+
+  const resolveActivityActionInfo = useCallback((log) => {
+    const { action, fieldName: field, newValue: newV } = log;
+
+    if (action === "uploaded") {
+      return {
+        key: "uploaded",
+        label: "Tải lên",
+        color: "#0C447C",
+        bg: "#E6F1FB",
+        border: "#B5D4F4",
+        icon: (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        )
+      };
+    }
+
+    if (action === "created") {
+      return {
+        key: "created",
+        label: "Tạo mới",
+        color: "#0369A1",
+        bg: "#F0F9FF",
+        border: "#BAE6FD",
+        icon: (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        )
+      };
+    }
+
+    if (action === "updated") {
+      if (field === "isDeleted") {
+        if (newV === true || newV === "true" || newV === 1) {
+          return {
+            key: "trash_deleted",
+            label: "Xóa vào Thùng rác",
+            color: "#B91C1C",
+            bg: "#FEF2F2",
+            border: "#FEE2E2",
+            icon: (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            )
+          };
+        } else {
+          return {
+            key: "restored",
+            label: "Khôi phục",
+            color: "#15803D",
+            bg: "#F0FDF4",
+            border: "#DCFCE7",
+            icon: (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            )
+          };
+        }
+      }
+      if (field === "folderId") {
+        return {
+          key: "moved",
+          label: "Di chuyển",
+          color: "#B45309",
+          bg: "#FFFBEB",
+          border: "#FEF3C7",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="5 9 2 12 5 15" />
+              <polyline points="9 5 12 2 15 5" />
+              <polyline points="15 19 12 22 9 19" />
+              <polyline points="19 9 22 12 19 15" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <line x1="12" y1="2" x2="12" y2="22" />
+            </svg>
+          )
+        };
+      }
+      return {
+        key: "updated",
+        label: "Cập nhật",
+        color: "#4D7C0F",
+        bg: "#F7FEE7",
+        border: "#ECFCCB",
+        icon: (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+        )
+      };
+    }
+
+    if (action === "deleted") {
+      return {
+        key: "deleted",
+        label: "Xóa vĩnh viễn",
+        color: "#451A03",
+        bg: "#FFF7ED",
+        border: "#FFEDD5",
+        icon: (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        )
+      };
+    }
+
+    return {
+      key: action,
+      label: action,
+      color: "#374151",
+      bg: "#F3F4F6",
+      border: "#E5E7EB",
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      )
+    };
+  }, []);
+
+  const resolveActivityDesc = useCallback((log, foldersList, docsList) => {
+    const { action, fieldName: field, oldValue: oldV, newValue: newV, collectionName } = log;
+    const isFolder = collectionName === "Folder";
+    const entityName = isFolder ? "thư mục" : "tài liệu";
+
+    if (action === "uploaded" || action === "created") {
+      return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
+    }
+
+    if (action === "deleted") {
+      return `Đã xóa vĩnh viễn ${entityName}`;
+    }
+
+    if (action === "updated") {
+      if (field === "isDeleted") {
+        if (newV === true || newV === "true" || newV === 1) {
+          return `Đã di chuyển ${entityName} vào Thùng rác`;
+        } else {
+          return `Đã khôi phục ${entityName} từ Thùng rác`;
+        }
+      }
+      if (field === "name" || field === "title") {
+        if (oldV && newV) {
+          return `Đã đổi tên ${entityName}: "${oldV}" → "${newV}"`;
+        }
+        return `Đã đổi tên ${entityName} thành "${newV}"`;
+      }
+      if (field === "folderId") {
+        const getFolderName = (id) => {
+          if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
+          const f = foldersList.find(item => String(extractId(item.id)) === String(id));
+          return f ? f.name : `Thư mục #${id}`;
+        };
+        const oldFolder = getFolderName(oldV);
+        const newFolder = getFolderName(newV);
+        return `Đã di chuyển từ "${oldFolder}" sang "${newFolder}"`;
+      }
+
+      return `Cập nhật ${field} của ${entityName}`;
+    }
+
+    return `Thao tác [${action}] trên ${entityName}`;
+  }, []);
+
+  const filteredActivityLogs = useMemo(() => {
+    return activityLogs.filter((log) => {
+      if (activityActionFilter !== "all") {
+        const info = resolveActivityActionInfo(log);
+        if (info.key !== activityActionFilter) {
+          return false;
+        }
+      }
+
+      if (activitySearchQuery.trim()) {
+        const q = activitySearchQuery.toLowerCase();
+        const userName = (log.changedByName || "Hệ thống").toLowerCase();
+        const name = (log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "").toLowerCase();
+        const desc = resolveActivityDesc(log, folders, docs).toLowerCase();
+
+        return userName.includes(q) || name.includes(q) || desc.includes(q);
+      }
+
+      return true;
+    });
+  }, [activityLogs, activityActionFilter, activitySearchQuery, folders, docs, resolveActivityActionInfo, resolveActivityDesc]);
+
+  // Trash & restore helpers
+  const handleRestoreFolder = async (record) => {
+    try {
+      const rId = extractId(record.id);
+      await ctx.api.request({
+        url: `folders:update?filterByTk=${rId}`,
+        method: "POST",
+        data: { isDeleted: false, deletedAt: null },
+      });
+      message.success("Đã khôi phục thư mục");
+      refetch();
+    } catch {
+      message.error("Khôi phục thất bại");
+    }
+  };
+
+  const handleRestoreFile = async (record) => {
+    try {
+      const rId = extractId(record.id);
+      await ctx.api.request({
+        url: `documents:update?filterByTk=${rId}`,
+        method: "POST",
+        data: { isDeleted: false, deletedAt: null },
+      });
+      message.success("Đã khôi phục file");
+      refetch();
+    } catch {
+      message.error("Khôi phục thất bại");
+    }
+  };
+
+  const showDestroyFolderConfirm = (record) => {
+    Modal.confirm({
+      title: "Xóa vĩnh viễn thư mục này?",
+      content: "Hành động này không thể hoàn tác. Thư mục và toàn bộ tệp tin bên trong sẽ bị xóa vĩnh viễn.",
+      okText: "Xóa vĩnh viễn",
+      okType: "danger",
+      cancelText: "Hủy",
+      onOk: () => handleDestroyFolder(record),
+    });
+  };
+
+  const handleDestroyFolder = async (record) => {
+    try {
+      const rId = extractId(record.id);
+      const descendantIds = getDescendantIds(rId, folders);
+      const allIds = [rId, ...descendantIds];
+      
+      await ctx.api.request({
+        url: "documents:destroy",
+        method: "POST",
+        params: {
+          filter: JSON.stringify({ folderId: { $in: allIds } }),
+        },
+      });
+      await ctx.api.request({
+        url: "folders:destroy",
+        method: "POST",
+        params: {
+          filter: JSON.stringify({ id: { $in: allIds } }),
+        },
+      });
+      message.success("Đã xóa vĩnh viễn thư mục và các dữ liệu bên trong");
+      refetch();
+    } catch {
+      message.error("Xóa thất bại");
+    }
+  };
+
+  const showDestroyFileConfirm = (record) => {
+    Modal.confirm({
+      title: "Xóa vĩnh viễn file này?",
+      content: "Hành động này không thể hoàn tác.",
+      okText: "Xóa vĩnh viễn",
+      okType: "danger",
+      cancelText: "Hủy",
+      onOk: () => handleDestroyFile(record),
+    });
+  };
+
+  const handleDestroyFile = async (record) => {
+    try {
+      const rId = extractId(record.id);
+      await ctx.api.request({
+        url: `documents:destroy?filterByTk=${rId}`,
+        method: "POST",
+      });
+      message.success("Đã xóa vĩnh viễn file");
+      refetch();
+    } catch {
+      message.error("Xóa thất bại");
+    }
+  };
+
+  const handleSoftDeleteFolder = async (record) => {
+    try {
+      const rId = extractId(record.id);
+      const descendantIds = getDescendantIds(rId, folders);
+      const allIds = [rId, ...descendantIds];
+      const nowIso = new Date().toISOString();
+
+      await Promise.all([
+        ctx.api.request({
+          url: "folders:update",
+          method: "POST",
+          params: { filter: JSON.stringify({ id: { $in: allIds } }) },
+          data: { isDeleted: true, deletedAt: nowIso },
+        }),
+        ctx.api.request({
+          url: "documents:update",
+          method: "POST",
+          params: { filter: JSON.stringify({ folderId: { $in: allIds } }) },
+          data: { isDeleted: true, deletedAt: nowIso },
+        })
+      ]);
+
+      message.success("Đã di chuyển thư mục vào Thùng rác");
+      refetch();
+    } catch {
+      message.error("Xóa thất bại");
+    }
+  };
+
+  // Modified soft deletion for folders
+  const showDeleteConfirm = (record) => {
+    Modal.confirm({
+      title: "Xóa thư mục này?",
+      content: "Thư mục sẽ được chuyển vào Thùng rác.",
+      okText: "Xóa",
+      okType: "danger",
+      cancelText: "Hủy",
+      onOk: () => handleSoftDeleteFolder(record),
+    });
+  };
+
+  // Modified soft deletion for files
+  const handleDeleteFile = async (id) => {
+    try {
+      const rId = extractId(id);
+      const nowIso = new Date().toISOString();
+      await ctx.api.request({
+        url: `documents:update?filterByTk=${rId}`,
+        method: "POST",
+        data: { isDeleted: true, deletedAt: nowIso },
+      });
+      message.success("Đã di chuyển file vào Thùng rác");
+      refetch();
+    } catch {
+      message.error("Xóa thất bại");
+    }
+  };
+
+  // Modified bulk deletion
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    const nowIso = new Date().toISOString();
+    try {
+      await Promise.all(selectedRowKeys.map(async (key) => {
+        const isFolder = key.startsWith("folder_");
+        const rId = Number(key.replace("folder_", "").replace("file_", ""));
+        if (isFolder) {
+          const descendantIds = getDescendantIds(rId, folders);
+          const allIds = [rId, ...descendantIds];
+          await Promise.all([
+            ctx.api.request({
+              url: "folders:update",
+              method: "POST",
+              params: { filter: JSON.stringify({ id: { $in: allIds } }) },
+              data: { isDeleted: true, deletedAt: nowIso },
+            }),
+            ctx.api.request({
+              url: "documents:update",
+              method: "POST",
+              params: { filter: JSON.stringify({ folderId: { $in: allIds } }) },
+              data: { isDeleted: true, deletedAt: nowIso },
+            })
+          ]);
+        } else {
+          await ctx.api.request({
+            url: `documents:update?filterByTk=${rId}`,
+            method: "POST",
+            data: { isDeleted: true, deletedAt: nowIso },
+          });
+        }
+      }));
+      message.success("Đã chuyển các mục chọn vào Thùng rác");
+      setSelectedRowKeys([]);
+      refetch();
+    } catch {
+      message.error("Xóa thất bại");
+    }
+  };
+
+  // Activity columns definition
+  const activityColumns = useMemo(() => [
+    {
+      title: "Loại hoạt động",
+      dataIndex: "action",
+      key: "action",
+      width: 170,
+      render: (text, log) => {
+        const info = resolveActivityActionInfo(log);
+        return (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 10px",
+              borderRadius: 16,
+              background: info.bg,
+              border: `1px solid ${info.border}`,
+              fontSize: 12,
+              fontWeight: 500,
+              color: info.color,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {info.icon}
+            {info.label}
+          </span>
+        );
+      }
+    },
+    {
+      title: "Người thực hiện",
+      dataIndex: "changedByName",
+      key: "changedByName",
+      width: 200,
+      render: (name) => {
+        const displayName = name || "Hệ thống";
+        const initials = displayName
+          .split(" ")
+          .map((w) => w[0])
+          .filter(Boolean)
+          .slice(-2)
+          .join("")
+          .toUpperCase() || "?";
+        const palettes = [
+          ["#EEEDFE", "#3C3489"],
+          ["#E1F5EE", "#085041"],
+          ["#FAEEDA", "#633806"],
+          ["#FAECE7", "#712B13"],
+          ["#EAF3DE", "#27500A"],
+        ];
+        const [bg, fg] = palettes[(displayName.charCodeAt(0) || 0) % palettes.length];
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: bg,
+                color: fg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 11,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
+              {initials}
+            </div>
+            <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{displayName}</span>
+          </div>
+        );
+      }
+    },
+    {
+      title: "Tài liệu",
+      key: "file",
+      width: 280,
+      render: (text, log) => {
+        const isFolder = log.collectionName === "Folder";
+        const name = log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "—";
+        const docRecord = !isFolder ? docs.find(d => String(extractId(d.id)) === String(log.recordId)) : null;
+
+        let icon = isFolder ? FolderIcon : FileIcon;
+        if (!isFolder && docRecord) {
+          const ext = getFileExtension(docRecord);
+          icon = getFileSvgIcon(ext);
+        }
+
+        const canPreview = docRecord && getRecordFileUrl(docRecord);
+
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <span style={{ flexShrink: 0, display: "inline-flex" }}>{icon}</span>
+            {canPreview ? (
+              <span
+                onClick={() => setPreviewDoc(docRecord)}
+                style={{
+                  fontSize: 13,
+                  color: "#185FA5",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textDecoration: "none",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+              >
+                {name}
+              </span>
+            ) : (
+              <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{name}</span>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      title: "Mô tả thay đổi",
+      key: "desc",
+      render: (text, log) => {
+        const desc = resolveActivityDesc(log, folders, docs);
+        return (
+          <div style={{ fontSize: 13, color: "#4B5563" }}>{desc}</div>
+        );
+      }
+    },
+    {
+      title: "Thời gian",
+      dataIndex: "changedAt",
+      key: "changedAt",
+      width: 160,
+      render: (iso) => {
+        if (!iso) return <span style={{ color: "#9CA3AF" }}>—</span>;
+        const d = new Date(iso);
+        return d.toLocaleString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+    }
+  ], [docs, folders, resolveActivityActionInfo, resolveActivityDesc]);
+
   // === RENDER-PHASE PERMISSION FILTER (safety net cuối cùng) ===
   // Áp dụng trực tiếp trong render, độc lập với async data fetching
   const permissionFilteredFolders = useMemo(() => {
+    // Under regular views, hide soft-deleted folders. Under Trash view, keep only soft-deleted folders.
+    const isTrash = activeSpace === "trash";
+    const baseFolders = folders.filter((f) => isTrash ? (f.isDeleted === true) : (f.isDeleted !== true));
+
     if (!resolvedContext.respectFolderPermissions || loadingUser || !currentUser) {
-      console.log("[PERM] render-phase: skip filter (respectPerm:", resolvedContext.respectFolderPermissions, "loadingUser:", loadingUser, "hasUser:", !!currentUser, ")");
-      return folders;
+      return baseFolders;
     }
     if (isAdminUser(currentUser)) {
-      console.log("[PERM] render-phase: admin user, showing all", folders.length, "folders");
-      return folders;
+      return baseFolders;
     }
-    const uid = extractId(currentUser?.id);
-    const lwId = extractId(currentLawyerId);
-    const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
-    const filtered = folders.filter((f) => accessible.has(extractId(f.id)));
-    console.log("[PERM] render-phase filter: uid=", uid, "lwId=", lwId, "accessible=", accessible.size, "/", folders.length, "→ show", filtered.length, "| folder managers sample:", (folders[0]?.folderManager || folders[0]?.folderManagers || []).slice(0,2));
-    return filtered;
-  }, [folders, currentUser, currentLawyerId, loadingUser, resolvedContext.respectFolderPermissions]);
+    const { accessible } = getVisibleFolderIds(baseFolders, currentUser, currentLawyerId);
+    return baseFolders.filter((f) => accessible.has(extractId(f.id)));
+  }, [folders, currentUser, currentLawyerId, loadingUser, resolvedContext.respectFolderPermissions, activeSpace]);
 
   useEffect(() => {
     const resolveContext = async () => {
@@ -5625,6 +6436,10 @@ const DocumentDashboard = () => {
           };
           console.log("[DEBUG][resolveContext] setResolvedContext →", JSON.stringify(newContext));
           setResolvedContext(newContext);
+          setActiveTabMode(mode);
+          if (recordId) {
+            setSelectedRecordId(recordId);
+          }
           if (internalCompanyId) {
             setFilterInternalCompanyId(String(internalCompanyId));
           }
@@ -5711,8 +6526,7 @@ const DocumentDashboard = () => {
     activeModuleScope === MODULE_SCOPE.PROJECT_INTERNAL || isProjectInternalMode;
   const isGlobalOrAutoMode =
     activeDashboardMode === "global" || resolvedContext.modeSource === "auto";
-  const showTreeSidebar =
-    (isCaseDocumentScope && isGlobalOrAutoMode) && !isProjectInternalScope;
+  const showTreeSidebar = true;
 
   useEffect(() => {
     setSelectedFolderId("root");
@@ -5812,57 +6626,7 @@ const DocumentDashboard = () => {
     [currentUser, currentLawyerId, folders],
   );
 
-  const handleBulkDelete = async () => {
-    if (selectedRowKeys.length === 0) return;
-    const selectedRecords = selectedRowKeys
-      .map(getRecordByRowKey)
-      .filter(Boolean);
-    if (selectedRecords.some((record) => !canManageRecord(record))) {
-      message.warning("Bạn không có quyền thao tác với một số mục đã chọn");
-      return;
-    }
-    try {
-      const affectedFileFolderIds = new Set();
-      const trackFileFolder = (folderId) => {
-        affectedFileFolderIds.add(normalizeFileParentId(folderId) ?? "root");
-      };
-      const deletePromises = selectedRowKeys.map((key) => {
-        if (key.startsWith("folder_")) {
-          const fid = key.replace("folder_", "");
-          return ctx.api.request({
-            url: `folders:destroy?filterByTk=${fid}`,
-            method: "POST",
-          });
-        } else {
-          const fid = key.replace("file_", "");
-          const doc = selectedRecords.find(
-            (record) =>
-              record._type === "file" && extractId(record) === extractId(fid),
-          );
-          if (doc) trackFileFolder(doc.folderId);
-          return ctx.api.request({
-            url: `documents:destroy?filterByTk=${fid}`,
-            method: "POST",
-          });
-        }
-      });
-      await Promise.all(deletePromises);
-      await Promise.all(
-        Array.from(affectedFileFolderIds).map((folderId) =>
-          reindexFiles(
-            folderId === "root" ? null : folderId,
-            activeModuleScope,
-            activeInternalCompanyId,
-          ),
-        ),
-      );
-      message.success("Đã xoá các mục được chọn");
-      setSelectedRowKeys([]);
-      refetch();
-    } catch (e) {
-      message.error("Có lỗi xảy ra khi xoá");
-    }
-  };
+
 
   const handleBulkMove = async (targetFolderId) => {
     if (selectedRowKeys.length === 0) return;
@@ -6838,6 +7602,28 @@ const DocumentDashboard = () => {
   );
 
   const tableData = useMemo(() => {
+    const isTrash = activeSpace === "trash";
+    if (isTrash) {
+      // In Trash space, we show a flat list of deleted files and deleted folders that belong to this view
+      const deletedFolders = permissionFilteredFolders.map((f) => ({
+        ...f,
+        _type: "folder",
+        _key: `folder_${extractId(f)}`,
+      }));
+      const deletedDocs = docs
+        .filter((d) => d.isDeleted === true)
+        .map((d, idx) => ({
+          ...d,
+          _type: "file",
+          _key: `file_${extractId(d)}`,
+          _displayFileIndex: idx + 1,
+        }));
+      return [...deletedFolders, ...deletedDocs];
+    }
+
+    // Otherwise, normal folder-hierarchy display...
+    const activeDocs = docs.filter((d) => d.isDeleted !== true);
+
     const folderMap = new Map(permissionFilteredFolders.map((f) => [extractId(f), f]));
     const isRoot = selectedFolderId === "root";
     const numSelectedId = parseInt(selectedFolderId, 10);
@@ -6879,7 +7665,7 @@ const DocumentDashboard = () => {
           _key: `folder_${extractId(f)}`,
         }));
 
-      filteredDocs = docs
+      filteredDocs = activeDocs
         .filter((d) => {
           if (isRoot) return true;
           return allowedFolderIds.includes(extractId(d.folderId));
@@ -6955,7 +7741,7 @@ const DocumentDashboard = () => {
           _key: `folder_${extractId(f)}`,
         }));
 
-      filteredDocs = docs
+      filteredDocs = activeDocs
         .filter((d) => {
           const dFId = extractId(d.folderId);
           return isRoot
@@ -6976,6 +7762,7 @@ const DocumentDashboard = () => {
     filterDateRange,
     getDescendantIds,
     resolvedContext,
+    activeSpace,
   ]);
 
   useEffect(() => {
@@ -7138,6 +7925,41 @@ const DocumentDashboard = () => {
       currentLawyerId,
     );
     const canManageFolder = !record._navOnly && folderIsManager;
+    const isTrash = activeSpace === "trash";
+
+    if (isTrash) {
+      return {
+        items: [
+          canManageFolder
+            ? {
+                key: "restore",
+                label: iconLabel(HistoryIcon, "Khôi phục", "#52c41a"),
+              }
+            : {
+                key: "restore_disabled",
+                label: iconLabel(HistoryIcon, "Không có quyền khôi phục"),
+                disabled: true,
+              },
+          canManageFolder
+            ? {
+                key: "destroy",
+                label: iconLabel(DeleteIcon, "Xóa vĩnh viễn", "#ff4d4f"),
+                danger: true,
+              }
+            : {
+                key: "destroy_disabled",
+                label: iconLabel(DeleteIcon, "Không có quyền xóa vĩnh viễn"),
+                disabled: true,
+              },
+        ],
+        onClick: ({ key, domEvent }) => {
+          domEvent?.stopPropagation?.();
+          if (key === "restore") handleRestoreFolder(record);
+          if (key === "destroy") showDestroyFolderConfirm(record);
+        },
+      };
+    }
+
     return {
       items: [
         {
@@ -7203,6 +8025,41 @@ const DocumentDashboard = () => {
       ? record.fileAttachment[0]
       : record.fileAttachment;
     const fullUrl = getFullUrl(attachment?.url || attachment?.preview);
+    const isTrash = activeSpace === "trash";
+
+    if (isTrash) {
+      return {
+        items: [
+          fileCanManage
+            ? {
+                key: "restore",
+                label: iconLabel(HistoryIcon, "Khôi phục", "#52c41a"),
+              }
+            : {
+                key: "restore_disabled",
+                label: iconLabel(HistoryIcon, "Không có quyền khôi phục"),
+                disabled: true,
+              },
+          fileCanManage
+            ? {
+                key: "destroy",
+                label: iconLabel(DeleteIcon, "Xóa vĩnh viễn", "#ff4d4f"),
+                danger: true,
+              }
+            : {
+                key: "destroy_disabled",
+                label: iconLabel(DeleteIcon, "Không có quyền xóa vĩnh viễn"),
+                disabled: true,
+              },
+        ],
+        onClick: ({ key, domEvent }) => {
+          domEvent?.stopPropagation?.();
+          if (key === "restore") handleRestoreFile(record);
+          if (key === "destroy") showDestroyFileConfirm(record);
+        },
+      };
+    }
+
     return {
       items: [
         {
@@ -7318,139 +8175,7 @@ const DocumentDashboard = () => {
       ),
     );
 
-  const showDeleteConfirm = (folder) => {
-    const fId = extractId(folder);
-    const folderIdsToDelete = getDescendantIds(fId, folders);
-    const filesCount = docs.filter((d) =>
-      folderIdsToDelete.includes(extractId(d.folderId)),
-    ).length;
-    const subFoldersCount = folderIdsToDelete.length - 1;
 
-    let contentElements = [];
-    if (subFoldersCount > 0)
-      contentElements.push(`- ${subFoldersCount} thư mục con`);
-    if (filesCount > 0) contentElements.push(`- ${filesCount} tệp tin`);
-
-    Modal.confirm({
-      title: `Xác nhận xóa thư mục "${folder.name}"?`,
-      icon: React.createElement(
-        "span",
-        { style: { color: "#faad14", marginRight: 16 } },
-        WarningIcon,
-      ),
-      content: React.createElement(
-        "div",
-        { style: { fontFamily: FONT, marginTop: 8 } },
-        React.createElement(
-          "p",
-          null,
-          "Bạn sắp xóa vĩnh viễn thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:",
-        ),
-        contentElements.length > 0
-          ? React.createElement(
-            "div",
-            {
-              style: {
-                padding: "8px 12px",
-                background: "#fff1f0",
-                border: "1px solid #ffa39e",
-                borderRadius: 6,
-                color: "#cf1322",
-                fontWeight: 600,
-                marginTop: 8,
-                marginBottom: 12,
-              },
-            },
-            contentElements.map((item, idx) =>
-              React.createElement("div", { key: idx }, item),
-            ),
-          )
-          : React.createElement(
-            "p",
-            { style: { color: "#8c8c8c", fontStyle: "italic" } },
-            "(Thư mục đang trống)",
-          ),
-        React.createElement(
-          "p",
-          null,
-          "Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa?",
-        ),
-      ),
-      okText: "Xóa vĩnh viễn",
-      okType: "danger",
-      cancelText: "Hủy",
-      onOk: () => handleDeleteFolder(folderIdsToDelete),
-    });
-  };
-
-  const handleDeleteFolder = async (folderIdsToDelete) => {
-    try {
-      if (folderIdsToDelete.length > 0) {
-        await ctx.api.request({
-          url: "documents:destroy",
-          method: "POST",
-          params: {
-            filter: JSON.stringify({ folderId: { $in: folderIdsToDelete } }),
-          },
-        });
-        await ctx.api.request({
-          url: "folders:destroy",
-          method: "POST",
-          params: {
-            filter: JSON.stringify({ id: { $in: folderIdsToDelete } }),
-          },
-        });
-        await ctx.api
-          .request({
-            url: "folderManagers:destroy",
-            method: "POST",
-            params: {
-              filter: JSON.stringify({ folderId: { $in: folderIdsToDelete } }),
-            },
-          })
-          .catch(() => { });
-        await ctx.api
-          .request({
-            url: "folderMembers:destroy",
-            method: "POST",
-            params: {
-              filter: JSON.stringify({ folderId: { $in: folderIdsToDelete } }),
-            },
-          })
-          .catch(() => { });
-      }
-      message.success("Đã xóa thành công thư mục và các dữ liệu bên trong");
-      if (
-        selectedFolderId !== "root" &&
-        folderIdsToDelete.includes(parseInt(selectedFolderId, 10))
-      )
-        setSelectedFolderId("root");
-      refetch();
-    } catch (e) {
-      message.error("Xóa thất bại");
-    }
-  };
-
-  const handleDeleteFile = async (id) => {
-    const safeId = extractId(id);
-    const doc = docs.find((d) => extractId(d.id) === safeId);
-    try {
-      await ctx.api.request({
-        url: `documents:destroy?filterByTk=${safeId}`,
-        method: "POST",
-      });
-      if (doc)
-        await reindexFiles(
-          doc.folderId,
-          doc.moduleScope || activeModuleScope,
-          doc.internalCompanyId || activeInternalCompanyId,
-        );
-      message.success("Đã xóa file");
-      refetch();
-    } catch {
-      message.error("Xóa thất bại");
-    }
-  };
 
   const baseColumns = [
     {
@@ -8168,204 +8893,349 @@ const DocumentDashboard = () => {
     {
       style: {
         display: "flex",
+        flexDirection: "column",
         height: "calc(100vh - 120px)",
-        minHeight: 600,
-        overflow: "hidden",
-        background: "#fff",
-        borderTop: "1px solid #f0f0f0",
+        minHeight: 680,
         fontFamily: FONT,
+        background: "#fff",
       },
     },
-
-    // CỘT TRÁI: CÂY THƯ MỤC
+    // ══ TOP TAB BAR ══
     React.createElement(
       "div",
       {
         style: {
-          width: showTreeSidebar ? (sidebarCollapsed ? 40 : 240) : 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 20,
+          padding: "0 24px",
+          background: "#FFFFFF",
+          borderBottom: "1.5px solid #E5E7EB",
+          height: 48,
+          overflowX: "auto",
           flexShrink: 0,
-          borderRight: "1px solid #f0f0f0",
-          background: "#fafafa",
-          display: showTreeSidebar ? "flex" : "none",
-          flexDirection: "column",
+        },
+      },
+      [
+        { key: "global", label: "Tất cả" },
+        { key: "cases", label: "Vụ việc" },
+        { key: "customers", label: "Khách hàng" },
+        { key: "tasks", label: "Công việc" },
+        { key: "quotations", label: "Báo giá" },
+        { key: "contracts", label: "Hợp đồng" },
+        { key: "internal_templates", label: "Biểu mẫu" },
+        { key: "legal_reference", label: "Văn bản pháp luật" },
+        { key: "project_internal", label: "Nội bộ dự án" },
+      ].map((tab) => {
+        const isTabActive = activeTabMode === tab.key;
+        return React.createElement(
+          "button",
+          {
+            key: tab.key,
+            onClick: () => handleTabChange(tab.key),
+            style: {
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              padding: "12px 4px",
+              fontSize: 13,
+              fontWeight: 600,
+              color: isTabActive ? "#185FA5" : "#4B5563",
+              borderBottom: isTabActive ? "2.5px solid #185FA5" : "2.5px solid transparent",
+              transition: "all 0.15s ease-in-out",
+              fontFamily: FONT,
+              whiteSpace: "nowrap",
+            },
+            onMouseEnter: (e) => {
+              if (!isTabActive) e.currentTarget.style.color = "#1F2937";
+            },
+            onMouseLeave: (e) => {
+              if (!isTabActive) e.currentTarget.style.color = "#4B5563";
+            },
+          },
+          tab.label,
+        );
+      }),
+    ),
+
+    // ══ MAIN CONTAINER (SIDER + CONTENT) ══
+    React.createElement(
+      "div",
+      {
+        style: {
+          display: "flex",
+          flex: 1,
           minHeight: 0,
-          height: "100%",
-          transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
           overflow: "hidden",
         },
       },
+
+      // CỘT TRÁI: CÂY THƯ MỤC & CHỌN ĐỐI TƯỢNG
       React.createElement(
         "div",
         {
           style: {
-            padding: "10px 8px",
-            borderBottom: "1px solid #e8e8e8",
-            background: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: sidebarCollapsed ? "center" : "space-between",
+            width: sidebarCollapsed ? 40 : 240,
             flexShrink: 0,
-            gap: 6,
-            minHeight: 48,
+            borderRight: "1px solid #f0f0f0",
+            background: "#fafafa",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            height: "100%",
+            transition: "width 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+            overflow: "hidden",
           },
         },
-        !sidebarCollapsed && React.createElement(
-          Title,
-          {
-            level: 5,
-            style: {
-              margin: 0,
-              fontFamily: FONT,
-              fontSize: 13,
-              color: "#8c8c8c",
-              letterSpacing: 1,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-            },
-          },
-          "DANH MỤC",
-        ),
         React.createElement(
           "div",
-          { style: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 } },
-          !sidebarCollapsed && React.createElement(
-            Dropdown,
-            {
-              overlay: React.createElement(Menu, null, [
-                React.createElement(
-                  Menu.Item,
-                  {
-                    key: "folder",
-                    onClick: () => {
-                      setEditFolderData(null);
-                      setFolderModalOpen(true);
-                    },
-                    icon: FolderPlusIcon,
-                  },
-                  "Thư mục mới",
-                ),
-                React.createElement(
-                  Menu.Item,
-                  {
-                    key: "file",
-                    onClick: () => setUploadOpen(true),
-                    icon: UploadIcon,
-                  },
-                  "Tải tệp lên",
-                ),
-              ]),
-              trigger: ["click"],
+          {
+            style: {
+              padding: "10px 8px",
+              borderBottom: "1px solid #e8e8e8",
+              background: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: sidebarCollapsed ? "center" : "space-between",
+              flexShrink: 0,
+              gap: 6,
+              minHeight: 48,
             },
-            React.createElement(
-              Button,
-              {
-                type: "primary",
-                size: "small",
-                style: {
-                  borderRadius: 4,
-                  height: 24,
-                  padding: "0 8px",
-                  fontSize: 12,
-                },
+          },
+          !sidebarCollapsed && React.createElement(
+            Title,
+            {
+              level: 5,
+              style: {
+                margin: 0,
+                fontFamily: FONT,
+                fontSize: 13,
+                color: "#8c8c8c",
+                letterSpacing: 1,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
               },
-              iconLabel(PlusIcon, "Mới"),
-            ),
+            },
+            "DANH MỤC",
           ),
           React.createElement(
-            "button",
-            {
-              onClick: () => setSidebarCollapsed((v) => !v),
-              title: sidebarCollapsed ? "Mở rộng danh mục" : "Thu gọn danh mục",
-              style: {
-                background: "none",
-                border: "1px solid #e8e8e8",
-                cursor: "pointer",
-                padding: 0,
-                color: "#595959",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 4,
-                width: 24,
-                height: 24,
-                flexShrink: 0,
-                lineHeight: 1,
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 } },
+            !sidebarCollapsed && React.createElement(
+              Dropdown,
+              {
+                overlay: React.createElement(Menu, null, [
+                  React.createElement(
+                    Menu.Item,
+                    {
+                      key: "folder",
+                      onClick: () => {
+                        setEditFolderData(null);
+                        setFolderModalOpen(true);
+                      },
+                      icon: FolderPlusIcon,
+                    },
+                    "Thư mục mới",
+                  ),
+                  React.createElement(
+                    Menu.Item,
+                    {
+                      key: "file",
+                      onClick: () => setUploadOpen(true),
+                      icon: UploadIcon,
+                    },
+                    "Tải tệp lên",
+                  ),
+                ]),
+                trigger: ["click"],
               },
-              onMouseEnter: (e) => { e.currentTarget.style.background = "#f0f0f0"; },
-              onMouseLeave: (e) => { e.currentTarget.style.background = "none"; },
-            },
-            sidebarCollapsed ? ChevronRightIcon : ChevronLeftIcon,
-          ),
-        ),
-      ),
-      !sidebarCollapsed && React.createElement(
-        "div",
-        {
-          style: {
-            flex: 1,
-            minHeight: 0,
-            overflow: "auto",
-            padding: "12px 8px",
-          },
-          onDragOver: (e) => {
-            const threshold = 60;
-            const container = e.currentTarget;
-            const rect = container.getBoundingClientRect();
-            const y = e.clientY - rect.top;
-
-            if (y < threshold) {
-              const speed = Math.max(5, (threshold - y) / 2);
-              container.scrollTop -= speed;
-            } else if (y > rect.height - threshold) {
-              const speed = Math.max(5, (y - (rect.height - threshold)) / 2);
-              container.scrollTop += speed;
-            }
-          },
-        },
-        loading && folders.length === 0
-          ? React.createElement(Spin, {
-            style: { display: "block", margin: "20px auto" },
-          })
-          : React.createElement(DirectoryTree, {
-            showIcon: true,
-            draggable: true,
-            onDrop: handleTreeDrop,
-            icon: (nodeProps) => {
-              return React.createElement(
-                "span",
+              React.createElement(
+                Button,
                 {
+                  type: "primary",
+                  size: "small",
                   style: {
-                    fontSize: 16,
-                    lineHeight: 1,
-                    display: "inline-block",
-                    color: "#8c6d1f",
+                    borderRadius: 4,
+                    height: 24,
+                    padding: "0 8px",
+                    fontSize: 12,
                   },
                 },
-                nodeProps.expanded ? FolderOpenIcon : FolderIcon,
-              );
+                iconLabel(PlusIcon, "Mới"),
+              ),
+            ),
+            React.createElement(
+              "button",
+              {
+                onClick: () => setSidebarCollapsed((v) => !v),
+                title: sidebarCollapsed ? "Mở rộng danh mục" : "Thu gọn danh mục",
+                style: {
+                  background: "none",
+                  border: "1px solid #e8e8e8",
+                  cursor: "pointer",
+                  padding: 0,
+                  color: "#595959",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 4,
+                  width: 24,
+                  height: 24,
+                  flexShrink: 0,
+                  lineHeight: 1,
+                },
+                onMouseEnter: (e) => { e.currentTarget.style.background = "#f0f0f0"; },
+                onMouseLeave: (e) => { e.currentTarget.style.background = "none"; },
+              },
+              sidebarCollapsed ? ChevronRightIcon : ChevronLeftIcon,
+            ),
+          ),
+        ),
+        !sidebarCollapsed && React.createElement(
+          "div",
+          {
+            style: {
+              flex: 1,
+              minHeight: 0,
+              overflow: "auto",
+              padding: "12px 8px",
+              display: "flex",
+              flexDirection: "column",
             },
-            multiple: false,
-            expandedKeys: expandedFolderKeys,
-            autoExpandParent: false,
-            onExpand: (keys) => setExpandedFolderKeys(keys.map(String)),
-            treeData: treeData,
-            selectedKeys: [selectedFolderId],
-            onSelect: (keys) => {
-              if (keys.length > 0) {
-                if (isFiltering) {
-                  setSearchText("");
-                  setFilterUploader(null);
-                  setFilterDateRange(null);
-                }
-                setSelectedFolderId(keys[0]);
+            onDragOver: (e) => {
+              const threshold = 60;
+              const container = e.currentTarget;
+              const rect = container.getBoundingClientRect();
+              const y = e.clientY - rect.top;
+
+              if (y < threshold) {
+                const speed = Math.max(5, (threshold - y) / 2);
+                container.scrollTop -= speed;
+              } else if (y > rect.height - threshold) {
+                const speed = Math.max(5, (y - (rect.height - threshold)) / 2);
+                container.scrollTop += speed;
               }
             },
-            style: {
-              background: "transparent",
-              fontFamily: FONT,
-              minWidth: "max-content",
-            },
-          }),
+          },
+          [
+            // Entity Selector Dropdown
+            !["global", "project_internal", "legal_reference"].includes(activeTabMode) &&
+            React.createElement(
+              "div",
+              { style: { marginBottom: 12, width: "100%", flexShrink: 0 } },
+              React.createElement(
+                Select,
+                {
+                  showSearch: true,
+                  loading: entitiesLoading,
+                  placeholder:
+                    activeTabMode === "cases"
+                      ? "Chọn vụ việc..."
+                      : activeTabMode === "customers"
+                        ? "Chọn khách hàng..."
+                        : activeTabMode === "tasks"
+                          ? "Chọn công việc..."
+                          : activeTabMode === "quotations"
+                            ? "Chọn báo giá..."
+                            : activeTabMode === "contracts"
+                              ? "Chọn hợp đồng..."
+                              : activeTabMode === "internal_templates"
+                                ? "Chọn công ty..."
+                                : "Chọn đối tượng...",
+                  optionFilterProp: "children",
+                  value: selectedRecordId,
+                  onChange: handleRecordChange,
+                  style: { width: "100%" },
+                },
+                entities.map((ent) => {
+                  const label =
+                    ent.projectName ||
+                    ent.caseCode ||
+                    ent.customerName ||
+                    ent.taskName ||
+                    ent.companyName ||
+                    ent.shortName ||
+                    ent.name ||
+                    ent.title ||
+                    `ID: ${ent.id}`;
+                  return React.createElement(
+                    Select.Option,
+                    { key: String(extractId(ent.id)), value: extractId(ent.id) },
+                    label,
+                  );
+                }),
+              ),
+            ),
+
+            // Folder Tree
+            !["global", "project_internal", "legal_reference"].includes(activeTabMode) && !selectedRecordId
+              ? React.createElement(
+                  Empty,
+                  {
+                    image: Empty.PRESENTED_IMAGE_SIMPLE,
+                    description:
+                      activeTabMode === "cases"
+                        ? "Vui lòng chọn vụ việc"
+                        : activeTabMode === "customers"
+                          ? "Vui lòng chọn khách hàng"
+                          : activeTabMode === "tasks"
+                            ? "Vui lòng chọn công việc"
+                            : activeTabMode === "quotations"
+                              ? "Vui lòng chọn báo giá"
+                              : activeTabMode === "contracts"
+                                ? "Vui lòng chọn hợp đồng"
+                                : activeTabMode === "internal_templates"
+                                  ? "Vui lòng chọn công ty"
+                                  : "Vui lòng chọn đối tượng",
+                    style: { marginTop: 40 },
+                  }
+                )
+              : (loading && folders.length === 0
+                  ? React.createElement(Spin, {
+                      style: { display: "block", margin: "20px auto" },
+                    })
+                  : React.createElement(DirectoryTree, {
+                      showIcon: true,
+                      draggable: true,
+                      onDrop: handleTreeDrop,
+                      icon: (nodeProps) => {
+                        return React.createElement(
+                          "span",
+                          {
+                            style: {
+                              fontSize: 16,
+                              lineHeight: 1,
+                              display: "inline-block",
+                              color: "#8c6d1f",
+                            },
+                          },
+                          nodeProps.expanded ? FolderOpenIcon : FolderIcon,
+                        );
+                      },
+                      multiple: false,
+                      expandedKeys: expandedFolderKeys,
+                      autoExpandParent: false,
+                      onExpand: (keys) => setExpandedFolderKeys(keys.map(String)),
+                      treeData: treeData,
+                      selectedKeys: [selectedFolderId],
+                      onSelect: (keys) => {
+                        if (keys.length > 0) {
+                          if (isFiltering) {
+                            setSearchText("");
+                            setFilterUploader(null);
+                            setFilterDateRange(null);
+                          }
+                          setSelectedFolderId(keys[0]);
+                        }
+                      },
+                      style: {
+                        background: "transparent",
+                        fontFamily: FONT,
+                        minWidth: "max-content",
+                      },
+                    })),
+          ].filter(Boolean),
+        ),
       ),
     ),
 
@@ -8575,6 +9445,7 @@ const DocumentDashboard = () => {
             Space,
             { style: { flexShrink: 0, flexWrap: "nowrap" } },
             selectedRowKeys.length > 0 &&
+            activeSpace === "company_shared" &&
             React.createElement(
               Space,
               null,
@@ -8615,6 +9486,7 @@ const DocumentDashboard = () => {
                 iconLabel(MoveIcon, `Di chuyển (${selectedRowKeys.length})`),
               ),
             ),
+            activeSpace === "company_shared" &&
             React.createElement(
               Dropdown,
               {
@@ -8634,115 +9506,201 @@ const DocumentDashboard = () => {
               onReload: refetch,
               loading: loading,
             }),
+            React.createElement(
+              Button,
+              {
+                type: activeSpace === "recent" ? "primary" : "default",
+                onClick: () => setActiveSpace(activeSpace === "recent" ? "company_shared" : "recent"),
+                style: {
+                  fontFamily: FONT,
+                  borderColor: activeSpace === "recent" ? "#185FA5" : undefined,
+                  backgroundColor: activeSpace === "recent" ? "#185FA5" : undefined,
+                  color: activeSpace === "recent" ? "#fff" : undefined,
+                },
+              },
+              iconLabel(HistoryIcon, "Lịch sử"),
+            ),
+            React.createElement(
+              Button,
+              {
+                type: activeSpace === "trash" ? "primary" : "default",
+                onClick: () => setActiveSpace(activeSpace === "trash" ? "company_shared" : "trash"),
+                style: {
+                  fontFamily: FONT,
+                  borderColor: activeSpace === "trash" ? "#ff4d4f" : undefined,
+                  backgroundColor: activeSpace === "trash" ? "#ff4d4f" : undefined,
+                  color: activeSpace === "trash" ? "#fff" : undefined,
+                },
+              },
+              iconLabel(DeleteIcon, "Thùng rác"),
+            ),
           ),
         ),
 
         // THANH CÔNG CỤ TÌM KIẾM & BỘ LỌC
-        React.createElement(
-          "div",
-          {
-            style: {
-              padding: "10px 24px",
-              background: "#fafafa",
-              borderBottom: "1px solid #f0f0f0",
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
-            },
-          },
-          React.createElement(
-            "div",
-            {
-              style: {
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-              },
-            },
-            React.createElement(Input, {
-              placeholder: "Tìm kiếm...",
-              prefix: SearchIcon,
-              allowClear: true,
-              value: searchText,
-              onChange: (e) => setSearchText(e.target.value),
-              style: { width: 250, borderRadius: 6, fontFamily: FONT },
-            }),
-            React.createElement(Select, {
-              placeholder: "Người upload",
-              allowClear: true,
-              value: filterUploader,
-              onChange: setFilterUploader,
-              options: uploaderOptions,
-              style: { width: 160, fontFamily: FONT },
-            }),
-            showInternalCompanyFilter &&
-            React.createElement(Select, {
-              placeholder: "Công ty nội bộ",
-              allowClear: !isCompanyLocked,
-              disabled: isCompanyLocked,
-              loading: loadingCompanies,
-              value: filterInternalCompanyId,
-              onChange: setFilterInternalCompanyId,
-              options: internalCompanyOptions,
-              showSearch: true,
-              optionFilterProp: "label",
-              style: { width: 180, fontFamily: FONT },
-            }),
-            React.createElement(DatePicker.RangePicker, {
-              allowClear: true,
-              value: filterDateRange,
-              onChange: setFilterDateRange,
-              format: "DD/MM/YYYY",
-              style: { width: 220, fontFamily: FONT },
-            }),
-            showInternalCompanyFilter &&
-            internalCompanyFileCounts.length > 0 &&
-            React.createElement(
+        activeSpace === "recent"
+          ? React.createElement(
               "div",
               {
                 style: {
+                  padding: "10px 24px",
+                  background: "#fafafa",
+                  borderBottom: "1px solid #f0f0f0",
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
+                  gap: 12,
                   alignItems: "center",
                 },
               },
-              internalCompanyFileCounts.map((item) =>
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                  },
+                },
+                React.createElement(Input, {
+                  placeholder: "Tìm kiếm hoạt động...",
+                  prefix: SearchIcon,
+                  allowClear: true,
+                  value: activitySearchQuery,
+                  onChange: (e) => setActivitySearchQuery(e.target.value),
+                  style: { width: 280, borderRadius: 6, fontFamily: FONT },
+                }),
+                React.createElement(Select, {
+                  placeholder: "Loại hoạt động",
+                  value: activityActionFilter,
+                  onChange: setActivityActionFilter,
+                  style: { width: 180, fontFamily: FONT },
+                  options: [
+                    { value: "all", label: "Tất cả hoạt động" },
+                    { value: "uploaded", label: "Tải lên" },
+                    { value: "created", label: "Tạo mới" },
+                    { value: "updated", label: "Cập nhật" },
+                    { value: "moved", label: "Di chuyển" },
+                    { value: "trash_deleted", label: "Xóa vào Thùng rác" },
+                    { value: "restored", label: "Khôi phục" },
+                    { value: "deleted", label: "Xóa vĩnh viễn" },
+                  ],
+                }),
+              ),
+              React.createElement(
+                Button,
+                {
+                  onClick: fetchActivityLogs,
+                  loading: activityLoading,
+                  style: { fontFamily: FONT },
+                },
+                "Làm mới",
+              ),
+            )
+          : React.createElement(
+              "div",
+              {
+                style: {
+                  padding: "10px 24px",
+                  background: "#fafafa",
+                  borderBottom: "1px solid #f0f0f0",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                },
+              },
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                  },
+                },
+                React.createElement(Input, {
+                  placeholder: "Tìm kiếm...",
+                  prefix: SearchIcon,
+                  allowClear: true,
+                  value: searchText,
+                  onChange: (e) => setSearchText(e.target.value),
+                  style: { width: 250, borderRadius: 6, fontFamily: FONT },
+                }),
+                React.createElement(Select, {
+                  placeholder: "Người upload",
+                  allowClear: true,
+                  value: filterUploader,
+                  onChange: setFilterUploader,
+                  options: uploaderOptions,
+                  style: { width: 160, fontFamily: FONT },
+                }),
+                showInternalCompanyFilter &&
+                React.createElement(Select, {
+                  placeholder: "Công ty nội bộ",
+                  allowClear: !isCompanyLocked,
+                  disabled: isCompanyLocked,
+                  loading: loadingCompanies,
+                  value: filterInternalCompanyId,
+                  onChange: setFilterInternalCompanyId,
+                  options: internalCompanyOptions,
+                  showSearch: true,
+                  optionFilterProp: "label",
+                  style: { width: 180, fontFamily: FONT },
+                }),
+                React.createElement(DatePicker.RangePicker, {
+                  allowClear: true,
+                  value: filterDateRange,
+                  onChange: setFilterDateRange,
+                  format: "DD/MM/YYYY",
+                  style: { width: 220, fontFamily: FONT },
+                }),
+                showInternalCompanyFilter &&
+                internalCompanyFileCounts.length > 0 &&
                 React.createElement(
-                  Button,
+                  "div",
                   {
-                    key: item.id,
-                    size: "small",
-                    type:
-                      filterInternalCompanyId === String(item.id)
-                        ? "primary"
-                        : "default",
-                    onClick: () =>
-                      setFilterInternalCompanyId(
-                        filterInternalCompanyId === String(item.id)
-                          ? null
-                          : String(item.id),
-                      ),
                     style: {
-                      fontFamily: FONT,
-                      borderRadius: 6,
-                      fontSize: 12,
-                      lineHeight: 1,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      alignItems: "center",
                     },
                   },
-                  `${item.name} (${item.count})`,
+                  internalCompanyFileCounts.map((item) =>
+                    React.createElement(
+                      Button,
+                      {
+                        key: item.id,
+                        size: "small",
+                        type:
+                          filterInternalCompanyId === String(item.id)
+                            ? "primary"
+                            : "default",
+                        onClick: () =>
+                          setFilterInternalCompanyId(
+                            filterInternalCompanyId === String(item.id)
+                              ? null
+                              : String(item.id),
+                          ),
+                        style: {
+                          fontFamily: FONT,
+                          borderRadius: 6,
+                          fontSize: 12,
+                          lineHeight: 1,
+                        },
+                      },
+                      `${item.name} (${item.count})`,
+                    ),
+                  ),
                 ),
               ),
+              isFiltering &&
+              React.createElement(
+                Text,
+                { type: "secondary", style: { fontSize: 12 } },
+                `Kết quả: ${tableData.length}`,
+              ),
             ),
-          ),
-          isFiltering &&
-          React.createElement(
-            Text,
-            { type: "secondary", style: { fontSize: 12 } },
-            `Kết quả: ${tableData.length}`,
-          ),
-        ),
 
         // Bảng Dữ liệu
         React.createElement(
@@ -8772,148 +9730,171 @@ const DocumentDashboard = () => {
               }
             },
           },
-          React.createElement(Table, {
-            rowKey: "_key",
-            rowSelection: {
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-              getCheckboxProps: (record) => {
-                const allowed = canManageRecord(record);
-                return {
-                  disabled: !allowed,
-                  title: allowed
-                    ? undefined
-                    : "Bạn không có quyền thao tác mục này",
-                };
-              },
-            },
-            dataSource: tableData,
-            columns,
-            loading,
-            size: "middle",
-            onRow: (record) => {
-              const isFolder = record._type === "folder";
-              return {
-                draggable: true,
-                onDragStart: (e) => {
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", record.id);
-                  e.dataTransfer.setData(
-                    "application/json",
-                    JSON.stringify({ type: record._type, id: record.id }),
-                  );
+          activeSpace === "recent"
+            ? React.createElement(Table, {
+                rowKey: "id",
+                dataSource: filteredActivityLogs,
+                columns: activityColumns,
+                loading: activityLoading,
+                size: "middle",
+                pagination: {
+                  current: activityPage,
+                  pageSize: 15,
+                  onChange: setActivityPage,
+                  showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} hoạt động`,
                 },
-                onDragEnter: (e) => {
-                  e.preventDefault();
+                style: { fontFamily: FONT },
+                locale: {
+                  emptyText: React.createElement(Empty, {
+                    description: "Không có lịch sử hoạt động",
+                    image: Empty.PRESENTED_IMAGE_SIMPLE,
+                  }),
                 },
-                onDragOver: (e) => {
-                  e.preventDefault();
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const y = e.clientY - rect.top;
+                rowClassName: (_, index) =>
+                  index % 2 === 0 ? "" : "table-row-alt",
+              })
+            : React.createElement(Table, {
+                rowKey: "_key",
+                rowSelection: {
+                  selectedRowKeys,
+                  onChange: setSelectedRowKeys,
+                  getCheckboxProps: (record) => {
+                    const allowed = canManageRecord(record);
+                    return {
+                      disabled: !allowed,
+                      title: allowed
+                        ? undefined
+                        : "Bạn không có quyền thao tác mục này",
+                    };
+                  },
+                },
+                dataSource: tableData,
+                columns,
+                loading,
+                size: "middle",
+                onRow: (record) => {
+                  const isFolder = record._type === "folder";
+                  return {
+                    draggable: true,
+                    onDragStart: (e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", record.id);
+                      e.dataTransfer.setData(
+                        "application/json",
+                        JSON.stringify({ type: record._type, id: record.id }),
+                      );
+                    },
+                    onDragEnter: (e) => {
+                      e.preventDefault();
+                    },
+                    onDragOver: (e) => {
+                      e.preventDefault();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
 
-                  e.currentTarget.style.background = "";
-                  e.currentTarget.style.borderTop = "";
-                  e.currentTarget.style.borderBottom = "";
-                  e.currentTarget.style.outline = "";
-                  e.currentTarget.style.outlineOffset = "";
+                      e.currentTarget.style.background = "";
+                      e.currentTarget.style.borderTop = "";
+                      e.currentTarget.style.borderBottom = "";
+                      e.currentTarget.style.outline = "";
+                      e.currentTarget.style.outlineOffset = "";
 
-                  if (y < rect.height * 0.25) {
-                    e.currentTarget.style.borderTop = "3px solid #1890ff";
-                    e.currentTarget.style.background =
-                      "rgba(24, 144, 255, 0.08)";
-                  } else if (y > rect.height * 0.75) {
-                    e.currentTarget.style.borderBottom = "3px solid #1890ff";
-                    e.currentTarget.style.background =
-                      "rgba(24, 144, 255, 0.08)";
-                  } else {
-                    if (isFolder) {
-                      e.currentTarget.style.outline = "2px dashed #52c41a";
-                      e.currentTarget.style.outlineOffset = "-2px";
-                      e.currentTarget.style.background = "#f6ffed";
-                    } else {
-                      if (y < rect.height / 2) {
+                      if (y < rect.height * 0.25) {
                         e.currentTarget.style.borderTop = "3px solid #1890ff";
                         e.currentTarget.style.background =
                           "rgba(24, 144, 255, 0.08)";
-                      } else {
-                        e.currentTarget.style.borderBottom =
-                          "3px solid #1890ff";
+                      } else if (y > rect.height * 0.75) {
+                        e.currentTarget.style.borderBottom = "3px solid #1890ff";
                         e.currentTarget.style.background =
                           "rgba(24, 144, 255, 0.08)";
+                      } else {
+                        if (isFolder) {
+                          e.currentTarget.style.outline = "2px dashed #52c41a";
+                          e.currentTarget.style.outlineOffset = "-2px";
+                          e.currentTarget.style.background = "#f6ffed";
+                        } else {
+                          if (y < rect.height / 2) {
+                            e.currentTarget.style.borderTop = "3px solid #1890ff";
+                            e.currentTarget.style.background =
+                              "rgba(24, 144, 255, 0.08)";
+                          } else {
+                            e.currentTarget.style.borderBottom =
+                              "3px solid #1890ff";
+                            e.currentTarget.style.background =
+                              "rgba(24, 144, 255, 0.08)";
+                          }
+                        }
                       }
-                    }
-                  }
+                    },
+                    onDragLeave: (e) => {
+                      e.currentTarget.style.background = "";
+                      e.currentTarget.style.borderTop = "";
+                      e.currentTarget.style.borderBottom = "";
+                      e.currentTarget.style.outline = "";
+                      e.currentTarget.style.outlineOffset = "";
+                    },
+                    onDrop: async (e) => {
+                      e.preventDefault();
+                      e.currentTarget.style.background = "";
+                      e.currentTarget.style.borderTop = "";
+                      e.currentTarget.style.borderBottom = "";
+                      e.currentTarget.style.outline = "";
+                      e.currentTarget.style.outlineOffset = "";
+
+                      const dt = e.dataTransfer.getData("application/json");
+                      if (!dt) return;
+                      let parsed;
+                      try {
+                        parsed = JSON.parse(dt);
+                      } catch (err) {
+                        return;
+                      }
+
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
+                      let position = "inside";
+
+                      if (y < rect.height * 0.25) {
+                        position = "top";
+                      } else if (y > rect.height * 0.75) {
+                        position = "bottom";
+                      } else if (!isFolder) {
+                        position = y < rect.height / 2 ? "top" : "bottom";
+                      }
+
+                      if (position === "inside" && isFolder) {
+                        if (parsed.type === "file") {
+                          handleMoveFile(parsed.id, record.id);
+                        }
+                        if (parsed.type === "folder" && parsed.id !== record.id) {
+                          handleMoveFolderToFolder(parsed.id, record.id);
+                        }
+                      } else if (position === "top" || position === "bottom") {
+                        message.warning("Khong the thay doi STT");
+                        return;
+                      }
+                    },
+                  };
                 },
-                onDragLeave: (e) => {
-                  e.currentTarget.style.background = "";
-                  e.currentTarget.style.borderTop = "";
-                  e.currentTarget.style.borderBottom = "";
-                  e.currentTarget.style.outline = "";
-                  e.currentTarget.style.outlineOffset = "";
+                pagination: {
+                  defaultPageSize: 20,
+                  showSizeChanger: true,
+                  pageSizeOptions: ["10", "20", "50", "100"],
+                  showTotal: (total, range) =>
+                    `${range[0]}-${range[1]} / ${total} mục`,
                 },
-                onDrop: async (e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.background = "";
-                  e.currentTarget.style.borderTop = "";
-                  e.currentTarget.style.borderBottom = "";
-                  e.currentTarget.style.outline = "";
-                  e.currentTarget.style.outlineOffset = "";
-
-                  const dt = e.dataTransfer.getData("application/json");
-                  if (!dt) return;
-                  let parsed;
-                  try {
-                    parsed = JSON.parse(dt);
-                  } catch (err) {
-                    return;
-                  }
-
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const y = e.clientY - rect.top;
-                  let position = "inside";
-
-                  if (y < rect.height * 0.25) {
-                    position = "top";
-                  } else if (y > rect.height * 0.75) {
-                    position = "bottom";
-                  } else if (!isFolder) {
-                    position = y < rect.height / 2 ? "top" : "bottom";
-                  }
-
-                  if (position === "inside" && isFolder) {
-                    if (parsed.type === "file") {
-                      handleMoveFile(parsed.id, record.id);
-                    }
-                    if (parsed.type === "folder" && parsed.id !== record.id) {
-                      handleMoveFolderToFolder(parsed.id, record.id);
-                    }
-                  } else if (position === "top" || position === "bottom") {
-                    message.warning("Khong the thay doi STT");
-                    return;
-                  }
+                scroll: { x: 2000 },
+                locale: {
+                  emptyText: React.createElement(Empty, {
+                    description: isFiltering
+                      ? "Không tìm thấy dữ liệu phù hợp"
+                      : "Thư mục trống",
+                    image: Empty.PRESENTED_IMAGE_SIMPLE,
+                  }),
                 },
-              };
-            },
-            pagination: {
-              defaultPageSize: 20,
-              showSizeChanger: true,
-              pageSizeOptions: ["10", "20", "50", "100"],
-              showTotal: (total, range) =>
-                `${range[0]}-${range[1]} / ${total} mục`,
-            },
-            scroll: { x: 2000 },
-            locale: {
-              emptyText: React.createElement(Empty, {
-                description: isFiltering
-                  ? "Không tìm thấy dữ liệu phù hợp"
-                  : "Thư mục trống",
-                image: Empty.PRESENTED_IMAGE_SIMPLE,
-              }),
-            },
-            style: { fontFamily: FONT },
-            rowClassName: (_, index) =>
-              index % 2 === 0 ? "" : "table-row-alt",
-          }),
+                style: { fontFamily: FONT },
+                rowClassName: (_, index) =>
+                  index % 2 === 0 ? "" : "table-row-alt",
+              })
         ), // close TableContainer
       ), // close Cột Giữa
     ), // close Main Container,
@@ -9286,4 +10267,4 @@ const buildTreeForSelect = (data, parentId = null) => {
     }));
 };
 
-ctx.render(React.createElement(DocumentDashboard));
+ctx.render(React.createElement(CaseDocument));
