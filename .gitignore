@@ -17,3 +17,6 @@ yarn-error.log*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Local/sensitive schema exports
+schema/

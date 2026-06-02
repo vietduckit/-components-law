@@ -252,6 +252,164 @@ const debugDashboard = (...args) => {
   if (DEBUG_DOCUMENT_DASHBOARD) console.log("[DEBUG][DocumentDashboard]", ...args);
 };
 
+const DOCUMENT_SAFE_FIELDS = [
+  "id",
+  "documentType",
+  "collectionName",
+  "googleDriveUrl",
+  "uploadedById",
+  "createdById",
+  "updatedById",
+  "createdAt",
+  "updatedAt",
+  "documentCode",
+  "title",
+  "openingDate",
+  "signedAt",
+  "effectiveAt",
+  "status",
+  "senderName",
+  "recipientName",
+  "language",
+  "docFormat",
+  "description",
+  "note",
+  "folderId",
+  "fileIndex",
+  "batchId",
+  "isDeleted",
+  "deletedAt",
+  "moduleScope",
+  "sourceProjectId",
+  "sourceTaskId",
+  "sourceCollectionName",
+  "sourceRecordId",
+  "movedToLegalReferenceAt",
+  "movedToLegalReferenceById",
+  "internalCompanyId",
+  "legalReferenceId",
+  "internalTemplateId",
+  "storageType",
+  "customerId",
+  "caseId",
+  "contractId",
+  "quotationId",
+  "taskId",
+  "subTaskId",
+];
+
+const sanitizeDocumentFields = (fields) => {
+  const source = Array.isArray(fields)
+    ? fields
+    : typeof fields === "string"
+      ? fields.split(",")
+      : DOCUMENT_SAFE_FIELDS;
+  return source
+    .map((field) => String(field || "").trim())
+    .filter((field) => field && field !== "recordId");
+};
+
+const withDocumentSafeFields = (params = {}) => ({
+  ...params,
+  fields: sanitizeDocumentFields(params?.fields),
+});
+
+const stripDocumentLegacyPayload = (payload = {}) => {
+  const { recordId, projectId, ...safePayload } = payload || {};
+  return safePayload;
+};
+
+const requestDocumentApi = async ({ params, data, ...options }) =>
+  ctx.api.request({
+    ...options,
+    params: withDocumentSafeFields(params),
+    data: stripDocumentLegacyPayload(data),
+  });
+
+const getDocumentDirectLinkPayload = (context) => {
+  const safeContextId = extractId(context?.recordId);
+  if (!safeContextId || context?.mode === "global") return {};
+
+  if (context?.mode === "cases") {
+    const caseId = extractId(context.projectId) || safeContextId;
+    return {
+      collectionName: "Project",
+      caseId,
+      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
+    };
+  }
+
+  if (context?.mode === "customers") {
+    return {
+      collectionName: "Customer",
+      customerId: safeContextId,
+    };
+  }
+
+  if (context?.mode === "tasks") {
+    return {
+      collectionName: "Task",
+      taskId: safeContextId,
+      ...(context.projectId ? { caseId: extractId(context.projectId) } : {}),
+      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
+    };
+  }
+
+  if (context?.mode === "quotations") {
+    return {
+      collectionName: "Quotation",
+      quotationId: safeContextId,
+      ...(context.projectId ? { caseId: extractId(context.projectId) } : {}),
+      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
+    };
+  }
+
+  if (context?.mode === "contracts") {
+    return {
+      collectionName: "Contract",
+      contractId: safeContextId,
+      ...(context.projectId ? { caseId: extractId(context.projectId) } : {}),
+      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
+    };
+  }
+
+  if (context?.mode === "legal_reference") {
+    return {
+      collectionName: "LegalReference",
+      legalReferenceId: safeContextId,
+      ...(context.internalCompanyId
+        ? { internalCompanyId: extractId(context.internalCompanyId) }
+        : {}),
+    };
+  }
+
+  if (context?.mode === "internal_templates") {
+    return {
+      collectionName: "InternalCompany",
+      internalCompanyId: safeContextId,
+    };
+  }
+
+  return context?.collection ? { collectionName: context.collection } : {};
+};
+
+const getDocumentDirectLinkFilter = (context, recordId = null) => {
+  const safeContextId = extractId(recordId) || extractId(context?.recordId);
+  if (!safeContextId || context?.mode === "global") return null;
+
+  if (context?.mode === "cases") {
+    const caseId = extractId(context.projectId) || safeContextId;
+    return { caseId: { $eq: caseId } };
+  }
+  if (context?.mode === "customers") return { customerId: { $eq: safeContextId } };
+  if (context?.mode === "tasks") return { taskId: { $eq: safeContextId } };
+  if (context?.mode === "quotations") return { quotationId: { $eq: safeContextId } };
+  if (context?.mode === "contracts") return { contractId: { $eq: safeContextId } };
+  if (context?.mode === "legal_reference") return { legalReferenceId: { $eq: safeContextId } };
+  if (context?.mode === "internal_templates") return { internalCompanyId: { $eq: safeContextId } };
+  return null;
+};
+
 const debugRecordSnapshot = (record) => {
   if (!record) return null;
   return {
@@ -821,13 +979,14 @@ const fetchAllList = async (url, params = {}, pageSize = 2000) => {
   const all = [];
   let page = 1;
   let total = null;
+  const safeParams = url === "documents:list" ? withDocumentSafeFields(params) : params;
   debugDashboard("fetchAllList:start", { url, params, pageSize });
 
   while (true) {
     const res = await ctx.api.request({
       url,
       params: {
-        ...params,
+        ...safeParams,
         page,
         pageSize,
       },
@@ -1187,81 +1346,7 @@ const copyRelationPayloadFromFolder = (payload, folder) => {
 };
 
 const getRecordLinkPayload = (context) => {
-  const safeContextId = extractId(context?.recordId);
-  if (!safeContextId || context?.mode === "global") return {};
-
-  if (context?.mode === "cases") {
-    return {
-      collectionName: "Project",
-      recordId: safeContextId,
-      projectId: extractId(context.projectId) || safeContextId,
-      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
-    };
-  }
-
-  if (context?.mode === "customers") {
-    return {
-      collectionName: "Customer",
-      recordId: safeContextId,
-      customerId: safeContextId,
-    };
-  }
-
-  if (context?.mode === "tasks") {
-    return {
-      collectionName: "Task",
-      recordId: safeContextId,
-      taskId: safeContextId,
-      ...(context.projectId ? { projectId: extractId(context.projectId) } : {}),
-      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
-    };
-  }
-
-  if (context?.mode === "quotations") {
-    return {
-      collectionName: "Quotation",
-      recordId: safeContextId,
-      quotationId: safeContextId,
-      ...(context.projectId ? { projectId: extractId(context.projectId) } : {}),
-      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
-    };
-  }
-
-  if (context?.mode === "contracts") {
-    return {
-      collectionName: "Contract",
-      recordId: safeContextId,
-      contractId: safeContextId,
-      ...(context.projectId ? { projectId: extractId(context.projectId) } : {}),
-      ...(context.customerId ? { customerId: extractId(context.customerId) } : {}),
-    };
-  }
-
-  if (context?.mode === "project_internal") {
-    return {
-      collectionName: "Project Internal",
-      recordId: safeContextId,
-      projectInternalId: safeContextId,
-      ...(context.internalCompanyId
-        ? { internalCompanyId: extractId(context.internalCompanyId) }
-        : {}),
-    };
-  }
-
-  if (context?.mode === "legal_reference") {
-    return {
-      collectionName: "LegalReference",
-      recordId: safeContextId,
-      legalReferenceId: safeContextId,
-      ...(context.internalCompanyId
-        ? { internalCompanyId: extractId(context.internalCompanyId) }
-        : {}),
-    };
-  }
-
-  return context?.collection
-    ? { collectionName: context.collection, recordId: safeContextId }
-    : {};
+  return getDocumentDirectLinkPayload(context);
 };
 
 const getActiveBusinessCompanyId = (context, selectedInternalCompanyId = null) => {
@@ -1350,19 +1435,14 @@ const DASHBOARD_BUSINESS = {
     getFolderType: () => "cases",
     buildFolderFilter: () => ({}),
     buildDocumentFilter: (context, { folderIds = [] } = {}) => {
-      const safeRecordId =
+      const safeCaseId =
         extractId(context?.recordId) || extractId(context?.projectId);
       const orConditions = [];
       if (folderIds.length > 0) {
         orConditions.push({ folderId: { $in: folderIds } });
       }
-      if (safeRecordId) {
-        orConditions.push({
-          $and: [
-            { collectionName: { $eq: "Project" } },
-            { recordId: { $eq: safeRecordId } },
-          ],
-        });
+      if (safeCaseId) {
+        orConditions.push({ caseId: { $eq: safeCaseId } });
       }
       return orConditions.length > 0 ? { $or: orConditions } : {};
     },
@@ -1418,12 +1498,6 @@ const DASHBOARD_BUSINESS = {
 
       const linkConditions = [
         { legalReferenceId: { $eq: legalReferenceId } },
-        {
-          $and: [
-            { collectionName: { $eq: "LegalReference" } },
-            { recordId: { $eq: legalReferenceId } },
-          ],
-        },
       ];
       if (folderIds.length > 0) {
         linkConditions.push({ folderId: { $in: folderIds } });
@@ -1579,13 +1653,13 @@ const getNextFileIndex = async (
   try {
     const res = await ctx.api.request({
       url: "documents:list",
-      params: {
+      params: withDocumentSafeFields({
         pageSize: 2000,
         filter: JSON.stringify(
           addScopeFilters(folderFilter, moduleScope, internalCompanyId),
         ),
         sort: ["-fileIndex", "-createdAt"],
-      },
+      }),
     });
     const sameFolderDocs = (res?.data?.data || []).filter(
       (doc) =>
@@ -1613,13 +1687,13 @@ const reindexFiles = async (
   try {
     const res = await ctx.api.request({
       url: "documents:list",
-      params: {
+      params: withDocumentSafeFields({
         pageSize: 2000,
         filter: JSON.stringify(
           addScopeFilters(folderFilter, moduleScope, internalCompanyId),
         ),
         sort: ["fileIndex", "createdAt"],
-      },
+      }),
     });
     const items = (res?.data?.data || []).filter(
       (doc) =>
@@ -4105,12 +4179,8 @@ function useDynamicDocumentManager(
       if (!business && folderIds.length > 0)
         orConditions.push({ folderId: { $in: folderIds } });
       if (!business && safeRecordId && context.mode !== "internal_templates") {
-        orConditions.push({
-          $and: [
-            { collectionName: { $eq: context.collection } },
-            { recordId: { $eq: safeRecordId } },
-          ],
-        });
+        const directLinkFilter = getDocumentDirectLinkFilter(context, safeRecordId);
+        if (directLinkFilter) orConditions.push(directLinkFilter);
       }
 
       const projectInternalTaskIds = [];
@@ -4147,29 +4217,13 @@ function useDynamicDocumentManager(
               if (subTaskId) projectInternalSubTaskIds.push(subTaskId);
             });
             projectInternalLinkedDocConditions.push({
-              $and: [
-                {
-                  $or: [
-                    { collectionName: { $eq: "Task" } },
-                    { collectionName: { $eq: "tasks" } },
-                  ],
-                },
-                { recordId: { $in: projectInternalTaskIds } },
-              ],
+              taskId: { $in: projectInternalTaskIds },
             });
           }
 
           if (projectInternalSubTaskIds.length > 0) {
             projectInternalLinkedDocConditions.push({
-              $and: [
-                {
-                  $or: [
-                    { collectionName: { $eq: "SubTask" } },
-                    { collectionName: { $eq: "subTasks" } },
-                  ],
-                },
-                { recordId: { $in: projectInternalSubTaskIds } },
-              ],
+              subTaskId: { $in: projectInternalSubTaskIds },
             });
           }
           orConditions.push(...projectInternalLinkedDocConditions);
@@ -4199,17 +4253,6 @@ function useDynamicDocumentManager(
         if (context.mode === "project_internal" && safeRecordId) {
           const projectInternalDocScopes = [
             scopeDocFilter,
-            {
-              $and: [
-                {
-                  $or: [
-                    { collectionName: { $eq: "Project Internal" } },
-                    { collectionName: { $eq: "projectInternal" } },
-                  ],
-                },
-                { recordId: { $eq: safeRecordId } },
-              ],
-            },
           ];
           if (folderIds.length > 0) {
             projectInternalDocScopes.push({ folderId: { $in: folderIds } });
@@ -5753,12 +5796,12 @@ const DocumentDashboard = () => {
       try {
         const res = await ctx.api.request({
           url: "documents:list",
-          params: {
+          params: withDocumentSafeFields({
             pageSize: 2000,
             filter: JSON.stringify(
               addScopeFilters({}, activeModuleScope, null),
             ),
-          },
+          }),
         });
         if (!cancelled) setCompanyCountDocs(res?.data?.data || []);
       } catch {
@@ -6397,7 +6440,7 @@ const DocumentDashboard = () => {
         try {
           const res = await ctx.api.request({
             url: "documents:list",
-            params: {
+            params: withDocumentSafeFields({
               pageSize: 2000,
               filter: JSON.stringify(
                 addScopeFilters(
@@ -6407,7 +6450,7 @@ const DocumentDashboard = () => {
                 ),
               ),
               sort: ["-fileIndex", "-createdAt"],
-            },
+            }),
           });
           const lastDoc = (res?.data?.data || []).find((doc) =>
             matchesModuleScope(

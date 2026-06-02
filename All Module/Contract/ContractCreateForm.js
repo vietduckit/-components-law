@@ -3440,7 +3440,7 @@ const ContractCreateForm = () => {
     packageVatRate: "8",
   });
 
-  const loadCaseServiceLines = async ({ projectId, preselectedProjectServiceId, knownProjectService, knownQuotationService, knownQuotation, knownProject, quotationId, knownQuotations = [] }) => {
+  const loadCaseServiceLines = async ({ projectId, preselectedProjectServiceId, preselectedProjectServiceIds, knownProjectService, knownQuotationService, knownQuotation, knownProject, quotationId, knownQuotations = [] }) => {
     if (!projectId && !preselectedProjectServiceId) {
       setServiceLines([]);
       setSelectedServiceIds([]);
@@ -3581,13 +3581,26 @@ const ContractCreateForm = () => {
       .filter(Boolean);
 
     const selectable = lines.filter((line) => !line.locked);
-    const preselectedId = preselectedProjectServiceId ? String(preselectedProjectServiceId) : "";
+    const rawPreselected = preselectedProjectServiceIds || preselectedProjectServiceId;
+    const preselectedIds = [];
+    if (rawPreselected) {
+      if (Array.isArray(rawPreselected)) {
+        preselectedIds.push(...rawPreselected.map(String));
+      } else {
+        const idStr = String(rawPreselected);
+        if (idStr.includes(",")) {
+          preselectedIds.push(...idStr.split(",").map((s) => s.trim()).filter(Boolean));
+        } else {
+          preselectedIds.push(idStr);
+        }
+      }
+    }
     const sourcePackageMode = isPackageSource(knownQuotation) || selectable.some(isPackageSource);
     const selectedIds =
       sourcePackageMode && selectable.length
         ? selectable.map((line) => String(line.projectServiceId))
-        : preselectedId && selectable.some((line) => String(line.projectServiceId) === preselectedId)
-          ? [preselectedId]
+        : preselectedIds.length && preselectedIds.some((id) => selectable.some((line) => String(line.projectServiceId) === id))
+          ? preselectedIds.filter((id) => selectable.some((line) => String(line.projectServiceId) === id))
           : selectable.map((line) => String(line.projectServiceId));
 
     setServiceLines(lines);
@@ -3990,6 +4003,7 @@ const ContractCreateForm = () => {
       const serviceLineResult = await loadCaseServiceLines({
         projectId: resolvedProjectId,
         preselectedProjectServiceId: currentProjectServiceId,
+        preselectedProjectServiceIds: popupParams.projectServiceIds || popupParams.projectServiceId,
         knownProjectService: popupProjectService,
         knownQuotationService: popupQuotationService,
         knownQuotation: popupQuotation,

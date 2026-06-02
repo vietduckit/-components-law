@@ -1,3 +1,114 @@
+CREATE OR REPLACE FUNCTION public.activity_jsonb_bigint(
+    p_doc jsonb,
+    p_key text
+)
+    RETURNS bigint
+    LANGUAGE 'sql'
+    IMMUTABLE
+AS $BODY$
+    SELECT CASE
+        WHEN COALESCE($1 ->> $2, '') ~ '^[0-9]+$'
+            THEN ($1 ->> $2)::BIGINT
+        ELSE NULL
+    END;
+$BODY$;
+
+ALTER FUNCTION public.activity_jsonb_bigint(jsonb, text) OWNER TO nocobase;
+
+CREATE OR REPLACE FUNCTION public.resolve_document_activity_parent(
+    p_doc jsonb
+)
+    RETURNS TABLE(collection_name text, record_id bigint)
+    LANGUAGE 'plpgsql'
+    STABLE
+AS $BODY$
+DECLARE
+    v_id BIGINT;
+    v_folder_id BIGINT;
+    v_folder RECORD;
+    v_collection_name TEXT;
+BEGIN
+    -- Direct relation fields on documents. Keep specific business records before broad customer links.
+    v_id := public.activity_jsonb_bigint(p_doc, 'legalReferenceId');
+    IF v_id IS NOT NULL THEN collection_name := 'LegalReference'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'internalTemplateId');
+    IF v_id IS NOT NULL THEN collection_name := 'InternalTemplate'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'subTaskId');
+    IF v_id IS NOT NULL THEN collection_name := 'SubTask'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'taskId');
+    IF v_id IS NOT NULL THEN collection_name := 'Task'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'quotationId');
+    IF v_id IS NOT NULL THEN collection_name := 'Quotation'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'contractId');
+    IF v_id IS NOT NULL THEN collection_name := 'Contract'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'caseId');
+    IF v_id IS NOT NULL THEN collection_name := 'Project'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'projectInternalId');
+    IF v_id IS NOT NULL THEN collection_name := 'Project Internal'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    v_id := public.activity_jsonb_bigint(p_doc, 'customerId');
+    IF v_id IS NOT NULL THEN collection_name := 'Customer'; record_id := v_id; RETURN NEXT; RETURN; END IF;
+
+    -- Folder fallback: a file in a folder should inherit the folder's business context.
+    v_folder_id := public.activity_jsonb_bigint(p_doc, 'folderId');
+    IF v_folder_id IS NOT NULL THEN
+        SELECT
+            f."legalReferenceId" AS legal_reference_id,
+            f."internalTemplateId" AS internal_template_id,
+            f."taskId" AS task_id,
+            f."projectId" AS project_id,
+            f."quotationId" AS quotation_id,
+            f."contractId" AS contract_id,
+            f."projectInternalId" AS project_internal_id,
+            f."customerId" AS customer_id
+        INTO v_folder
+        FROM folders f
+        WHERE f.id = v_folder_id;
+
+        IF FOUND THEN
+            IF v_folder.legal_reference_id IS NOT NULL THEN collection_name := 'LegalReference'; record_id := v_folder.legal_reference_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.internal_template_id IS NOT NULL THEN collection_name := 'InternalTemplate'; record_id := v_folder.internal_template_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.task_id IS NOT NULL THEN collection_name := 'Task'; record_id := v_folder.task_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.quotation_id IS NOT NULL THEN collection_name := 'Quotation'; record_id := v_folder.quotation_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.contract_id IS NOT NULL THEN collection_name := 'Contract'; record_id := v_folder.contract_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.project_id IS NOT NULL THEN collection_name := 'Project'; record_id := v_folder.project_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.project_internal_id IS NOT NULL THEN collection_name := 'Project Internal'; record_id := v_folder.project_internal_id; RETURN NEXT; RETURN; END IF;
+            IF v_folder.customer_id IS NOT NULL THEN collection_name := 'Customer'; record_id := v_folder.customer_id; RETURN NEXT; RETURN; END IF;
+        END IF;
+    END IF;
+
+    -- Legacy fallback for older records/databases that still carry collectionName + recordId.
+    v_id := public.activity_jsonb_bigint(p_doc, 'recordId');
+    v_collection_name := NULLIF(p_doc ->> 'collectionName', '');
+    IF v_collection_name IS NOT NULL AND v_id IS NOT NULL THEN
+        collection_name := CASE
+            WHEN v_collection_name IN ('tasks', 'Task') THEN 'Task'
+            WHEN v_collection_name IN ('subTasks', 'SubTask') THEN 'SubTask'
+            WHEN v_collection_name IN ('projects', 'Project', 'cases', 'Case') THEN 'Project'
+            WHEN v_collection_name IN ('customers', 'Customer') THEN 'Customer'
+            WHEN v_collection_name IN ('quotations', 'Quotation') THEN 'Quotation'
+            WHEN v_collection_name IN ('contracts', 'Contract') THEN 'Contract'
+            WHEN v_collection_name IN ('legalReference', 'LegalReference') THEN 'LegalReference'
+            WHEN v_collection_name IN ('internalTemplates', 'InternalTemplate') THEN 'InternalTemplate'
+            WHEN v_collection_name IN ('projectInternal', 'Project Internal') THEN 'Project Internal'
+            ELSE initcap(v_collection_name)
+        END;
+        record_id := v_id;
+        RETURN NEXT;
+        RETURN;
+    END IF;
+END;
+$BODY$;
+
+ALTER FUNCTION public.resolve_document_activity_parent(jsonb) OWNER TO nocobase;
+
 CREATE OR REPLACE FUNCTION public.log_activity_documents()
     RETURNS trigger
     LANGUAGE 'plpgsql'
@@ -62,14 +173,11 @@ BEGIN
         
         -- Mirroring record cha
         BEGIN
-            EXECUTE 'SELECT ($1)."collectionName"::TEXT, ($1)."recordId"::BIGINT' INTO v_collection_name, v_temp_id USING NEW;
+            SELECT p.collection_name, p.record_id
+            INTO v_collection_name, v_temp_id
+            FROM public.resolve_document_activity_parent(to_jsonb(NEW)) p
+            LIMIT 1;
             IF v_collection_name IS NOT NULL AND v_temp_id IS NOT NULL THEN
-                v_collection_name := CASE 
-                    WHEN v_collection_name = 'tasks'    THEN 'Task' 
-                    WHEN v_collection_name = 'subTasks' THEN 'SubTask' 
-                    WHEN v_collection_name = 'projects' THEN 'Project' 
-                    ELSE initcap(v_collection_name) 
-                END;
                 PERFORM public.log_activity(v_collection_name, v_temp_id, 'uploaded', 'documents', NULL, v_title, user_name, true, v_changed_at, v_batch_id, v_record_id);
             END IF;
         EXCEPTION WHEN others THEN NULL;
@@ -91,14 +199,11 @@ BEGIN
             
             -- Mirror soft delete
             BEGIN
-                EXECUTE 'SELECT ($1)."collectionName"::TEXT, ($1)."recordId"::BIGINT' INTO v_collection_name, v_temp_id USING NEW;
+                SELECT p.collection_name, p.record_id
+                INTO v_collection_name, v_temp_id
+                FROM public.resolve_document_activity_parent(to_jsonb(NEW)) p
+                LIMIT 1;
                 IF v_collection_name IS NOT NULL AND v_temp_id IS NOT NULL THEN
-                    v_collection_name := CASE 
-                        WHEN v_collection_name = 'tasks'    THEN 'Task' 
-                        WHEN v_collection_name = 'subTasks' THEN 'SubTask' 
-                        WHEN v_collection_name = 'projects' THEN 'Project' 
-                        ELSE initcap(v_collection_name) 
-                    END;
                     PERFORM public.log_activity(v_collection_name, v_temp_id, 'deleted', 'documents', v_title, NULL, user_name, true, v_changed_at, v_batch_id, v_record_id);
                 END IF;
             EXCEPTION WHEN others THEN NULL;
@@ -113,14 +218,11 @@ BEGIN
             
             -- Mirror restore
             BEGIN
-                EXECUTE 'SELECT ($1)."collectionName"::TEXT, ($1)."recordId"::BIGINT' INTO v_collection_name, v_temp_id USING NEW;
+                SELECT p.collection_name, p.record_id
+                INTO v_collection_name, v_temp_id
+                FROM public.resolve_document_activity_parent(to_jsonb(NEW)) p
+                LIMIT 1;
                 IF v_collection_name IS NOT NULL AND v_temp_id IS NOT NULL THEN
-                    v_collection_name := CASE 
-                        WHEN v_collection_name = 'tasks'    THEN 'Task' 
-                        WHEN v_collection_name = 'subTasks' THEN 'SubTask' 
-                        WHEN v_collection_name = 'projects' THEN 'Project' 
-                        ELSE initcap(v_collection_name) 
-                    END;
                     PERFORM public.log_activity(v_collection_name, v_temp_id, 'updated', 'documents', 'true', 'false', user_name, true, v_changed_at, v_batch_id, v_record_id);
                 END IF;
             EXCEPTION WHEN others THEN NULL;
@@ -137,14 +239,11 @@ BEGIN
 
             -- Mirror move
             BEGIN
-                EXECUTE 'SELECT ($1)."collectionName"::TEXT, ($1)."recordId"::BIGINT' INTO v_collection_name, v_temp_id USING NEW;
+                SELECT p.collection_name, p.record_id
+                INTO v_collection_name, v_temp_id
+                FROM public.resolve_document_activity_parent(to_jsonb(NEW)) p
+                LIMIT 1;
                 IF v_collection_name IS NOT NULL AND v_temp_id IS NOT NULL THEN
-                    v_collection_name := CASE 
-                        WHEN v_collection_name = 'tasks'    THEN 'Task' 
-                        WHEN v_collection_name = 'subTasks' THEN 'SubTask' 
-                        WHEN v_collection_name = 'projects' THEN 'Project' 
-                        ELSE initcap(v_collection_name) 
-                    END;
                     PERFORM public.log_activity(v_collection_name, v_temp_id, 'moved', 'documents', old_display, new_display, user_name, true, v_changed_at, v_batch_id, v_record_id);
                 END IF;
             EXCEPTION WHEN others THEN NULL;
