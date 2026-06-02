@@ -24,7 +24,7 @@ BEGIN
     END IF;
 
     -- Lấy thông tin project
-    SELECT "createdById", "updatedById"
+    SELECT "createdById", "updatedById", "customerId"
     INTO proj
     FROM projects
     WHERE id = NEW."projectId";
@@ -149,8 +149,11 @@ BEGIN
                         id,
                         title,
                         "documentType",
-                        "collectionName",
-                        "recordId",
+                        "taskId",
+                        "caseId",
+                        "customerId",
+                        "moduleScope",
+                        "storageType",
                         "createdById",
                         "updatedById",
                         "createdAt",
@@ -160,8 +163,11 @@ BEGIN
                         new_doc_id,
                         v_attachment.title,
                         'File mẫu',
-                        'Task',
                         new_task_id,
+                        NEW."projectId",
+                        proj."customerId",
+                        'case_document',
+                        'tasks',
                         proj."createdById",
                         proj."updatedById",
                         timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',

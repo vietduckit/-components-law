@@ -4134,6 +4134,21 @@ const QuotationCreateForm = () => {
       });
 
       const popupProjectServiceId = extractId(popupParams.projectServiceId);
+      const rawPsIds = popupParams.projectServiceId || popupParams.projectServiceIds;
+      const popupProjectServiceIds = [];
+      if (rawPsIds) {
+        if (Array.isArray(rawPsIds)) {
+          popupProjectServiceIds.push(...rawPsIds.map(id => parseInt(id, 10)).filter(Boolean));
+        } else {
+          const str = String(rawPsIds);
+          if (str.includes(",")) {
+            popupProjectServiceIds.push(...str.split(",").map(s => parseInt(s.trim(), 10)).filter(Boolean));
+          } else {
+            const parsed = parseInt(str, 10);
+            if (parsed) popupProjectServiceIds.push(parsed);
+          }
+        }
+      }
       const popupParentQuotationId =
         extractId(popupParams.parentQuotationId) ||
         extractId(popupParams.mainQuotationId) ||
@@ -4149,6 +4164,7 @@ const QuotationCreateForm = () => {
 
       let popupProject = null;
       let popupProjectService = null;
+      let popupProjectServices = [];
       let popupParentQuotation = null;
 
       if (popupProjectId) {
@@ -4160,7 +4176,24 @@ const QuotationCreateForm = () => {
           popupProject = await fetchRecord("projects:get", popupProjectId);
         }
       }
-      if (popupProjectServiceId) {
+      if (popupProjectServiceIds.length > 0) {
+        try {
+          const psRes = await ctx.api.request({
+            url: "projectServices:list",
+            params: {
+              filter: JSON.stringify({ id: { $in: popupProjectServiceIds } }),
+              appends: ["services"],
+              pageSize: 1000,
+            },
+          });
+          popupProjectServices = psRes?.data?.data || [];
+          if (popupProjectServices.length > 0) {
+            popupProjectService = popupProjectServices[0];
+          }
+        } catch (e) {
+          console.warn("[QuotationCreateForm] Could not fetch projectServices:", e);
+        }
+      } else if (popupProjectServiceId) {
         popupProjectService = await fetchRecord("projectServices:get", popupProjectServiceId, {
           appends: ["services"],
         });
@@ -4175,6 +4208,7 @@ const QuotationCreateForm = () => {
       if (
         popupProjectId ||
         popupProjectServiceId ||
+        popupProjectServiceIds.length > 0 ||
         popupParentQuotationId ||
         popupParams.customerId ||
         popupParams.internalCompanyId ||
@@ -4259,7 +4293,7 @@ const QuotationCreateForm = () => {
           ...p,
           projectId: popupProjectId ? String(popupProjectId) : p.projectId,
           parentId: popupParentQuotationId ? String(popupParentQuotationId) : p.parentId,
-          projectServiceId: popupProjectServiceId ? String(popupProjectServiceId) : p.projectServiceId,
+          projectServiceId: popupProjectServiceIds.length > 0 ? String(popupProjectServiceIds[0]) : (popupProjectServiceId ? String(popupProjectServiceId) : p.projectServiceId),
           quotationKind: popupQuotationKind,
           customerId: resolvedCustomerId ? String(resolvedCustomerId) : p.customerId,
           internalCompanyId: resolvedCompanyId ? String(resolvedCompanyId) : p.internalCompanyId,
@@ -4285,7 +4319,26 @@ const QuotationCreateForm = () => {
           popupProjectService?.name ||
           popupParams.serviceName ||
           "";
-        if (popupProjectServiceId && serviceName) {
+        if (popupProjectServices.length > 0) {
+          const preloadedRows = popupProjectServices.map((ps, idx) => {
+            const svcId = extractId(ps?.serviceId) || extractId(ps?.services);
+            const svcName = ps?.serviceName || ps?.services?.serviceName || ps?.name || "";
+            return {
+              _id: Date.now() + idx,
+              projectServiceId: extractId(ps.id),
+              serviceId: svcId || null,
+              serviceName: svcName,
+              description: ps?.description || ps?.services?.description || "",
+              quantity: 1,
+              basePrice: Number(ps?.basePrice) || 0,
+              vat: VAT_DEFAULT,
+              catalogService: ps?.services || null,
+              catalogServiceId: svcId || null,
+              catalogBasePrice: ps?.services?.basePrice ?? null,
+            };
+          });
+          setRows(preloadedRows);
+        } else if (popupProjectServiceId && serviceName) {
           setRows([{
             _id: Date.now(),
             projectServiceId: popupProjectServiceId,
@@ -4302,7 +4355,7 @@ const QuotationCreateForm = () => {
         }
       }
 
-      if (hasContextParty && !popupProjectId && !popupProjectServiceId) {
+      if (hasContextParty && !popupProjectId && !popupProjectServiceId && popupProjectServiceIds.length === 0) {
         if (contextLeadId) {
           debugQuotationContext("apply-lead", {
             contextLeadId,
@@ -4368,7 +4421,7 @@ const QuotationCreateForm = () => {
         preferredLeadId ||
         (match ? match[1] : ctx?.filterByTk || null);
 
-      if (urlId && !hasContextParty && !popupProjectId && !popupProjectServiceId) {
+      if (urlId && !hasContextParty && !popupProjectId && !popupProjectServiceId && popupProjectServiceIds.length === 0) {
         let foundCust =
           preferredCustomerId
             ? custs.find((c) => String(c.id) === String(preferredCustomerId))

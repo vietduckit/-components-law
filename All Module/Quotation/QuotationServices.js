@@ -97,6 +97,18 @@ const stripProjectServiceSyncFields = (data = {}) => {
   delete fallback.pricingMode;
   delete fallback.billingMode;
   delete fallback.financialSourceType;
+  delete fallback.contractId;
+  delete fallback.contracts;
+  delete fallback.contractServiceId;
+  delete fallback.contractServices;
+  delete fallback.quotationId;
+  delete fallback.quotations;
+  delete fallback.quotationServiceId;
+  delete fallback.quotationServices;
+  delete fallback.quantity;
+  delete fallback.subTotal;
+  delete fallback.vatAmount;
+  delete fallback.totalAmount;
   return fallback;
 };
 const requestProjectService = async ({ action, params, data }) => {
@@ -841,6 +853,8 @@ const QuotationServicesBlock = () => {
                   action: 'update',
                   params: { filterByTk: duplicatePS.id },
                   data: {
+                    serviceId: r.serviceId || null,
+                    serviceName: r._svcName || null,
                     serviceType: r._serviceType || null,
                     description: r._description || null,
                     pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
@@ -883,6 +897,8 @@ const QuotationServicesBlock = () => {
                 action: 'update',
                 params: { filterByTk: matchedPS.id },
                 data: {
+                  serviceId: r.serviceId || null,
+                  serviceName: r._svcName || null,
                   serviceType: r._serviceType || null,
                   description: r._description || null,
                   pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
@@ -976,7 +992,7 @@ const QuotationServicesBlock = () => {
               if (csQSvcId && String(csQSvcId) === String(qLine.id)) return true;
               const csProjectServiceId = extractId(cs.projectServiceId) || extractId(cs.projectServices);
               if (qLine.projectServiceId && csProjectServiceId && String(csProjectServiceId) === String(qLine.projectServiceId)) return true;
-              const csServiceId = extractId(cs.serviceId) || extractId(cs.services);
+              const csServiceId = extractId(cs.serviceId) || extractId(cs.ServiceId) || extractId(cs.services);
               if (qLine.serviceId && csServiceId && String(csServiceId) === String(qLine.serviceId)) return true;
               return normalizeLookupText(cs.serviceName) === normalizeLookupText(qLine.serviceName);
             });
@@ -989,6 +1005,7 @@ const QuotationServicesBlock = () => {
               projectServices: qLine.projectServiceId || extractId(matchedCS?.projectServices) || undefined,
               projectId: PROJECT_ID ? parseInt(PROJECT_ID) : extractId(matchedCS?.projectId),
               serviceId: qLine.serviceId || null,
+              ServiceId: qLine.serviceId || null,
               serviceName: qLine.serviceName || null,
               serviceType: qLine.serviceType || null,
               description: qLine.description || null,
@@ -1023,6 +1040,10 @@ const QuotationServicesBlock = () => {
                   financialSourceType: SOURCE_CONTRACT,
                   pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
                   billingMode: isPackageMode ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
+                  serviceId: qLine.serviceId || null,
+                  serviceName: qLine.serviceName || null,
+                  serviceType: qLine.serviceType || null,
+                  description: qLine.description || null,
                   ...buildServicePricingPayload({
                     pricingMode,
                     basePrice: qLine.basePrice,

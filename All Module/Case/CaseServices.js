@@ -16,8 +16,8 @@ const C = {
 const QUOTATION_POPUP_UID = "v44ehxkcghx";
 const CONTRACT_POPUP_UID = "41125dcba6c";
 const DETAIL_VIEW_ROUTES = {
-  contract: `${window.location.origin}/admin/q85oddwnh62/view/nrk0suipqs8/filterbytk/132`,
-  quotation: `${window.location.origin}/admin/rtjfpnq7aa6/view/mc4u7fov934/filterbytk/365244513058816`,
+  contract: `${window.location.origin}/admin/xosxz5frfxb/view/869cc2fcc6b/filterbytk/140`,
+  quotation: `${window.location.origin}/admin/rbb1k7y0c66/view/kt1n5ljd4rc/filterbytk/367584843202560`,
 };
 const QUOTE_LOCKED_STATUSES = ["sent", "order", "ordered", "won", "done", "cancelled", "approved", "accepted"];
 const CONTRACT_ACTIVE_STATUSES = ["execution", "active", "signed"];
@@ -333,11 +333,59 @@ const CaseServices = () => {
   const [addModal, setAddModal] = useState(false);
   const [compareModal, setCompareModal] = useState({ open: false, data: null });
   const [guideModal, setGuideModal] = useState(false);
+  const [serviceSelectModal, setServiceSelectModal] = useState({
+    open: false,
+    triggerRecord: null, // dịch vụ ban đầu bấm nút
+    selectedIds: [],     // id các projectServices được chọn
+    pendingContractId: null, // contractId mới detect sau khi popup đóng
+  });
+  const [serviceSelectSubmitting, setServiceSelectSubmitting] = useState(false);
   
   const [form] = Form.useForm();
   const extractId = (val) => {
     const id = val && typeof val === 'object' ? val.id : val;
     return id ? parseInt(id) : null;
+  };
+  const normalizeLookupText = (value) =>
+    String(value ?? "")
+      .normalize("NFC")
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  const stripProjectServiceSyncFields = (data = {}) => {
+    const fallback = { ...data };
+    delete fallback.contractId;
+    delete fallback.contracts;
+    delete fallback.contractServiceId;
+    delete fallback.contractServices;
+    delete fallback.quotationId;
+    delete fallback.quotations;
+    delete fallback.quotationServiceId;
+    delete fallback.quotationServices;
+    delete fallback.quantity;
+    delete fallback.subTotal;
+    delete fallback.vatAmount;
+    delete fallback.totalAmount;
+    return fallback;
+  };
+  const updateProjectServiceSafely = async (projectServiceId, data) => {
+    try {
+      return await ctx.api.request({
+        url: "projectServices:update",
+        method: "POST",
+        params: { filterByTk: parseInt(projectServiceId) },
+        data,
+      });
+    } catch (error) {
+      return ctx.api.request({
+        url: "projectServices:update",
+        method: "POST",
+        params: { filterByTk: parseInt(projectServiceId) },
+        data: stripProjectServiceSyncFields(data),
+      });
+    }
   };
 
   const compareFields = [
@@ -474,20 +522,42 @@ const CaseServices = () => {
 
   const getDetailRouteTemplate = (kind) => {
     const routeInput = getRouteInput();
-    const keyPrefix = kind === "contract" ? "contract" : "quotation";
-    return (
-      routeInput[`${keyPrefix}DetailUrl`] ||
-      routeInput[`${keyPrefix}DetailRoute`] ||
-      routeInput[`${keyPrefix}ViewUrl`] ||
-      routeInput[`${keyPrefix}ViewRoute`] ||
-      DETAIL_VIEW_ROUTES[kind] ||
-      ""
-    );
+    const prefix1 = kind === "contract" ? "contract" : "quotation";
+    const prefix2 = kind === "contract" ? "Contract" : "Quotation";
+
+    const suffixList = [
+      "DetailUrl", "DetailRoute", "ViewUrl", "ViewRoute",
+      "DetailView", "DetailUid", "ViewUid", "PopupUid", "Uid"
+    ];
+
+    for (const suffix of suffixList) {
+      if (routeInput[`${prefix1}${suffix}`]) return routeInput[`${prefix1}${suffix}`];
+      if (routeInput[`${prefix2}${suffix}`]) return routeInput[`${prefix2}${suffix}`];
+    }
+
+    // Check lowercase versions just in case
+    for (const suffix of suffixList) {
+      const lowerKey = `${prefix1}${suffix.toLowerCase()}`;
+      if (routeInput[lowerKey]) return routeInput[lowerKey];
+      const lowerKey2 = `${prefix2.toLowerCase()}${suffix.toLowerCase()}`;
+      if (routeInput[lowerKey2]) return routeInput[lowerKey2];
+    }
+
+    return DETAIL_VIEW_ROUTES[kind] || "";
   };
 
   const parseDetailRouteTemplate = (routeTemplate) => {
     const raw = String(routeTemplate || "").trim();
     if (!raw) return null;
+
+    // Check if it's a simple UID (no slashes)
+    if (!raw.includes("/")) {
+      return {
+        isSimpleUid: true,
+        viewUid: raw,
+        origin: window.location.origin,
+      };
+    }
 
     const normalized = /^https?:\/\//i.test(raw) || raw.startsWith("/")
       ? raw
@@ -534,10 +604,51 @@ const CaseServices = () => {
   };
 
   const buildDetailRoute = (kind, recordId) => {
-    const parsed = parseDetailRouteTemplate(getDetailRouteTemplate(kind));
+    const template = getDetailRouteTemplate(kind);
+    const parsed = parseDetailRouteTemplate(template);
     if (!parsed) return null;
 
     const safeRecordId = String(recordId);
+
+    if (parsed.isSimpleUid) {
+      const defaultTemplate = DETAIL_VIEW_ROUTES[kind] || "";
+      const defaultParsed = parseDetailRouteTemplate(defaultTemplate);
+      if (defaultParsed) {
+        defaultParsed.viewUid = parsed.viewUid;
+        const viewIndex = defaultParsed.segments.indexOf("view");
+        if (viewIndex >= 0 && viewIndex + 1 < defaultParsed.segments.length) {
+          defaultParsed.segments[viewIndex + 1] = parsed.viewUid;
+        }
+
+        const nextSegments = [...defaultParsed.segments];
+        if (defaultParsed.filterIndex >= 0) {
+          nextSegments[defaultParsed.filterIndex] = defaultParsed.filterSegment || "filterbytk";
+          if (nextSegments[defaultParsed.filterIndex + 1]) {
+            nextSegments[defaultParsed.filterIndex + 1] = safeRecordId;
+          } else {
+            nextSegments.splice(defaultParsed.filterIndex + 1, 0, safeRecordId);
+          }
+        } else {
+          nextSegments.push("filterbytk", safeRecordId);
+        }
+        const pathname = `/${nextSegments.join("/")}`;
+        return {
+          ...defaultParsed,
+          recordId: safeRecordId,
+          pathname,
+          url: `${defaultParsed.origin}${pathname}`,
+          uid: parsed.viewUid,
+        };
+      }
+
+      return {
+        recordId: safeRecordId,
+        pathname: "",
+        url: "",
+        uid: parsed.viewUid,
+      };
+    }
+
     const nextSegments = [...parsed.segments];
     if (parsed.filterIndex >= 0) {
       nextSegments[parsed.filterIndex] = parsed.filterSegment || "filterbytk";
@@ -580,42 +691,47 @@ const CaseServices = () => {
     }
 
     const detailRoute = buildDetailRoute(kind, safeRecordId);
-    if (!detailRoute?.uid) {
+    if (!detailRoute || (!detailRoute.uid && !detailRoute.url)) {
       message.warning(kind === "contract" ? "Chưa cấu hình view chi tiết hợp đồng." : "Chưa cấu hình view chi tiết báo giá.");
       return;
     }
 
     const collectionName = kind === "contract" ? "contracts" : "quotations";
     const popupTitle = ctx.t ? ctx.t(title) : title;
-    const openViewOptions = {
-      mode: "dialog",
-      title: popupTitle,
-      size: "large",
-      navigation: false,
-      filterByTk: safeRecordId,
-      sourceId: safeRecordId,
-      collectionName,
-      pathname: detailRoute.pathname,
-      linkedUrl: detailRoute.url,
-      params: {
+
+    // If we have a uid, try ctx.openView first
+    if (detailRoute.uid && typeof ctx.openView === "function") {
+      const openViewOptions = {
+        mode: "dialog",
+        title: popupTitle,
+        size: "large",
+        navigation: false,
         filterByTk: safeRecordId,
-        id: safeRecordId,
+        sourceId: safeRecordId,
         collectionName,
         pathname: detailRoute.pathname,
         linkedUrl: detailRoute.url,
-      },
-    };
-
-    try {
-      if (typeof ctx.openView === "function") {
+        params: {
+          filterByTk: safeRecordId,
+          id: safeRecordId,
+          collectionName,
+          pathname: detailRoute.pathname,
+          linkedUrl: detailRoute.url,
+        },
+      };
+      try {
         await ctx.openView(detailRoute.uid, openViewOptions);
         return;
+      } catch (error) {
+        console.error("[CaseServices] Could not open record detail via ctx.openView", error);
       }
+    }
 
+    // Fallback to window.open if no uid, or if ctx.openView failed / is not available
+    if (detailRoute.url) {
       window.open(detailRoute.url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      console.error("[CaseServices] Could not open record detail", error);
-      window.open(detailRoute.url, "_blank", "noopener,noreferrer");
+    } else {
+      message.warning(kind === "contract" ? "Chưa cấu hình view chi tiết hợp đồng." : "Chưa cấu hình view chi tiết báo giá.");
     }
   };
 
@@ -716,8 +832,9 @@ const CaseServices = () => {
   };
 
   // Sync total amounts for both Sub-Quotation and Sub-Contract
-  const syncQuoteAndContractTotals = async (quotationId, subTotalDiff, totalAmountDiff = subTotalDiff) => {
+  const syncQuoteAndContractTotals = async (quotationId, subTotalDiff, totalAmountDiff = subTotalDiff, options = {}) => {
     if (!quotationId || (subTotalDiff === 0 && totalAmountDiff === 0)) return;
+    const vatAmountDiff = options.vatAmountDiff ?? (totalAmountDiff - subTotalDiff);
     
     // 1. Sync Quotation
     const qRes = await ctx.api.request({
@@ -726,6 +843,7 @@ const CaseServices = () => {
     });
     const currentQ = qRes?.data?.data || qRes?.data || {};
     const newQSubTotal = Math.max(0, (Number(currentQ.subTotal) || 0) + subTotalDiff);
+    const newQVatAmount = Math.max(0, (Number(currentQ.vatAmount) || 0) + vatAmountDiff);
     const newQTotal = Math.max(0, (Number(currentQ.totalAmount) || 0) + totalAmountDiff);
     
     await ctx.api.request({
@@ -734,6 +852,7 @@ const CaseServices = () => {
       params: { filterByTk: quotationId },
       data: { 
         subTotal: newQSubTotal, 
+        vatAmount: newQVatAmount,
         totalAmount: newQTotal,
         customerId: extractId(currentQ.customerId),
         internalCompanyId: extractId(currentQ.internalCompanyId)
@@ -741,6 +860,7 @@ const CaseServices = () => {
     });
 
     // 2. Sync Contract
+    if (options.skipContract) return;
     try {
       const cRes = await ctx.api.request({
         url: "contracts:list",
@@ -752,7 +872,9 @@ const CaseServices = () => {
       const contract = cRes?.data?.data?.[0];
       if (contract) {
         const newCSubTotal = Math.max(0, (Number(contract.subTotal) || 0) + subTotalDiff);
+        const newCVatAmount = Math.max(0, (Number(contract.vatAmount) || 0) + vatAmountDiff);
         const newCTotal = Math.max(0, (Number(contract.totalAmount) || 0) + totalAmountDiff);
+        const isRetainer = String(contract.contractType || "").toLowerCase() === "retainer";
         
         await ctx.api.request({
           url: "contracts:update",
@@ -760,7 +882,9 @@ const CaseServices = () => {
           params: { filterByTk: contract.id },
           data: { 
             subTotal: newCSubTotal, 
+            vatAmount: newCVatAmount,
             totalAmount: newCTotal,
+            ...(!isRetainer ? { fixedAmount: newCTotal } : {}),
             customerId: extractId(contract.customerId) || extractId(currentQ.customerId),
             internalCompanyId: extractId(contract.internalCompanyId) || extractId(currentQ.internalCompanyId)
           }
@@ -768,6 +892,263 @@ const CaseServices = () => {
       }
     } catch (e) {
       console.error("Error syncing contract totals", e);
+    }
+  };
+
+  const getContractLineAmounts = (line = {}) => {
+    const isPackageLine =
+      isPackagePricing(line) ||
+      parseNum(line.packageSubTotal) ||
+      parseNum(line.packageTotalAmount);
+
+    if (isPackageLine) {
+      const subTotal = parseNum(line.packageSubTotal ?? line.subTotal);
+      const totalAmount = parseNum(line.packageTotalAmount ?? line.totalAmount);
+      const vatAmount =
+        parseNum(line.packageVatAmount ?? line.vatAmount) ||
+        (totalAmount && subTotal ? Math.max(totalAmount - subTotal, 0) : 0);
+      return {
+        subTotal,
+        vatAmount,
+        totalAmount: totalAmount || subTotal + vatAmount,
+        packageVatRate: parseNum(line.packageVatRate ?? line.vat),
+        isPackageLine,
+      };
+    }
+
+    const quantity = parseNum(line.quantity) || 1;
+    const subTotal = parseNum(line.subTotal ?? (parseNum(line.basePrice) * quantity));
+    const vatAmount = parseNum(line.vatAmount ?? Math.round((subTotal * parseNum(line.vat)) / 100));
+    return {
+      subTotal,
+      vatAmount,
+      totalAmount: parseNum(line.totalAmount ?? (subTotal + vatAmount)),
+      packageVatRate: 0,
+      isPackageLine,
+    };
+  };
+
+  const syncContractHeaderFromServices = async (contractId) => {
+    const safeContractId = extractId(contractId);
+    if (!safeContractId) return;
+
+    try {
+      const [contractRes, linesRes] = await Promise.all([
+        ctx.api.request({
+          url: "contracts:get",
+          params: { filterByTk: safeContractId },
+        }),
+        ctx.api.request({
+          url: "contractServices:list",
+          params: {
+            filter: JSON.stringify({ contractId: { $eq: safeContractId } }),
+            pageSize: 1000,
+          },
+        }),
+      ]);
+
+      const contract = contractRes?.data?.data || contractRes?.data || {};
+      const lines = linesRes?.data?.data || [];
+      const isRetainer = String(contract.contractType || "").toLowerCase() === "retainer";
+
+      let subTotal = 0;
+      let vatAmount = 0;
+      let totalAmount = 0;
+      let packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
+
+      if (isRetainer) {
+        subTotal = parseNum(contract.monthlyFee) * parseNum(contract.retainerDuration);
+        packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
+        vatAmount = (subTotal * packageVatRate) / 100;
+        totalAmount = subTotal + vatAmount;
+      } else {
+        const packageLine = lines.find((line) =>
+          isPackagePricing(line) ||
+          parseNum(line.packageSubTotal) ||
+          parseNum(line.packageTotalAmount)
+        );
+
+        if (isPackagePricing(contract) || packageLine) {
+          const packageAmounts = getContractLineAmounts(packageLine || contract);
+          subTotal = packageAmounts.subTotal;
+          vatAmount = packageAmounts.vatAmount;
+          totalAmount = packageAmounts.totalAmount;
+          packageVatRate = packageAmounts.packageVatRate || packageVatRate;
+        } else {
+          const totals = lines.reduce((sum, line) => {
+            const amount = getContractLineAmounts(line);
+            return {
+              subTotal: sum.subTotal + amount.subTotal,
+              vatAmount: sum.vatAmount + amount.vatAmount,
+              totalAmount: sum.totalAmount + amount.totalAmount,
+            };
+          }, { subTotal: 0, vatAmount: 0, totalAmount: 0 });
+          subTotal = totals.subTotal;
+          vatAmount = totals.vatAmount;
+          totalAmount = totals.totalAmount;
+        }
+      }
+
+      await ctx.api.request({
+        url: "contracts:update",
+        method: "POST",
+        params: { filterByTk: safeContractId },
+        data: {
+          subTotal,
+          vatAmount,
+          totalAmount,
+          ...(!isRetainer ? { fixedAmount: totalAmount } : {}),
+          ...(packageVatRate ? { packageVatRate } : {}),
+          ...(extractId(contract.customerId) ? { customerId: extractId(contract.customerId) } : {}),
+          ...(extractId(contract.internalCompanyId) ? { internalCompanyId: extractId(contract.internalCompanyId) } : {}),
+        },
+      });
+
+      if (currentId) {
+        try {
+          await ctx.api.request({
+            url: "projects:update",
+            method: "POST",
+            params: { filterByTk: parseInt(currentId) },
+            data: { totalAmount },
+          });
+        } catch (projectErr) {
+          console.warn("[CaseServices] Could not sync project totalAmount", projectErr);
+        }
+      }
+    } catch (e) {
+      console.error("[CaseServices] syncContractHeaderFromServices failed", e);
+    }
+  };
+
+  // ── Triple sync: đồng bộ projectService + quotationService + contractService cùng lúc ──
+  // Được gọi khi bất kỳ nguồn nào thay đổi basePrice/vat/description/serviceName/serviceType
+  const syncAllThree = async (record, field, newValue) => {
+    const numericFields = ["basePrice", "vat", "subTotal", "vatAmount", "totalAmount"];
+    const isNumeric = numericFields.includes(field);
+
+    // --- Tính toán tài chính nếu là field giá ---
+    let pricePayload = {};
+    let diffSubTotal = 0;
+    let diffVatAmount = 0;
+    let diffTotalAmount = 0;
+
+    if (field === "basePrice" || field === "vat") {
+      const quantity = Number(record.quantity ?? record._quotedQuantity ?? 1) || 1;
+      const newPrice = field === "basePrice" ? (Number(newValue) || 0) : (Number(record.basePrice) || 0);
+      const newVat   = field === "vat"        ? (Number(newValue) || 0) : (Number(record.vat)       || 0);
+      const oldPrice = Number(record._quotedBasePrice ?? record.basePrice) || 0;
+      const oldVat   = Number(record._quotedVat       ?? record.vat)       || 0;
+
+      const newSubTotal   = newPrice * quantity;
+      const newVatAmount  = Math.round((newSubTotal * newVat) / 100);
+      const newTotalAmount = newSubTotal + newVatAmount;
+
+      const oldSubTotal = Number(record._quotedSubTotal ?? record.subTotal ?? (oldPrice * quantity)) || 0;
+      const oldVatAmount = Number(record._quotedVatAmount ?? record.vatAmount ?? Math.round((oldPrice * quantity * oldVat) / 100)) || 0;
+      const oldTotalAmount = Number(record._quotedTotalAmount ?? record.totalAmount ?? (oldSubTotal + oldVatAmount)) || 0;
+
+      diffSubTotal   = newSubTotal   - oldSubTotal;
+      diffVatAmount = newVatAmount - oldVatAmount;
+      diffTotalAmount = newTotalAmount - oldTotalAmount;
+
+      pricePayload = { basePrice: newPrice, vat: newVat, subTotal: newSubTotal, vatAmount: newVatAmount, totalAmount: newTotalAmount };
+    } else {
+      pricePayload = { [field]: newValue };
+    }
+
+    // 1. Update projectServices
+    await updateProjectServiceSafely(record.id, pricePayload);
+
+    // 2. Update quotationServices (nếu có)
+    if (record._qServiceId) {
+      await ctx.api.request({
+        url: "quotationServices:update",
+        method: "POST",
+        params: { filterByTk: record._qServiceId },
+        data: pricePayload,
+      });
+    }
+
+    // 3. Update contractServices (nếu có)
+    const contractHeaderId = getRowContractId(record);
+    if (record._contractServiceId) {
+      await ctx.api.request({
+        url: "contractServices:update",
+        method: "POST",
+        params: { filterByTk: record._contractServiceId },
+        data: pricePayload,
+      });
+    }
+
+    // 4. Sync tổng tiền quotation + contract header (nếu là thay đổi giá)
+    if ((field === "basePrice" || field === "vat") && record._quotationId) {
+      await syncQuoteAndContractTotals(record._quotationId, diffSubTotal, diffTotalAmount, {
+        vatAmountDiff: diffVatAmount,
+        skipContract: !!contractHeaderId,
+      });
+    }
+
+    if ((field === "basePrice" || field === "vat") && contractHeaderId) {
+      await syncContractHeaderFromServices(contractHeaderId);
+    }
+  };
+
+  // ── Tạo mới contractService record cho 1 projectService ──
+  const createContractServiceRecord = async (psRecord, contractId, quotationServiceId) => {
+    try {
+      const basePrice  = Number(psRecord._quotedBasePrice ?? psRecord.basePrice) || 0;
+      const quantity   = Number(psRecord._quotedQuantity  ?? psRecord.quantity  ?? 1) || 1;
+      const vat        = Number(psRecord._quotedVat       ?? psRecord.vat       ?? 0) || 0;
+      const subTotal   = Number(psRecord._quotedSubTotal  ?? psRecord.subTotal  ?? basePrice * quantity) || 0;
+      const vatAmount  = Number(psRecord._quotedVatAmount ?? psRecord.vatAmount ?? Math.round((subTotal * vat) / 100)) || 0;
+      const totalAmount = Number(psRecord._quotedTotalAmount ?? psRecord.totalAmount ?? (subTotal + vatAmount)) || 0;
+
+      const payload = {
+        projectId:          parseInt(currentId),
+        contractId:         parseInt(contractId),
+        contracts:          parseInt(contractId),
+        projectServiceId:   parseInt(psRecord.id),
+        projectServices:    parseInt(psRecord.id),
+        quotationServiceId: quotationServiceId ? parseInt(quotationServiceId) : null,
+        quotationServices:  quotationServiceId ? parseInt(quotationServiceId) : undefined,
+        serviceId:          extractId(psRecord.serviceId) || extractId(psRecord.services) || null,
+        ServiceId:          extractId(psRecord.serviceId) || extractId(psRecord.services) || null,
+        serviceName:        psRecord._quotedServiceName  || psRecord.serviceName  || psRecord.services?.serviceName  || null,
+        serviceType:        psRecord._quotedServiceType  || psRecord.serviceType  || psRecord.services?.serviceType  || null,
+        description:        psRecord._quotedDescription  || psRecord.description  || null,
+        basePrice,
+        quantity,
+        vat,
+        subTotal,
+        vatAmount,
+        totalAmount,
+        pricingMode:         psRecord.pricingMode  || PRICING_MODE_LINE,
+        billingMode:         psRecord.billingMode  || BILLING_LINE,
+        financialSourceType: psRecord.financialSourceType || SOURCE_CONTRACT,
+        lineStatus:          "active",
+        packageSubTotal:     psRecord.packageSubTotal     ?? null,
+        packageVatRate:      psRecord.packageVatRate      ?? null,
+        packageVatAmount:    psRecord.packageVatAmount    ?? null,
+        packageTotalAmount:  psRecord.packageTotalAmount  ?? null,
+      };
+
+      const createdRes = await ctx.api.request({
+        url: "contractServices:create",
+        method: "POST",
+        data: payload,
+      });
+      const contractServiceId = extractId(createdRes?.data?.data?.id) || extractId(createdRes?.data?.id);
+
+      if (contractServiceId) {
+        await updateProjectServiceSafely(psRecord.id, {
+          contractId: parseInt(contractId),
+          contractServiceId,
+          financialSourceType: SOURCE_CONTRACT,
+        });
+      }
+    } catch (err) {
+      console.error("[CaseServices] createContractServiceRecord failed", err);
     }
   };
 
@@ -925,10 +1306,27 @@ const CaseServices = () => {
          const storedStatus = String(ps.status || "").toLowerCase().trim();
          let effectiveStatus = TERMINAL_SERVICE_STATUSES.includes(storedStatus) ? storedStatus : "pending_quote";
          let contractIdToSave = null;
-         const psContractId = extractId(ps.contractId) || extractId(ps.contract);
+         const psContractId = extractId(ps.contractId) || extractId(ps.contract) || extractId(ps.contracts);
+         const psContractServiceId = extractId(ps.contractServiceId) || extractId(ps.contractServices);
+         const psServiceId = extractId(ps.serviceId) || extractId(ps.services);
+         const psName = normalizeLookupText(ps.serviceName || ps.services?.serviceName || ps.name);
          const projectServiceContractLine = allContractServices.find(cs => {
            const linkedServiceId = extractId(cs.projectServiceId) || extractId(cs.projectServices);
-           return linkedServiceId && String(linkedServiceId) === String(ps.id);
+           if (linkedServiceId && String(linkedServiceId) === String(ps.id)) return true;
+           if (psContractServiceId && String(extractId(cs.id)) === String(psContractServiceId)) return true;
+
+           const csQSvcId = extractId(cs.quotationServiceId) || extractId(cs.quotationServices);
+           if (psQSvcId && csQSvcId && String(csQSvcId) === String(psQSvcId)) return true;
+
+           const csContractId = extractId(cs.contractId) || extractId(cs.contracts);
+           const sameContract = psContractId && csContractId && String(psContractId) === String(csContractId);
+           if (!sameContract) return false;
+
+           const csServiceId = extractId(cs.serviceId) || extractId(cs.ServiceId) || extractId(cs.services);
+           if (psServiceId && csServiceId && String(psServiceId) === String(csServiceId)) return true;
+
+           const csName = normalizeLookupText(cs.serviceName || cs.services?.serviceName || cs.name);
+           return !!psName && !!csName && psName === csName;
          });
          const contractLineContractId =
            extractId(projectServiceContractLine?.contractId) ||
@@ -1049,7 +1447,7 @@ const CaseServices = () => {
          enrichedServices.push({
            ...ps,
            status: effectiveStatus,
-           _contractId: contractIdToSave || extractId(ps.contractId) || null,
+           _contractId: contractIdToSave || contractLineContractId || psContractId || null,
            _contractServiceId: extractId(projectServiceContractLine?.id) || null,
            _contractService: projectServiceContractLine || null,
            pricingMode: explicitPricingMode || (rowIsPackage ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE),
@@ -1199,12 +1597,9 @@ const CaseServices = () => {
   const handleServiceChange = (svcId) => {
     const selected = serviceCatalog.find(s => String(s.id) === String(svcId));
     if (selected) {
-      const sName = selected.serviceName || selected.name || "";
-      const sType = selected.serviceType || selected.type || "";
-      
       form.setFieldsValue({
-        serviceName: sName,
-        serviceType: sType,
+        serviceName: selected.serviceName || selected.name || "",
+        serviceType: selected.serviceType || selected.type || "",
         description: selected.description || "",
         basePrice: selected.basePrice || 0,
         vat: selected.vat || 0,
@@ -1214,10 +1609,6 @@ const CaseServices = () => {
 
   const handleInlineEdit = async (record, field, newValue) => {
     try {
-      // if (record._isMainQuote) {
-      //   message.warning("Dịch vụ thuộc Báo giá gốc không thể chỉnh sửa.");
-      //   return;
-      // }
       if (record._qStatus && QUOTE_LOCKED_STATUSES.includes(record._qStatus)) {
         message.warning(`Không thể chỉnh sửa dịch vụ vì Báo giá bổ sung đang ở trạng thái: ${record._qStatus}`);
         return;
@@ -1235,88 +1626,15 @@ const CaseServices = () => {
         }
       }
 
-      if (field === "basePrice" || field === "vat") {
-        if (!isMoneyEditableServiceRow(record)) {
-          message.warning("Dá»‹ch vá»¥ nÃ y Ä‘Æ°á»£c tÃ­nh trong gÃ³i, khÃ´ng chá»‰nh Ä‘Æ°á»£c Ä‘Æ¡n giÃ¡ theo dÃ²ng.");
-          return;
-        }
-        const isVat = field === "vat";
-        const newPrice = isVat ? (Number(record.basePrice) || 0) : (Number(newValue) || 0);
-        const newVat = isVat ? (Number(newValue) || 0) : (Number(record.vat) || 0);
-        const oldPrice = Number(record.basePrice) || 0;
-        const oldVat = Number(record.vat) || 0;
-
-        if (!record._qServiceId || !record._quotationId) {
-          await ctx.api.request({
-            url: "projectServices:update",
-            method: "POST",
-            params: { filterByTk: record.id },
-            data: { [field]: Number(newValue) || 0 }
-          });
-          message.success("Service updated");
-          loadData();
-          return;
-        }
-
-        const subTotalDiff = newPrice - oldPrice;
-        
-        const newSubTotal = newPrice;
-        const newVatAmount = newSubTotal * newVat / 100;
-        const newTotalAmount = newSubTotal + newVatAmount;
-        
-        const oldSubTotal = Number(record._quotedSubTotal ?? record.basePrice) || 0;
-        const oldVatAmount = Number(record._quotedVatAmount ?? record.vatAmount) || (oldSubTotal * oldVat / 100);
-        const oldTotalAmount = oldSubTotal + oldVatAmount;
-        
-        const totalAmountDiff = newTotalAmount - oldTotalAmount;
-
-        // Update quotationService
-        await ctx.api.request({
-          url: "quotationServices:update",
-          method: "POST",
-          params: { filterByTk: record._qServiceId },
-          data: { basePrice: newPrice, vat: newVat, subTotal: newSubTotal, vatAmount: newVatAmount, totalAmount: newTotalAmount }
-        });
-        
-        // Update projectServices as well to keep in sync
-        await ctx.api.request({
-          url: "projectServices:update",
-          method: "POST",
-          params: { filterByTk: record.id },
-          data: { basePrice: newPrice, vat: newVat }
-        });
-
-        // Update both quotation and contract totals
-        await syncQuoteAndContractTotals(record._quotationId, subTotalDiff, totalAmountDiff);
-        
-        message.success("Updated successfully");
-        loadData();
+      if ((field === "basePrice" || field === "vat") && !isMoneyEditableServiceRow(record)) {
+        message.warning("Dịch vụ này được tính trong gói, không chỉnh được đơn giá theo dòng.");
         return;
       }
 
-      // Update projectServices directly
-      await ctx.api.request({
-        url: "projectServices:update",
-        method: "POST",
-        params: { filterByTk: record.id },
-        data: {
-          [field]: newValue
-        }
-      });
+      // Đồng bộ tất cả 3 nguồn cùng lúc
+      await syncAllThree(record, field, newValue);
 
-      // Update Quotation Service if applicable
-      if (record._qServiceId) {
-        await ctx.api.request({
-          url: "quotationServices:update",
-          method: "POST",
-          params: { filterByTk: record._qServiceId },
-          data: {
-            [field]: newValue
-          }
-        });
-      }
-      
-      message.success("Updated successfully");
+      message.success("Đã cập nhật và đồng bộ thành công");
       loadData();
     } catch (err) {
       console.error(err);
@@ -1572,7 +1890,20 @@ const CaseServices = () => {
         return;
       }
 
-      // 1. Find and delete quotationService if applicable
+      // 1. Xóa contractService trước (nếu có) để không còn reference đến projectService
+      if (record._contractServiceId) {
+        try {
+          await ctx.api.request({
+            url: "contractServices:destroy",
+            method: "POST",
+            params: { filterByTk: record._contractServiceId },
+          });
+        } catch (csErr) {
+          console.warn("[CaseServices] Could not delete contractService", csErr);
+        }
+      }
+
+      // 2. Xóa quotationService và đồng bộ tổng tiền
       if (record._qServiceId && record._quotationId) {
         const targetQsRes = await ctx.api.request({
           url: "quotationServices:get",
@@ -1589,25 +1920,214 @@ const CaseServices = () => {
             params: { filterByTk: record._qServiceId }
           });
 
-          // Update both quotation and contract totals
+          // Đồng bộ tổng tiền quotation + contract header
           await syncQuoteAndContractTotals(record._quotationId, -priceToSubtract);
         }
       }
 
-      // 2. Delete projectService
+      // 3. Xóa projectService
       await ctx.api.request({
         url: "projectServices:destroy",
         method: "POST",
         params: { filterByTk: record.id }
       });
 
-      message.success("Service deleted");
+      message.success("Đã xóa dịch vụ và đồng bộ hợp đồng/báo giá liên quan");
       loadData();
     } catch (err) {
       console.error(err);
       message.error("Error deleting service: " + (err.message || ""));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Mở modal chọn dịch vụ cho hợp đồng ──
+  const openContractWithServiceSelect = (record) => {
+    setServiceSelectModal({
+      open: true,
+      mode: "contract",
+      triggerRecord: record,
+      selectedIds: [record.id], // pre-select dịch vụ được bấm
+      pendingContractId: null,
+    });
+  };
+
+  // ── Mở modal chọn dịch vụ cho báo giá ──
+  const openQuotationWithServiceSelect = (record) => {
+    setServiceSelectModal({
+      open: true,
+      mode: "quotation",
+      triggerRecord: record,
+      selectedIds: [record.id], // pre-select dịch vụ được bấm
+      pendingContractId: null,
+    });
+  };
+
+  // ── Xử lý khi user nhấn "Tiếp tục" trong ServiceSelectModal (Báo giá) ──
+  const handleQuotationServiceSelectConfirm = async () => {
+    const { triggerRecord, selectedIds } = serviceSelectModal;
+    if (!selectedIds || selectedIds.length === 0) {
+      message.warning("Vui lòng chọn ít nhất 1 dịch vụ.");
+      return;
+    }
+    setServiceSelectSubmitting(true);
+    try {
+      const selectedRecords = services.filter(s => selectedIds.includes(s.id));
+
+      const aggregateSubTotal    = selectedRecords.reduce((sum, r) => sum + getRowSubTotal(r),    0);
+      const aggregateVatAmount   = selectedRecords.reduce((sum, r) => sum + getRowVatAmount(r),   0);
+      const aggregateTotalAmount = selectedRecords.reduce((sum, r) => sum + getRowTotalAmount(r), 0);
+
+      const baseParams = getQuotationPopupParams(triggerRecord);
+      const mergedParams = {
+        ...baseParams,
+        subTotal:    aggregateSubTotal,
+        vatAmount:   aggregateVatAmount,
+        totalAmount: aggregateTotalAmount,
+        projectServiceIds: selectedIds.join(","),
+        projectServiceId: selectedIds.join(","),
+        selectedServiceCount: selectedIds.length,
+      };
+
+      const popupTitle = caseInfo?.quotationId ? "Create Sub-Quotation" : "Create Quotation";
+
+      setServiceSelectModal(prev => ({ ...prev, open: false }));
+
+      await openManualPopup(QUOTATION_POPUP_UID, popupTitle, mergedParams);
+
+      await loadData();
+      message.success(`✅ Đã tạo báo giá và liên kết ${selectedRecords.length} dịch vụ`);
+    } catch (err) {
+      console.error(err);
+      message.error("Lỗi khi xử lý báo giá: " + (err.message || ""));
+    } finally {
+      setServiceSelectSubmitting(false);
+    }
+  };
+
+  // ── Xử lý khi user nhấn "Tiếp tục" trong ServiceSelectModal (Hợp đồng) ──
+  const handleContractServiceSelectConfirm = async () => {
+    const { triggerRecord, selectedIds } = serviceSelectModal;
+    if (!selectedIds || selectedIds.length === 0) {
+      message.warning("Vui lòng chọn ít nhất 1 dịch vụ.");
+      return;
+    }
+    setServiceSelectSubmitting(true);
+    try {
+      // Lấy các record tương ứng với selectedIds
+      const selectedRecords = services.filter(s => selectedIds.includes(s.id));
+
+      // Tổng hợp số tiền từ tất cả dịch vụ đã chọn
+      const aggregateSubTotal    = selectedRecords.reduce((sum, r) => sum + getRowSubTotal(r),    0);
+      const aggregateVatAmount   = selectedRecords.reduce((sum, r) => sum + getRowVatAmount(r),   0);
+      const aggregateTotalAmount = selectedRecords.reduce((sum, r) => sum + getRowTotalAmount(r), 0);
+
+      // Build params từ triggerRecord (chứa context case, customer, lawyer...)
+      // nhưng override totals bằng aggregate
+      const baseParams = getContractPopupParams(triggerRecord);
+      const mergedParams = {
+        ...baseParams,
+        subTotal:    aggregateSubTotal,
+        vatAmount:   aggregateVatAmount,
+        totalAmount: aggregateTotalAmount,
+        // Truyền thêm danh sách serviceIds để popup có thể hiển thị
+        selectedProjectServiceIds: selectedIds,
+        projectServiceIds: selectedIds.join(","),
+        projectServiceId: selectedIds.join(","),
+        selectedServiceCount: selectedIds.length,
+      };
+
+      const popupTitle = triggerRecord?._isMainQuote ? "Create Contract" : "Create Sub-Contract";
+
+      // Ghi nhớ caseInfo contractId trước khi mở popup để detect contractId mới sau
+      const contractIdBefore = extractId(caseInfo?.contractId);
+
+      // Đóng modal chọn dịch vụ trước
+      setServiceSelectModal(prev => ({ ...prev, open: false }));
+
+      // Mở NocoBase popup tạo hợp đồng
+      await openManualPopup(CONTRACT_POPUP_UID, popupTitle, mergedParams);
+
+      // Sau khi popup đóng: reload data để detect contractId mới
+      await loadData();
+
+      // Detect contractId mới (cần re-fetch vì loadData cập nhật state async)
+      try {
+        const freshCaseRes = await ctx.api.request({
+          url: "projects:get",
+          params: { filterByTk: currentId },
+        });
+        const freshCase = freshCaseRes?.data?.data || freshCaseRes?.data || {};
+        const contractIdAfter = extractId(freshCase.contractId);
+
+        if (contractIdAfter && contractIdAfter !== contractIdBefore) {
+          // Tạo contractService cho từng dịch vụ đã chọn
+          for (const ps of selectedRecords) {
+            // Kiểm tra xem contractService đã tồn tại chưa (tránh duplicate)
+            const existingCSRes = await ctx.api.request({
+              url: "contractServices:list",
+              params: {
+                filter: JSON.stringify({
+                  projectServiceId: { $eq: parseInt(ps.id) },
+                  contractId: { $eq: parseInt(contractIdAfter) },
+                }),
+                pageSize: 1,
+              },
+            });
+            const existingCS = existingCSRes?.data?.data?.[0];
+            if (!existingCS) {
+              await createContractServiceRecord(ps, contractIdAfter, ps._qServiceId || null);
+            }
+          }
+          message.success(`✅ Đã tạo hợp đồng và liên kết ${selectedRecords.length} dịch vụ`);
+        } else {
+          // contractId không đổi — có thể là phụ lục hoặc popup bị hủy
+          // Thử detect qua contractServices mới nhất
+          const recentCSRes = await ctx.api.request({
+            url: "contractServices:list",
+            params: {
+              filter: JSON.stringify({ projectId: { $eq: parseInt(currentId) } }),
+              sort: ["-createdAt"],
+              pageSize: selectedIds.length * 2,
+            },
+          });
+          const recentCS = recentCSRes?.data?.data || [];
+          // Tìm contract vừa tạo trong recentCS (chưa có trong services hiện tại)
+          const knownContractIds = new Set(services.map(s => s._contractId).filter(Boolean).map(String));
+          const newContractCandidate = recentCS.find(cs => {
+            const cid = String(extractId(cs.contractId) || extractId(cs.contracts) || "");
+            return cid && !knownContractIds.has(cid);
+          });
+          const newContractId = newContractCandidate
+            ? (extractId(newContractCandidate.contractId) || extractId(newContractCandidate.contracts))
+            : null;
+
+          if (newContractId) {
+            for (const ps of selectedRecords) {
+              const existingCS = recentCS.find(cs => {
+                const csPS = extractId(cs.projectServiceId) || extractId(cs.projectServices);
+                const csCT = extractId(cs.contractId) || extractId(cs.contracts);
+                return String(csPS) === String(ps.id) && String(csCT) === String(newContractId);
+              });
+              if (!existingCS) {
+                await createContractServiceRecord(ps, newContractId, ps._qServiceId || null);
+              }
+            }
+            message.success(`✅ Đã liên kết ${selectedRecords.length} dịch vụ vào hợp đồng/phụ lục`);
+          }
+        }
+      } catch (detectErr) {
+        console.warn("[CaseServices] Could not detect new contractId to create contractServices", detectErr);
+      }
+
+      // Reload lần cuối để phản ánh contractServices mới
+      loadData();
+    } catch (err) {
+      console.error(err);
+      message.error("Lỗi khi xử lý hợp đồng: " + (err.message || ""));
+    } finally {
+      setServiceSelectSubmitting(false);
     }
   };
 
@@ -2274,26 +2794,18 @@ const CaseServices = () => {
           }),
 
           svcStatus === "pending_quote" && React.createElement(ActionIconButton, {
-            title: "Tạo báo giá",
+            title: caseInfo?.quotationId ? "Tạo báo giá bổ sung (chọn dịch vụ)" : "Tạo báo giá (chọn dịch vụ)",
             icon: "quote",
-            onClick: () => openManualPopup(
-              QUOTATION_POPUP_UID,
-              caseInfo?.quotationId ? "Create Sub-Quotation" : "Create Quotation",
-              getQuotationPopupParams(record)
-            ),
+            onClick: () => openQuotationWithServiceSelect(record),
             primary: true,
             color: "#1677ff",
           }),
           
-          // Nút Tạo Contract — chỉ hiển thị khi status = "ordered"
+          // Nút Tạo Contract — mở modal chọn dịch vụ trước
           !contractDetailId && !["contracted", "contract_pending_signature", "active", "completed", "cancelled"].includes(svcStatus) && React.createElement(ActionIconButton, {
-            title: isMain ? "Tạo hợp đồng" : "Tạo phụ lục",
+            title: isMain ? "Tạo hợp đồng (chọn dịch vụ)" : "Tạo phụ lục (chọn dịch vụ)",
             icon: "contract",
-            onClick: () => openManualPopup(
-              CONTRACT_POPUP_UID,
-              record?._isMainQuote ? "Create Contract" : "Create Sub-Contract",
-              getContractPopupParams(record)
-            ),
+            onClick: () => openContractWithServiceSelect(record),
             primary: true,
             color: "#d46b08",
           }),
@@ -2708,6 +3220,173 @@ const CaseServices = () => {
         overflow: "hidden"
       }
     }),
+
+    // SERVICE SELECT MODAL — chọn dịch vụ trước khi tạo hợp đồng/phụ lục hoặc báo giá
+    React.createElement(Modal, {
+      title: React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+        React.createElement("span", { style: { fontSize: 16, fontWeight: 700, color: C.primary } },
+          serviceSelectModal.mode === "quotation"
+            ? (caseInfo?.quotationId ? "🗂 Chọn dịch vụ đưa vào Báo giá bổ sung" : "🗂 Chọn dịch vụ đưa vào Báo giá gốc")
+            : (serviceSelectModal.triggerRecord?._isMainQuote ? "🗂 Chọn dịch vụ đưa vào Hợp đồng" : "🗂 Chọn dịch vụ đưa vào Phụ lục")
+        ),
+        React.createElement(Tag, { color: "blue", style: { marginLeft: 4 } }, `${serviceSelectModal.selectedIds.length} đã chọn`)
+      ),
+      open: serviceSelectModal.open,
+      onCancel: () => setServiceSelectModal(prev => ({ ...prev, open: false })),
+      footer: React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
+        // Tổng tiền các dịch vụ đã chọn
+        React.createElement("div", { style: { fontSize: 13, color: C.textSub } },
+          (() => {
+            const sel = services.filter(s => serviceSelectModal.selectedIds.includes(s.id));
+            const totalSel = sel.reduce((sum, r) => sum + getRowTotalAmount(r), 0);
+            return sel.length ? `Tổng: ${totalSel.toLocaleString("vi-VN")} VND (${sel.length} dịch vụ)` : "Chưa chọn dịch vụ nào";
+          })()
+        ),
+        React.createElement("div", { style: { display: "flex", gap: 8 } },
+          React.createElement(Button, {
+            onClick: () => setServiceSelectModal(prev => ({ ...prev, open: false }))
+          }, "Hủy"),
+          React.createElement(Button, {
+            type: "primary",
+            loading: serviceSelectSubmitting,
+            disabled: serviceSelectModal.selectedIds.length === 0,
+            onClick: serviceSelectModal.mode === "quotation" ? handleQuotationServiceSelectConfirm : handleContractServiceSelectConfirm,
+            style: { background: C.primary }
+          }, "Tiếp tục →")
+        )
+      ),
+      width: 860,
+      bodyStyle: { paddingTop: 8, maxHeight: 540, overflowY: "auto" }
+    }, serviceSelectModal.open && React.createElement("div", null,
+      React.createElement("div", {
+        style: {
+          marginBottom: 12,
+          padding: "10px 14px",
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: 6,
+          fontSize: 13,
+          color: "#1e40af",
+          lineHeight: 1.55,
+        }
+      },
+        serviceSelectModal.mode === "quotation"
+          ? "Chọn một hoặc nhiều dịch vụ để đưa vào báo giá này. Hệ thống sẽ tự động tổng hợp số tiền và tạo liên kết sau khi lưu."
+          : "Chọn một hoặc nhiều dịch vụ để đưa vào hợp đồng/phụ lục này. Hệ thống sẽ tự động tổng hợp số tiền và tạo liên kết contractServices sau khi lưu."
+      ),
+      React.createElement(Table, {
+        dataSource: services,
+        rowKey: "id",
+        pagination: false,
+        size: "small",
+        bordered: true,
+        scroll: { y: 380 },
+        rowSelection: {
+          type: "checkbox",
+          selectedRowKeys: serviceSelectModal.selectedIds,
+          onChange: (selectedRowKeys) => {
+            setServiceSelectModal(prev => ({ ...prev, selectedIds: selectedRowKeys }));
+          },
+          getCheckboxProps: (record) => {
+            if (serviceSelectModal.mode === "quotation") {
+              return {
+                disabled: !!record._quotationId,
+                title: record._quotationId ? "Dịch vụ này đã có trong báo giá khác" : "",
+              };
+            } else {
+              return {
+                disabled: !!record._contractServiceId && record._contractId !== null,
+                title: record._contractServiceId ? "Dịch vụ này đã có trong hợp đồng khác" : "",
+              };
+            }
+          },
+        },
+        columns: [
+          {
+            title: "#",
+            key: "no",
+            width: 44,
+            align: "center",
+            render: (_, __, idx) => idx + 1,
+          },
+          {
+            title: "Loại",
+            dataIndex: "serviceType",
+            key: "serviceType",
+            width: 120,
+            render: (text) => React.createElement("span", { style: { color: C.textSub, fontSize: 12 } }, text || "—"),
+          },
+          {
+            title: "Tên dịch vụ",
+            dataIndex: "serviceName",
+            key: "serviceName",
+            render: (text, record) => {
+              const val = text || record.services?.serviceName || record.name || "—";
+              const hasCS = serviceSelectModal.mode === "quotation" ? !!record._quotationId : !!record._contractServiceId;
+              const warningText = serviceSelectModal.mode === "quotation" ? "⚠ Đã có trong báo giá" : "⚠ Đã có trong hợp đồng";
+              return React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 600, color: hasCS ? C.textSub : C.text } }, val),
+                hasCS && React.createElement("div", { style: { fontSize: 11, color: "#d97706", marginTop: 2 } },
+                  warningText
+                )
+              );
+            },
+          },
+          {
+            title: "Đơn giá",
+            key: "basePrice",
+            width: 130,
+            align: "right",
+            render: (_, record) => {
+              if (isPackageServiceRow(record)) return React.createElement("span", { style: { color: C.textSub, fontSize: 12 } }, "Gói");
+              if (isScopeOnlyServiceRow(record)) return React.createElement("span", { style: { color: C.textSub, fontSize: 12 } }, "Scope only");
+              return React.createElement("span", { style: { fontWeight: 500 } }, fmtVND(record._quotedBasePrice ?? record.basePrice ?? 0));
+            },
+          },
+          {
+            title: "VAT",
+            key: "vat",
+            width: 70,
+            align: "center",
+            render: (_, record) => React.createElement("span", null, isMoneyEditableServiceRow(record) ? `${record._quotedVat ?? record.vat ?? 0}%` : "—"),
+          },
+          {
+            title: "Thành tiền",
+            key: "totalAmount",
+            width: 140,
+            align: "right",
+            render: (_, record) => {
+              const total = getRowTotalAmount(record);
+              return React.createElement("span", {
+                style: { fontWeight: 700, color: total > 0 ? "#096dd9" : C.textSub }
+              }, total > 0 ? fmtVND(total) : "—");
+            },
+          },
+          {
+            title: "Trạng thái",
+            key: "status",
+            width: 130,
+            align: "center",
+            render: (_, record) => {
+              const cfg = COMMERCIAL_STATUS[record.status || "pending_quote"] || {};
+              return React.createElement("span", {
+                style: {
+                  display: "inline-block",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: 10,
+                  border: `1px solid ${cfg.border || C.border}`,
+                  background: cfg.bg || C.bgSection,
+                  color: cfg.color || C.textSub,
+                  whiteSpace: "nowrap",
+                }
+              }, cfg.label || record.status || "—");
+            },
+          },
+        ],
+      })
+    )),
 
     // GUIDE MODAL
     React.createElement(Modal, {

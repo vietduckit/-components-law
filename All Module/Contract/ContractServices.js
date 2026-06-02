@@ -105,6 +105,16 @@ const stripProjectServiceSyncFields = (data = {}) => {
   delete fallback.pricingMode;
   delete fallback.billingMode;
   delete fallback.financialSourceType;
+  delete fallback.contractId;
+  delete fallback.contracts;
+  delete fallback.contractServiceId;
+  delete fallback.contractServices;
+  delete fallback.quotationServiceId;
+  delete fallback.quotationServices;
+  delete fallback.quantity;
+  delete fallback.subTotal;
+  delete fallback.vatAmount;
+  delete fallback.totalAmount;
   return fallback;
 };
 
@@ -126,12 +136,74 @@ const requestProjectService = async ({ action, params, data }) => {
   }
 };
 
+const sameId = (a, b) => {
+  const left = extractId(a);
+  const right = extractId(b);
+  return !!left && !!right && String(left) === String(right);
+};
+
+const findUnique = (items, predicate) => {
+  const matches = items.filter(predicate);
+  return matches.length === 1 ? matches[0] : null;
+};
+
+const extractFirstId = (value) => {
+  if (Array.isArray(value)) return extractId(value[0]);
+  return extractId(value);
+};
+
+const buildProjectServiceSyncPayload = ({ row, serviceId, pricingPayload, pricingMode, status }) => ({
+  serviceId: serviceId || null,
+  serviceName: row._svcName || null,
+  serviceType: row._serviceType || null,
+  description: row._description || null,
+  pricingMode: isPackagePricing(pricingMode) ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
+  billingMode: isPackagePricing(pricingMode) ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
+  financialSourceType: SOURCE_CONTRACT,
+  basePrice: pricingPayload.basePrice ?? 0,
+  vat: pricingPayload.vat ?? 0,
+  packageSubTotal: pricingPayload.packageSubTotal ?? 0,
+  packageVatRate: pricingPayload.packageVatRate ?? 0,
+  packageVatAmount: pricingPayload.packageVatAmount ?? 0,
+  packageTotalAmount: pricingPayload.packageTotalAmount ?? 0,
+  status: contractStatusToProjectServiceStatus(status),
+});
+
+const resolveProjectServiceForContractLine = (row, projectServices, resolvedServiceId) => {
+  const rowProjectServiceId = extractId(row.projectServiceId) || extractId(row.projectServices);
+  const rowContractServiceId = extractId(row.id);
+  const rowQuotationServiceId = extractId(row.quotationServiceId) || extractId(row.quotationServices);
+  const rowServiceId = resolvedServiceId || extractId(row.serviceId) || extractId(row.ServiceId) || extractId(row.services);
+  const rowName = normalizeLookupText(row._svcName || row.serviceName || row.services?.serviceName);
+  const contractId = extractId(CONTRACT_ID);
+
+  const directMatch = projectServices.find(ps =>
+    sameId(ps.id, rowProjectServiceId) ||
+    sameId(ps.contractServiceId || ps.contractServices, rowContractServiceId) ||
+    sameId(ps.quotationServiceId || ps.quotationServices, rowQuotationServiceId)
+  );
+  if (directMatch) return directMatch;
+
+  const sameContract = (ps) => sameId(ps.contractId || ps.contracts, contractId);
+  const sameService = (ps) => rowServiceId && sameId(ps.serviceId || ps.services, rowServiceId);
+  const sameName = (ps) => {
+    if (!rowName) return false;
+    const psName = normalizeLookupText(ps.serviceName || ps.services?.serviceName || ps.name);
+    return !!psName && psName === rowName;
+  };
+
+  return projectServices.find(ps => sameContract(ps) && sameService(ps)) ||
+    projectServices.find(ps => sameContract(ps) && sameName(ps)) ||
+    findUnique(projectServices, ps => !sameId(ps.contractId || ps.contracts, contractId) && sameService(ps)) ||
+    findUnique(projectServices, ps => !sameId(ps.contractId || ps.contracts, contractId) && sameName(ps));
+};
+
 async function fetchContract() {
   if (!CONTRACT_ID) return ctx.record || {};
   try {
     const res = await ctx.api.request({
       url: 'contracts:get',
-      params: { filterByTk: CONTRACT_ID },
+      params: { filterByTk: CONTRACT_ID, appends: ['cases'] },
     });
     return res?.data?.data || res?.data || ctx.record || {};
   } catch {
@@ -143,7 +215,12 @@ async function fetchCSvcs() {
   try {
     const res = await ctx.api.request({
       url: 'contractServices:list',
-      params: { pageSize: 100, page: 1, filter: JSON.stringify({ contractId: { $eq: parseInt(CONTRACT_ID) } }) },
+      params: {
+        pageSize: 100,
+        page: 1,
+        filter: JSON.stringify({ contractId: { $eq: parseInt(CONTRACT_ID) } }),
+        appends: ['projectServices', 'quotationServices'],
+      },
     });
     return res?.data?.data || [];
   } catch { return []; }
@@ -367,18 +444,22 @@ const ContractServicesBlock = () => {
       ),
     );
     setSvcOpts(opts);
-    setRows(svcs.map(s => ({
-      ...s,
-      _basePrice: s.basePrice || 0,
-      _quantity: s.quantity || 1,
-      _vat: s.vat || 0,
-      _svcName: svcMap[s.serviceId]?.serviceName || s.serviceName || '',
-      _serviceType: s.serviceType || svcMap[s.serviceId]?.serviceType || s.serviceType || '',
-      _description: s.description || svcMap[s.serviceId]?.description || s.description || '',
-      _isNew: false,
-      _deleted: false,
-      _isCustom: !s.serviceId,
-    })));
+    setRows(svcs.map(s => {
+      const sid = extractId(s.serviceId) || extractId(s.ServiceId) || extractId(s.services);
+      return {
+        ...s,
+        serviceId: sid || s.serviceId,
+        _basePrice: s.basePrice || 0,
+        _quantity: s.quantity || 1,
+        _vat: s.vat || 0,
+        _svcName: svcMap[sid]?.serviceName || s.serviceName || '',
+        _serviceType: s.serviceType || svcMap[sid]?.serviceType || s.serviceType || '',
+        _description: s.description || svcMap[sid]?.description || s.description || '',
+        _isNew: false,
+        _deleted: false,
+        _isCustom: !sid,
+      };
+    }));
 
     // Fetch projectServices to know which services are already in CaseServices
     try {
@@ -750,10 +831,12 @@ const ContractServicesBlock = () => {
       let projectId = null;
       let existingPS = [];
       try {
-        const casesRel = contract?.cases || [];
-        if (casesRel.length > 0) {
-          projectId = typeof casesRel[0] === 'object' ? casesRel[0].id : casesRel[0];
-        }
+        projectId =
+          extractFirstId(contract?.cases) ||
+          extractId(contract?.caseId) ||
+          extractId(contract?.projectId) ||
+          extractId(contract?.projects) ||
+          extractFirstId(rows.map(row => extractId(row.projectId) || extractId(row.projects) || extractId(row.projectServices?.projectId)).filter(Boolean));
       } catch (e) { console.warn('[CS→PS] Không fetch được project:', e); }
 
       if (projectId) {
@@ -778,30 +861,37 @@ const ContractServicesBlock = () => {
         
         // Cố gắng tìm catalog service khớp theo tên để lưu serviceId nếu khớp
         const catalogMatch = getCatalogService(r);
-        const serviceId = catalogMatch ? catalogMatch.id : null;
+        const serviceId = extractId(r.serviceId) || extractId(r.ServiceId) || extractId(r.services) || (catalogMatch ? catalogMatch.id : null);
+
+        const rowProjectServiceId = extractId(r.projectServiceId) || extractId(r.projectServices);
+        const matchedPS = resolveProjectServiceForContractLine(r, existingPS, serviceId);
+        const linkedProjectServiceId = extractId(matchedPS?.id) || rowProjectServiceId || null;
+        const rowProjectId =
+          projectId ||
+          extractId(r.projectId) ||
+          extractId(r.projects) ||
+          extractId(r.projectServices?.projectId) ||
+          extractId(matchedPS?.projectId) ||
+          extractId(matchedPS?.projects);
+        const projectServicePayload = buildProjectServiceSyncPayload({
+          row: r,
+          serviceId,
+          pricingPayload,
+          pricingMode,
+          status: CONTRACT_STATUS || contract?.status,
+        });
 
         const payload = {
           contractId: parseInt(CONTRACT_ID),
           contracts: parseInt(CONTRACT_ID),
           serviceId: serviceId || null,
+          ServiceId: serviceId || null,
           serviceName: r._svcName || null,
           serviceType: r._serviceType || null,
           description: r._description || null,
           ...pricingPayload,
-          projectId: projectId || null,
+          ...(rowProjectId ? { projectId: rowProjectId } : {}),
         };
-
-        // Find corresponding projectService
-        const matchedPS = existingPS.find(ps => {
-          const psContractId = extractId(ps.contractId) || extractId(ps.contracts);
-          if (r.projectServiceId && String(ps.id) === String(r.projectServiceId)) return true;
-          if (psContractId && String(psContractId) === String(CONTRACT_ID)) {
-            const psName = ps.serviceName || '';
-            const rName = r._svcName || '';
-            return normalizeLookupText(psName) === normalizeLookupText(rName);
-          }
-          return false;
-        });
 
         if (r._deleted && !r._isNew) {
           await ctx.api.request({ url: 'contractServices:destroy', method: 'POST', params: { filterByTk: r.id } });
@@ -812,7 +902,7 @@ const ContractServicesBlock = () => {
             } catch (e) { message.warning('Không thể xoá projectService #' + matchedPS.id + ': ' + (e?.message || '')); }
           }
         } else if (!r._deleted && r._isNew) {
-          let projectServiceId = r.projectServiceId || null;
+          let projectServiceId = linkedProjectServiceId;
           
           // Cascade: create projectService if not exists
           if (projectId && (serviceId || r._svcName)) {
@@ -823,15 +913,7 @@ const ContractServicesBlock = () => {
                   action: 'update',
                   params: { filterByTk: matchedPS.id },
                   data: {
-                    serviceType: r._serviceType || null,
-                    description: r._description || null,
-                    pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
-                    billingMode: isPackageMode ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
-                    financialSourceType: SOURCE_CONTRACT,
-                    ...pricingPayload,
-                    contractId: parseInt(CONTRACT_ID),
-                    contracts: parseInt(CONTRACT_ID),
-                    status: contractStatusToProjectServiceStatus(CONTRACT_STATUS || contract?.status),
+                    ...projectServicePayload,
                   }
                 });
               } catch (e) { message.warning('Không thể update projectService trùng: ' + (e?.message || '')); }
@@ -841,17 +923,7 @@ const ContractServicesBlock = () => {
                   action: 'create',
                   data: {
                     projectId: parseInt(projectId),
-                    serviceId: serviceId || null,
-                    serviceName: r._svcName || null,
-                    serviceType: r._serviceType || null,
-                    description: r._description || null,
-                    pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
-                    billingMode: isPackageMode ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
-                    financialSourceType: SOURCE_CONTRACT,
-                    ...pricingPayload,
-                    contractId: parseInt(CONTRACT_ID),
-                    contracts: parseInt(CONTRACT_ID),
-                    status: contractStatusToProjectServiceStatus(CONTRACT_STATUS || contract?.status),
+                    ...projectServicePayload,
                   }
                 });
                 projectServiceId = newPS?.data?.data?.id || newPS?.data?.id || null;
@@ -875,8 +947,7 @@ const ContractServicesBlock = () => {
               action: 'update',
               params: { filterByTk: projectServiceId },
               data: {
-                contractServiceId: createdContractServiceId,
-                ...pricingPayload,
+                ...projectServicePayload,
               },
             });
           }
@@ -887,31 +958,24 @@ const ContractServicesBlock = () => {
             params: { filterByTk: r.id },
             data: {
               ...payload,
-              projectServiceId: matchedPS ? matchedPS.id : (r.projectServiceId || null),
-              projectServices: matchedPS ? matchedPS.id : (r.projectServiceId || undefined),
+              ...(linkedProjectServiceId ? {
+                projectServiceId: linkedProjectServiceId,
+                projectServices: linkedProjectServiceId,
+              } : {}),
             }
           });
 
           // Cascade: update projectService if found
-          if (projectId && matchedPS) {
+          if (linkedProjectServiceId) {
             try {
               await requestProjectService({
                 action: 'update',
-                params: { filterByTk: matchedPS.id },
+                params: { filterByTk: linkedProjectServiceId },
                 data: {
-                  serviceType: r._serviceType || null,
-                  description: r._description || null,
-                  pricingMode: isPackageMode ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
-                  billingMode: isPackageMode ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
-                  financialSourceType: SOURCE_CONTRACT,
-                  ...pricingPayload,
-                  contractId: parseInt(CONTRACT_ID),
-                  contractServiceId: r.id,
-                  contracts: parseInt(CONTRACT_ID),
-                  status: contractStatusToProjectServiceStatus(CONTRACT_STATUS || contract?.status),
+                  ...projectServicePayload,
                 }
               });
-            } catch (e) { message.warning('Không thể update projectService #' + matchedPS.id + ': ' + (e?.message || '')); }
+            } catch (e) { message.warning('Không thể update projectService #' + linkedProjectServiceId + ': ' + (e?.message || '')); }
           }
         }
       }

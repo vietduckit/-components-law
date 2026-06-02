@@ -94,6 +94,97 @@ BEGIN
     END IF;
 
     -- ── Boolean ──────────────────────────────────────────────
+    -- Direct relation fields on documents/folders
+    IF p_col_name = 'customerId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT "customerName" INTO result FROM customers WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Customer #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Customer #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name IN ('caseId', 'projectId', 'sourceProjectId') AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT COALESCE("projectName", "caseCode") INTO result FROM projects WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Case #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Case #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name IN ('taskId', 'sourceTaskId') AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT title INTO result FROM tasks WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Task #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Task #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'subTaskId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT "subTaskName" INTO result FROM "subTasks" WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'SubTask #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'SubTask #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'quotationId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT "quotationNumber" INTO result FROM quotations WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Quotation #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Quotation #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'contractId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT COALESCE("contractCode", "contractName") INTO result FROM contracts WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Contract #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Contract #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'legalReferenceId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT COALESCE(title, "referenceCode") INTO result FROM "legalReference" WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'LegalReference #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'LegalReference #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'internalTemplateId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT COALESCE(title, "templateCode") INTO result FROM "internalTemplates" WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'InternalTemplate #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'InternalTemplate #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'projectInternalId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT "projectName" INTO result FROM "projectInternal" WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Project Internal #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Project Internal #' || p_val;
+        END;
+    END IF;
+
+    IF p_col_name = 'internalCompanyId' AND p_val IS NOT NULL THEN
+        BEGIN
+            SELECT COALESCE("shortName", name, "legalName") INTO result FROM "internalCompany" WHERE id = p_val::BIGINT;
+            RETURN COALESCE(result, 'Internal Company #' || p_val);
+        EXCEPTION WHEN others THEN
+            RETURN 'Internal Company #' || p_val;
+        END;
+    END IF;
+
     IF p_col_name IN ('isRequiredApproval', 'billable') THEN
         RETURN CASE p_val
             WHEN 'true'  THEN 'Có'

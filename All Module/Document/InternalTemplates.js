@@ -31,9 +31,65 @@ const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
 const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const INTERNAL_TEMPLATE_COLLECTION = "internalTemplates";
-const INTERNAL_TEMPLATE_MODULE_SCOPE = "internal_templates";
-const INTERNAL_TEMPLATE_MODULE_SCOPES = [INTERNAL_TEMPLATE_MODULE_SCOPE, "internal_template"];
+
+// ============================================================
+// ⚙️  DASHBOARD CONFIG — Chỉnh tại đây để tái sử dụng cho module khác
+// ============================================================
+const DASHBOARD_CONFIG = {
+  // ── Collection chính (document / folder sẽ lưu relation về đây) ──────────
+  collection: "internalTemplates",           // tên collection chính (vd: "customers", "contracts")
+
+  // ── Scope lọc folder & document ──────────────────────────────────────────
+  moduleScope: "internal_templates",         // scope chính ghi vào DB
+  moduleScopes: ["internal_templates", "internal_template", "legal_reference"],  // danh sách scope được chấp nhận (filter $in)
+
+  // ── API endpoints để fetch danh sách "parent" (Legal Reference / Customer…) ──
+  parentListCandidates: [                    // thử lần lượt đến khi thành công
+    "legalReference:list",
+    "legalReferences:list",
+    "LegalReference:list",
+  ],
+  parentCreateCandidates: [
+    "legalReference:create",
+    "legalReferences:create",
+    "LegalReference:create",
+  ],
+
+  // ── Tên field relation trong document/folder trỏ về "parent" ─────────────
+  // Thứ tự: field chính → các alias fallback (dùng khi thử tạo record)
+  relationFieldCandidates: [
+    "internalTemplates",       // field chính (array/object)
+    "internalTemplatesId",     // id variant
+    "internalTemplate",        // singular
+    "internalTemplateId",      // singular id
+  ],
+
+  // ── Hàm lấy ID của parent từ 1 record folder/document ───────────────────
+  getParentIdFromRecord: (record) =>
+    extractRelationId(record?.internalTemplates) ||
+    extractRelationId(record?.internalTemplatesId) ||
+    extractRelationId(record?.internalTemplate) ||
+    extractRelationId(record?.internalTemplateId),
+
+  // ── Hàm lấy ID của parent từ 1 record sidebar (Legal Reference / Customer) ─
+  getParentListId: (record) =>
+    extractId(record?.legalReferenceId) ||
+    extractId(record?.legalReference) ||
+    extractId(record?.legalReferenceRecord),
+
+  // ── Nhãn hiển thị trong UI ────────────────────────────────────────────────
+  label: {
+    sidebar: "Tham chiếu",          // tiêu đề sidebar
+    sidebarItem: "Tham chiếu",      // tên 1 item trong sidebar
+    createButton: "Tạo tham chiếu mới",
+    searchPlaceholder: "Tìm tham chiếu...",
+  },
+};
+
+// Shorthand constants (để không phải đổi code bên dưới)
+const INTERNAL_TEMPLATE_COLLECTION = DASHBOARD_CONFIG.collection;
+const INTERNAL_TEMPLATE_MODULE_SCOPE = DASHBOARD_CONFIG.moduleScope;
+const INTERNAL_TEMPLATE_MODULE_SCOPES = DASHBOARD_CONFIG.moduleScopes;
 const FILE_TYPE_SVG = {
   // ── Documents ──────────────────────────────────────────
   pdf: (
@@ -508,6 +564,13 @@ const DOWNLOAD_ICON = (
   </IconSvg>
 );
 
+const LINK_CASE_ICON = (
+  <IconSvg size={15}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </IconSvg>
+);
+
 const EDIT_ICON = (
   <IconSvg size={15}>
     <path d="M12 20h9" />
@@ -611,10 +674,8 @@ const getDocCode = (doc) => doc?.documentCode || doc?.templateCode || "";
 const getDocDate = (doc) => doc?.updatedAt || doc?.createdAt;
 const getAttachment = (doc) => (Array.isArray(doc?.fileAttachment) ? doc.fileAttachment[0] : doc?.fileAttachment);
 const getInternalTemplateRelationId = (record) =>
-  extractRelationId(record?.internalTemplates) ||
-  extractRelationId(record?.internalTemplatesId) ||
-  extractRelationId(record?.internalTemplate) ||
-  extractRelationId(record?.internalTemplateId);
+  // Lấy ID parent từ record theo DASHBOARD_CONFIG.getParentIdFromRecord
+  DASHBOARD_CONFIG.getParentIdFromRecord(record);
 const getCurrentUserId = () => extractId(ctx?.currentUser) || extractId(ctx?.user) || extractId(ctx?.state?.currentUser) || null;
 
 const getCurrentUser = () => {
@@ -868,23 +929,30 @@ const getPreviewUrl = (record) => {
   return fullUrl;
 };
 const stripInternalTemplateRelationPayload = (payload = {}) => {
-  const { internalTemplates, internalTemplatesId, internalTemplate, internalTemplateId, ...rest } = payload;
-  return rest;
+  // Xóa tất cả các field relation khỏi payload (dựa trên DASHBOARD_CONFIG)
+  const stripped = { ...payload };
+  DASHBOARD_CONFIG.relationFieldCandidates.forEach((field) => {
+    delete stripped[field];
+  });
+  return stripped;
 };
 const buildInternalTemplateRelationPayload = (templateRecordOrId) => {
   const templateId = extractId(templateRecordOrId);
-  return templateId ? { internalTemplates: templateId } : {};
+  const primaryField = DASHBOARD_CONFIG.relationFieldCandidates[0];
+  return templateId ? { [primaryField]: templateId } : {};
 };
 const buildInternalTemplateRelationVariants = (templateId) => {
   const id = extractId(templateId);
   if (!id) return [{}];
-  return [
-    { internalTemplates: id },
-    { internalTemplates: [{ id }] },
-    { internalTemplatesId: id },
-    { internalTemplate: id },
-    { internalTemplateId: id },
+  const [primary, primaryId, singular, singularId] = DASHBOARD_CONFIG.relationFieldCandidates;
+  const variants = [
+    { [primary]: id },
+    { [primary]: [{ id }] },
   ];
+  if (primaryId) variants.push({ [primaryId]: id });
+  if (singular) variants.push({ [singular]: id });
+  if (singularId) variants.push({ [singularId]: id });
+  return variants;
 };
 
 const isInternalTemplateScope = (record) => {
@@ -1036,11 +1104,8 @@ const fetchAllList = async (url, params = {}) => {
   return all;
 };
 
-const LEGAL_REFERENCE_RESOURCE_CANDIDATES = [
-  "legalReference:list",
-  "legalReferences:list",
-  "LegalReference:list",
-];
+// Các URL candidates cho parent list/create được lấy từ DASHBOARD_CONFIG
+const LEGAL_REFERENCE_RESOURCE_CANDIDATES = DASHBOARD_CONFIG.parentListCandidates;
 
 const getLegalReferenceDisplayName = (record) => {
   if (!record) return "";
@@ -1058,23 +1123,19 @@ const getLegalReferenceDisplayName = (record) => {
 };
 
 const getDocumentLegalReferenceId = (doc) =>
-  extractId(doc?.legalReferenceId) ||
-  extractId(doc?.legalReference) ||
-  extractId(doc?.legalReferenceRecord);
+  DASHBOARD_CONFIG.getParentListId(doc);
 
 const getRecordLegalReferenceId = (record) =>
-  extractId(record?.legalReferenceId) ||
-  extractId(record?.legalReference) ||
-  extractId(record?.legalReferenceRecord);
+  DASHBOARD_CONFIG.getParentListId(record);
 
 const fetchLegalReferenceRecords = async (internalCompanyId = null) => {
   let lastError = null;
-  for (const url of LEGAL_REFERENCE_RESOURCE_CANDIDATES) {
+  for (const url of DASHBOARD_CONFIG.parentListCandidates) {
     try {
       let items;
       items = await fetchAllList(url, {
         sort: ["-createdAt"],
-        appends: ["internalCompany", "cases"],
+        appends: ["internalCompany", "cases", "createdBy"],
       });
       return items.filter((item) =>
         matchesInternalCompany(item, internalCompanyId),
@@ -1083,14 +1144,13 @@ const fetchLegalReferenceRecords = async (internalCompanyId = null) => {
       lastError = e;
     }
   }
-  console.warn("Failed to fetch LegalReference records:", lastError);
+  console.warn("Failed to fetch parent records:", lastError);
   return [];
 };
 
 const createLegalReferenceRecord = async (payload) => {
-  const candidates = ["legalReference:create", "legalReferences:create", "LegalReference:create"];
   let lastError = null;
-  for (const url of candidates) {
+  for (const url of DASHBOARD_CONFIG.parentCreateCandidates) {
     try {
       return await ctx.api.request({
         url,
@@ -1101,16 +1161,18 @@ const createLegalReferenceRecord = async (payload) => {
       lastError = e;
     }
   }
-  throw lastError || new Error("Failed to create LegalReference record");
+  throw lastError || new Error("Failed to create parent record");
 };
 
 const fetchFoldersForInternalTemplates = async () => {
+  const scopeFilter = JSON.stringify({
+    moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes }
+  });
+  const primaryField = DASHBOARD_CONFIG.relationFieldCandidates[0];
   const params = {
     sort: ["createdAt"],
-    filter: JSON.stringify({
-      moduleScope: { $in: ["internal_templates", "internal_template", "legal_reference"] }
-    }),
-    appends: ["createdBy", "updatedBy", "internalTemplates", "folderManager", "folderManagers", "folderMember", "folderMembers"],
+    filter: scopeFilter,
+    appends: ["createdBy", "updatedBy", primaryField, "folderManager", "folderManagers", "folderMember", "folderMembers"],
   };
   try {
     return await fetchAllList("folders:list", params);
@@ -1118,22 +1180,22 @@ const fetchFoldersForInternalTemplates = async () => {
     // Fallback without permission appends
     const fallbackParams = {
       sort: ["createdAt"],
-      filter: JSON.stringify({
-        moduleScope: { $in: ["internal_templates", "internal_template", "legal_reference"] }
-      }),
-      appends: ["createdBy", "updatedBy", "internalTemplates"],
+      filter: scopeFilter,
+      appends: ["createdBy", "updatedBy", primaryField],
     };
     return fetchAllList("folders:list", fallbackParams).catch(() => []);
   }
 };
 
 const fetchDocumentsForInternalTemplates = async () => {
+  const scopeFilter = JSON.stringify({
+    moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes }
+  });
+  const primaryField = DASHBOARD_CONFIG.relationFieldCandidates[0];
   const params = {
     sort: ["fileIndex", "-createdAt"],
-    filter: JSON.stringify({
-      moduleScope: { $in: ["internal_templates", "internal_template", "legal_reference"] }
-    }),
-    appends: ["fileAttachment", "internalCompany", "createdBy", "updatedBy", "internalTemplates"],
+    filter: scopeFilter,
+    appends: ["fileAttachment", "internalCompany", "createdBy", "updatedBy", primaryField],
   };
   try {
     return await fetchAllList("documents:list", params);
@@ -1249,11 +1311,23 @@ const PreviewModal = ({ doc, onClose }) => {
     setTextLoading(true);
     setTextContent(null);
     setTextError(false);
-    fetch(fullUrl)
-      .then((res) => {
+
+    const doFetch = async () => {
+      if (typeof window !== "undefined" && typeof window.fetch === "function") {
+        const res = await window.fetch(fullUrl);
         if (!res.ok) throw new Error("fetch failed");
-        return res.text();
-      })
+        return await res.text();
+      } else {
+        const res = await ctx.api.request({
+          url: fullUrl,
+          method: "GET",
+          transformResponse: [data => data],
+        });
+        return res?.data || "";
+      }
+    };
+
+    doFetch()
       .then((text) => { setTextContent(text); setTextLoading(false); })
       .catch(() => { setTextError(true); setTextLoading(false); });
   }, [fullUrl, isText]);
@@ -1640,6 +1714,7 @@ const InternalTemplates = () => {
   const [activeSpace, setActiveSpace] = useState("company_shared"); // 'legal_reference' | 'company_shared' | 'personal'
   const [projects, setProjects] = useState([]);
   const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
+  const [linkCaseRecord, setLinkCaseRecord] = useState(null);
   const [linkCaseLoading, setLinkCaseLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
@@ -1664,6 +1739,11 @@ const InternalTemplates = () => {
     return legalReferences.find((r) => String(extractId(r)) === String(activeLegalReferenceId)) || null;
   }, [legalReferences, activeLegalReferenceId]);
 
+  // Keep ref in sync with state (allows reading current value in effects without adding to deps)
+  useEffect(() => {
+    activeLegalReferenceIdRef.current = activeLegalReferenceId;
+  }, [activeLegalReferenceId]);
+
   const usedProjectIds = useMemo(() => {
     const ids = new Set();
     legalReferences.forEach((ref) => {
@@ -1683,9 +1763,12 @@ const InternalTemplates = () => {
   }, [legalReferences]);
 
   const activeLinkedIds = useMemo(() => {
-    if (!activeLegalReference) return new Set();
-    return new Set((activeLegalReference.cases || []).map(item => String(extractId(item))));
-  }, [activeLegalReference]);
+    const sourceRecord = linkCaseRecord || activeLegalReference;
+    if (!sourceRecord) return new Set();
+    return new Set((sourceRecord.cases || []).map(item => String(extractId(item))));
+  }, [activeLegalReference, linkCaseRecord]);
+
+  const isLegalReferenceRoot = activeSpace === "legal_reference" && !activeLegalReferenceId;
 
 
 
@@ -1714,6 +1797,7 @@ const InternalTemplates = () => {
   const [currentLawyerId, setCurrentLawyerId] = useState(null);
   const [currentUserState, setCurrentUserState] = useState(null);
   const currentUserRef = useRef(null);
+  const activeLegalReferenceIdRef = useRef(null);
   const [lawyers, setLawyers] = useState([]);
   const [permissionFolder, setPermissionFolder] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -1736,6 +1820,10 @@ const InternalTemplates = () => {
   const [spacesExpanded, setSpacesExpanded] = useState(true);
   const [libraryExpanded, setLibraryExpanded] = useState(true);
   const [workspaceExpanded, setWorkspaceExpanded] = useState(true);
+
+  const [showAllCompanies, setShowAllCompanies] = useState(false);
+  const [showAllLegalReferences, setShowAllLegalReferences] = useState(false);
+  const [showAllPersonalFolders, setShowAllPersonalFolders] = useState(false);
 
   const activeCompany = useMemo(
     () => companies.find((c) => String(extractId(c)) === String(activeCompanyId)) || null,
@@ -1821,7 +1909,7 @@ const InternalTemplates = () => {
       setCompanies(fetchedCompanies);
       const isAllowedScope = (record) => {
         const scope = normalizeKey(record?.moduleScope);
-        return !scope || ["internal_templates", "internal_template", "legal_reference"].includes(scope);
+        return !scope || DASHBOARD_CONFIG.moduleScopes.includes(scope);
       };
       setFolders(fetchedFolders.filter(isAllowedScope));
       setDocuments(fetchedDocs.filter(isAllowedScope));
@@ -1880,7 +1968,7 @@ const InternalTemplates = () => {
       );
 
       const filtered = raw
-        .filter((log) => !["fileIndex", "folderIndex"].includes(log.fieldName))
+        .filter((log) => !["fileIndex", "folderIndex", "deletedAt"].includes(log.fieldName))
         .map((log) => ({
           ...log,
           resolvedTitle: titleMap[log.recordId] || null,
@@ -1940,6 +2028,26 @@ const InternalTemplates = () => {
       };
     }
 
+    if (action === "moved") {
+      return {
+        key: "moved",
+        label: "Di chuyển",
+        color: "#B45309",
+        bg: "#FFFBEB",
+        border: "#FEF3C7",
+        icon: (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="5 9 2 12 5 15" />
+            <polyline points="9 5 12 2 15 5" />
+            <polyline points="15 19 12 22 9 19" />
+            <polyline points="19 9 22 12 19 15" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <line x1="12" y1="2" x2="12" y2="22" />
+          </svg>
+        )
+      };
+    }
+
     if (action === "updated") {
       if (field === "isDeleted") {
         if (newV === true || newV === "true" || newV === 1) {
@@ -1972,7 +2080,7 @@ const InternalTemplates = () => {
           };
         }
       }
-      if (field === "folderId") {
+      if (field === "folderId" || field === "parentId") {
         return {
           key: "moved",
           label: "Di chuyển",
@@ -2009,7 +2117,7 @@ const InternalTemplates = () => {
     if (action === "deleted") {
       return {
         key: "deleted",
-        label: "Xóa vĩnh viễn",
+        label: "Xóa",
         color: "#451A03",
         bg: "#FFF7ED",
         border: "#FFEDD5",
@@ -2045,12 +2153,73 @@ const InternalTemplates = () => {
     const isFolder = collectionName === "Folder";
     const entityName = isFolder ? "thư mục" : "tài liệu";
 
+    const FIELD_LABELS = {
+      internalTemplateId: "loại tài liệu",
+      internalTemplate: "loại tài liệu",
+      internalTemplates: "loại tài liệu",
+      internalTemplatesId: "loại tài liệu",
+      legalReferenceId: "khách hàng liên kết",
+      legalReference: "khách hàng liên kết",
+      customerId: "khách hàng liên kết",
+      customer: "khách hàng liên kết",
+      customers: "khách hàng liên kết",
+      folderId: "thư mục",
+      folder: "thư mục",
+      parentId: "thư mục cha",
+      internalCompanyId: "công ty nội bộ",
+      internalCompany: "công ty nội bộ",
+      name: "tên gọi",
+      title: "tiêu đề",
+      description: "mô tả",
+      googleDriveUrl: "liên kết Google Drive",
+      fileAttachment: "tập tin thô",
+      fileIndex: "vị trí sắp xếp",
+      documentType: "phân loại tài liệu",
+      storageType: "không gian lưu trữ",
+      status: "trạng thái",
+      isDeleted: "trạng thái xóa",
+      updatedAt: "thời gian cập nhật",
+      createdAt: "thời gian tạo",
+      documentCode: "mã tài liệu",
+      openingDate: "ngày mở",
+      senderName: "người gửi",
+      recipientName: "người nhận",
+      language: "ngôn ngữ",
+      docFormat: "định dạng tài liệu",
+      signedAt: "ngày ký",
+      effectiveAt: "ngày có hiệu lực",
+      note: "ghi chú",
+      deteledAt: "ngày xoá",
+    };
+
+    const ACTION_LABELS = {
+      uploaded: "tải lên",
+      created: "tạo mới",
+      updated: "cập nhật",
+      moved: "di chuyển",
+      deleted: "xóa",
+    };
+
     if (action === "uploaded" || action === "created") {
       return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
     }
 
     if (action === "deleted") {
-      return `Đã xóa vĩnh viễn ${entityName}`;
+      return `Đã xóa ${entityName}`;
+    }
+
+    if (action === "moved") {
+      const getFolderName = (id) => {
+        if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
+        const f = foldersList.find(item => String(extractId(item.id)) === String(id));
+        return f ? f.name : `Thư mục #${id}`;
+      };
+      if (oldV || newV) {
+        const oldFolder = getFolderName(oldV);
+        const newFolder = getFolderName(newV);
+        return `Đã di chuyển ${entityName} từ "${oldFolder}" sang "${newFolder}"`;
+      }
+      return `Đã di chuyển ${entityName}`;
     }
 
     if (action === "updated") {
@@ -2067,7 +2236,7 @@ const InternalTemplates = () => {
         }
         return `Đã đổi tên ${entityName} thành "${newV}"`;
       }
-      if (field === "folderId") {
+      if (field === "folderId" || field === "parentId") {
         const getFolderName = (id) => {
           if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
           const f = foldersList.find(item => String(extractId(item.id)) === String(id));
@@ -2078,10 +2247,12 @@ const InternalTemplates = () => {
         return `Đã di chuyển từ "${oldFolder}" sang "${newFolder}"`;
       }
 
-      return `Cập nhật ${field} của ${entityName}`;
+      const fieldLabel = FIELD_LABELS[field] || field;
+      return `Cập nhật ${fieldLabel} của ${entityName}`;
     }
 
-    return `Thao tác [${action}] trên ${entityName}`;
+    const actionLabel = ACTION_LABELS[action] || action;
+    return `Thao tác [${actionLabel}] trên ${entityName}`;
   }, []);
 
   const filteredActivityLogs = useMemo(() => {
@@ -2120,17 +2291,16 @@ const InternalTemplates = () => {
 
   useEffect(() => {
     if (activeSpace === "legal_reference") {
-      if (filteredLegalReferences.length > 0) {
-        if (!activeLegalReferenceId || !filteredLegalReferences.some((r) => String(extractId(r)) === String(activeLegalReferenceId))) {
-          setActiveLegalReferenceId(String(extractId(filteredLegalReferences[0])));
-        }
-      } else {
+      // Only reset if the currently selected reference is no longer in the filtered list
+      const currentRefId = activeLegalReferenceIdRef.current;
+      if (currentRefId && !filteredLegalReferences.some((r) => String(extractId(r)) === String(currentRefId))) {
         setActiveLegalReferenceId(null);
       }
+      // Do NOT auto-select: let user explicitly choose a reference via sidebar or list click
     } else {
       setActiveLegalReferenceId(null);
     }
-  }, [activeCompanyId, filteredLegalReferences, activeLegalReferenceId, activeSpace]);
+  }, [activeCompanyId, filteredLegalReferences, activeSpace]);
 
   useEffect(() => {
     setSelectedRowKeys([]);
@@ -2289,7 +2459,20 @@ const InternalTemplates = () => {
     } else if (activeSpace === "company_shared") {
       rootName = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
     } else if (activeSpace === "legal_reference") {
-      rootName = activeLegalReference ? `Tham chiếu / ${getLegalReferenceDisplayName(activeLegalReference)}` : "Tham chiếu";
+      const items = activeLegalReference
+        ? [
+          { id: "legal_reference_root", name: "Tham chiếu" },
+          { id: "root", name: getLegalReferenceDisplayName(activeLegalReference) },
+        ]
+        : [{ id: "root", name: "Tham chiếu" }];
+      if (selectedFolderId === "root") return items;
+      const path = [];
+      let current = folderMap.get(String(selectedFolderId));
+      while (current) {
+        path.unshift({ id: String(extractId(current)), name: current.name || "Folder" });
+        current = folderMap.get(String(getFolderParentId(current)));
+      }
+      return items.concat(path);
     } else if (activeSpace === "recent") {
       rootName = "Lịch sử hoạt động";
     } else if (activeSpace === "trash") {
@@ -2306,6 +2489,16 @@ const InternalTemplates = () => {
     }
     return items.concat(path);
   }, [folderMap, selectedFolderId, activeSpace, activeCompany, activeLegalReference]);
+
+  const handleBreadcrumbClick = useCallback((item) => {
+    if (item.id === "legal_reference_root") {
+      setActiveSpace("legal_reference");
+      setActiveLegalReferenceId(null);
+      setSelectedFolderId("root");
+      return;
+    }
+    setSelectedFolderId(item.id);
+  }, []);
 
   const sortDocs = useCallback(
     (items) => {
@@ -2513,8 +2706,18 @@ const InternalTemplates = () => {
           key: String(extractId(folder)),
           children: build(extractId(folder)),
         }));
-    return [{ title: "Home", value: "root", key: "root", children: build("root") }];
-  }, [permissionFilteredFolders, folderMap]);
+
+    let dynamicRootTitle = "Home";
+    if (activeSpace === "personal") {
+      dynamicRootTitle = "My Workspace";
+    } else if (activeSpace === "company_shared") {
+      dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+    } else if (activeSpace === "legal_reference") {
+      dynamicRootTitle = activeLegalReference ? getLegalReferenceDisplayName(activeLegalReference) : (DASHBOARD_CONFIG.label?.sidebar || "Tham chiếu");
+    }
+
+    return [{ title: dynamicRootTitle, value: "root", key: "root", children: build("root") }];
+  }, [permissionFilteredFolders, folderMap, activeSpace, activeCompany, activeLegalReference]);
 
   const moveTreeData = useMemo(() => {
     if (!moveRecord || moveRecord._type !== "folder") return treeData;
@@ -2661,16 +2864,38 @@ const InternalTemplates = () => {
     }
   };
 
+  const openLegalReferenceDetail = useCallback((recordOrId) => {
+    const refId = String(extractId(recordOrId) || "");
+    if (!refId) return;
+    setActiveSpace("legal_reference");
+    setActiveLegalReferenceId(refId);
+    setSelectedFolderId("root");
+  }, []);
+
+  const openLinkCaseModal = useCallback((record) => {
+    if (!record) return;
+    const linkedIds = (record.cases || []).map(item => String(extractId(item)));
+    setLinkCaseRecord(record);
+    linkCaseForm.resetFields();
+    linkCaseForm.setFieldsValue({ caseIds: linkedIds });
+    setIsLinkCaseOpen(true);
+  }, [linkCaseForm]);
+
   const handleLinkCaseSubmit = async (values) => {
     setLinkCaseLoading(true);
     try {
+      const targetLegalReferenceId = String(extractId(linkCaseRecord) || activeLegalReferenceId || "");
+      if (!targetLegalReferenceId) {
+        message.warning("Vui lòng chọn Case Tham Chiếu cần liên kết");
+        return;
+      }
       const payload = {
         cases: (values.caseIds || []).map(caseId => Number(caseId))
       };
       const candidates = [
-        `legalReference:update?filterByTk=${activeLegalReferenceId}`,
-        `legalReferences:update?filterByTk=${activeLegalReferenceId}`,
-        `LegalReference:update?filterByTk=${activeLegalReferenceId}`
+        `legalReference:update?filterByTk=${targetLegalReferenceId}`,
+        `legalReferences:update?filterByTk=${targetLegalReferenceId}`,
+        `LegalReference:update?filterByTk=${targetLegalReferenceId}`
       ];
       let success = false;
       let lastError = null;
@@ -2692,6 +2917,8 @@ const InternalTemplates = () => {
       }
       message.success("Cập nhật liên kết case thành công");
       setIsLinkCaseOpen(false);
+      setLinkCaseRecord(null);
+      linkCaseForm.resetFields();
       loadData();
     } catch (e) {
       console.error("Lỗi liên kết case:", e);
@@ -3031,9 +3258,9 @@ const InternalTemplates = () => {
   const handleBulkPermanentDelete = async () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
-      title: `Xóa vĩnh viễn ${selectedRowKeys.length} mục đã chọn?`,
-      content: "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa vĩnh viễn khỏi hệ thống.",
-      okText: "Xóa vĩnh viễn",
+      title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
+      content: "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa khỏi hệ thống.",
+      okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
       onOk: async () => {
@@ -3047,11 +3274,11 @@ const InternalTemplates = () => {
               method: "POST",
             });
           }));
-          message.success(`Đã xóa vĩnh viễn ${selectedRowKeys.length} mục thành công!`);
+          message.success(`Đã xóa ${selectedRowKeys.length} mục thành công!`);
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Xóa vĩnh viễn thất bại");
+          message.error("Xóa thất bại");
         }
       }
     });
@@ -3465,10 +3692,10 @@ const InternalTemplates = () => {
 
   const handlePermanentDelete = (record) => {
     Modal.confirm({
-      title: record._type === "folder" ? "Xóa vĩnh viễn thư mục này?" : "Xóa vĩnh viễn file này?",
+      title: record._type === "folder" ? "Xóa thư mục này?" : "Xóa file này?",
       icon: React.createElement("span", { style: { color: "#ff4d4f", marginRight: 16 } }, WarningIcon),
       content: "Cảnh báo: Hành động này không thể hoàn tác, dữ liệu sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.",
-      okText: "Xóa vĩnh viễn",
+      okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
       onOk: async () => {
@@ -3484,7 +3711,7 @@ const InternalTemplates = () => {
               method: "POST"
             });
           }
-          message.success("Đã xóa vĩnh viễn");
+          message.success("Đã xóa");
           loadData();
         } catch {
           message.error("Xóa thất bại");
@@ -3829,6 +4056,44 @@ const InternalTemplates = () => {
     const items = [];
     const isFolder = record._type === "folder";
     const isTemplate = record._type === "template" || record._type === "document_type";
+    const isLegalReferenceRecord = record._type === "legal_reference_record";
+
+    if (isLegalReferenceRecord) {
+      items.push({
+        key: "open_detail",
+        label: renderContextMenuItemLabel(EYE_ICON, "Mở chi tiết"),
+        onClick: () => {
+          closeContextMenu();
+          openLegalReferenceDetail(record);
+        },
+      });
+      items.push({
+        key: "link_case",
+        label: renderContextMenuItemLabel(LINK_CASE_ICON, "Liên kết Case"),
+        onClick: () => {
+          closeContextMenu();
+          openLinkCaseModal(record);
+        },
+      });
+      items.push({
+        key: "rename",
+        label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+        onClick: () => {
+          closeContextMenu();
+          setRenameRecord(record);
+          renameForm.setFieldsValue({ name: record.title || record.name || "" });
+        },
+      });
+      items.push({
+        key: "delete",
+        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+        onClick: () => {
+          closeContextMenu();
+          handleDeleteTemplate(record);
+        },
+      });
+      return items;
+    }
 
     if (isTemplate) {
       items.push({
@@ -3859,7 +4124,7 @@ const InternalTemplates = () => {
       });
       items.push({
         key: "permanent_delete",
-        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa vĩnh viễn", "#cf1322"),
+        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
         onClick: () => { closeContextMenu(); handlePermanentDelete(record); },
       });
       return items;
@@ -3919,7 +4184,7 @@ const InternalTemplates = () => {
     }
 
     return items;
-  }, [getRecordPerms, currentUserState, activeSpace]);
+  }, [getRecordPerms, currentUserState, activeSpace, openLegalReferenceDetail, openLinkCaseModal]);
 
   const getRecordPathString = useCallback((record) => {
     if (!record) return "—";
@@ -3979,7 +4244,7 @@ const InternalTemplates = () => {
                   style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
                 />
               </Tooltip>
-              <Tooltip title="Xóa vĩnh viễn">
+              <Tooltip title="Xóa">
                 <Button
                   size="small"
                   danger
@@ -4051,7 +4316,7 @@ const InternalTemplates = () => {
                   style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
                 />
               </Tooltip>
-              <Tooltip title="Xóa vĩnh viễn">
+              <Tooltip title="Xóa">
                 <Button
                   size="small"
                   danger
@@ -4085,6 +4350,13 @@ const InternalTemplates = () => {
       if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
         return [
           {
+            title: "STT",
+            key: "stt",
+            width: 60,
+            align: "center",
+            render: (_, __, index) => index + 1,
+          },
+          {
             title: "Mã tham chiếu",
             key: "referenceCode",
             width: 150,
@@ -4092,7 +4364,7 @@ const InternalTemplates = () => {
             render: (_, record) => <Text style={{ fontWeight: 600, color: "#111827" }}>{record.referenceCode || "—"}</Text>,
           },
           {
-            title: "Tiêu đề",
+            title: "Tên tham chiếu",
             key: "title",
             minWidth: 250,
             sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
@@ -4101,9 +4373,7 @@ const InternalTemplates = () => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setActiveSpace("legal_reference");
-                  setActiveLegalReferenceId(String(extractId(record)));
-                  setSelectedFolderId("root");
+                  openLegalReferenceDetail(record);
                 }}
                 style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", fontFamily: FONT, fontWeight: 700, color: "#185FA5", textAlign: "left" }}
               >
@@ -4112,13 +4382,13 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Mô tả",
+            title: "Case Summary",
             key: "description",
             minWidth: 200,
             render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
           },
           {
-            title: "Case liên kết",
+            title: "Cases liên kết",
             key: "linkedCases",
             minWidth: 200,
             render: (_, record) => (
@@ -4162,21 +4432,19 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "",
+            title: "Thao tác",
             key: "actions",
             width: 100,
+            align: "right",
             render: (_, record) => (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                 <Tooltip title="Liên kết Case">
                   <Button
                     size="small"
-                    icon={<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>}
+                    icon={LINK_CASE_ICON}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveLegalReferenceId(String(extractId(record)));
-                      const linkedIds = (record.cases || []).map(item => String(extractId(item)));
-                      linkCaseForm.setFieldsValue({ caseIds: linkedIds });
-                      setIsLinkCaseOpen(true);
+                      openLinkCaseModal(record);
                     }}
                   />
                 </Tooltip>
@@ -4530,7 +4798,7 @@ const InternalTemplates = () => {
         }
       ];
     },
-    [tableData, documentTypes, getTypeConfig, getRecordDocumentType, editingTitleId, editingTitleValue, currentUserState, currentLawyerId, visibleFolders, getRecordPathString, activeSpace, getFolderSize],
+    [tableData, documentTypes, getTypeConfig, getRecordDocumentType, editingTitleId, editingTitleValue, currentUserState, currentLawyerId, visibleFolders, getRecordPathString, activeSpace, getFolderSize, openLegalReferenceDetail, openLinkCaseModal],
   );
 
   const rowDragProps = (record) => ({
@@ -4553,9 +4821,7 @@ const InternalTemplates = () => {
     },
     onClick: () => {
       if (record._type === "legal_reference_record") {
-        setActiveSpace("legal_reference");
-        setActiveLegalReferenceId(String(extractId(record)));
-        setSelectedFolderId("root");
+        openLegalReferenceDetail(record);
       }
     }
   });
@@ -4809,13 +5075,27 @@ const InternalTemplates = () => {
               <div style={{ marginBottom: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
                   <div
-                    onClick={() => setSpacesExpanded(!spacesExpanded)}
+                    onClick={() => {
+                      setActiveSpace("company_shared");
+                      setActiveCompanyId(null);
+                      setSelectedFolderId("root");
+                    }}
                     style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", userSelect: "none" }}
                   >
-                    <span style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); setSpacesExpanded(!spacesExpanded); }}
+                      style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}
+                    >
                       {spacesExpanded ? ChevronDown : ChevronRight}
                     </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Không gian</span>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: activeSpace === "company_shared" && !activeCompanyId ? "#185FA5" : "#9CA3AF",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      fontFamily: FONT
+                    }}>Workspace</span>
                   </div>
                   <button type="button"
                     onClick={() => handleCreateFolderFromSidebar("company_shared")}
@@ -4827,7 +5107,7 @@ const InternalTemplates = () => {
                     {companies.length === 0 ? (
                       <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>Chưa có</Text>
                     ) : (
-                      companies.map((company) => {
+                      (showAllCompanies ? companies : companies.slice(0, 5)).map((company) => {
                         const cid = String(extractId(company));
                         const isActive = cid === String(activeCompanyId) && activeSpace === "company_shared";
                         const compDocsCount = documents.filter(doc => matchesInternalCompany(doc, cid) && !doc.isDeleted).length;
@@ -4918,6 +5198,18 @@ const InternalTemplates = () => {
                         );
                       })
                     )}
+                    {companies.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllCompanies(!showAllCompanies)}
+                        style={{
+                          fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
+                          padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
+                        }}
+                      >
+                        {showAllCompanies ? "Thu gọn" : `Xem thêm (${companies.length - 5})`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -4939,7 +5231,7 @@ const InternalTemplates = () => {
                     >
                       {libraryExpanded ? ChevronDown : ChevronRight}
                     </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "legal_reference" && !activeLegalReferenceId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Tham chiếu</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "legal_reference" && !activeLegalReferenceId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Reference</span>
                   </div>
                   <button type="button"
                     onClick={() => { if (!requireCompany()) return; createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
@@ -4953,7 +5245,7 @@ const InternalTemplates = () => {
                         <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Chưa có tham chiếu</Text>
                       </div>
                     ) : (
-                      filteredLegalReferences.map((ref) => {
+                      (showAllLegalReferences ? filteredLegalReferences : filteredLegalReferences.slice(0, 5)).map((ref) => {
                         const refId = String(extractId(ref));
                         const isActive = activeSpace === "legal_reference" && refId === activeLegalReferenceId;
                         const filesCount = documents.filter(doc => String(getRecordLegalReferenceId(doc)) === refId && !doc.isDeleted).length;
@@ -4962,7 +5254,7 @@ const InternalTemplates = () => {
                         return (
                           <div key={refId} style={{ display: "flex", flexDirection: "column", width: "100%" }}>
                             <button type="button"
-                              onClick={() => { setActiveSpace("legal_reference"); setActiveLegalReferenceId(refId); setSelectedFolderId("root"); }}
+                              onClick={() => openLegalReferenceDetail(refId)}
                               style={{
                                 flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
                                 border: "0", borderRadius: 8, cursor: "pointer",
@@ -4980,7 +5272,7 @@ const InternalTemplates = () => {
                                   open: true,
                                   x: e.clientX,
                                   y: e.clientY,
-                                  record: { ...ref, _type: "template" }
+                                  record: { ...ref, _type: "legal_reference_record" }
                                 });
                               }}
                             >
@@ -5055,6 +5347,18 @@ const InternalTemplates = () => {
                         );
                       })
                     )}
+                    {filteredLegalReferences.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllLegalReferences(!showAllLegalReferences)}
+                        style={{
+                          fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
+                          padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
+                        }}
+                      >
+                        {showAllLegalReferences ? "Thu gọn" : `Xem thêm (${filteredLegalReferences.length - 5})`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -5092,7 +5396,7 @@ const InternalTemplates = () => {
                       {personalRootFolders.length === 0 ? (
                         <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
                       ) : (
-                        personalRootFolders.map((folder) => {
+                        (showAllPersonalFolders ? personalRootFolders : personalRootFolders.slice(0, 5)).map((folder) => {
                           const fid = String(extractId(folder.id));
                           const isFolderActive = activeSpace === "personal" && selectedFolderId === fid;
                           return (
@@ -5134,6 +5438,18 @@ const InternalTemplates = () => {
                             </button>
                           );
                         })
+                      )}
+                      {personalRootFolders.length > 5 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllPersonalFolders(!showAllPersonalFolders)}
+                          style={{
+                            fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
+                            padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
+                          }}
+                        >
+                          {showAllPersonalFolders ? "Thu gọn" : `Xem thêm (${personalRootFolders.length - 5})`}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -5232,62 +5548,7 @@ const InternalTemplates = () => {
                         (activeCompany ? getCompanyName(activeCompany) : "Tất cả công ty")}
               </Text>
             </div>
-            {activeSpace === "legal_reference" && activeLegalReference && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 12, flexWrap: "wrap" }}>
-                <Tag color="blue" style={{ borderRadius: 4, fontWeight: 500, margin: 0 }}>Bản chuẩn hóa / Tài liệu gốc</Tag>
-                <Text style={{ fontSize: 12, color: "#6B7280" }}>Case liên kết:</Text>
-                <div style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-                  {(activeLegalReference.cases || []).length === 0 ? (
-                    <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>Chưa liên kết case nào</span>
-                  ) : (() => {
-                    const list = activeLegalReference.cases || [];
-                    const visibleCount = 2;
-                    const visibleItems = list.slice(0, visibleCount);
-                    const extraItems = list.slice(visibleCount);
-                    const getDisplayName = (project) => {
-                      return project.projectName ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}` : `Case #${extractId(project)}`;
-                    };
-                    return (
-                      <React.Fragment>
-                        {visibleItems.map((project, idx) => (
-                          <Tag key={idx} color="default" style={{ borderRadius: 4, margin: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getDisplayName(project)}>
-                            {getDisplayName(project)}
-                          </Tag>
-                        ))}
-                        {extraItems.length > 0 && (
-                          <Tooltip
-                            title={
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 250, overflowY: "auto" }}>
-                                {extraItems.map((project, idx) => (
-                                  <div key={idx}>{getDisplayName(project)}</div>
-                                ))}
-                              </div>
-                            }
-                          >
-                            <Tag color="default" style={{ borderRadius: 4, margin: 0, cursor: "pointer", fontWeight: 600 }}>
-                              +{extraItems.length} khác
-                            </Tag>
-                          </Tooltip>
-                        )}
-                      </React.Fragment>
-                    );
-                  })()}
-                </div>
-                <Button
-                  size="small"
-                  type="link"
-                  icon={<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: "middle" }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>}
-                  onClick={() => {
-                    const linkedIds = (activeLegalReference.cases || []).map(item => String(extractId(item)));
-                    linkCaseForm.setFieldsValue({ caseIds: linkedIds });
-                    setIsLinkCaseOpen(true);
-                  }}
-                  style={{ fontSize: 12, padding: "0 4px", display: "inline-flex", alignItems: "center", gap: 4, height: "auto", border: 0 }}
-                >
-                  Liên kết Case
-                </Button>
-              </div>
-            )}
+
 
             {/* Spacer */}
             <div style={{ flex: 1 }} />
@@ -5320,7 +5581,7 @@ const InternalTemplates = () => {
                     { value: "moved", label: "Di chuyển" },
                     { value: "trash_deleted", label: "Xóa vào Thùng rác" },
                     { value: "restored", label: "Khôi phục" },
-                    { value: "deleted", label: "Xóa vĩnh viễn" },
+                    { value: "deleted", label: "Xóa" },
                   ]}
                 />
               </div>
@@ -5433,11 +5694,11 @@ const InternalTemplates = () => {
                 {/* ── BREADCRUMB ── */}
                 <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 16 }}>
                   {breadcrumbs.map((item, index) => {
-                    const isCurrent = item.id === selectedFolderId;
+                    const isCurrent = index === breadcrumbs.length - 1;
                     return (
                       <React.Fragment key={item.id}>
                         {index > 0 && <span style={{ color: "#9CA3AF", fontSize: 13, userSelect: "none" }}>›</span>}
-                        <button type="button" onClick={() => setSelectedFolderId(item.id)}
+                        <button type="button" onClick={() => handleBreadcrumbClick(item)}
                           style={{
                             border: 0, background: "transparent", borderRadius: 6,
                             padding: "3px 6px", cursor: "pointer", fontFamily: FONT,
@@ -5455,7 +5716,7 @@ const InternalTemplates = () => {
                   })}
                 </div>
 
-                {selectedRowKeys.length > 0 && (
+                {selectedRowKeys.length > 0 && !isLegalReferenceRoot && (
                   <div style={{
                     background: "#FFFFFF",
                     border: "1px solid #E5E7EB",
@@ -5517,7 +5778,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Xóa vĩnh viễn
+                            Xóa
                           </Button>
                         </React.Fragment>
                       ) : (
@@ -5602,9 +5863,6 @@ const InternalTemplates = () => {
                       <React.Fragment>
                         {/* ── Section: Case Tham Chiếu ── */}
                         {tableData.some(r => r._type === "legal_reference_record") && (
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Danh sách Case Tham Chiếu</div>
-                        )}
-                        {tableData.some(r => r._type === "legal_reference_record") && (
                           <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
                             {tableData.filter(r => r._type === "legal_reference_record").map((record) => {
                               const refId = String(extractId(record));
@@ -5614,92 +5872,40 @@ const InternalTemplates = () => {
                                 <Col span={6} key={record._key}>
                                   <Card
                                     hoverable
-                                    onClick={() => {
-                                      setActiveSpace("legal_reference");
-                                      setActiveLegalReferenceId(refId);
-                                      setSelectedFolderId("root");
-                                    }}
+                                    onClick={() => openLegalReferenceDetail(record)}
                                     onContextMenu={(e) => {
                                       e.preventDefault(); e.stopPropagation();
                                       setContextMenuState({
                                         open: true,
                                         x: e.clientX,
                                         y: e.clientY,
-                                        record: { ...record, _type: "template" }
+                                        record: { ...record, _type: "legal_reference_record" }
                                       });
                                     }}
                                     style={{
-                                      borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer",
+                                      borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer", height: "100%",
                                       borderLeft: "3px solid #185FA5", background: "#FFFFFF"
                                     }}
-                                    bodyStyle={{ padding: "12px", display: "flex", flexDirection: "column", gap: 8 }}
+                                    bodyStyle={{ padding: "16px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}
                                   >
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                      <div style={{
-                                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                                        background: "#E6F1FB",
-                                        color: "#185FA5",
-                                        display: "flex", alignItems: "center", justifyContent: "center",
-                                      }}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V3.5A2.5 2.5 0 0 1 6.5 1H20v21H6.5" />
-                                        </svg>
+                                    <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      {record.title || record.name || getLegalReferenceDisplayName(record)}
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4, fontSize: 12, color: "#6B7280" }}>
+                                      <div>
+                                        <span style={{ color: "#9CA3AF" }}>Người tạo: </span>
+                                        <strong>{record.createdBy?.nickname || record.createdBy?.username || "Hệ thống"}</strong>
                                       </div>
+                                      <div>
+                                        <span style={{ color: "#9CA3AF" }}>Ngày tạo: </span>
+                                        <span>{record.createdAt ? new Date(record.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                                      </div>
+                                    </div>
+                                    <div style={{ marginTop: "auto", paddingTop: 8, borderTop: "0.5px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                      <span style={{ fontSize: 11, color: "#9CA3AF" }}>Tài nguyên:</span>
                                       <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
                                         {foldersCount} Thư mục · {filesCount} file
                                       </span>
-                                    </div>
-                                    <div style={{ fontWeight: 600, fontSize: 13, color: "#111827", marginTop: 2 }}>
-                                      {getLegalReferenceDisplayName(record)}
-                                    </div>
-                                    {record.description && (
-                                      <div style={{ fontSize: 11, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: "1.4", minHeight: 30 }}>
-                                        {record.description}
-                                      </div>
-                                    )}
-                                    {/* Case liên kết */}
-                                    <div style={{ marginTop: 4, paddingTop: 6, borderTop: "0.5px solid #F3F4F6" }}>
-                                      <div style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 2 }}>Case liên kết:</div>
-                                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", alignItems: "center" }}>
-                                        {(record.cases || []).length === 0 ? (
-                                          <span style={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic" }}>Chưa liên kết</span>
-                                        ) : (() => {
-                                          const list = record.cases || [];
-                                          const visibleCount = 2;
-                                          const visibleItems = list.slice(0, visibleCount);
-                                          const extraItems = list.slice(visibleCount);
-                                          const getDisplayName = (project) => {
-                                            return project.projectName ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}` : `Case #${extractId(project)}`;
-                                          };
-                                          return (
-                                            <React.Fragment>
-                                              {visibleItems.map((project, idx) => {
-                                                const display = getDisplayName(project);
-                                                return (
-                                                  <Tag key={idx} color="default" style={{ borderRadius: 4, margin: 0, fontSize: 9, padding: "0 3px", maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={display}>
-                                                    {display}
-                                                  </Tag>
-                                                );
-                                              })}
-                                              {extraItems.length > 0 && (
-                                                <Tooltip
-                                                  title={
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto" }}>
-                                                      {extraItems.map((project, idx) => (
-                                                        <div key={idx}>{getDisplayName(project)}</div>
-                                                      ))}
-                                                    </div>
-                                                  }
-                                                >
-                                                  <Tag color="default" style={{ borderRadius: 4, margin: 0, fontSize: 9, padding: "0 3px", cursor: "pointer", fontWeight: 600 }}>
-                                                    +\ ${extraItems.length} khác
-                                                  </Tag>
-                                                </Tooltip>
-                                              )}
-                                            </React.Fragment>
-                                          );
-                                        })()}
-                                      </div>
                                     </div>
                                   </Card>
                                 </Col>
@@ -5928,7 +6134,7 @@ const InternalTemplates = () => {
                   </React.Fragment>
                 ) : (
                   <Table
-                    rowSelection={{
+                    rowSelection={isLegalReferenceRoot ? undefined : {
                       selectedRowKeys,
                       onChange: setSelectedRowKeys,
                     }}
@@ -6212,9 +6418,9 @@ const InternalTemplates = () => {
       <Modal
         title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Liên kết Case Tham Chiếu</span>}
         open={isLinkCaseOpen}
-        onCancel={() => { setIsLinkCaseOpen(false); linkCaseForm.resetFields(); }}
+        onCancel={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }}
         footer={[
-          <Button key="cancel" onClick={() => setIsLinkCaseOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
+          <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
           <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Lưu liên kết</Button>,
         ]}
         destroyOnClose
