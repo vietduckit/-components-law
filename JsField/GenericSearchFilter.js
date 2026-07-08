@@ -118,6 +118,45 @@ const getNoRecordFilter = () => ({ id: { $eq: -1 } });
 const getFilterKey = (filterDef) => `${CONFIG.tableName}-${filterDef.key}-filter`;
 const getScopeFilterKey = () => `${CONFIG.tableName}-current-user-scope-filter`;
 
+// ---- filter-object builders (pure) ----
+const buildFilterFor = (filterDef, value) => {
+  if (!filterDef || !filterDef.type) return {};
+  switch (filterDef.type) {
+    case 'status': {
+      if (!value || value === 'all') return {};
+      return { [filterDef.field]: value };
+    }
+    case 'relation': {
+      const id = normalizeFilterId(value);
+      if (id === null) return {};
+      return { [filterDef.field]: id };
+    }
+    case 'search': {
+      const q = String(value ?? '').trim();
+      if (!q) return {};
+      const fields = filterDef.fields || [];
+      if (fields.length === 0) return {};
+      const like = `%${q}%`;
+      const clauses = fields.map((f) => ({ [f]: { $iLike: like } }));
+      return clauses.length === 1 ? clauses[0] : { $or: clauses };
+    }
+    case 'dateRange': {
+      const from = value && value.from ? value.from : null;
+      const to = value && value.to ? value.to : null;
+      if (!from && !to) return {};
+      const clauses = [];
+      if (from) clauses.push({ [filterDef.field]: { $gte: from } });
+      if (to) clauses.push({ [filterDef.field]: { $lte: to } });
+      return clauses.length === 1 ? clauses[0] : { $and: clauses };
+    }
+    default:
+      console.warn('[GenericSearchFilter] Unknown filter type:', filterDef.type);
+      return {};
+  }
+};
+
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'Tất cả' }, ...(filterDef.options || [])];
+
 // ---- ctx-dependent identity helpers (not unit-testable without a real ctx) ----
 const getCurrentUserFromCtx = () => {
   try {
