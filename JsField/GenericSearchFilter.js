@@ -97,13 +97,6 @@ const normalizeFilterId = (value) => {
   return Number.isFinite(numeric) && String(numeric) === String(id) ? numeric : id;
 };
 
-const uniqueFilterIds = (values) => Array.from(new Set(
-  (values || []).map(normalizeFilterId).filter((v) => v !== null && v !== undefined).map(String),
-)).map((value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && String(numeric) === value ? numeric : value;
-});
-
 const isEmptyFilter = (filter) => !filter || Object.keys(filter).length === 0;
 
 const combineFilters = (...filters) => {
@@ -289,6 +282,10 @@ function useRelationOptions(filterDef) {
 
   useEffect(() => {
     if (filterDef.type !== 'relation') return;
+    if (!filterDef.source?.collection) {
+      console.warn(`[GenericSearchFilter] Missing source.collection for relation filter: ${filterDef.key}`);
+      return;
+    }
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true }));
     ctx.api.request({
@@ -379,7 +376,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
     const displayOptions = getDisplayOptions(filterDef);
     const showCounts = filterDef.showCounts !== false;
     return React.createElement(
-      'div', { key: filterDef.key, style: wrapStyle },
+      'div', { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value,
@@ -398,7 +395,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
 
   if (filterDef.type === 'relation') {
     return React.createElement(
-      'div', { key: filterDef.key, style: wrapStyle },
+      'div', { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
@@ -417,7 +414,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
 
   if (filterDef.type === 'search') {
     return React.createElement(
-      'div', { key: filterDef.key, style: { ...wrapStyle, flex: 1, minWidth: 200 } },
+      'div', { style: { ...wrapStyle, flex: 1, minWidth: 200 } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
         placeholder: filterDef.placeholder || 'Tìm kiếm...',
@@ -433,7 +430,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
 
   if (filterDef.type === 'dateRange') {
     return React.createElement(
-      'div', { key: filterDef.key, style: wrapStyle },
+      'div', { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input, {
         type: 'date',
