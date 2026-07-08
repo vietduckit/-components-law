@@ -456,3 +456,69 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
   console.warn('[GenericSearchFilter] Unknown filter type in render:', filterDef.type);
   return null;
 };
+
+const initialActiveValues = () => {
+  const values = {};
+  CONFIG.filters.forEach((f) => {
+    if (f.type === 'status') values[f.key] = 'all';
+    else if (f.type === 'dateRange') values[f.key] = { from: '', to: '' };
+    else values[f.key] = '';
+  });
+  return values;
+};
+
+const GenericSearchFilter = () => {
+  const [activeValues, setActiveValues] = useState(initialActiveValues);
+  const currentUserScope = useCurrentUserScope();
+  const { counts, refetch: refetchCounts } = useStatusCountsAll(
+    activeValues, currentUserScope.filter, !currentUserScope.loading,
+  );
+
+  useEffect(() => {
+    const engine = ctx.engine || ctx.app;
+    if (!engine) return;
+    if (!engine.__nocobaseReloaders) engine.__nocobaseReloaders = new Set();
+    engine.__nocobaseReloaders.add(refetchCounts);
+    return () => engine.__nocobaseReloaders.delete(refetchCounts);
+  }, [refetchCounts]);
+
+  const applyFilterGroup = useCallback(async (filterKey, filter) => {
+    try {
+      const target = ctx.engine?.getModel(CONFIG.targetBlockUid);
+      if (!target) {
+        console.warn('[GenericSearchFilter] targetBlockUid không resolve được model:', CONFIG.targetBlockUid);
+        return;
+      }
+      target.resource.addFilterGroup(filterKey, filter);
+      await target.resource.refresh();
+    } catch (e) {
+      console.error('[GenericSearchFilter] Áp filter thất bại:', filterKey, e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!CONFIG.currentUserScope.enable || currentUserScope.loading) return;
+    applyFilterGroup(getScopeFilterKey(), currentUserScope.filter);
+  }, [applyFilterGroup, currentUserScope.loading, currentUserScope.signature]);
+
+  const handleChange = useCallback((filterDef, value) => {
+    setActiveValues((prev) => ({ ...prev, [filterDef.key]: value }));
+    applyFilterGroup(getFilterKey(filterDef), buildFilterFor(filterDef, value));
+  }, [applyFilterGroup]);
+
+  return React.createElement(
+    'div',
+    { style: barStyle },
+    CONFIG.filters.map((filterDef) =>
+      React.createElement(FilterControl, {
+        key: filterDef.key,
+        filterDef,
+        value: activeValues[filterDef.key],
+        onChange: (v) => handleChange(filterDef, v),
+        counts,
+      }),
+    ),
+  );
+};
+
+ctx.render(React.createElement(GenericSearchFilter));
