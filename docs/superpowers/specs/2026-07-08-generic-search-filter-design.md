@@ -181,7 +181,7 @@ Generalize nguyên logic từ `JsStatusFilter.js`/`JsProjectFilter.js`: resolve
 `currentUser` qua `auth:check`, validate từng field trong
 `CONFIG.currentUserScope.userFields` còn tồn tại trên `CONFIG.tableName`
 bằng 1 API call thử (bỏ field lỗi thay vì throw), build filter theo
-`userFields` + `assigneeRelationField`, fallback `getNoRecordFilter()` khi
+`userFields`, fallback `getNoRecordFilter()` khi
 `emptyWhenUnknown` và không resolve được userId.
 
 ### `useRelationOptions(filterDef)`
