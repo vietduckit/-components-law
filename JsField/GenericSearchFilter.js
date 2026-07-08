@@ -22,7 +22,7 @@
 // ===================================================================
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
-var CONFIG = {
+const CONFIG = {
   targetBlockUid: '',   // UID of the table/kanban/list block to filter
   tableName: '',          // collection name, e.g. "cases", "contracts"
   extraFilter: {},        // always-applied filter (optional), e.g. {}
@@ -84,42 +84,42 @@ var CONFIG = {
 // ===================================================================
 
 // ---- id / filter-key helpers (pure, no ctx access) ----
-var extractId = (value) => {
+const extractId = (value) => {
   if (value === null || value === undefined) return null;
   if (typeof value === 'object') return value.id ?? value.value ?? value._id ?? null;
   return value;
 };
 
-var normalizeFilterId = (value) => {
+const normalizeFilterId = (value) => {
   const id = extractId(value);
   if (id === null || id === undefined || id === '') return null;
   const numeric = Number(id);
   return Number.isFinite(numeric) && String(numeric) === String(id) ? numeric : id;
 };
 
-var uniqueFilterIds = (values) => Array.from(new Set(
+const uniqueFilterIds = (values) => Array.from(new Set(
   (values || []).map(normalizeFilterId).filter((v) => v !== null && v !== undefined).map(String),
 )).map((value) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) && String(numeric) === value ? numeric : value;
 });
 
-var isEmptyFilter = (filter) => !filter || Object.keys(filter).length === 0;
+const isEmptyFilter = (filter) => !filter || Object.keys(filter).length === 0;
 
-var combineFilters = (...filters) => {
+const combineFilters = (...filters) => {
   const active = filters.filter((f) => !isEmptyFilter(f));
   if (active.length === 0) return {};
   if (active.length === 1) return active[0];
   return { $and: active };
 };
 
-var getNoRecordFilter = () => ({ id: { $eq: -1 } });
+const getNoRecordFilter = () => ({ id: { $eq: -1 } });
 
-var getFilterKey = (filterDef) => `${CONFIG.tableName}-${filterDef.key}-filter`;
-var getScopeFilterKey = () => `${CONFIG.tableName}-current-user-scope-filter`;
+const getFilterKey = (filterDef) => `${CONFIG.tableName}-${filterDef.key}-filter`;
+const getScopeFilterKey = () => `${CONFIG.tableName}-current-user-scope-filter`;
 
 // ---- ctx-dependent identity helpers (not unit-testable without a real ctx) ----
-var getCurrentUserFromCtx = () => {
+const getCurrentUserFromCtx = () => {
   try {
     return ctx.currentUser
       || ctx.user
@@ -132,7 +132,7 @@ var getCurrentUserFromCtx = () => {
   }
 };
 
-var getResponseRecord = (res) => {
+const getResponseRecord = (res) => {
   const data = res?.data?.data || res?.data || res;
   return data?.user || data || null;
 };
