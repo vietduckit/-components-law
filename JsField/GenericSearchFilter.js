@@ -214,3 +214,72 @@ const getResponseRecord = (res) => {
   const data = res?.data?.data || res?.data || res;
   return data?.user || data || null;
 };
+
+const { React } = ctx;
+const { useState, useEffect, useCallback } = React;
+const { Select, Input, Typography } = ctx.antd;
+const { Text } = Typography;
+
+function useCurrentUserScope() {
+  const [scope, setScope] = useState({
+    loading: !!CONFIG.currentUserScope.enable,
+    userId: null,
+    filter: {},
+    signature: '{}',
+  });
+
+  useEffect(() => {
+    if (!CONFIG.currentUserScope.enable) {
+      setScope({ loading: false, userId: null, filter: {}, signature: '{}' });
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveScope = async () => {
+      let currentUser = getCurrentUserFromCtx();
+      try {
+        const authRes = await ctx.api.request({ url: 'auth:check' });
+        currentUser = getResponseRecord(authRes) || currentUser;
+      } catch (e) {
+        if (!currentUser) console.warn('[GenericSearchFilter] Could not resolve currentUser:', e);
+      }
+
+      const userId = normalizeFilterId(currentUser?.id ?? currentUser);
+      let validUserFields = CONFIG.currentUserScope.userFields || [];
+
+      if (CONFIG.currentUserScope.validateFields && userId && validUserFields.length) {
+        const validated = await Promise.all(
+          validUserFields.map(async (field) => {
+            try {
+              await ctx.api.request({
+                url: `${CONFIG.tableName}:list`,
+                params: { pageSize: 1, filter: JSON.stringify({ [field]: { $eq: userId } }) },
+              });
+              return field;
+            } catch (e) {
+              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope field không hợp lệ: ${field}`, e);
+              return null;
+            }
+          }),
+        );
+        validUserFields = validated.filter(Boolean);
+      }
+
+      const filter = buildCurrentUserScopeFilter({
+        userId,
+        validUserFields,
+        emptyWhenUnknown: CONFIG.currentUserScope.emptyWhenUnknown !== false,
+      });
+
+      if (!cancelled) {
+        setScope({ loading: false, userId, filter, signature: JSON.stringify(filter || {}) });
+      }
+    };
+
+    resolveScope();
+    return () => { cancelled = true; };
+  }, []);
+
+  return scope;
+}
