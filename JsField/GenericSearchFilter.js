@@ -157,6 +157,45 @@ const buildFilterFor = (filterDef, value) => {
 
 const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'Tất cả' }, ...(filterDef.options || [])];
 
+// ---- current-user scope filter (pure) ----
+const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], emptyWhenUnknown = true }) => {
+  const safeUserId = normalizeFilterId(userId);
+  if (!safeUserId) return emptyWhenUnknown ? getNoRecordFilter() : {};
+  const clauses = validUserFields.map((field) => ({ [field]: { $eq: safeUserId } }));
+  if (clauses.length === 0) return emptyWhenUnknown ? getNoRecordFilter() : {};
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+};
+
+// ---- relation option mapping (pure) ----
+const mapRelationOptions = (records, filterDef) => {
+  const excludeSet = new Set(
+    (filterDef?.source?.excludeValues || []).map((v) => String(normalizeFilterId(v))),
+  );
+  const labelFields = filterDef?.source?.labelFields?.length ? filterDef.source.labelFields : ['name'];
+  return (records || [])
+    .filter((record) => !excludeSet.has(String(normalizeFilterId(record?.id))))
+    .map((record) => {
+      let label = '';
+      for (const field of labelFields) {
+        if (record?.[field]) { label = String(record[field]); break; }
+      }
+      return { value: record?.id, label: label || `#${record?.id}` };
+    });
+};
+
+// ---- status-option count filter (pure) ----
+const buildCountFilter = ({ extraFilter, currentUserScopeFilter, filters, activeValues, statusFilterDef, optionValue }) => {
+  const otherFilters = filters
+    .filter((f) => f.key !== statusFilterDef.key)
+    .map((f) => buildFilterFor(f, activeValues[f.key]));
+  return combineFilters(
+    extraFilter,
+    currentUserScopeFilter,
+    ...otherFilters,
+    buildFilterFor(statusFilterDef, optionValue),
+  );
+};
+
 // ---- ctx-dependent identity helpers (not unit-testable without a real ctx) ----
 const getCurrentUserFromCtx = () => {
   try {
