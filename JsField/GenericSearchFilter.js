@@ -283,3 +283,83 @@ function useCurrentUserScope() {
 
   return scope;
 }
+
+function useRelationOptions(filterDef) {
+  const [state, setState] = useState({ options: [], loading: filterDef.type === 'relation' });
+
+  useEffect(() => {
+    if (filterDef.type !== 'relation') return;
+    let cancelled = false;
+    setState((prev) => ({ ...prev, loading: true }));
+    ctx.api.request({
+      url: `${filterDef.source.collection}:list`,
+      params: { pageSize: 500, sort: filterDef.source.sort || 'createdAt' },
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setState({ options: mapRelationOptions(res?.data?.data || [], filterDef), loading: false });
+      })
+      .catch((e) => {
+        console.warn(`[GenericSearchFilter] Could not fetch relation options for ${filterDef.key}:`, e);
+        if (!cancelled) setState({ options: [], loading: false });
+      });
+    return () => { cancelled = true; };
+  }, [filterDef.key, filterDef.type]);
+
+  return state;
+}
+
+function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [trigger, setTrigger] = useState(0);
+  const refetch = useCallback(() => setTrigger((p) => p + 1), []);
+  const activeValuesSignature = JSON.stringify(activeValues);
+  const scopeSignature = JSON.stringify(currentUserScopeFilter || {});
+
+  useEffect(() => {
+    if (!scopeReady) { setLoading(true); return; }
+    const statusFilters = CONFIG.filters.filter((f) => f.type === 'status' && f.showCounts !== false);
+    if (statusFilters.length === 0) { setCounts({}); setLoading(false); return; }
+
+    let cancelled = false;
+    const fetchCounts = async () => {
+      setLoading(true);
+      try {
+        const entries = await Promise.all(statusFilters.map(async (statusFilterDef) => {
+          const displayOptions = getDisplayOptions(statusFilterDef);
+          const optionResults = await Promise.all(displayOptions.map((option) =>
+            ctx.api.request({
+              url: `${CONFIG.tableName}:list`,
+              params: {
+                pageSize: 1,
+                filter: JSON.stringify(buildCountFilter({
+                  extraFilter: CONFIG.extraFilter,
+                  currentUserScopeFilter,
+                  filters: CONFIG.filters,
+                  activeValues,
+                  statusFilterDef,
+                  optionValue: option.value,
+                })),
+              },
+            }),
+          ));
+          const byOption = {};
+          displayOptions.forEach((option, i) => {
+            byOption[option.value] = optionResults[i]?.data?.meta?.count || 0;
+          });
+          return [statusFilterDef.key, byOption];
+        }));
+        if (!cancelled) setCounts(Object.fromEntries(entries));
+      } catch (e) {
+        console.error('[GenericSearchFilter] Lỗi lấy counts:', e);
+        if (!cancelled) setCounts({});
+      }
+      if (!cancelled) setLoading(false);
+    };
+    fetchCounts();
+    return () => { cancelled = true; };
+  }, [activeValuesSignature, scopeSignature, scopeReady, trigger]);
+
+  return { counts, loading, refetch };
+}
