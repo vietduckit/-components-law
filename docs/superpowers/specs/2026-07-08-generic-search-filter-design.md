@@ -109,13 +109,19 @@ const CONFIG = {
 
   currentUserScope: {
     enable: false,
-    userFields: ['createdById'],
-    assigneeRelationField: null,
+    userFields: ['createdById'],   // các field scalar so trực tiếp với userId hiện tại
     emptyWhenUnknown: true,
     validateFields: true,
   },
 };
 ```
+
+**Lưu ý phạm vi v1:** `currentUserScope` chỉ hỗ trợ so khớp scalar field (đúng
+cơ chế đã proven trong `JsStatusFilter.js`). Không hỗ trợ scope qua quan hệ
+gián tiếp kiểu `assigneeRelationField` (như cách `JsProjectFilter.js` resolve
+qua bảng `lawyers`) — cơ chế đó gắn chặt với 1 collection cụ thể nên không
+generic hoá được trong v1 mà không cần thêm config phức tạp. Module nào cần
+kiểu scope đó vẫn dùng `JsProjectFilter.js` làm tham khảo riêng.
 
 Ràng buộc:
 
