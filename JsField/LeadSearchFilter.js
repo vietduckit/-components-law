@@ -1,19 +1,32 @@
 /**
  * Generic Search/Filter block (Nocobase JS Field/Action block).
+ * Deployment: Lead module (targetBlockUid lkefg2nclcb).
+ *
+ * This is JsField/GenericSearchFilter.js with CONFIG filled in for the Lead
+ * module. Field names below were confirmed directly against the live
+ * Nocobase "Lead - Configure fields" admin UI (screenshots), which is the
+ * authoritative source — an earlier version of this file was based on a
+ * direct Postgres query against a local `nocobase` database that turned out
+ * to be a stale/unrelated copy, not the database backing the running app.
+ *
+ * Field notes:
+ *   - `internalCompanyId` is a flat scalar FK column — filtered directly.
+ *   - `Assignees` (belongsTo -> `lawyers`) has no separate flat FK column,
+ *     only the association itself — needs `relationKey: 'id'` in this
+ *     engine's `relation` filter type to build the nested filter shape
+ *     `{ Assignees: { id: { $eq: ... } } }` instead of a flat one. This is
+ *     a small (backward-compatible) addition to buildFilterFor in both this
+ *     file and JsField/GenericSearchFilter.js.
+ *   - `salesperson` is a plain single-line text field (not a select, not a
+ *     relation) — implemented as its own single-field `search`-type filter
+ *     rather than a dropdown.
+ *   - `shortName` does exist on Lead and is included in the main search box.
  *
  * HOW TO USE THIS FILE:
- * 1. Copy this entire file into a new JS Field/Action block in Nocobase,
- *    attached to the page of the module you want to filter.
- * 2. Edit ONLY the CONFIG object below — set targetBlockUid, tableName, and
- *    the `filters` array for that module.
- * 3. Do not edit anything below the "ENGINE" marker. It is identical across
- *    every module deployment.
- *
- * Supported filter types (set via `filters[].type`):
- *   - 'status'    : buttons/select over an enum field, with per-option counts
- *   - 'relation'  : dropdown sourced from another collection (company, user...)
- *   - 'search'    : free-text search across one or more fields ($iLike)
- *   - 'dateRange' : from/to date range on one field
+ * 1. Copy this entire file into the Lead module's JS Field/Action block in
+ *    Nocobase (targetBlockUid lkefg2nclcb), replacing JsField/JsLeadFilter.js.
+ * 2. Do not edit anything below the "ENGINE" marker except to keep it in
+ *    sync with JsField/GenericSearchFilter.js if that template changes.
  *
  * See docs/superpowers/specs/2026-07-08-generic-search-filter-design.md for
  * the full design.
@@ -23,53 +36,85 @@
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
 const CONFIG = {
-  targetBlockUid: '',   // UID of the table/kanban/list block to filter
-  tableName: '',          // collection name, e.g. "cases", "contracts"
-  extraFilter: {},        // always-applied filter (optional), e.g. {}
+  targetBlockUid: 'lkefg2nclcb',
+  tableName: 'leads',
+  extraFilter: {},
 
-  // Example filters array (replace with real config for the target module):
-  // filters: [
-  //   {
-  //     type: 'status',
-  //     key: 'status',
-  //     field: 'status',
-  //     label: 'Trạng thái',
-  //     options: [
-  //       { value: 'toDo', label: 'Chưa làm' },
-  //       { value: 'inProgress', label: 'Đang làm' },
-  //       { value: 'done', label: 'Hoàn thành' },
-  //     ],
-  //     showCounts: true,
-  //   },
-  //   {
-  //     type: 'relation',
-  //     key: 'company',
-  //     field: 'internalCompanyId',
-  //     label: 'Công ty',
-  //     placeholder: 'Tất cả',
-  //     width: 180,
-  //     source: {
-  //       collection: 'internalCompany',
-  //       labelFields: ['shortName', 'name'],
-  //       excludeValues: [],
-  //       sort: 'createdAt',
-  //     },
-  //   },
-  //   {
-  //     type: 'search',
-  //     key: 'search',
-  //     label: 'Tìm kiếm',
-  //     fields: ['title', 'code', 'description'],
-  //     placeholder: 'Tìm theo tên, mã...',
-  //   },
-  //   {
-  //     type: 'dateRange',
-  //     key: 'signedDate',
-  //     field: 'signedDate',
-  //     label: 'Ngày ký',
-  //   },
-  // ],
-  filters: [],
+  filters: [
+    {
+      type: 'status',
+      key: 'status',
+      field: 'status',
+      label: 'Trạng thái',
+      options: [
+        { value: 'new', label: 'New' },
+        { value: 'opportunity', label: 'Opportunity' },
+        { value: 'won', label: 'Won' },
+        { value: 'negotiation', label: 'Negotiation' },
+        { value: 'lost', label: 'Lost' },
+      ],
+      showCounts: true,
+    },
+    {
+      type: 'status',
+      key: 'source',
+      field: 'source',
+      label: 'Nguồn',
+      options: [
+        { value: 'googleAds', label: 'Google Ads' },
+        { value: 'facebookAds', label: 'Facebook Ads' },
+        { value: 'zalo', label: 'Zalo' },
+        { value: 'referral', label: 'Referral' },
+        { value: 'website', label: 'Website' },
+        { value: 'hotline', label: 'Hotline' },
+        { value: 'partner', label: 'Partner' },
+        { value: 'lawyer', label: 'Lawyer' },
+        { value: 'staff', label: 'Staff' },
+      ],
+      showCounts: true,
+    },
+    {
+      type: 'relation',
+      key: 'company',
+      field: 'internalCompanyId',
+      label: 'Công ty nội bộ',
+      placeholder: 'Tất cả',
+      width: 180,
+      source: {
+        collection: 'internalCompany',
+        labelFields: ['shortName', 'name'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'relation',
+      key: 'assignees',
+      field: 'Assignees',
+      relationKey: 'id', // Assignees has no flat FK column, only the association
+      label: 'Người phụ trách',
+      placeholder: 'Tất cả',
+      width: 180,
+      source: {
+        collection: 'lawyers',
+        labelFields: ['lawyerName', 'fullName', 'name'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'search',
+      key: 'salesperson',
+      label: 'Salesperson',
+      fields: ['salesperson'],
+      placeholder: 'Tìm theo salesperson...',
+    },
+    {
+      type: 'search',
+      key: 'search',
+      label: 'Tìm kiếm',
+      fields: ['fullName', 'email', 'shortName'],
+      placeholder: 'Tìm theo họ tên, email, shortName...',
+    },
+  ],
 
   currentUserScope: {
     enable: false,

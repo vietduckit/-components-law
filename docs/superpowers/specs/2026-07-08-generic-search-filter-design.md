@@ -78,6 +78,7 @@ const CONFIG = {
       type: 'relation',
       key: 'company',
       field: 'internalCompanyId',    // field FK trên tableName
+      relationKey: null,             // optional — xem ghi chú bên dưới
       label: 'Công ty',
       placeholder: 'Tất cả',
       width: 180,
@@ -156,9 +157,17 @@ nếu value rỗng/"all"):
 | type | Input value | Output filter |
 |---|---|---|
 | `status` | `'all'` hoặc status key | `{}` nếu `'all'`, ngược lại `{ [field]: value }` |
-| `relation` | id được chọn hoặc `undefined` | `{}` nếu rỗng, ngược lại `{ [field]: value }` |
+| `relation` | id được chọn hoặc `undefined` | `{}` nếu rỗng, ngược lại `{ [field]: value }` — hoặc `{ [field]: { [relationKey]: value } }` nếu `relationKey` được set |
 | `search` | chuỗi tìm kiếm | `{}` nếu rỗng sau `trim()`, ngược lại `{ $or: fields.map(f => ({ [f]: { $iLike: `%${q}%` } })) }` |
 | `dateRange` | `{ from, to }` (ISO string hoặc rỗng) | `{}` nếu cả 2 rỗng; ngược lại `$and` gồm `{ [field]: { $gte: from } }` (nếu có `from`) và `{ [field]: { $lte: to } }` (nếu có `to`) |
+
+**`relationKey` (optional, chỉ áp dụng cho `type: 'relation'`):** đa số quan hệ
+`belongsTo` có sẵn cột FK phẳng trên `tableName` (vd `internalCompanyId`) nên
+filter trực tiếp `{ field: id }` là đủ. Một số quan hệ (vd `Assignees` trên
+collection `leads`) không có cột FK phẳng, chỉ filter được qua association
+lồng nhau — set `relationKey: 'id'` để engine build
+`{ field: { relationKey: id } }` thay vì filter phẳng. Mặc định không set
+(giữ hành vi phẳng như cũ).
 
 ### `applyFilterGroup(filterKey, filter)`
 
