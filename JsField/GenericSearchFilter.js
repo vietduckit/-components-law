@@ -363,3 +363,96 @@ function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
 
   return { counts, loading, refetch };
 }
+
+const barStyle = {
+  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
+  padding: '10px 14px', backgroundColor: '#fff', borderRadius: 8,
+  border: '1px solid #f0f0f0', boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+};
+const wrapStyle = { display: 'flex', alignItems: 'center', gap: 6 };
+const labelStyle = { fontSize: 12, fontWeight: 500, color: '#8c8c8c', whiteSpace: 'nowrap' };
+
+const FilterControl = ({ filterDef, value, onChange, counts }) => {
+  const relation = useRelationOptions(filterDef);
+
+  if (filterDef.type === 'status') {
+    const displayOptions = getDisplayOptions(filterDef);
+    const showCounts = filterDef.showCounts !== false;
+    return React.createElement(
+      'div', { key: filterDef.key, style: wrapStyle },
+      React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
+      React.createElement(Select, {
+        value,
+        size: 'small',
+        style: { width: filterDef.width || 180 },
+        onChange: (v) => onChange(v || 'all'),
+        options: displayOptions.map((opt) => ({
+          value: opt.value,
+          label: showCounts
+            ? `${opt.label} (${(counts[filterDef.key] || {})[opt.value] ?? 0})`
+            : opt.label,
+        })),
+      }),
+    );
+  }
+
+  if (filterDef.type === 'relation') {
+    return React.createElement(
+      'div', { key: filterDef.key, style: wrapStyle },
+      React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
+      React.createElement(Select, {
+        value: value || undefined,
+        placeholder: filterDef.placeholder || 'Tất cả',
+        allowClear: true,
+        showSearch: true,
+        optionFilterProp: 'label',
+        loading: relation.loading,
+        style: { width: filterDef.width || 180 },
+        size: 'small',
+        onChange: (v) => onChange(v || ''),
+        options: relation.options,
+      }),
+    );
+  }
+
+  if (filterDef.type === 'search') {
+    return React.createElement(
+      'div', { key: filterDef.key, style: { ...wrapStyle, flex: 1, minWidth: 200 } },
+      React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
+      React.createElement(Input.Search, {
+        placeholder: filterDef.placeholder || 'Tìm kiếm...',
+        allowClear: true,
+        enterButton: true,
+        size: 'small',
+        defaultValue: value,
+        onSearch: (v) => onChange((v || '').trim()),
+        style: { flex: 1, maxWidth: 380 },
+      }),
+    );
+  }
+
+  if (filterDef.type === 'dateRange') {
+    return React.createElement(
+      'div', { key: filterDef.key, style: wrapStyle },
+      React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
+      React.createElement(Input, {
+        type: 'date',
+        size: 'small',
+        value: value?.from || '',
+        style: { width: 130 },
+        onChange: (e) => onChange({ ...value, from: e.target.value }),
+      }),
+      React.createElement(Text, { style: labelStyle }, '-'),
+      React.createElement(Input, {
+        type: 'date',
+        size: 'small',
+        value: value?.to || '',
+        style: { width: 130 },
+        onChange: (e) => onChange({ ...value, to: e.target.value }),
+      }),
+    );
+  }
+
+  console.warn('[GenericSearchFilter] Unknown filter type in render:', filterDef.type);
+  return null;
+};
