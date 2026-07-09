@@ -25,15 +25,21 @@
  *     in JsField/GenericSearchFilter.js and JsField/LeadSearchFilter.js) to
  *     use nullish/empty checks instead of falsy checks.
  *
- * NOT verified in this pass (carried over from the user's own config,
- * flagged, not changed): the `search` filter's fields
- * (`fullName`/`email`/`shortName`/`salesperson`) and the `assignees`
- * relation's `field: 'lawyers'` were copied from the Lead deployment.
- * `All Module/Quotation/QuotationCreateForm.js`'s confirmed `quotations:create`
- * payload has no such fields — quotations aren't person records — so these
- * are very likely leftover from copying JsField/LeadSearchFilter.js and may
- * silently error or no-op. Left as-is per scope (only asked to add
- * isRequiredApproval/approvedById) — verify before relying on them.
+ * Field names below were confirmed directly against the live Nocobase
+ * "Quotations - Configure fields" admin UI (screenshots), the same way the
+ * Lead deployment's fields were double-checked:
+ *   - `assignees` relation's `field: 'lawyers'` is CORRECT — the real field
+ *     ("Assignees" display name, `lawyers` field name, belongsTo) exists
+ *     exactly as configured, and (like Lead's `Assignees`) has no separate
+ *     flat FK column, only the association — hence `relationKey: 'id'`.
+ *   - The `search` filter previously listed `fullName`/`email`/`shortName`/
+ *     `salesperson`, copied from the Lead deployment — none of those fields
+ *     exist on `quotations` (confirmed absent from the full field list).
+ *     Replaced with the real free-text fields: `quotationNumber` (the
+ *     quotation code) and `description`.
+ *   - The commented-out `source` status filter and `salesperson` search
+ *     filter (also copied from Lead) were removed — neither field exists on
+ *     `quotations`.
  *
  * HOW TO USE THIS FILE:
  * 1. Copy this entire file into the Quotation module's JS Field/Action block
@@ -70,24 +76,6 @@ const CONFIG = {
       ],
       showCounts: true,
     },
-    // {
-    //   type: 'status',
-    //   key: 'source',
-    //   field: 'source',
-    //   label: 'Source',
-    //   options: [
-    //     { value: 'googleAds', label: 'Google Ads' },
-    //     { value: 'facebookAds', label: 'Facebook Ads' },
-    //     { value: 'zalo', label: 'Zalo' },
-    //     { value: 'referral', label: 'Referral' },
-    //     { value: 'website', label: 'Website' },
-    //     { value: 'hotline', label: 'Hotline' },
-    //     { value: 'partner', label: 'Partner' },
-    //     { value: 'lawyer', label: 'Lawyer' },
-    //     { value: 'staff', label: 'Staff' },
-    //   ],
-    //   showCounts: true,
-    // },
     {
       type: 'status',
       key: 'isRequiredApproval',
@@ -139,19 +127,12 @@ const CONFIG = {
         sort: 'createdAt',
       },
     },
-    // {
-    //   type: 'search',
-    //   key: 'salesperson',
-    //   label: 'Salesperson',
-    //   fields: ['salesperson'],
-    //   placeholder: 'Search by salesperson...',
-    // },
     {
       type: 'search',
       key: 'search',
       label: 'Search',
-      fields: ['fullName', 'email', 'shortName','salesperson'],
-      placeholder: 'Search by full name, email, shortName, salesperson...',
+      fields: ['quotationNumber', 'description'],
+      placeholder: 'Search by quotation code, description...',
     },
   ],
 
