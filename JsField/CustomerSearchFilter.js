@@ -52,89 +52,78 @@
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
 const CONFIG = {
-  targetBlockUid: '', // TODO: fill in — see file header note 1
-  tableName: 'customers',
+  targetBlockUid: "", // TODO: fill in — see file header note 1
+  tableName: "customers",
   extraFilter: {},
 
   filters: [
     {
-      type: 'status',
-      key: 'status',
-      field: 'status',
-      label: 'Status',
+      type: "status",
+      key: "status",
+      field: "status",
+      label: "Status",
       options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
+        { value: "prospect", label: "Prospect" },
+        { value: "active", label: "Active" },
+        { value: "dormant", label: "Dormant" },
       ],
       showCounts: true,
     },
     {
-      type: 'status',
-      key: 'customerType',
-      field: 'customerType',
-      label: 'Customer Type',
+      type: "status",
+      key: "source",
+      field: "source",
+      label: "Source",
       options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
+        { value: "googleAds", label: "Google Ads" },
+        { value: "facebookAds", label: "Facebook Ads" },
+        { value: "zalo", label: "Zalo" },
+        { value: "referral", label: "Referral" },
+        { value: "website", label: "Website" },
+        { value: "hotline", label: "Hotline" },
+        { value: "partner", label: "Partner" },
+        { value: "lawyer", label: "Lawyer" },
+        { value: "staff", label: "Staff" },
       ],
       showCounts: true,
     },
     {
-      type: 'status',
-      key: 'gender',
-      field: 'gender',
-      label: 'Gender',
-      options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
-      ],
-      showCounts: false,
-    },
-    {
-      type: 'status',
-      key: 'source',
-      field: 'source',
-      label: 'Source',
-      options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
-        // (do NOT assume this matches leads.source's enum)
-      ],
-      showCounts: true,
-    },
-    {
-      type: 'relation',
-      key: 'company',
-      field: 'internalCompanyId',
-      label: 'Internal Company',
-      placeholder: 'All',
+      type: "relation",
+      key: "company",
+      field: "internalCompanyId",
+      label: "Internal Company",
+      placeholder: "All",
       source: {
-        collection: 'internalCompany',
-        labelFields: ['shortName', 'name'],
-        sort: 'createdAt',
+        collection: "internalCompany",
+        labelFields: ["shortName", "name"],
+        sort: "createdAt",
       },
     },
     {
-      type: 'relation',
-      key: 'assignees',
-      field: 'assignees',
-      relationKey: 'id', // no flat FK column, only the association (by analogy — see file header note 3)
-      label: 'Assignees',
-      placeholder: 'All',
+      type: "relation",
+      key: "assignees",
+      field: "assignees",
+      relationKey: "id", // no flat FK column, only the association (by analogy — see file header note 3)
+      label: "Assignees",
+      placeholder: "All",
       source: {
-        collection: 'lawyers', // ASSUMED target — verify, see file header note 3
-        labelFields: ['lawyerName'],
-        sort: 'createdAt',
+        collection: "lawyers", // ASSUMED target — verify, see file header note 3
+        labelFields: ["lawyerName"],
+        sort: "createdAt",
       },
     },
     {
-      type: 'search',
-      key: 'search',
-      label: 'Search',
-      fields: ['customerName', 'email', 'phone', 'shortName'],
-      placeholder: 'Search by name, email, phone, short name...',
+      type: "search",
+      key: "search",
+      label: "Search",
+      fields: ["customerName", "email", "phone", "shortName"],
+      placeholder: "Search by name, email, phone, short name...",
     },
   ],
 
   currentUserScope: {
     enable: false,
-    userFields: ['createdById'],
+    userFields: ["createdById"],
     emptyWhenUnknown: true,
     validateFields: true,
   },
@@ -147,15 +136,18 @@ const CONFIG = {
 // ---- id / filter-key helpers (pure, no ctx access) ----
 const extractId = (value) => {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'object') return value.id ?? value.value ?? value._id ?? null;
+  if (typeof value === "object")
+    return value.id ?? value.value ?? value._id ?? null;
   return value;
 };
 
 const normalizeFilterId = (value) => {
   const id = extractId(value);
-  if (id === null || id === undefined || id === '') return null;
+  if (id === null || id === undefined || id === "") return null;
   const numeric = Number(id);
-  return Number.isFinite(numeric) && String(numeric) === String(id) ? numeric : id;
+  return Number.isFinite(numeric) && String(numeric) === String(id)
+    ? numeric
+    : id;
 };
 
 const isEmptyFilter = (filter) => !filter || Object.keys(filter).length === 0;
@@ -169,21 +161,28 @@ const combineFilters = (...filters) => {
 
 const getNoRecordFilter = () => ({ id: { $eq: -1 } });
 
-const getFilterKey = (filterDef) => `${CONFIG.tableName}-${filterDef.key}-filter`;
+const getFilterKey = (filterDef) =>
+  `${CONFIG.tableName}-${filterDef.key}-filter`;
 const getScopeFilterKey = () => `${CONFIG.tableName}-current-user-scope-filter`;
 
 // ---- filter-object builders (pure) ----
 const buildFilterFor = (filterDef, value) => {
   if (!filterDef || !filterDef.type) return {};
   switch (filterDef.type) {
-    case 'status': {
+    case "status": {
       // Use nullish/empty checks, not a plain falsy check — option values can
       // legitimately be `false` or `0` (e.g. a boolean field's "No" option),
       // which must not be treated the same as "no filter selected".
-      if (value === undefined || value === null || value === '' || value === 'all') return {};
+      if (
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        value === "all"
+      )
+        return {};
       return { [filterDef.field]: value };
     }
-    case 'relation': {
+    case "relation": {
       const id = normalizeFilterId(value);
       if (id === null) return {};
       // Most belongsTo relations expose a flat scalar FK column (e.g.
@@ -195,8 +194,8 @@ const buildFilterFor = (filterDef, value) => {
         ? { [filterDef.field]: { [filterDef.relationKey]: id } }
         : { [filterDef.field]: id };
     }
-    case 'search': {
-      const q = String(value ?? '').trim();
+    case "search": {
+      const q = String(value ?? "").trim();
       if (!q) return {};
       const fields = filterDef.fields || [];
       if (fields.length === 0) return {};
@@ -204,7 +203,7 @@ const buildFilterFor = (filterDef, value) => {
       const clauses = fields.map((f) => ({ [f]: { $iLike: like } }));
       return clauses.length === 1 ? clauses[0] : { $or: clauses };
     }
-    case 'dateRange': {
+    case "dateRange": {
       const from = value && value.from ? value.from : null;
       const to = value && value.to ? value.to : null;
       if (!from && !to) return {};
@@ -214,18 +213,41 @@ const buildFilterFor = (filterDef, value) => {
       return clauses.length === 1 ? clauses[0] : { $and: clauses };
     }
     default:
-      console.warn('[GenericSearchFilter] Unknown filter type:', filterDef.type);
+      console.warn(
+        "[GenericSearchFilter] Unknown filter type:",
+        filterDef.type,
+      );
       return {};
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [
+  { value: "all", label: "All" },
+  ...(filterDef.options || []),
+];
 
 // ---- current-user scope filter (pure) ----
-const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], emptyWhenUnknown = true }) => {
+const buildCurrentUserScopeFilter = ({
+  userId,
+  validUserFields = [],
+  validRelationFields = [],
+  emptyWhenUnknown = true,
+}) => {
   const safeUserId = normalizeFilterId(userId);
   if (!safeUserId) return emptyWhenUnknown ? getNoRecordFilter() : {};
-  const clauses = validUserFields.map((field) => ({ [field]: { $eq: safeUserId } }));
+  // Scalar fields compare a flat FK-to-users column directly (e.g.
+  // createdById). Relation fields compare through an association that has
+  // no flat FK column (e.g. assignees -> lawyers, matched via lawyers'
+  // own userId field) — set targetKey to the field on the related record
+  // to compare against the current user's id (defaults to 'id').
+  const clauses = [
+    ...validUserFields.map((field) => ({
+      [field]: { $eq: safeUserId },
+    })),
+    ...validRelationFields.map(({ field, targetKey }) => ({
+      [field]: { [targetKey || 'id']: { $eq: safeUserId } },
+    })),
+  ];
   if (clauses.length === 0) return emptyWhenUnknown ? getNoRecordFilter() : {};
   return clauses.length === 1 ? clauses[0] : { $or: clauses };
 };
@@ -233,22 +255,36 @@ const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], emptyWhenUn
 // ---- relation option mapping (pure) ----
 const mapRelationOptions = (records, filterDef) => {
   const excludeSet = new Set(
-    (filterDef?.source?.excludeValues || []).map((v) => String(normalizeFilterId(v))),
+    (filterDef?.source?.excludeValues || []).map((v) =>
+      String(normalizeFilterId(v)),
+    ),
   );
-  const labelFields = filterDef?.source?.labelFields?.length ? filterDef.source.labelFields : ['name'];
+  const labelFields = filterDef?.source?.labelFields?.length
+    ? filterDef.source.labelFields
+    : ["name"];
   return (records || [])
     .filter((record) => !excludeSet.has(String(normalizeFilterId(record?.id))))
     .map((record) => {
-      let label = '';
+      let label = "";
       for (const field of labelFields) {
-        if (record?.[field]) { label = String(record[field]); break; }
+        if (record?.[field]) {
+          label = String(record[field]);
+          break;
+        }
       }
       return { value: record?.id, label: label || `#${record?.id}` };
     });
 };
 
 // ---- status-option count filter (pure) ----
-const buildCountFilter = ({ extraFilter, currentUserScopeFilter, filters, activeValues, statusFilterDef, optionValue }) => {
+const buildCountFilter = ({
+  extraFilter,
+  currentUserScopeFilter,
+  filters,
+  activeValues,
+  statusFilterDef,
+  optionValue,
+}) => {
   const otherFilters = filters
     .filter((f) => f.key !== statusFilterDef.key)
     .map((f) => buildFilterFor(f, activeValues[f.key]));
@@ -263,12 +299,14 @@ const buildCountFilter = ({ extraFilter, currentUserScopeFilter, filters, active
 // ---- ctx-dependent identity helpers (not unit-testable without a real ctx) ----
 const getCurrentUserFromCtx = () => {
   try {
-    return ctx.currentUser
-      || ctx.user
-      || ctx.state?.currentUser
-      || ctx.app?.currentUser
-      || ctx.store?.getState?.()?.currentUser
-      || null;
+    return (
+      ctx.currentUser ||
+      ctx.user ||
+      ctx.state?.currentUser ||
+      ctx.app?.currentUser ||
+      ctx.store?.getState?.()?.currentUser ||
+      null
+    );
   } catch {
     return null;
   }
@@ -289,12 +327,12 @@ function useCurrentUserScope() {
     loading: !!CONFIG.currentUserScope.enable,
     userId: null,
     filter: {},
-    signature: '{}',
+    signature: "{}",
   });
 
   useEffect(() => {
     if (!CONFIG.currentUserScope.enable) {
-      setScope({ loading: false, userId: null, filter: {}, signature: '{}' });
+      setScope({ loading: false, userId: null, filter: {}, signature: "{}" });
       return;
     }
 
@@ -303,26 +341,40 @@ function useCurrentUserScope() {
     const resolveScope = async () => {
       let currentUser = getCurrentUserFromCtx();
       try {
-        const authRes = await ctx.api.request({ url: 'auth:check' });
+        const authRes = await ctx.api.request({ url: "auth:check" });
         currentUser = getResponseRecord(authRes) || currentUser;
       } catch (e) {
-        if (!currentUser) console.warn('[GenericSearchFilter] Could not resolve currentUser:', e);
+        if (!currentUser)
+          console.warn(
+            "[GenericSearchFilter] Could not resolve currentUser:",
+            e,
+          );
       }
 
       const userId = normalizeFilterId(currentUser?.id ?? currentUser);
       let validUserFields = CONFIG.currentUserScope.userFields || [];
 
-      if (CONFIG.currentUserScope.validateFields && userId && validUserFields.length) {
+      if (
+        CONFIG.currentUserScope.validateFields &&
+        userId &&
+        validUserFields.length
+      ) {
         const validated = await Promise.all(
           validUserFields.map(async (field) => {
             try {
               await ctx.api.request({
                 url: `${CONFIG.tableName}:list`,
-                params: { pageSize: 1, filter: JSON.stringify({ [field]: { $eq: userId } }) },
+                params: {
+                  pageSize: 1,
+                  filter: JSON.stringify({ [field]: { $eq: userId } }),
+                },
               });
               return field;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope field: ${field}`, e);
+              console.warn(
+                `[GenericSearchFilter] Skipping invalid currentUserScope field: ${field}`,
+                e,
+              );
               return null;
             }
           }),
@@ -330,48 +382,102 @@ function useCurrentUserScope() {
         validUserFields = validated.filter(Boolean);
       }
 
+      let validRelationFields = CONFIG.currentUserScope.relationFields || [];
+
+      if (
+        CONFIG.currentUserScope.validateFields &&
+        userId &&
+        validRelationFields.length
+      ) {
+        const validated = await Promise.all(
+          validRelationFields.map(async (rel) => {
+            try {
+              await ctx.api.request({
+                url: `${CONFIG.tableName}:list`,
+                params: {
+                  pageSize: 1,
+                  filter: JSON.stringify({
+                    [rel.field]: { [rel.targetKey || 'id']: { $eq: userId } },
+                  }),
+                },
+              });
+              return rel;
+            } catch (e) {
+              console.warn(
+                `[GenericSearchFilter] Skipping invalid currentUserScope relation field: ${rel.field}`,
+                e,
+              );
+              return null;
+            }
+          }),
+        );
+        validRelationFields = validated.filter(Boolean);
+      }
+
       const filter = buildCurrentUserScopeFilter({
         userId,
         validUserFields,
+        validRelationFields,
         emptyWhenUnknown: CONFIG.currentUserScope.emptyWhenUnknown !== false,
       });
 
       if (!cancelled) {
-        setScope({ loading: false, userId, filter, signature: JSON.stringify(filter || {}) });
+        setScope({
+          loading: false,
+          userId,
+          filter,
+          signature: JSON.stringify(filter || {}),
+        });
       }
     };
 
     resolveScope();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return scope;
 }
 
 function useRelationOptions(filterDef) {
-  const [state, setState] = useState({ options: [], loading: filterDef.type === 'relation' });
+  const [state, setState] = useState({
+    options: [],
+    loading: filterDef.type === "relation",
+  });
 
   useEffect(() => {
-    if (filterDef.type !== 'relation') return;
+    if (filterDef.type !== "relation") return;
     if (!filterDef.source?.collection) {
-      console.warn(`[GenericSearchFilter] Missing source.collection for relation filter: ${filterDef.key}`);
+      console.warn(
+        `[GenericSearchFilter] Missing source.collection for relation filter: ${filterDef.key}`,
+      );
       return;
     }
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true }));
-    ctx.api.request({
-      url: `${filterDef.source.collection}:list`,
-      params: { pageSize: 500, sort: filterDef.source.sort || 'createdAt' },
-    })
+    ctx.api
+      .request({
+        url: `${filterDef.source.collection}:list`,
+        params: { pageSize: 500, sort: filterDef.source.sort || "createdAt" },
+      })
       .then((res) => {
         if (cancelled) return;
-        setState({ options: mapRelationOptions(res?.data?.data || [], filterDef), loading: false });
+        setState({
+          options: mapRelationOptions(res?.data?.data || [], filterDef),
+          loading: false,
+        });
       })
       .catch((e) => {
-        console.warn(`[GenericSearchFilter] Could not fetch relation options for ${filterDef.key}:`, e);
+        console.warn(
+          `[GenericSearchFilter] Could not fetch relation options for ${filterDef.key}:`,
+          e,
+        );
         if (!cancelled) setState({ options: [], loading: false });
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [filterDef.key, filterDef.type]);
 
   return state;
@@ -386,74 +492,107 @@ function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
   const scopeSignature = JSON.stringify(currentUserScopeFilter || {});
 
   useEffect(() => {
-    if (!scopeReady) { setLoading(true); return; }
-    const statusFilters = CONFIG.filters.filter((f) => f.type === 'status' && f.showCounts !== false);
-    if (statusFilters.length === 0) { setCounts({}); setLoading(false); return; }
+    if (!scopeReady) {
+      setLoading(true);
+      return;
+    }
+    const statusFilters = CONFIG.filters.filter(
+      (f) => f.type === "status" && f.showCounts !== false,
+    );
+    if (statusFilters.length === 0) {
+      setCounts({});
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     const fetchCounts = async () => {
       setLoading(true);
       try {
-        const entries = await Promise.all(statusFilters.map(async (statusFilterDef) => {
-          const displayOptions = getDisplayOptions(statusFilterDef);
-          const optionResults = await Promise.all(displayOptions.map((option) =>
-            ctx.api.request({
-              url: `${CONFIG.tableName}:list`,
-              params: {
-                pageSize: 1,
-                filter: JSON.stringify(buildCountFilter({
-                  extraFilter: CONFIG.extraFilter,
-                  currentUserScopeFilter,
-                  filters: CONFIG.filters,
-                  activeValues,
-                  statusFilterDef,
-                  optionValue: option.value,
-                })),
-              },
-            }),
-          ));
-          const byOption = {};
-          displayOptions.forEach((option, i) => {
-            byOption[option.value] = optionResults[i]?.data?.meta?.count || 0;
-          });
-          return [statusFilterDef.key, byOption];
-        }));
+        const entries = await Promise.all(
+          statusFilters.map(async (statusFilterDef) => {
+            const displayOptions = getDisplayOptions(statusFilterDef);
+            const optionResults = await Promise.all(
+              displayOptions.map((option) =>
+                ctx.api.request({
+                  url: `${CONFIG.tableName}:list`,
+                  params: {
+                    pageSize: 1,
+                    filter: JSON.stringify(
+                      buildCountFilter({
+                        extraFilter: CONFIG.extraFilter,
+                        currentUserScopeFilter,
+                        filters: CONFIG.filters,
+                        activeValues,
+                        statusFilterDef,
+                        optionValue: option.value,
+                      }),
+                    ),
+                  },
+                }),
+              ),
+            );
+            const byOption = {};
+            displayOptions.forEach((option, i) => {
+              byOption[option.value] = optionResults[i]?.data?.meta?.count || 0;
+            });
+            return [statusFilterDef.key, byOption];
+          }),
+        );
         if (!cancelled) setCounts(Object.fromEntries(entries));
       } catch (e) {
-        console.error('[GenericSearchFilter] Error fetching counts:', e);
+        console.error("[GenericSearchFilter] Error fetching counts:", e);
         if (!cancelled) setCounts({});
       }
       if (!cancelled) setLoading(false);
     };
     fetchCounts();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [activeValuesSignature, scopeSignature, scopeReady, trigger]);
 
   return { counts, loading, refetch };
 }
 
 const barStyle = {
-  display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12,
-  padding: '10px 14px', backgroundColor: '#fff', borderRadius: 8,
-  border: '1px solid #f0f0f0', boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 12,
+  padding: "10px 14px",
+  backgroundColor: "#fff",
+  borderRadius: 8,
+  border: "1px solid #f0f0f0",
+  boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
 };
-const wrapStyle = { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 };
-const labelStyle = { fontSize: 12, fontWeight: 500, color: '#8c8c8c', whiteSpace: 'nowrap' };
+const wrapStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  minWidth: 0,
+};
+const labelStyle = {
+  fontSize: 12,
+  fontWeight: 500,
+  color: "#8c8c8c",
+  whiteSpace: "nowrap",
+};
 
 const FilterControl = ({ filterDef, value, onChange, counts }) => {
   const relation = useRelationOptions(filterDef);
 
-  if (filterDef.type === 'status') {
+  if (filterDef.type === "status") {
     const displayOptions = getDisplayOptions(filterDef);
     const showCounts = filterDef.showCounts !== false;
     return React.createElement(
-      'div', { style: wrapStyle },
+      "div",
+      { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value,
-        size: 'small',
-        style: { width: filterDef.width || '100%' },
-        onChange: (v) => onChange(v === undefined ? 'all' : v),
+        size: "small",
+        style: { width: filterDef.width || "100%" },
+        onChange: (v) => onChange(v === undefined ? "all" : v),
         options: displayOptions.map((opt) => ({
           value: opt.value,
           label: showCounts
@@ -464,73 +603,79 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
     );
   }
 
-  if (filterDef.type === 'relation') {
+  if (filterDef.type === "relation") {
     return React.createElement(
-      'div', { style: wrapStyle },
+      "div",
+      { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'All',
+        placeholder: filterDef.placeholder || "All",
         allowClear: true,
         showSearch: true,
-        optionFilterProp: 'label',
+        optionFilterProp: "label",
         loading: relation.loading,
-        style: { width: filterDef.width || '100%' },
-        size: 'small',
-        onChange: (v) => onChange(v || ''),
+        style: { width: filterDef.width || "100%" },
+        size: "small",
+        onChange: (v) => onChange(v || ""),
         options: relation.options,
       }),
     );
   }
 
-  if (filterDef.type === 'search') {
+  if (filterDef.type === "search") {
     return React.createElement(
-      'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
+      "div",
+      { style: { ...wrapStyle, gridColumn: "span 2" } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Search...',
+        placeholder: filterDef.placeholder || "Search...",
         allowClear: true,
         enterButton: true,
-        size: 'small',
+        size: "small",
         defaultValue: value,
-        onSearch: (v) => onChange((v || '').trim()),
-        style: { width: '100%' },
+        onSearch: (v) => onChange((v || "").trim()),
+        style: { width: "100%" },
       }),
     );
   }
 
-  if (filterDef.type === 'dateRange') {
+  if (filterDef.type === "dateRange") {
     return React.createElement(
-      'div', { style: wrapStyle },
+      "div",
+      { style: wrapStyle },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input, {
-        type: 'date',
-        size: 'small',
-        value: value?.from || '',
+        type: "date",
+        size: "small",
+        value: value?.from || "",
         style: { flex: 1, minWidth: 0 },
         onChange: (e) => onChange({ ...value, from: e.target.value }),
       }),
-      React.createElement(Text, { style: labelStyle }, '-'),
+      React.createElement(Text, { style: labelStyle }, "-"),
       React.createElement(Input, {
-        type: 'date',
-        size: 'small',
-        value: value?.to || '',
+        type: "date",
+        size: "small",
+        value: value?.to || "",
         style: { flex: 1, minWidth: 0 },
         onChange: (e) => onChange({ ...value, to: e.target.value }),
       }),
     );
   }
 
-  console.warn('[GenericSearchFilter] Unknown filter type in render:', filterDef.type);
+  console.warn(
+    "[GenericSearchFilter] Unknown filter type in render:",
+    filterDef.type,
+  );
   return null;
 };
 
 const initialActiveValues = () => {
   const values = {};
   CONFIG.filters.forEach((f) => {
-    if (f.type === 'status') values[f.key] = 'all';
-    else if (f.type === 'dateRange') values[f.key] = { from: '', to: '' };
-    else values[f.key] = '';
+    if (f.type === "status") values[f.key] = "all";
+    else if (f.type === "dateRange") values[f.key] = { from: "", to: "" };
+    else values[f.key] = "";
   });
   return values;
 };
@@ -539,7 +684,9 @@ const GenericSearchFilter = () => {
   const [activeValues, setActiveValues] = useState(initialActiveValues);
   const currentUserScope = useCurrentUserScope();
   const { counts, refetch: refetchCounts } = useStatusCountsAll(
-    activeValues, currentUserScope.filter, !currentUserScope.loading,
+    activeValues,
+    currentUserScope.filter,
+    !currentUserScope.loading,
   );
 
   useEffect(() => {
@@ -554,13 +701,20 @@ const GenericSearchFilter = () => {
     try {
       const target = ctx.engine?.getModel(CONFIG.targetBlockUid);
       if (!target) {
-        console.warn('[GenericSearchFilter] targetBlockUid could not resolve a model:', CONFIG.targetBlockUid);
+        console.warn(
+          "[GenericSearchFilter] targetBlockUid could not resolve a model:",
+          CONFIG.targetBlockUid,
+        );
         return;
       }
       target.resource.addFilterGroup(filterKey, filter);
       await target.resource.refresh();
     } catch (e) {
-      console.error('[GenericSearchFilter] Failed to apply filter:', filterKey, e);
+      console.error(
+        "[GenericSearchFilter] Failed to apply filter:",
+        filterKey,
+        e,
+      );
     }
   }, []);
 
@@ -569,13 +723,19 @@ const GenericSearchFilter = () => {
     applyFilterGroup(getScopeFilterKey(), currentUserScope.filter);
   }, [applyFilterGroup, currentUserScope.loading, currentUserScope.signature]);
 
-  const handleChange = useCallback((filterDef, value) => {
-    setActiveValues((prev) => ({ ...prev, [filterDef.key]: value }));
-    applyFilterGroup(getFilterKey(filterDef), buildFilterFor(filterDef, value));
-  }, [applyFilterGroup]);
+  const handleChange = useCallback(
+    (filterDef, value) => {
+      setActiveValues((prev) => ({ ...prev, [filterDef.key]: value }));
+      applyFilterGroup(
+        getFilterKey(filterDef),
+        buildFilterFor(filterDef, value),
+      );
+    },
+    [applyFilterGroup],
+  );
 
   return React.createElement(
-    'div',
+    "div",
     { style: barStyle },
     CONFIG.filters.map((filterDef) =>
       React.createElement(FilterControl, {

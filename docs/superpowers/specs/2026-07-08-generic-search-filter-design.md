@@ -110,19 +110,34 @@ const CONFIG = {
 
   currentUserScope: {
     enable: false,
-    userFields: ['createdById'],   // các field scalar so trực tiếp với userId hiện tại
+    userFields: ['createdById'],   // field scalar (FK phẳng tới users) so trực tiếp với userId hiện tại
+    relationFields: [              // optional — field quan hệ không có FK phẳng
+      { field: 'assignees', targetKey: 'userId' }, // so qua assignees.userId
+    ],
     emptyWhenUnknown: true,
     validateFields: true,
   },
 };
 ```
 
-**Lưu ý phạm vi v1:** `currentUserScope` chỉ hỗ trợ so khớp scalar field (đúng
-cơ chế đã proven trong `JsStatusFilter.js`). Không hỗ trợ scope qua quan hệ
-gián tiếp kiểu `assigneeRelationField` (như cách `JsProjectFilter.js` resolve
-qua bảng `lawyers`) — cơ chế đó gắn chặt với 1 collection cụ thể nên không
-generic hoá được trong v1 mà không cần thêm config phức tạp. Module nào cần
-kiểu scope đó vẫn dùng `JsProjectFilter.js` làm tham khảo riêng.
+**`currentUserScope` hỗ trợ 2 kiểu điều kiện, kết hợp bằng `$or`:**
+- `userFields`: field scalar (FK phẳng tới `users`, vd `createdById`,
+  `projectManagerId`) — so trực tiếp `{ field: { $eq: userId } }`.
+- `relationFields` (optional): field quan hệ không có cột FK phẳng (vd
+  `assignees` → `lawyers`, giống cơ chế `relationKey` của filter type
+  `relation`) — mỗi entry `{ field, targetKey }` build
+  `{ field: { targetKey: { $eq: userId } } }`. `targetKey` là field trên
+  record liên quan dùng để so với `userId` hiện tại (thường là `userId` nếu
+  quan hệ trỏ tới 1 bảng nhân sự như `lawyers` có sẵn field `userId` liên
+  kết tới `users`), mặc định `'id'` nếu không set.
+
+Bổ sung này thay thế phần "không hỗ trợ scope qua quan hệ" trong bản v1 ban
+đầu — được thêm khi module Case cần tái tạo đúng logic "Meet Any" của Data
+scope gốc (`createdById` HOẶC `projectManagerId` HOẶC `assignees.userId`
+bằng current user), xác nhận qua chính "My Cases" — cơ chế cũ trong
+`JsProjectFilter.js` (`assigneeRelationField`) vẫn là tài liệu tham khảo,
+nhưng giờ generic hoá được qua `relationFields` mà không cần các tham số
+phức tạp như `assigneeRelationValueSource`/`assigneeRelationTargetField`.
 
 Ràng buộc:
 
