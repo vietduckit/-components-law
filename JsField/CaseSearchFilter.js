@@ -37,6 +37,16 @@
  *   - Search fields (`caseCode`, `projectName`, `description`) are exactly
  *     the field names sent in the create payload.
  *
+ * currentUserScope: enabled here to reproduce the "My Cases" block's native
+ * Nocobase Data scope ("Meet Any": Created by = current user OR Case
+ * Manager = current user OR Members = current user, i.e. `createdById`,
+ * `projectManagerId`, and `assignees.userId`). This is a new engine
+ * capability (`currentUserScope.relationFields`, alongside the existing
+ * `userFields`) added specifically for this — see
+ * docs/superpowers/specs/2026-07-08-generic-search-filter-design.md.
+ * If you deploy a separate "All Cases" block from a copy of this file, set
+ * `currentUserScope.enable` back to `false` there.
+ *
  * HOW TO USE THIS FILE:
  * 1. Fill in `targetBlockUid`.
  * 2. Copy this entire file into the Case module's JS Field/Action block in
@@ -63,7 +73,7 @@ const CONFIG = {
       field: 'status',
       label: 'Status',
       options: [
-        { value: 'toDo', label: 'To Do' },
+        { value: 'toDo', label: 'Not Start' },
         { value: 'inProgress', label: 'In Progress' },
         { value: 'pending', label: 'Pending' },
         { value: 'done', label: 'Done' },
@@ -142,8 +152,15 @@ const CONFIG = {
   ],
 
   currentUserScope: {
-    enable: false,
-    userFields: ['createdById'],
+    // Matches the "My Cases" block's native Data scope ("Meet Any"):
+    // createdById = current user OR projectManagerId = current user OR
+    // assignees.userId = current user. userFields are flat FK-to-users
+    // columns (compared directly); relationFields go through an
+    // association with no flat FK (assignees -> lawyers), matched via
+    // lawyers' own userId field.
+    enable: true,
+    userFields: ['createdById', 'projectManagerId'],
+    relationFields: [{ field: 'assignees', targetKey: 'userId' }],
     emptyWhenUnknown: true,
     validateFields: true,
   },
@@ -231,10 +248,20 @@ const buildFilterFor = (filterDef, value) => {
 const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
-const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], emptyWhenUnknown = true }) => {
+const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
   const safeUserId = normalizeFilterId(userId);
   if (!safeUserId) return emptyWhenUnknown ? getNoRecordFilter() : {};
-  const clauses = validUserFields.map((field) => ({ [field]: { $eq: safeUserId } }));
+  // Scalar fields compare a flat FK-to-users column directly (e.g.
+  // createdById). Relation fields compare through an association that has
+  // no flat FK column (e.g. assignees -> lawyers, matched via lawyers'
+  // own userId field) — set targetKey to the field on the related record
+  // to compare against the current user's id (defaults to 'id').
+  const clauses = [
+    ...validUserFields.map((field) => ({ [field]: { $eq: safeUserId } })),
+    ...validRelationFields.map(({ field, targetKey }) => ({
+      [field]: { [targetKey || 'id']: { $eq: safeUserId } },
+    })),
+  ];
   if (clauses.length === 0) return emptyWhenUnknown ? getNoRecordFilter() : {};
   return clauses.length === 1 ? clauses[0] : { $or: clauses };
 };
@@ -339,9 +366,33 @@ function useCurrentUserScope() {
         validUserFields = validated.filter(Boolean);
       }
 
+      let validRelationFields = CONFIG.currentUserScope.relationFields || [];
+
+      if (CONFIG.currentUserScope.validateFields && userId && validRelationFields.length) {
+        const validated = await Promise.all(
+          validRelationFields.map(async (rel) => {
+            try {
+              await ctx.api.request({
+                url: `${CONFIG.tableName}:list`,
+                params: {
+                  pageSize: 1,
+                  filter: JSON.stringify({ [rel.field]: { [rel.targetKey || 'id']: { $eq: userId } } }),
+                },
+              });
+              return rel;
+            } catch (e) {
+              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope relation field: ${rel.field}`, e);
+              return null;
+            }
+          }),
+        );
+        validRelationFields = validated.filter(Boolean);
+      }
+
       const filter = buildCurrentUserScopeFilter({
         userId,
         validUserFields,
+        validRelationFields,
         emptyWhenUnknown: CONFIG.currentUserScope.emptyWhenUnknown !== false,
       });
 

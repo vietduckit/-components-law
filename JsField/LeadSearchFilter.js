@@ -204,10 +204,20 @@ const buildFilterFor = (filterDef, value) => {
 const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
-const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], emptyWhenUnknown = true }) => {
+const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
   const safeUserId = normalizeFilterId(userId);
   if (!safeUserId) return emptyWhenUnknown ? getNoRecordFilter() : {};
-  const clauses = validUserFields.map((field) => ({ [field]: { $eq: safeUserId } }));
+  // Scalar fields compare a flat FK-to-users column directly (e.g.
+  // createdById). Relation fields compare through an association that has
+  // no flat FK column (e.g. assignees -> lawyers, matched via lawyers'
+  // own userId field) — set targetKey to the field on the related record
+  // to compare against the current user's id (defaults to 'id').
+  const clauses = [
+    ...validUserFields.map((field) => ({ [field]: { $eq: safeUserId } })),
+    ...validRelationFields.map(({ field, targetKey }) => ({
+      [field]: { [targetKey || 'id']: { $eq: safeUserId } },
+    })),
+  ];
   if (clauses.length === 0) return emptyWhenUnknown ? getNoRecordFilter() : {};
   return clauses.length === 1 ? clauses[0] : { $or: clauses };
 };
@@ -312,9 +322,33 @@ function useCurrentUserScope() {
         validUserFields = validated.filter(Boolean);
       }
 
+      let validRelationFields = CONFIG.currentUserScope.relationFields || [];
+
+      if (CONFIG.currentUserScope.validateFields && userId && validRelationFields.length) {
+        const validated = await Promise.all(
+          validRelationFields.map(async (rel) => {
+            try {
+              await ctx.api.request({
+                url: `${CONFIG.tableName}:list`,
+                params: {
+                  pageSize: 1,
+                  filter: JSON.stringify({ [rel.field]: { [rel.targetKey || 'id']: { $eq: userId } } }),
+                },
+              });
+              return rel;
+            } catch (e) {
+              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope relation field không hợp lệ: ${rel.field}`, e);
+              return null;
+            }
+          }),
+        );
+        validRelationFields = validated.filter(Boolean);
+      }
+
       const filter = buildCurrentUserScopeFilter({
         userId,
         validUserFields,
+        validRelationFields,
         emptyWhenUnknown: CONFIG.currentUserScope.emptyWhenUnknown !== false,
       });
 
