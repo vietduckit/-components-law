@@ -4,26 +4,42 @@
  *
  * This is JsField/GenericSearchFilter.js with CONFIG filled in for the
  * Quotation module (user-provided base config, extended here with
- * isRequiredApproval + approvedById).
+ * approvedById).
  *
  * Field notes:
  *   - `isRequiredApproval` is a boolean field (confirmed directly from
  *     All Module/Quotation/QuotationCreateForm.js's submit payload, which
- *     sends `isRequiredApproval: form.isRequiredApproval` and
- *     `approvedById: parseInt(form.approvedById)` to `quotations:create`).
- *     Implemented as a `status`-type filter with boolean option values
- *     (true/false) rather than string keys.
- *   - `approvedById` is a flat scalar FK column (same evidence as above —
- *     submitted as a plain integer, not a nested association), targeting
- *     the `lawyers` collection — no `relationKey` needed, same pattern as
- *     `internalCompanyId`.
- *   - Boolean status option values (`true`/`false`) exposed a real bug in
- *     the shared engine: `buildFilterFor`'s `status` case used a plain
- *     falsy check (`!value`), which silently treated a selected `false`
- *     option the same as "no filter" — and `FilterControl`'s status
- *     `onChange` had the same bug (`v || 'all'`). Both are fixed here (and
- *     in JsField/GenericSearchFilter.js and JsField/LeadSearchFilter.js) to
- *     use nullish/empty checks instead of falsy checks.
+ *     sends `isRequiredApproval: form.isRequiredApproval` to
+ *     `quotations:create`). It was originally added as a `status`-type
+ *     filter control here, but the deployed block has a Nocobase "Data
+ *     scope" baked in (isRequiredApproval = Yes, permanent, block-level,
+ *     not the same as the transient "Filter" popup) — so the field is
+ *     already fixed at true for every visible row. The filter control was
+ *     removed and replaced with `CONFIG.extraFilter` below, which keeps
+ *     count queries consistent with that baked-in scope instead of
+ *     offering a redundant/misleading Yes/No toggle.
+ *   - Adding a boolean-valued status option (even while it was a filter
+ *     control) exposed a real bug in the shared engine: `buildFilterFor`'s
+ *     `status` case used a plain falsy check (`!value`), which silently
+ *     treated a selected `false` option the same as "no filter" — and
+ *     `FilterControl`'s status `onChange` had the same bug (`v || 'all'`).
+ *     Both are fixed here (and in JsField/GenericSearchFilter.js and
+ *     JsField/LeadSearchFilter.js) to use nullish/empty checks instead of
+ *     falsy checks — this stays fixed even though the control itself was
+ *     removed, since any future status filter with a boolean/0 option would
+ *     hit the same bug.
+ *   - `approvedById` is a flat scalar FK column (submitted as a plain
+ *     integer in QuotationCreateForm.js, not a nested association),
+ *     targeting the `lawyers` collection — no `relationKey` needed, same
+ *     pattern as `internalCompanyId`.
+ *
+ * KNOWN ISSUE — targetBlockUid: the browser console logs
+ * "[GenericSearchFilter] targetBlockUid could not resolve a model" for
+ * `e7390b17ef5`, meaning filters currently do not reach the visible table
+ * at all (the block shown in the runtime screenshot is not the one this UID
+ * points to, or the UID is stale). Get the real UID from the visible
+ * block's designer menu ("Copy block UID") and update it here before
+ * relying on this deployment.
  *
  * Field names below were confirmed directly against the live Nocobase
  * "Quotations - Configure fields" admin UI (screenshots), the same way the
@@ -57,7 +73,14 @@
 const CONFIG = {
   targetBlockUid: 'e7390b17ef5',
   tableName: 'quotations',
-  extraFilter: {},
+  // The target block has a Nocobase "Data scope" baked in at the block
+  // level (isRequiredApproval = Yes) — a permanent server-side condition,
+  // separate from and invisible to the transient "Filter" popup. It's not
+  // something end users toggle, so it isn't exposed as a filter control;
+  // it's replicated here so every count query (and any future filter) stays
+  // consistent with what the block actually shows. If the block's Data
+  // scope ever changes, update this to match.
+  extraFilter: { isRequiredApproval: true },
 
   filters: [
     {
@@ -73,17 +96,6 @@ const CONFIG = {
         { value: 'sent', label: 'Quotation Sent' },
         { value: 'order', label: 'Order' },
         { value: 'cancelled', label: 'Cancelled' },
-      ],
-      showCounts: true,
-    },
-    {
-      type: 'status',
-      key: 'isRequiredApproval',
-      field: 'isRequiredApproval',
-      label: 'Requires Approval',
-      options: [
-        { value: true, label: 'Yes' },
-        { value: false, label: 'No' },
       ],
       showCounts: true,
     },
