@@ -3,63 +3,70 @@
  * Deployment: Quotation module (targetBlockUid e7390b17ef5, collection "quotations").
  *
  * This is JsField/GenericSearchFilter.js with CONFIG filled in for the
- * Quotation module (user-provided base config, extended here with
- * approvedById).
+ * Quotation module.
+ *
+ * DESIGN: this deployment intentionally consolidates what used to be two
+ * separate tabs/blocks — "All Quotations" and "All Approval" (the latter
+ * relying on a Nocobase "Data scope" baked in at the block level,
+ * isRequiredApproval = Yes) — into a single "All Quotations" block. Instead
+ * of two blocks each with their own hardcoded scope, `isRequiredApproval`
+ * is now an explicit filter control here (Yes/No/All), same as any other
+ * filter. This removes the whole class of "JS filter vs. native Data scope
+ * mismatch" bug this file went through earlier in its history (visible in
+ * git log if needed) — the JS filter bar is now the single source of truth
+ * for this field, not a block-level condition.
+ *
+ * ACTION REQUIRED before this works: the target block must NOT have a
+ * native "Data scope" condition set anymore (clear it in the block's own
+ * settings if it still has isRequiredApproval = Yes baked in) — otherwise
+ * it will silently override the "No"/"All" options exactly like before.
+ * `CONFIG.extraFilter` below is intentionally `{}` to reflect this.
  *
  * Field notes:
  *   - `isRequiredApproval` is a boolean field (confirmed directly from
  *     All Module/Quotation/QuotationCreateForm.js's submit payload, which
  *     sends `isRequiredApproval: form.isRequiredApproval` to
- *     `quotations:create`). It was originally added as a `status`-type
- *     filter control here, but the deployed block has a Nocobase "Data
- *     scope" baked in (isRequiredApproval = Yes, permanent, block-level,
- *     not the same as the transient "Filter" popup) — so the field is
- *     already fixed at true for every visible row. The filter control was
- *     removed and replaced with `CONFIG.extraFilter` below, which keeps
- *     count queries consistent with that baked-in scope instead of
- *     offering a redundant/misleading Yes/No toggle.
- *   - Adding a boolean-valued status option (even while it was a filter
- *     control) exposed a real bug in the shared engine: `buildFilterFor`'s
- *     `status` case used a plain falsy check (`!value`), which silently
- *     treated a selected `false` option the same as "no filter" — and
- *     `FilterControl`'s status `onChange` had the same bug (`v || 'all'`).
- *     Both are fixed here (and in JsField/GenericSearchFilter.js and
- *     JsField/LeadSearchFilter.js) to use nullish/empty checks instead of
- *     falsy checks — this stays fixed even though the control itself was
- *     removed, since any future status filter with a boolean/0 option would
- *     hit the same bug.
- *   - `approvedById` is a flat scalar FK column (submitted as a plain
- *     integer in QuotationCreateForm.js, not a nested association),
- *     targeting the `lawyers` collection — no `relationKey` needed, same
- *     pattern as `internalCompanyId`.
+ *     `quotations:create`). Boolean-valued status options exposed a real
+ *     bug in the shared engine: `buildFilterFor`'s `status` case used a
+ *     plain falsy check (`!value`), which silently treated a selected
+ *     `false` option the same as "no filter" — and `FilterControl`'s status
+ *     `onChange` had the same bug (`v || 'all'`). Both are fixed here (and
+ *     in JsField/GenericSearchFilter.js and JsField/LeadSearchFilter.js) to
+ *     use nullish/empty checks instead of falsy checks.
+ *   - `approvedById` (label "Approved By") is a flat scalar FK column
+ *     (submitted as a plain integer in QuotationCreateForm.js, not a nested
+ *     association), targeting the `lawyers` collection — no `relationKey`
+ *     needed, same pattern as `internalCompanyId`.
+ *   - `approvalLawyers` (label "Approval Lawyers") is a *separate* field
+ *     from `approvedById` — confirmed from the live "Quotations - Configure
+ *     fields" admin UI as its own belongsTo relation to `lawyers`, same
+ *     shape as the `assignees`/`lawyers` field (no flat FK column, only the
+ *     association) — hence `relationKey: 'id'`. Do not confuse this with
+ *     `approvedBy`/`assignees`; all three are distinct real fields.
  *
- * KNOWN ISSUE — targetBlockUid: the browser console logs
+ * KNOWN ISSUE — targetBlockUid: the browser console previously logged
  * "[GenericSearchFilter] targetBlockUid could not resolve a model" for
- * `e7390b17ef5`, meaning filters currently do not reach the visible table
- * at all (the block shown in the runtime screenshot is not the one this UID
- * points to, or the UID is stale). Get the real UID from the visible
- * block's designer menu ("Copy block UID") and update it here before
- * relying on this deployment.
+ * `e7390b17ef5`. Since the block being targeted has now changed (this file
+ * targets the consolidated "All Quotations" block, not the old "All
+ * Approval" one), get the current real UID from that block's designer menu
+ * ("Copy block UID") and update it here before relying on this deployment.
  *
- * Field names below were confirmed directly against the live Nocobase
- * "Quotations - Configure fields" admin UI (screenshots), the same way the
- * Lead deployment's fields were double-checked:
+ * Other field names below were confirmed directly against the live
+ * Nocobase "Quotations - Configure fields" admin UI (screenshots), the
+ * same way the Lead deployment's fields were double-checked:
  *   - `assignees` relation's `field: 'lawyers'` is CORRECT — the real field
  *     ("Assignees" display name, `lawyers` field name, belongsTo) exists
- *     exactly as configured, and (like Lead's `Assignees`) has no separate
- *     flat FK column, only the association — hence `relationKey: 'id'`.
+ *     exactly as configured, and has no separate flat FK column, only the
+ *     association — hence `relationKey: 'id'`.
  *   - The `search` filter previously listed `fullName`/`email`/`shortName`/
  *     `salesperson`, copied from the Lead deployment — none of those fields
  *     exist on `quotations` (confirmed absent from the full field list).
- *     Replaced with the real free-text fields: `quotationNumber` (the
+ *     Uses the real free-text fields instead: `quotationNumber` (the
  *     quotation code) and `description`.
- *   - The commented-out `source` status filter and `salesperson` search
- *     filter (also copied from Lead) were removed — neither field exists on
- *     `quotations`.
  *
  * HOW TO USE THIS FILE:
  * 1. Copy this entire file into the Quotation module's JS Field/Action block
- *    in Nocobase (targetBlockUid e7390b17ef5).
+ *    in Nocobase (the consolidated "All Quotations" block).
  * 2. Do not edit anything below the "ENGINE" marker except to keep it in
  *    sync with JsField/GenericSearchFilter.js if that template changes.
  *
@@ -73,14 +80,15 @@
 const CONFIG = {
   targetBlockUid: 'e7390b17ef5',
   tableName: 'quotations',
-  // The target block has a Nocobase "Data scope" baked in at the block
-  // level (isRequiredApproval = Yes) — a permanent server-side condition,
-  // separate from and invisible to the transient "Filter" popup. It's not
-  // something end users toggle, so it isn't exposed as a filter control;
-  // it's replicated here so every count query (and any future filter) stays
-  // consistent with what the block actually shows. If the block's Data
-  // scope ever changes, update this to match.
-  extraFilter: { isRequiredApproval: true },
+  // IMPORTANT: this block must NOT have a native Nocobase "Data scope"
+  // condition on isRequiredApproval (or anything else this file filters).
+  // This deployment now consolidates the previous "All Quotations" /
+  // "All Approval" tab split into one block — isRequiredApproval is an
+  // explicit filter control below, not a baked-in scope. If the block still
+  // has a Data scope condition set, clear it in the block's own settings;
+  // otherwise it will silently override this filter the same way it did
+  // before (selecting "No" would keep showing 0 results regardless).
+  extraFilter: {},
 
   filters: [
     {
@@ -96,6 +104,17 @@ const CONFIG = {
         { value: 'sent', label: 'Quotation Sent' },
         { value: 'order', label: 'Order' },
         { value: 'cancelled', label: 'Cancelled' },
+      ],
+      showCounts: true,
+    },
+    {
+      type: 'status',
+      key: 'isRequiredApproval',
+      field: 'isRequiredApproval',
+      label: 'Requires Approval',
+      options: [
+        { value: true, label: 'Yes' },
+        { value: false, label: 'No' },
       ],
       showCounts: true,
     },
@@ -131,6 +150,20 @@ const CONFIG = {
       key: 'approvedBy',
       field: 'approvedById',
       label: 'Approved By',
+      placeholder: 'All',
+      width: 180,
+      source: {
+        collection: 'lawyers',
+        labelFields: ['lawyerName'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'relation',
+      key: 'approvalLawyers',
+      field: 'approvalLawyers',
+      relationKey: 'id', // same shape as assignees/lawyers — belongsTo with no flat FK column
+      label: 'Approval Lawyers',
       placeholder: 'All',
       width: 180,
       source: {
