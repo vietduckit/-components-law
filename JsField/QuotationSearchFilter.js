@@ -1,30 +1,43 @@
 /**
  * Generic Search/Filter block (Nocobase JS Field/Action block).
- * Deployment: Lead module (targetBlockUid lkefg2nclcb).
+ * Deployment: Quotation module (targetBlockUid e7390b17ef5, collection "quotations").
  *
- * This is JsField/GenericSearchFilter.js with CONFIG filled in for the Lead
- * module. Field names below were confirmed directly against the live
- * Nocobase "Lead - Configure fields" admin UI (screenshots), which is the
- * authoritative source — an earlier version of this file was based on a
- * direct Postgres query against a local `nocobase` database that turned out
- * to be a stale/unrelated copy, not the database backing the running app.
+ * This is JsField/GenericSearchFilter.js with CONFIG filled in for the
+ * Quotation module (user-provided base config, extended here with
+ * isRequiredApproval + approvedById).
  *
  * Field notes:
- *   - `internalCompanyId` is a flat scalar FK column — filtered directly.
- *   - `Assignees` (belongsTo -> `lawyers`) has no separate flat FK column,
- *     only the association itself — needs `relationKey: 'id'` in this
- *     engine's `relation` filter type to build the nested filter shape
- *     `{ Assignees: { id: { $eq: ... } } }` instead of a flat one. This is
- *     a small (backward-compatible) addition to buildFilterFor in both this
- *     file and JsField/GenericSearchFilter.js.
- *   - `salesperson` is a plain single-line text field (not a select, not a
- *     relation) — implemented as its own single-field `search`-type filter
- *     rather than a dropdown.
- *   - `shortName` does exist on Lead and is included in the main search box.
+ *   - `isRequiredApproval` is a boolean field (confirmed directly from
+ *     All Module/Quotation/QuotationCreateForm.js's submit payload, which
+ *     sends `isRequiredApproval: form.isRequiredApproval` and
+ *     `approvedById: parseInt(form.approvedById)` to `quotations:create`).
+ *     Implemented as a `status`-type filter with boolean option values
+ *     (true/false) rather than string keys.
+ *   - `approvedById` is a flat scalar FK column (same evidence as above —
+ *     submitted as a plain integer, not a nested association), targeting
+ *     the `lawyers` collection — no `relationKey` needed, same pattern as
+ *     `internalCompanyId`.
+ *   - Boolean status option values (`true`/`false`) exposed a real bug in
+ *     the shared engine: `buildFilterFor`'s `status` case used a plain
+ *     falsy check (`!value`), which silently treated a selected `false`
+ *     option the same as "no filter" — and `FilterControl`'s status
+ *     `onChange` had the same bug (`v || 'all'`). Both are fixed here (and
+ *     in JsField/GenericSearchFilter.js and JsField/LeadSearchFilter.js) to
+ *     use nullish/empty checks instead of falsy checks.
+ *
+ * NOT verified in this pass (carried over from the user's own config,
+ * flagged, not changed): the `search` filter's fields
+ * (`fullName`/`email`/`shortName`/`salesperson`) and the `assignees`
+ * relation's `field: 'lawyers'` were copied from the Lead deployment.
+ * `All Module/Quotation/QuotationCreateForm.js`'s confirmed `quotations:create`
+ * payload has no such fields — quotations aren't person records — so these
+ * are very likely leftover from copying JsField/LeadSearchFilter.js and may
+ * silently error or no-op. Left as-is per scope (only asked to add
+ * isRequiredApproval/approvedById) — verify before relying on them.
  *
  * HOW TO USE THIS FILE:
- * 1. Copy this entire file into the Lead module's JS Field/Action block in
- *    Nocobase (targetBlockUid lkefg2nclcb), replacing JsField/JsLeadFilter.js.
+ * 1. Copy this entire file into the Quotation module's JS Field/Action block
+ *    in Nocobase (targetBlockUid e7390b17ef5).
  * 2. Do not edit anything below the "ENGINE" marker except to keep it in
  *    sync with JsField/GenericSearchFilter.js if that template changes.
  *
@@ -36,8 +49,8 @@
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
 const CONFIG = {
-  targetBlockUid: 'lkefg2nclcb',
-  tableName: 'lead',
+  targetBlockUid: 'e7390b17ef5',
+  tableName: 'quotations',
   extraFilter: {},
 
   filters: [
@@ -47,29 +60,42 @@ const CONFIG = {
       field: 'status',
       label: 'Status',
       options: [
-        { value: 'new', label: 'New' },
-        { value: 'opportunity', label: 'Opportunity' },
-        { value: 'won', label: 'Won' },
-        { value: 'negotiation', label: 'Negotiation' },
-        { value: 'lost', label: 'Lost' },
+        { value: 'new', label: 'New Quotation' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'approval', label: 'Approved' },
+        { value: 'rejected', label: 'Rejected' },
+        { value: 'sent', label: 'Quotation Sent' },
+        { value: 'order', label: 'Order' },
+        { value: 'cancelled', label: 'Cancelled' },
       ],
       showCounts: true,
     },
+    // {
+    //   type: 'status',
+    //   key: 'source',
+    //   field: 'source',
+    //   label: 'Source',
+    //   options: [
+    //     { value: 'googleAds', label: 'Google Ads' },
+    //     { value: 'facebookAds', label: 'Facebook Ads' },
+    //     { value: 'zalo', label: 'Zalo' },
+    //     { value: 'referral', label: 'Referral' },
+    //     { value: 'website', label: 'Website' },
+    //     { value: 'hotline', label: 'Hotline' },
+    //     { value: 'partner', label: 'Partner' },
+    //     { value: 'lawyer', label: 'Lawyer' },
+    //     { value: 'staff', label: 'Staff' },
+    //   ],
+    //   showCounts: true,
+    // },
     {
       type: 'status',
-      key: 'source',
-      field: 'source',
-      label: 'Source',
+      key: 'isRequiredApproval',
+      field: 'isRequiredApproval',
+      label: 'Requires Approval',
       options: [
-        { value: 'googleAds', label: 'Google Ads' },
-        { value: 'facebookAds', label: 'Facebook Ads' },
-        { value: 'zalo', label: 'Zalo' },
-        { value: 'referral', label: 'Referral' },
-        { value: 'website', label: 'Website' },
-        { value: 'hotline', label: 'Hotline' },
-        { value: 'partner', label: 'Partner' },
-        { value: 'lawyer', label: 'Lawyer' },
-        { value: 'staff', label: 'Staff' },
+        { value: true, label: 'Yes' },
+        { value: false, label: 'No' },
       ],
       showCounts: true,
     },
@@ -89,9 +115,22 @@ const CONFIG = {
     {
       type: 'relation',
       key: 'assignees',
-      field: 'Assignees',
+      field: 'lawyers',
       relationKey: 'id', // Assignees has no flat FK column, only the association
       label: 'Person Responsible',
+      placeholder: 'All',
+      width: 180,
+      source: {
+        collection: 'lawyers',
+        labelFields: ['lawyerName'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'relation',
+      key: 'approvedBy',
+      field: 'approvedById',
+      label: 'Approved By',
       placeholder: 'All',
       width: 180,
       source: {
@@ -125,7 +164,7 @@ const CONFIG = {
 };
 
 // ===================================================================
-// ENGINE — KHÔNG SỬA BÊN DƯỚI DÒNG NÀY
+// ENGINE — DO NOT EDIT BELOW THIS LINE
 // ===================================================================
 
 // ---- id / filter-key helpers (pure, no ctx access) ----
@@ -306,7 +345,7 @@ function useCurrentUserScope() {
               });
               return field;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope field không hợp lệ: ${field}`, e);
+              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope field: ${field}`, e);
               return null;
             }
           }),
@@ -404,7 +443,7 @@ function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
         }));
         if (!cancelled) setCounts(Object.fromEntries(entries));
       } catch (e) {
-        console.error('[GenericSearchFilter] Lỗi lấy counts:', e);
+        console.error('[GenericSearchFilter] Error fetching counts:', e);
         if (!cancelled) setCounts({});
       }
       if (!cancelled) setLoading(false);
@@ -538,13 +577,13 @@ const GenericSearchFilter = () => {
     try {
       const target = ctx.engine?.getModel(CONFIG.targetBlockUid);
       if (!target) {
-        console.warn('[GenericSearchFilter] targetBlockUid không resolve được model:', CONFIG.targetBlockUid);
+        console.warn('[GenericSearchFilter] targetBlockUid could not resolve a model:', CONFIG.targetBlockUid);
         return;
       }
       target.resource.addFilterGroup(filterKey, filter);
       await target.resource.refresh();
     } catch (e) {
-      console.error('[GenericSearchFilter] Áp filter thất bại:', filterKey, e);
+      console.error('[GenericSearchFilter] Failed to apply filter:', filterKey, e);
     }
   }, []);
 
