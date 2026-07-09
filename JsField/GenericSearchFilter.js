@@ -116,7 +116,10 @@ const buildFilterFor = (filterDef, value) => {
   if (!filterDef || !filterDef.type) return {};
   switch (filterDef.type) {
     case 'status': {
-      if (!value || value === 'all') return {};
+      // Use nullish/empty checks, not a plain falsy check — option values can
+      // legitimately be `false` or `0` (e.g. a boolean field's "No" option),
+      // which must not be treated the same as "no filter selected".
+      if (value === undefined || value === null || value === '' || value === 'all') return {};
       return { [filterDef.field]: value };
     }
     case 'relation': {
@@ -389,7 +392,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
         value,
         size: 'small',
         style: { width: filterDef.width || 180 },
-        onChange: (v) => onChange(v || 'all'),
+        onChange: (v) => onChange(v === undefined ? 'all' : v),
         options: displayOptions.map((opt) => ({
           value: opt.value,
           label: showCounts
