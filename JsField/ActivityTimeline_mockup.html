@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Activity Timeline — Mockup Review</title>
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --border: #e8e8e8;
+    --border-soft: #f0f0f0;
+    --text: #1f1f1f;
+    --muted: #8c8c8c; 
+    --blue: #1677ff;
+    --blue-dark: #0958d9;
+    --blue-bg: #e6f4ff;
+    --green: #389e0d;
+    --green-bg: #f6ffed;
+    --red: #cf1322;
+    --red-bg: #fff1f0;
+    --purple: #722ed1;
+    --purple-bg: #f9f0ff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--text); font-size: 13px; line-height: 1.5; }
+
+  .page { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  /* ── HEADER ─────────────────────────────── */
+  .head {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 20px; display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+  }
+  .head-icon {
+    width: 36px; height: 36px; border-radius: 8px; background: var(--blue-bg); color: var(--blue-dark);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .head-text { flex: 1; min-width: 0; }
+  .head-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .head-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .head-sub b { color: var(--text); font-weight: 600; }
+  .btn {
+    font-family: var(--font); font-size: 12px; font-weight: 600; padding: 7px 14px;
+    border-radius: 7px; border: 1px solid var(--border); background: #fff; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; color: #595959; transition: .15s; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--blue); color: var(--blue-dark); background: #f7fbff; }
+  .btn svg { display: block; }
+
+  /* ── TOOLBAR ────────────────────────────── */
+  .toolbar {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .search-row { position: relative; }
+  .search-row svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+  .search-row input {
+    width: 100%; font-family: var(--font); font-size: 12.5px; padding: 8px 12px 8px 34px;
+    border: 1px solid var(--border); border-radius: 7px; outline: none; color: var(--text); background: #fff;
+  }
+  .search-row input:focus { border-color: var(--blue); }
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filter-row select, .filter-row input[type=date] {
+    font-family: var(--font); font-size: 12px; padding: 6px 10px; border: 1px solid var(--border);
+    border-radius: 7px; background: #fff; color: var(--text); outline: none;
+  }
+  .filter-row select:focus, .filter-row input[type=date]:focus { border-color: var(--blue); }
+  .date-sep { color: var(--muted); font-size: 11px; }
+  .count-tag {
+    margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 500;
+    padding: 4px 0;
+  }
+  .count-tag b { color: var(--text); }
+
+  /* ── TIMELINE ───────────────────────────── */
+  .timeline { position: relative; }
+  .day-group { position: relative; }
+  .day-pill {
+    position: sticky; top: 12px; z-index: 5;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--text); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 4px 12px 4px 10px; border-radius: 20px; margin: 0 0 14px 0;
+  }
+  .day-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: #fff; opacity: .7; }
+
+  .event {
+    position: relative; padding-left: 40px; padding-bottom: 22px;
+  }
+  .event::before {
+    /* connecting vertical line */
+    content: ''; position: absolute; left: 13px; top: 22px; bottom: -4px; width: 2px; background: var(--border-soft);
+  }
+  .day-group:last-child .event:last-child::before { display: none; }
+
+  .marker {
+    position: absolute; left: 0; top: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; z-index: 2;
+    background: #fff; border: 2px solid var(--border);
+  }
+  .event.minor .marker { width: 14px; height: 14px; left: 6px; top: 3px; }
+  .event.minor .marker .dot-inner { width: 6px; height: 6px; border-radius: 50%; }
+  .event.major .marker { width: 28px; height: 28px; box-shadow: 0 0 0 4px var(--bg); }
+  .event.major .marker svg { display: block; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; transition: box-shadow .15s, border-color .15s;
+  }
+  .event.major .card { border-width: 1.5px; }
+  .card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+
+  .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff;
+  }
+  .who { font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .role { font-size: 10.5px; color: var(--muted); font-weight: 500; }
+  .role::before { content: '· '; }
+
+  .badge {
+    font-size: 10.5px; font-weight: 600; padding: 2px 9px; border-radius: 20px; border: 1px solid;
+    margin-left: auto; white-space: nowrap;
+  }
+
+  .desc { font-size: 12.5px; color: var(--text); line-height: 1.55; }
+  .desc .field-old { color: var(--red); text-decoration: line-through; opacity: .75; }
+  .desc .field-new { color: var(--green); font-weight: 600; }
+  .desc .rec { font-weight: 600; }
+
+  .time-row { margin-top: 7px; display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted); }
+  .time-row .rel { color: var(--muted); }
+  .time-row .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); opacity: .5; }
+
+  .load-more {
+    text-align: center; margin-top: 6px; padding-left: 40px;
+  }
+
+  .hidden { display: none !important; }
+  .empty-state { text-align: center; padding: 48px 0; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="head">
+    <div class="head-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    </div>
+    <div class="head-text">
+      <div class="head-title">Lịch sử hoạt động hợp đồng</div>
+      <div class="head-sub"><b>HĐ-2026-014</b> · Tư vấn M&amp;A Công ty TNHH ABC</div>
+    </div>
+    <button class="btn" id="refreshBtn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Làm mới
+    </button>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="search-row">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Tìm theo thành viên, mô tả hoạt động..." />
+    </div>
+    <div class="filter-row">
+      <select id="actionFilter">
+        <option value="all">Tất cả hành động</option>
+        <option value="created">Tạo mới</option>
+        <option value="updated">Cập nhật</option>
+        <option value="uploaded">Tải lên</option>
+        <option value="deleted">Xoá</option>
+      </select>
+      <select id="memberFilter">
+        <option value="all">Tất cả thành viên</option>
+        <option value="Nguyễn Văn A">Nguyễn Văn A</option>
+        <option value="Trần Thị B">Trần Thị B</option>
+        <option value="Lê Văn C">Lê Văn C</option>
+        <option value="Hệ thống">Hệ thống</option>
+      </select>
+      <input type="date" id="dateFrom" />
+      <span class="date-sep">→</span>
+      <input type="date" id="dateTo" />
+      <span class="count-tag" id="countTag"><b>9</b> hoạt động</span>
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="timeline" id="timeline">
+
+    <div class="day-group" data-date="2026-07-21">
+      <div class="day-pill"><span class="dot"></span>Hôm nay · 21/07/2026</div>
+
+      <div class="event minor" data-action="updated" data-member="Nguyễn Văn A" data-date="2026-07-21" data-text="nguyễn văn a luật sư cập nhật trạng thái chờ ký đã ký">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#1677ff">NA</div>
+            <span class="who">Nguyễn Văn A</span><span class="role">Luật sư phụ trách</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Cập nhật <b>trạng thái</b> hợp đồng: <span class="field-old">"Chờ ký"</span> → <span class="field-new">"Đã ký"</span></div>
+          <div class="time-row"><span>14:32</span><span class="dot-sep"></span><span class="rel">vừa xong</span></div>
+        </div>
+      </div>
+
+      <div class="event major" data-action="uploaded" data-member="Nguyễn Văn A" data-date="2026-07-21" data-text="nguyễn văn a luật sư tải lên tài liệu hợp đồng đã ký scan pdf">
+        <div class="marker" style="background:#f9f0ff;border-color:#d3adf7;color:#722ed1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#1677ff">NA</div>
+            <span class="who">Nguyễn Văn A</span><span class="role">Luật sư phụ trách</span>
+            <span class="badge" style="color:#722ed1;background:#f9f0ff;border-color:#d3adf7">Tải lên</span>
+          </div>
+          <div class="desc">Tải lên tài liệu <span class="rec">"Hợp đồng đã ký (scan).pdf"</span></div>
+          <div class="time-row"><span>10:15</span><span class="dot-sep"></span><span class="rel">4 giờ trước</span></div>
+        </div>
+      </div>
+
+      <div class="event minor" data-action="updated" data-member="Trần Thị B" data-date="2026-07-21" data-text="trần thị b nhân viên cập nhật ngày ký 21 07 2026">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#13c2c2">TB</div>
+            <span class="who">Trần Thị B</span><span class="role">Nhân viên</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Cập nhật <b>ngày ký</b> hợp đồng thành <span class="field-new">"21/07/2026"</span></div>
+          <div class="time-row"><span>08:40</span><span class="dot-sep"></span><span class="rel">6 giờ trước</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="day-group" data-date="2026-07-20">
+      <div class="day-pill"><span class="dot"></span>Hôm qua · 20/07/2026</div>
+
+      <div class="event minor" data-action="updated" data-member="Trần Thị B" data-date="2026-07-20" data-text="trần thị b nhân viên cập nhật luật sư phụ trách nguyễn văn a">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#13c2c2">TB</div>
+            <span class="who">Trần Thị B</span><span class="role">Nhân viên</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Cập nhật <b>luật sư phụ trách</b> hợp đồng thành <span class="field-new">"Nguyễn Văn A"</span></div>
+          <div class="time-row"><span>16:50</span><span class="dot-sep"></span><span class="rel">1 ngày trước</span></div>
+        </div>
+      </div>
+
+      <div class="event minor" data-action="updated" data-member="Lê Văn C" data-date="2026-07-20" data-text="lê văn c quản lý cập nhật giá trị 500.000.000 550.000.000">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#fa8c16">LC</div>
+            <span class="who">Lê Văn C</span><span class="role">Quản lý</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Chỉnh sửa <b>giá trị hợp đồng</b>: <span class="field-old">"500.000.000 ₫"</span> → <span class="field-new">"550.000.000 ₫"</span></div>
+          <div class="time-row"><span>11:20</span><span class="dot-sep"></span><span class="rel">1 ngày trước</span></div>
+        </div>
+      </div>
+
+      <div class="event minor" data-action="updated" data-member="Trần Thị B" data-date="2026-07-20" data-text="trần thị b nhân viên cập nhật trạng thái nháp chờ ký">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#13c2c2">TB</div>
+            <span class="who">Trần Thị B</span><span class="role">Nhân viên</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Cập nhật <b>trạng thái</b> hợp đồng: <span class="field-old">"Nháp"</span> → <span class="field-new">"Chờ ký"</span></div>
+          <div class="time-row"><span>09:05</span><span class="dot-sep"></span><span class="rel">1 ngày trước</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="day-group" data-date="2026-07-18">
+      <div class="day-pill"><span class="dot"></span>Thứ Bảy, 18/07/2026</div>
+
+      <div class="event major" data-action="deleted" data-member="Trần Thị B" data-date="2026-07-18" data-text="trần thị b nhân viên xoá dòng dịch vụ tư vấn pháp lý bổ sung">
+        <div class="marker" style="background:#fff1f0;border-color:#ffa39e;color:#cf1322">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#13c2c2">TB</div>
+            <span class="who">Trần Thị B</span><span class="role">Nhân viên</span>
+            <span class="badge" style="color:#cf1322;background:#fff1f0;border-color:#ffa39e">Xoá</span>
+          </div>
+          <div class="desc">Xoá dòng dịch vụ <span class="rec">"Tư vấn pháp lý bổ sung"</span> khỏi hợp đồng</div>
+          <div class="time-row"><span>17:02</span><span class="dot-sep"></span><span class="rel">3 ngày trước</span></div>
+        </div>
+      </div>
+
+      <div class="event minor" data-action="updated" data-member="Trần Thị B" data-date="2026-07-18" data-text="trần thị b nhân viên cập nhật khách hàng công ty tnhh abc">
+        <div class="marker"><span class="dot-inner" style="background:#1677ff"></span></div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#13c2c2">TB</div>
+            <span class="who">Trần Thị B</span><span class="role">Nhân viên</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Cập nhật</span>
+          </div>
+          <div class="desc">Cập nhật <b>khách hàng</b> hợp đồng thành <span class="field-new">"Công ty TNHH ABC"</span></div>
+          <div class="time-row"><span>14:20</span><span class="dot-sep"></span><span class="rel">3 ngày trước</span></div>
+        </div>
+      </div>
+
+      <div class="event major" data-action="created" data-member="Hệ thống" data-date="2026-07-18" data-text="hệ thống tạo mới hợp đồng hđ 2026 014">
+        <div class="marker" style="background:#e6f4ff;border-color:#91caff;color:#0958d9">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="card">
+          <div class="card-top">
+            <div class="avatar" style="background:#8c8c8c">HT</div>
+            <span class="who">Hệ thống</span><span class="role">Tự động</span>
+            <span class="badge" style="color:#0958d9;background:#e6f4ff;border-color:#91caff">Tạo mới</span>
+          </div>
+          <div class="desc">Tạo mới hợp đồng <span class="rec">"HĐ-2026-014"</span></div>
+          <div class="time-row"><span>09:00</span><span class="dot-sep"></span><span class="rel">3 ngày trước</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-state hidden" id="emptyState">Không có hoạt động nào khớp bộ lọc</div>
+  </div>
+
+  <div class="load-more">
+    <button class="btn">Xem thêm hoạt động cũ hơn</button>
+  </div>
+
+</div>
+
+<script>
+  const searchInput = document.getElementById('searchInput');
+  const actionFilter = document.getElementById('actionFilter');
+  const memberFilter = document.getElementById('memberFilter');
+  const dateFrom = document.getElementById('dateFrom');
+  const dateTo = document.getElementById('dateTo');
+  const countTag = document.getElementById('countTag');
+  const emptyState = document.getElementById('emptyState');
+  const dayGroups = Array.from(document.querySelectorAll('.day-group'));
+
+  function applyFilters() {
+    const kw = searchInput.value.trim().toLowerCase();
+    const act = actionFilter.value;
+    const mem = memberFilter.value;
+    const from = dateFrom.value;
+    const to = dateTo.value;
+    let visibleCount = 0;
+
+    dayGroups.forEach(group => {
+      const events = Array.from(group.querySelectorAll('.event'));
+      let groupVisible = 0;
+      events.forEach(ev => {
+        const matchesKw = !kw || ev.dataset.text.includes(kw);
+        const matchesAct = act === 'all' || ev.dataset.action === act;
+        const matchesMem = mem === 'all' || ev.dataset.member === mem;
+        const d = ev.dataset.date;
+        const matchesFrom = !from || d >= from;
+        const matchesTo = !to || d <= to;
+        const show = matchesKw && matchesAct && matchesMem && matchesFrom && matchesTo;
+        ev.classList.toggle('hidden', !show);
+        if (show) { groupVisible++; visibleCount++; }
+      });
+      group.classList.toggle('hidden', groupVisible === 0);
+    });
+
+    countTag.innerHTML = '<b>' + visibleCount + '</b> hoạt động';
+    emptyState.classList.toggle('hidden', visibleCount !== 0);
+  }
+
+  [searchInput, actionFilter, memberFilter, dateFrom, dateTo].forEach(el => {
+    el.addEventListener('input', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    searchInput.value = '';
+    actionFilter.value = 'all';
+    memberFilter.value = 'all';
+    dateFrom.value = '';
+    dateTo.value = '';
+    applyFilters();
+  });
+</script>
+
+</body>
+</html>
