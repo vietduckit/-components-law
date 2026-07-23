@@ -4555,7 +4555,7 @@ const InternalTemplates = () => {
   const activeCaseRootFolder = useMemo(() => {
     if (!caseFolders.length || !activeCaseIdValue) return null;
     const rootCandidates = caseFolders.filter(
-      (folder) => !folder.isDeleted && !getFolderParentId(folder),
+      (folder) => !folder.isDeleted && !normalizeParentId(folder?.parentId),
     );
     if (!rootCandidates.length) return null;
     return [...rootCandidates].sort(sortByCreatedAt)[0];
@@ -8947,79 +8947,107 @@ const InternalTemplates = () => {
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 1 }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveSpace("cases");
-                        setActiveLegalReferenceId(null);
-                        setSelectedFolderId("root");
-                      }}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "7px 10px",
-                        border: "0",
-                        borderRadius: 8,
-                        cursor: "pointer",
-                        borderLeft:
-                          activeSpace === "cases" && selectedFolderId === "root"
-                            ? "2px solid #185FA5"
-                            : "2px solid transparent",
-                        background:
-                          activeSpace === "cases" && selectedFolderId === "root"
-                            ? "#E6F1FB"
-                            : "transparent",
-                        color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
-                        fontWeight: activeSpace === "cases" ? 600 : 400,
-                        fontFamily: FONT,
-                        fontSize: 13,
-                        transition: "background 0.15s",
-                        minWidth: 0,
-                        textAlign: "left",
-                      }}
-                    >
-                      <span
+                    {activeCaseRootFolder ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveSpace("cases");
+                          setActiveLegalReferenceId(null);
+                          setSelectedFolderId("root");
+                        }}
                         style={{
-                          display: "inline-flex",
+                          width: "100%",
+                          display: "flex",
                           alignItems: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {React.cloneElement(TYPE_ICONS.folder, { size: 15 })}
-                      </span>
-                      <span
-                        style={{
-                          flex: 1,
+                          gap: 8,
+                          padding: "7px 10px",
+                          border: "0",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          borderLeft:
+                            activeSpace === "cases" && selectedFolderId === "root"
+                              ? "2px solid #185FA5"
+                              : "2px solid transparent",
+                          background:
+                            activeSpace === "cases" && selectedFolderId === "root"
+                              ? "#E6F1FB"
+                              : "transparent",
+                          color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
+                          fontWeight: activeSpace === "cases" ? 600 : 400,
+                          fontFamily: FONT,
+                          fontSize: 13,
+                          transition: "background 0.15s",
                           minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          textAlign: "left",
                         }}
                       >
-                        {getCaseDisplayName(activeCaseRecord || activeCase)}
-                      </span>
-                      {!activeCaseRootFolderId && (
                         <span
                           style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            color: "#B45309",
-                            background: "#FFFBEB",
-                            border: "1px solid #FEF3C7",
-                            borderRadius: 999,
-                            padding: "1px 6px",
+                            display: "inline-flex",
+                            alignItems: "center",
                             flexShrink: 0,
+                          }}
+                        >
+                          {React.cloneElement(TYPE_ICONS.folder, { size: 15 })}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Chưa có folder
+                          {activeCaseRootFolder.name || "Folder"}
                         </span>
-                      )}
-                    </button>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleCreateFolderFromSidebar("cases")}
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "7px 10px",
+                          border: "1px dashed #FEF3C7",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          background: "#FFFBEB",
+                          color: "#B45309",
+                          fontWeight: 500,
+                          fontFamily: FONT,
+                          fontSize: 13,
+                          minWidth: 0,
+                          textAlign: "left",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {React.cloneElement(TYPE_ICONS.folder, { size: 15 })}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Chưa có folder — bấm để tạo
+                        </span>
+                      </button>
+                    )}
 
-                    {activeSpace === "cases" && (
+                    {activeSpace === "cases" && activeCaseRootFolderId && (
                       <div
                         style={{
                           display: "flex",
@@ -9039,7 +9067,7 @@ const InternalTemplates = () => {
                               fontStyle: "italic",
                             }}
                           >
-                            Chưa có thư mục
+                            Chưa có thư mục con
                           </Text>
                         ) : (
                           caseSidebarRootFolders.map((folder) => {
