@@ -15365,11 +15365,15 @@ const TaskRow = ({
           display: "flex",
           alignItems: "center",
           minHeight: 44,
-          background: serviceDeleted ? "#fafafa" : isBlocked ? "#fdf6ff" : hov ? "#f0f7ff" : "#fff",
+          background: dragOverPos
+            ? "#e6f4ff"
+            : serviceDeleted ? "#fafafa" : isBlocked ? "#fdf6ff" : hov ? "#f0f7ff" : "#fff",
           transition: "background 0.1s",
           borderLeft: serviceDeleted ? "3px solid #bfbfbf" : isBlocked ? "3px solid #722ed1" : "3px solid transparent",
           borderTop: dragOverPos === "before" ? "2px dashed #1677ff" : "2px solid transparent",
           borderBottom: dragOverPos === "after" ? "2px dashed #1677ff" : "none",
+          outline: dragOverPos ? "2px dashed #1677ff" : "none",
+          outlineOffset: dragOverPos ? -2 : undefined,
           minWidth: 1420,
           width: "100%",
           cursor: canDrag ? "grab" : undefined,
