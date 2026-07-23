@@ -4554,12 +4554,19 @@ const InternalTemplates = () => {
 
   const activeCaseRootFolder = useMemo(() => {
     if (!caseFolders.length || !activeCaseIdValue) return null;
-    const rootCandidates = caseFolders.filter(
-      (folder) => !folder.isDeleted && !normalizeParentId(folder?.parentId),
-    );
+    const rootCandidates = caseFolders.filter((folder) => {
+      if (folder.isDeleted) return false;
+      const parentId = normalizeParentId(folder?.parentId);
+      // A folder counts as "root" if it has no parent, OR its parent isn't
+      // itself one of this case's own folders (e.g. a dangling/legacy
+      // parentId pointing outside this case's fetched folder scope) — same
+      // boundary caseSidebarRootFolders already uses for its own fallback,
+      // so both stay in sync instead of disagreeing on what "root" means.
+      return !parentId || !caseFolderIdSet.has(String(parentId));
+    });
     if (!rootCandidates.length) return null;
     return [...rootCandidates].sort(sortByCreatedAt)[0];
-  }, [caseFolders, activeCaseIdValue]);
+  }, [caseFolders, activeCaseIdValue, caseFolderIdSet]);
 
   const activeCaseRootFolderId = useMemo(
     () => extractId(activeCaseRootFolder),
