@@ -23,16 +23,66 @@ const {
   Empty,
   Mentions,
   Avatar,
+  TreeSelect,
+  Dropdown,
 } = ctx.antd;
 const { Text } = Typography;
 const { Dragger } = Upload;
 
 const PROJECT_ID = ctx.record?.id;
+const CASE_DOCUMENT_SCOPE = "case_document";
+const LEGAL_STUDY_MODULE_SCOPE = "legal_study";
+const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
+const LEGAL_STUDY_LABEL = "Legal Study";
+const LEGAL_REFERENCE_MODULE_SCOPE = "legal_reference";
+const LEGAL_REFERENCE_STORAGE_TYPE = "legal_reference";
+const LEGAL_REFERENCE_LABEL = "Legal Reference";
+const MY_DOCUMENT_STORAGE_TYPE = "personal";
+const LIBRARY_DESTINATION = {
+  LEGAL_STUDY: "legal_study",
+  LEGAL_REFERENCE: "legal_reference",
+};
+const LIBRARY_DESTINATION_CONFIG = {
+  [LIBRARY_DESTINATION.LEGAL_STUDY]: {
+    label: LEGAL_STUDY_LABEL,
+    moduleScope: LEGAL_STUDY_MODULE_SCOPE,
+    storageType: LEGAL_STUDY_STORAGE_TYPE,
+    relationField: "legalStudyId",
+    listCandidates: [
+      "legalStudy:list",
+      "legalStudies:list",
+      "LegalStudy:list",
+    ],
+  },
+  [LIBRARY_DESTINATION.LEGAL_REFERENCE]: {
+    label: LEGAL_REFERENCE_LABEL,
+    moduleScope: LEGAL_REFERENCE_MODULE_SCOPE,
+    storageType: LEGAL_REFERENCE_STORAGE_TYPE,
+    relationField: "legalReferenceId",
+    listCandidates: [
+      "legalReference:list",
+      "legalReferences:list",
+      "LegalReference:list",
+    ],
+  },
+};
+const LIBRARY_SOURCE = {
+  CASE_DOCUMENT: "case_document",
+  CASE_REFERENCE: "case_reference",
+  LEGAL_REFERENCE: "legal_reference",
+  LEGAL_STUDY: "legal_study",
+  MY_DOCUMENTS: "my_documents",
+};
+const ACTIVITY_ACTION = {
+  LINK_LEGAL_STUDY: "link_legal_study",
+  LINK_LEGAL_REFERENCE: "link_legal_ref",
+};
 const FONT =
   "Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const COL = {
   stt: 38,
   toggle: 24,
+  status: 130,
   updatedAt: 125,
   desc: 190,
   nextStep: 155,
@@ -90,43 +140,43 @@ const DEEP_LINK_CONFIG = {
 
 const STATUS_CFG = {
   toDo: {
-    label: "Chưa thực hiện",
+    label: "Not Start",
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
   },
   inProgress: {
-    label: "Đang xử lý",
+    label: "In Progress",
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   blocked: {
-    label: "Bị chặn",
+    label: "Blocked",
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
   },
   pending: {
-    label: "Chờ phê duyệt",
+    label: "Pending approval",
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   approval: {
-    label: "Đã phê duyệt",
+    label: "Approved",
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   done: {
-    label: "Hoàn thành",
+    label: "Done",
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Đã huỷ",
+    label: "Cancelled",
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -134,36 +184,36 @@ const STATUS_CFG = {
 };
 
 const FIELD_LABEL = {
-  title: "Tiêu đề",
-  status: "Trạng thái",
-  priority: "Ưu tiên",
-  lawyerId: "Luật sư",
+  title: "Title",
+  status: "Status",
+  priority: "Priority",
+  lawyerId: "Lawyer",
   dueDate: "Deadline",
-  startDate: "Ngày bắt đầu",
-  closedDate: "Ngày hoàn thành",
-  description: "Nội dung diễn biến",
-  body: "Nội dung ghi chú",
-  estimatedDuration: "Thời gian dự kiến",
+  startDate: "Start date",
+  closedDate: "Completion date",
+  description: "Description",
+  body: "Note content",
+  estimatedDuration: "Estimated duration",
   previousTaskId: "Pending Issue",
   nextStepDescription: "Next Step",
-  approvedById: "Người xét duyệt",
-  approvedAt: "Ngày phân công xét duyệt",
-  acceptedAt: "Ngày xét duyệt",
-  isRequiredApproval: "Yêu cầu xét duyệt",
-  notes: "Bình luận",
-  documents: "Tài liệu",
-  isDeleted: "Trạng thái xóa",
-  assignedLawyerId: "Người thực hiện",
+  approvedById: "Approver",
+  approvedAt: "Approval assigned date",
+  acceptedAt: "Approval date",
+  isRequiredApproval: "Approval required",
+  notes: "Comments",
+  documents: "Documents",
+  isDeleted: "Deleted status",
+  assignedLawyerId: "Assignee",
 };
 
 const ACTIVITY_FIELD_LABELS = {
-  notes: "Ghi chú",
-  body: "Nội dung",
-  documents: "Tài liệu",
-  title: "Tiêu đề",
-  status: "Trạng thái",
-  assignedLawyerId: "Người thực hiện",
-  assignees: "Người được gán",
+  notes: "Notes",
+  body: "Content",
+  documents: "Documents",
+  title: "Title",
+  status: "Status",
+  assignedLawyerId: "Assignee",
+  assignees: "Assignees",
 };
 
 const tF = (f) => FIELD_LABEL[f] || f;
@@ -186,9 +236,9 @@ const STATUS_KEYS_WITHOUT_APPROVAL = [
 const getStatusKeys = (isRequiredApproval) =>
   isRequiredApproval ? STATUS_KEYS_WITH_APPROVAL : STATUS_KEYS_WITHOUT_APPROVAL;
 const PRIORITY_CFG = {
-  high: { label: "Cao", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Trung", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Thấp", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: "High", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: "Medium", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: "Low", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 
 const LAWYER_COLORS = [
@@ -202,25 +252,25 @@ const LAWYER_COLORS = [
   "#003a8c",
 ];
 const LAWYER_TYPE_CFG = {
-  partner: { label: "Luật sư đối tác", color: "#531dab", bg: "#f9f0ff" },
-  lawyer: { label: "Luật sư", color: "#096dd9", bg: "#e6f4ff" },
-  associate: { label: "Luật sư cộng sự", color: "#08979c", bg: "#e6fffb" },
-  suppliant: { label: "Trợ lý pháp lý", color: "#d46b08", bg: "#fff7e6" },
+  partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
+  lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
+  associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
+  suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
 };
 
 const DOC_TYPE_SUGGESTIONS = [
-  "Hợp đồng",
-  "Biên bản",
-  "Quyết định",
-  "Tờ trình",
-  "Báo cáo",
-  "Chứng cứ / Hồ sơ",
-  "Công văn",
-  "Đơn từ",
-  "Phụ lục",
-  "Biên bản làm việc",
-  "File mẫu",
-  "Khác",
+  "Contract",
+  "Minutes",
+  "Decision",
+  "Proposal",
+  "Report",
+  "Evidence / Records",
+  "Official Letter",
+  "Petition",
+  "Appendix",
+  "Meeting Minutes",
+  "Template File",
+  "Other",
 ];
 
 const FILE_EXT_ICON = {
@@ -235,6 +285,85 @@ const FILE_EXT_ICON = {
   ".gif": { icon: "🖼️", color: "#722ed1", bg: "#f9f0ff" },
   ".webp": { icon: "🖼️", color: "#722ed1", bg: "#f9f0ff" },
 };
+
+const makeSvgIcon = (children, options = {}) =>
+  React.createElement(
+    "svg",
+    {
+      width: options.size || 15,
+      height: options.size || 15,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: options.strokeWidth || 2,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      style: { display: "block", flexShrink: 0 },
+      "aria-hidden": "true",
+    },
+    ...children,
+  );
+
+const TASK_FILE_ACTION_ICONS = {
+  preview: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" }),
+    React.createElement("circle", { key: "c1", cx: 12, cy: 12, r: 3 }),
+  ]),
+  download: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+    React.createElement("polyline", { key: "p2", points: "7 10 12 15 17 10" }),
+    React.createElement("line", { key: "l1", x1: 12, y1: 15, x2: 12, y2: 3 }),
+  ]),
+  moveLegalStudy: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" }),
+    React.createElement("path", { key: "p2", d: "M12 12h6" }),
+    React.createElement("path", { key: "p3", d: "m15 9 3 3-3 3" }),
+  ]),
+  moveLegalReference: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M4 4h12a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2Z" }),
+    React.createElement("path", { key: "p2", d: "M8 8h6" }),
+    React.createElement("path", { key: "p3", d: "M8 12h4" }),
+    React.createElement("path", { key: "p4", d: "m16 11 4 4-4 4" }),
+  ]),
+  edit: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M12 20h9" }),
+    React.createElement("path", { key: "p2", d: "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" }),
+  ]),
+  replace: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M3 12a9 9 0 0 1 15-6.7L21 8" }),
+    React.createElement("path", { key: "p2", d: "M21 3v5h-5" }),
+    React.createElement("path", { key: "p3", d: "M21 12a9 9 0 0 1-15 6.7L3 16" }),
+    React.createElement("path", { key: "p4", d: "M3 21v-5h5" }),
+  ]),
+  folder: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" }),
+  ]),
+  files: makeSvgIcon([
+    React.createElement("path", { key: "p1", d: "M16 2H8a2 2 0 0 0-2 2v12" }),
+    React.createElement("path", { key: "p2", d: "M18 6h-6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2Z" }),
+  ]),
+  more: makeSvgIcon([
+    React.createElement("circle", { key: "c1", cx: 12, cy: 5, r: 1 }),
+    React.createElement("circle", { key: "c2", cx: 12, cy: 12, r: 1 }),
+    React.createElement("circle", { key: "c3", cx: 12, cy: 19, r: 1 }),
+  ], { strokeWidth: 2.6 }),
+};
+
+const renderServiceLockIcon = (size = 15) =>
+  makeSvgIcon([
+    React.createElement("rect", {
+      key: "body",
+      x: 5,
+      y: 10,
+      width: 14,
+      height: 10,
+      rx: 2,
+    }),
+    React.createElement("path", {
+      key: "shackle",
+      d: "M8 10V7a4 4 0 0 1 8 0v3",
+    }),
+  ], { size });
 
 const SERVICE_COLORS = [
   { bg: "#e6f4ff", border: "#91caff", text: "#096dd9", dot: "#1890ff" },
@@ -257,6 +386,36 @@ const extractId = (val) => {
   if (typeof val === "object") return val.id ? parseInt(val.id, 10) : null;
   const parsed = parseInt(val, 10);
   return isNaN(parsed) ? null : parsed;
+};
+const getTaskRecordId = (task = {}) =>
+  extractId(task.id) || extractId(task.taskId) || extractId(task._id);
+const getSubTaskRecordId = (subTask = {}) =>
+  extractId(subTask.id) || extractId(subTask.subTaskId) || extractId(subTask._id);
+const isDeletedServiceRecord = (record = {}) =>
+  String(record?.status || record?.lineStatus || "").toLowerCase().trim() === "deleted";
+const getProjectServiceTaskKey = (ps = {}) => {
+  const serviceId = extractId(ps.serviceId) || extractId(ps.ServiceId) || extractId(ps.services);
+  return String(serviceId || extractId(ps.id) || "");
+};
+const isTaskServiceDeleted = (item = {}) => !!item?._serviceDeleted;
+
+const getPrimaryAttachment = (file) =>
+  Array.isArray(file?.fileAttachment) ? file.fileAttachment[0] : file?.fileAttachment;
+
+const withSyncedDocumentFileTitle = (file, title) => {
+  if (!file || typeof file !== "object") return file;
+  const syncAttachment = (attachment, index = 0) =>
+    index === 0 && attachment && typeof attachment === "object"
+      ? { ...attachment, title }
+      : attachment;
+  return {
+    ...file,
+    title,
+    name: title,
+    fileAttachment: Array.isArray(file.fileAttachment)
+      ? file.fileAttachment.map(syncAttachment)
+      : syncAttachment(file.fileAttachment, 0),
+  };
 };
 
 const getPathSegmentId = (segmentName) => {
@@ -364,10 +523,10 @@ const getFileIcon = (ext) => {
 const timeAgo = (iso) => {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60) return "vừa xong";
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)} ngày trước`;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
   return fmt(iso, "date");
 };
 
@@ -399,9 +558,9 @@ const fmtHours = (h) => {
   if (!h && h !== 0) return "—";
   const hrs = Math.floor(h);
   const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}p`;
-  if (mins === 0) return `${hrs}g`;
-  return `${hrs}g ${mins}p`;
+  if (hrs === 0) return `${mins}m`;
+  if (mins === 0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
 };
 
 const getFullUrl = (url) =>
@@ -410,6 +569,135 @@ const getFullUrl = (url) =>
     : url.startsWith("http")
       ? url
       : `${window.location.origin}${url}`;
+
+const addPdfFitHash = (url) => {
+  if (!url) return url;
+  const joiner = url.includes("#") ? "&" : "#";
+  return `${url}${joiner}view=FitH&navpanes=0`;
+};
+
+const previewFrameShellStyle = (height, options = {}) => ({
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  height,
+  boxSizing: "border-box",
+  overflowX: "hidden",
+  overflowY: "hidden",
+  background: options.background || "#f8f9fa",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "stretch",
+  borderTop: options.borderTop || undefined,
+});
+
+const previewIframeStyle = (height, options = {}) => ({
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  height: options.iframeHeight || height,
+  border: "none",
+  display: "block",
+  background: "#fff",
+});
+
+const scalePreviewLength = (height, ratio, extraPx = 0) => {
+  if (typeof height === "number") return Math.ceil(height * ratio + extraPx);
+  const raw = String(height || "").trim();
+  if (!raw) return extraPx;
+  const match = raw.match(/^(-?\d*\.?\d+)([a-z%]+)$/i);
+  if (match) {
+    const value = Number(match[1]);
+    return `calc(${value * ratio}${match[2]} + ${extraPx}px)`;
+  }
+  return `calc(${raw} + ${extraPx}px)`;
+};
+
+const renderTaskFilePreviewFrame = ({
+  fullUrl,
+  title,
+  isPdf,
+  isImage,
+  isOffice,
+  officeViewerUrl,
+  height = 640,
+  modal = false,
+}) => {
+  const shellHeight = height;
+  const officeScale = modal ? 0.96 : 0.9;
+  const officeScaleRatio = 1 / officeScale;
+  const officeIframeHeight = scalePreviewLength(shellHeight, officeScaleRatio, 42);
+  const officeIframeWidth = `${officeScaleRatio * 100}%`;
+  const shellStyle = previewFrameShellStyle(shellHeight, {
+    background: modal ? "#f5f5f5" : "#f8f9fa",
+    borderTop: modal ? undefined : "1px solid #f0f0f0",
+  });
+
+  if (isPdf && fullUrl) {
+    return React.createElement(
+      "div",
+      { style: shellStyle },
+      React.createElement("iframe", {
+        src: addPdfFitHash(fullUrl),
+        style: previewIframeStyle(shellHeight),
+        title,
+      }),
+    );
+  }
+
+  if (isImage && fullUrl) {
+    return React.createElement(
+      "div",
+      { style: { ...shellStyle, padding: modal ? 16 : 10 } },
+      React.createElement("img", {
+        src: fullUrl,
+        alt: title,
+        style: {
+          maxWidth: "100%",
+          maxHeight: "100%",
+          width: "auto",
+          height: "auto",
+          objectFit: "contain",
+          display: "block",
+          margin: "0 auto",
+          alignSelf: "center",
+        },
+      }),
+    );
+  }
+
+  if (isOffice && officeViewerUrl) {
+    return React.createElement(
+      "div",
+      {
+        style: {
+          ...shellStyle,
+          position: "relative",
+          padding: 0,
+          alignItems: "flex-start",
+        },
+      },
+      React.createElement("iframe", {
+        src: officeViewerUrl,
+        style: {
+          ...previewIframeStyle(shellHeight, {
+            iframeHeight: officeIframeHeight,
+          }),
+          width: officeIframeWidth,
+          maxWidth: "none",
+          margin: "0 auto",
+          flex: "0 0 auto",
+          transform: `scale(${officeScale})`,
+          transformOrigin: "top center",
+        },
+        title,
+        frameBorder: "0",
+      }),
+    );
+  }
+
+  return null;
+};
 const formatDate = (iso) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -449,10 +737,10 @@ const resolveServiceUploadFolderId = ({
     : null;
   const serviceName = String(
     taskLike?.serviceName ||
-      taskLike?._serviceName ||
-      service?.serviceName ||
-      service?.name ||
-      "",
+    taskLike?._serviceName ||
+    service?.serviceName ||
+    service?.name ||
+    "",
   ).trim();
 
   if (!serviceId && !serviceName) return fallbackId;
@@ -483,7 +771,7 @@ const resolveServiceUploadFolderId = ({
   const matchesServiceName = (folder) =>
     !!normalizedServiceName &&
     normalizeLookupText(folder?.name || folder?.title) ===
-      normalizedServiceName;
+    normalizedServiceName;
 
   const scopedFolders = folderList.filter(inCurrentProjectScope);
   const matched =
@@ -504,22 +792,22 @@ const getExtInfo = (ext) =>
 const formatActivityValue = (val) => {
   if (!val) return val;
   const statusMap = {
-    toDo: "Chưa thực hiện",
-    inProgress: "Đang xử lý",
-    blocked: "Đang chờ",
-    pending: "Chờ phê duyệt",
-    approval: "Đã phê duyệt",
-    done: "Hoàn thành",
-    cancelled: "Đã huỷ",
+    toDo: "Not started",
+    inProgress: "In progress",
+    blocked: "Waiting",
+    pending: "Pending approval",
+    approval: "Approved",
+    done: "Done",
+    cancelled: "Cancelled",
   };
   if (statusMap[val]) return statusMap[val];
-  const priorityMap = { high: "Cao", medium: "Trung bình", low: "Thấp" };
+  const priorityMap = { high: "High", medium: "Medium", low: "Low" };
   if (priorityMap[val]) return priorityMap[val];
   if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
     try {
       const d = new Date(val);
       if (!isNaN(d.getTime())) return fmt(val, "full");
-    } catch {}
+    } catch { }
   }
   return val;
 };
@@ -533,12 +821,12 @@ const workRateCfg = (rate) => {
   if (rate === null || rate === undefined)
     return { label: "—", color: "#8c8c8c", bg: "#f5f5f5" };
   if (rate >= 120)
-    return { label: `${rate}% Xuất sắc`, color: "#389e0d", bg: "#f6ffed" };
+    return { label: `${rate}% Excellent`, color: "#389e0d", bg: "#f6ffed" };
   if (rate >= 90)
-    return { label: `${rate}% Đúng tiến độ`, color: "#096dd9", bg: "#e6f4ff" };
+    return { label: `${rate}% On track`, color: "#096dd9", bg: "#e6f4ff" };
   if (rate >= 70)
-    return { label: `${rate}% Chậm`, color: "#d46b08", bg: "#fff7e6" };
-  return { label: `${rate}% Kém`, color: "#cf1322", bg: "#fff1f0" };
+    return { label: `${rate}% Slow`, color: "#d46b08", bg: "#fff7e6" };
+  return { label: `${rate}% Poor`, color: "#cf1322", bg: "#fff1f0" };
 };
 
 // ============================================================
@@ -547,11 +835,12 @@ const workRateCfg = (rate) => {
 async function apiReq(url, method, data) {
   return ctx.api.request({ url, method: method || "POST", data });
 }
-async function fetchAll(url, fields, filter) {
+async function fetchAll(url, fields, filter, sort) {
   try {
     const params = { pageSize: 500, page: 1 };
     if (fields) params.fields = fields;
     if (filter) params.filter = JSON.stringify(filter);
+    if (sort) params.sort = sort;
     const res = await ctx.api.request({ url, params });
     return res?.data?.data || [];
   } catch {
@@ -629,32 +918,535 @@ async function fetchNotes(collectionName, recordId, includeDeleted = false) {
 
 async function fetchFiles(collectionName, recordId, includeDeleted = false) {
   try {
-    const filter = {
-      $and: [
-        { collectionName: { $eq: collectionName } },
-        { recordId: { $eq: parseInt(recordId) } },
-      ],
-    };
+    const filter = buildDocumentRecordFilter(collectionName, recordId);
+    if (!filter) return [];
     if (!includeDeleted) {
       filter.$and.push({ isDeleted: { $ne: true } });
     }
-    const res = await ctx.api.request({
-      url: "documents:list",
-      params: {
-        pageSize: 100,
-        page: 1,
-        sort: ["-createdAt"],
+    return await listDocumentsWithFieldFallback({
+      pageSize: 100,
+      page: 1,
+      sort: ["-createdAt"],
+      filter: JSON.stringify(filter),
+      appends: ["fileAttachment", "createdBy", "updatedBy"],
+    });
+  } catch {
+    return [];
+  }
+}
+
+const BASE_DOCUMENT_FILE_FIELDS =
+  "id,title,documentCode,documentType,batchId,collectionName,sourceCollectionName,sourceTaskId,sourceRecordId,sourceProjectId,recordId,googleDriveUrl,note,createdAt,updatedAt,createdById,updatedById,uploadedById,isDeleted,folderId,caseId,taskId,subTaskId,moduleScope,storageType,legalStudyId,legalReferenceId,internalCompanyId,movedToLegalReferenceAt,movedToLegalReferenceById,fileIndex";
+const LEGAL_STUDY_DOCUMENT_FIELDS =
+  "originScope,originFolderId,legalStudyLinkedAt,legalStudySource";
+const DOCUMENT_FILE_FIELDS = `${BASE_DOCUMENT_FILE_FIELDS},${LEGAL_STUDY_DOCUMENT_FIELDS}`;
+const DOCUMENT_FALLBACK_FILE_FIELDS =
+  "id,documentType,createdAt,updatedAt,createdById,updatedById";
+const DOCUMENT_KNOWN_SCALAR_FIELDS = [
+  BASE_DOCUMENT_FILE_FIELDS,
+  LEGAL_STUDY_DOCUMENT_FIELDS,
+  "contractId,quotationId,projectInternalId,customerId,legalReferenceId,internalTemplateId,openingDate,signedAt,effectiveAt,status,senderName,recipientName,language,docFormat,description,deletedAt,uploadedById,movedToLegalReferenceById,movedToLegalReferenceAt",
+].join(",");
+const DOCUMENT_KNOWN_RELATION_FIELDS =
+  "fileAttachment,updatedBy,createdBy,folders,activity_log,sourceProject,sourceTask,users,internalCompany,legalReference,internalTemplates,customers,cases,contracts,quotations,tasks,subTasks,projectInternal,documentShares,legalStudy";
+const DOCUMENT_KNOWN_FIELD_SET = makeDocumentFieldSet([
+  ...compactDocumentFields(DOCUMENT_KNOWN_SCALAR_FIELDS),
+  ...compactDocumentFields(DOCUMENT_KNOWN_RELATION_FIELDS),
+]);
+let documentFieldSetPromise = null;
+
+function splitDocumentFields(fields) {
+  if (Array.isArray(fields)) return fields;
+  if (typeof fields === "string") return fields.split(",");
+  return [];
+}
+
+function compactDocumentFields(fields) {
+  return Array.from(
+    new Set(
+      splitDocumentFields(fields)
+        .map((field) => String(field || "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function makeDocumentFieldSet(names = []) {
+  const fieldSet = new Set(names.filter(Boolean));
+  if (fieldSet.has("createdBy")) fieldSet.add("createdById");
+  if (fieldSet.has("updatedBy")) fieldSet.add("updatedById");
+  if (fieldSet.has("uploadedBy")) fieldSet.add("uploadedById");
+  return fieldSet;
+}
+
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isEmptyPlainObject(value) {
+  return isPlainObject(value) && Object.keys(value).length === 0;
+}
+
+function parseDocumentFilter(filter) {
+  if (!filter) return null;
+  if (typeof filter !== "string") return filter;
+  try {
+    return JSON.parse(filter);
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeDocumentFilterByFields(filter, fieldSet) {
+  if (!fieldSet || !filter) return filter;
+  if (Array.isArray(filter)) {
+    const items = filter
+      .map((item) => sanitizeDocumentFilterByFields(item, fieldSet))
+      .filter((item) => item && !isEmptyPlainObject(item));
+    return items.length ? items : null;
+  }
+  if (!isPlainObject(filter)) return filter;
+
+  const next = {};
+  Object.entries(filter).forEach(([key, value]) => {
+    if (key === "$and" || key === "$or") {
+      const items = sanitizeDocumentFilterByFields(value, fieldSet);
+      if (Array.isArray(items) && items.length) next[key] = items;
+      return;
+    }
+    if (key.startsWith("$")) {
+      next[key] = value;
+      return;
+    }
+    if (!fieldSet.has(key)) return;
+    next[key] = value;
+  });
+
+  return Object.keys(next).length ? next : null;
+}
+
+function sanitizeDocumentSortByFields(sort, fieldSet) {
+  if (!fieldSet || !sort) return sort;
+  const items = Array.isArray(sort) ? sort : [sort];
+  const safeSort = items.filter((item) => {
+    const field = String(item || "").replace(/^[+-]/, "");
+    return field && fieldSet.has(field);
+  });
+  if (!safeSort.length) return undefined;
+  return Array.isArray(sort) ? safeSort : safeSort[0];
+}
+
+function sanitizeDocumentAppendsByFields(appends, fieldSet) {
+  if (!fieldSet || !appends) return appends;
+  const items = Array.isArray(appends) ? appends : [appends];
+  const safeAppends = items.filter((item) => {
+    const relationName = String(item || "").split(".")[0];
+    return relationName && fieldSet.has(relationName);
+  });
+  if (!safeAppends.length) return undefined;
+  return Array.isArray(appends) ? safeAppends : safeAppends[0];
+}
+
+async function fetchDocumentFieldSet() {
+  // Runtime JS blocks should not require Data sources metadata permission.
+  // Keep a local field set aligned with the configured documents collection.
+  return DOCUMENT_KNOWN_FIELD_SET;
+}
+
+async function getDocumentFieldSet() {
+  if (!documentFieldSetPromise) {
+    documentFieldSetPromise = fetchDocumentFieldSet();
+  }
+  return documentFieldSetPromise;
+}
+
+async function withDocumentSchemaSafeParams(params = {}, options = {}) {
+  const fieldSet = await getDocumentFieldSet();
+  if (!fieldSet) return { ...(params || {}) };
+
+  const next = { ...(params || {}) };
+  const requestedFields =
+    options.fields !== undefined ? options.fields : next.fields;
+  const safeFields = compactDocumentFields(requestedFields).filter((field) =>
+    fieldSet.has(field),
+  );
+  if (safeFields.length) {
+    next.fields = safeFields.join(",");
+  } else {
+    delete next.fields;
+  }
+
+  if (next.filter) {
+    const parsedFilter = parseDocumentFilter(next.filter);
+    const safeFilter = sanitizeDocumentFilterByFields(parsedFilter, fieldSet);
+    if (!safeFilter || isEmptyPlainObject(safeFilter)) {
+      if (options.allowEmptyFilter) {
+        delete next.filter;
+      } else {
+        return null;
+      }
+    } else {
+      next.filter = JSON.stringify(safeFilter);
+    }
+  }
+
+  const safeSort = sanitizeDocumentSortByFields(next.sort, fieldSet);
+  if (safeSort) next.sort = safeSort;
+  else delete next.sort;
+
+  const safeAppends = sanitizeDocumentAppendsByFields(next.appends, fieldSet);
+  if (safeAppends) next.appends = safeAppends;
+  else delete next.appends;
+
+  return next;
+}
+
+async function listDocumentsWithFieldFallback(params) {
+  const attempts = [
+    { ...(params || {}), fields: DOCUMENT_FILE_FIELDS },
+    { ...(params || {}), fields: BASE_DOCUMENT_FILE_FIELDS },
+    { ...(params || {}), fields: DOCUMENT_FALLBACK_FILE_FIELDS },
+    { ...(params || {}) },
+  ];
+
+  for (const attemptParams of attempts) {
+    const safeParams = await withDocumentSchemaSafeParams(attemptParams);
+    if (!safeParams) return [];
+    try {
+      const res = await ctx.api.request({
+        url: "documents:list",
+        params: safeParams,
+      });
+      return res?.data?.data || [];
+    } catch { }
+  }
+  return [];
+}
+
+function normalizeDocumentCollectionName(collectionName) {
+  const raw = String(collectionName || "").trim();
+  const lower = raw.toLowerCase();
+  if (lower === "tasks" || lower === "task") return "Task";
+  if (lower === "subtasks" || lower === "subtask") return "SubTask";
+  if (lower === "cases" || lower === "case") return "Case";
+  return raw || collectionName;
+}
+
+function buildDocumentRecordLink(collectionName, recordId, extra = {}) {
+  const normalized = normalizeDocumentCollectionName(collectionName);
+  const safeRecordId = extractId(recordId);
+  const payload = {
+    collectionName: normalized,
+    moduleScope: CASE_DOCUMENT_SCOPE,
+  };
+  const safeCaseId = getDeepLinkCaseId(extra.caseId);
+  if (safeCaseId) payload.caseId = safeCaseId;
+  const safeFolderId = extractId(extra.folderId);
+  if (safeFolderId) payload.folderId = safeFolderId;
+  if (safeRecordId) {
+    payload.recordId = safeRecordId;
+    payload.sourceCollectionName = normalized;
+    payload.sourceRecordId = safeRecordId;
+  }
+  if (normalized === "Task" && safeRecordId) {
+    payload.taskId = safeRecordId;
+    payload.sourceTaskId = safeRecordId;
+  }
+  if (normalized === "SubTask" && safeRecordId) payload.subTaskId = safeRecordId;
+  return payload;
+}
+
+function buildDocumentRecordFilter(collectionName, recordId) {
+  const link = buildDocumentRecordLink(collectionName, recordId);
+  const filter = [];
+  if (link.collectionName)
+    filter.push({ collectionName: { $eq: link.collectionName } });
+  if (link.taskId) {
+    filter.push({
+      $or: [
+        { taskId: { $eq: link.taskId } },
+        { sourceTaskId: { $eq: link.taskId } },
+        { sourceRecordId: { $eq: link.taskId } },
+        { recordId: { $eq: link.taskId } },
+      ],
+    });
+  } else if (link.subTaskId) {
+    filter.push({
+      $or: [
+        { subTaskId: { $eq: link.subTaskId } },
+        { sourceRecordId: { $eq: link.subTaskId } },
+        { recordId: { $eq: link.subTaskId } },
+      ],
+    });
+  } else return null;
+  return { $and: filter };
+}
+
+function getDocumentTaskId(doc) {
+  return (
+    extractId(doc?.taskId) ||
+    extractId(doc?.task) ||
+    extractId(doc?.sourceTaskId) ||
+    (normalizeDocumentCollectionName(doc?.collectionName) === "Task"
+      ? extractId(doc?.recordId)
+      : null) ||
+    (normalizeDocumentCollectionName(doc?.sourceCollectionName) === "Task"
+      ? extractId(doc?.sourceRecordId)
+      : null)
+  );
+}
+
+function filterTaskDocumentsByIds(files, taskIds, moduleScope = null) {
+  const idSet = new Set((taskIds || []).map((id) => String(extractId(id))).filter(Boolean));
+  return (files || []).filter((file) => {
+    const taskId = getDocumentTaskId(file);
+    if (!taskId || !idSet.has(String(taskId))) return false;
+    if (moduleScope && file.moduleScope && file.moduleScope !== moduleScope) return false;
+    return true;
+  });
+}
+
+async function fetchTaskDocumentsByIds(taskIds, extraFilters = []) {
+  const safeTaskIds = (taskIds || []).map(extractId).filter(Boolean);
+  if (!safeTaskIds.length) return [];
+  const baseFilters = [
+    { collectionName: { $eq: "Task" } },
+    ...extraFilters,
+    { isDeleted: { $ne: true } },
+  ];
+  const filterAttempts = [
+    {
+      $and: [
+        ...baseFilters,
+        {
+          $or: [
+            { taskId: { $in: safeTaskIds } },
+            { sourceTaskId: { $in: safeTaskIds } },
+            { sourceRecordId: { $in: safeTaskIds } },
+            { recordId: { $in: safeTaskIds } },
+          ],
+        },
+      ],
+    },
+    { $and: [...baseFilters, { taskId: { $in: safeTaskIds } }] },
+    { $and: [...baseFilters, { sourceTaskId: { $in: safeTaskIds } }] },
+    { $and: [...baseFilters, { sourceRecordId: { $in: safeTaskIds } }] },
+    { $and: baseFilters },
+  ];
+
+  for (const filter of filterAttempts) {
+    try {
+      const rows = await listDocumentsWithFieldFallback({
+        pageSize: 2000,
         filter: JSON.stringify(filter),
-        fields:
-          "id,title,documentCode,documentType,batchId,collectionName,recordId,googleDriveUrl,note,createdAt,updatedAt,createdById,isDeleted",
         appends: ["fileAttachment", "createdBy", "updatedBy"],
-      },
+      });
+      const files = filterTaskDocumentsByIds(rows, safeTaskIds);
+      if (files.length || filter === filterAttempts[filterAttempts.length - 1]) {
+        return files;
+      }
+    } catch { }
+  }
+  return [];
+}
+
+const createTaskUploadBatchId = (prefix = "upl") =>
+  `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+
+const formatUploadSize = (size) => {
+  const bytes = Number(size) || 0;
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const getUploadItemFile = (item) => item?.originFileObj || item;
+
+const getUploadRelativePath = (item) => {
+  const file = getUploadItemFile(item);
+  return (
+    file?.webkitRelativePath ||
+    item?.webkitRelativePath ||
+    item?.name ||
+    file?.name ||
+    ""
+  );
+};
+
+const getRelativeFolderPath = (relativePath) => {
+  const parts = String(relativePath || "")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  parts.pop();
+  return parts.join("/");
+};
+
+async function uploadTaskAttachment(file, fileName = null) {
+  const formData = new window.FormData();
+  formData.append("file", file, fileName || file.name);
+  const uploadRes = await ctx.api.request({
+    url: "attachments:create",
+    method: "POST",
+    params: { attachmentField: "documents.fileAttachment" },
+    data: formData,
+  });
+  const attachment = uploadRes?.data?.data;
+  if (!attachment?.id) throw new Error("File upload failed");
+  return attachment;
+}
+
+async function createTaskFolderRecord(payload) {
+  const variants = [
+    payload,
+    (({ moduleScope, ...rest }) => rest)(payload || {}),
+    (({ moduleScope, projectId, ...rest }) => rest)(payload || {}),
+  ];
+  let lastError = null;
+  for (const data of variants) {
+    try {
+      return await ctx.api.request({
+        url: "folders:create",
+        method: "POST",
+        data,
+      });
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+async function createTaskUploadFoldersFromEntries(entries, rootFolderId, options = {}) {
+  const rootParentId = extractId(rootFolderId) || null;
+  const folderIdMap = { "": rootParentId };
+  const folderPaths = new Set();
+  (entries || []).forEach((entry) => {
+    const folderPath = getRelativeFolderPath(entry.relativePath);
+    if (!folderPath) return;
+    let currentPath = "";
+    folderPath.split("/").forEach((part) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      folderPaths.add(currentPath);
+    });
+  });
+
+  const sortedPaths = Array.from(folderPaths).sort(
+    (a, b) => a.split("/").length - b.split("/").length,
+  );
+  const now = new Date().toISOString();
+  const userId = extractId(options.currentUser?.id);
+  const caseId = extractId(options.caseId);
+
+  for (const path of sortedPaths) {
+    const parts = path.split("/");
+    const folderName = parts.pop();
+    const parentPath = parts.join("/");
+    const parentId = folderIdMap[parentPath] || rootParentId;
+    const payload = {
+      name: folderName,
+      type: "custom",
+      storageType: "cases",
+      moduleScope: CASE_DOCUMENT_SCOPE,
+      createdAt: now,
+      updatedAt: now,
+      ...(parentId ? { parentId } : {}),
+      ...(caseId ? { projectId: caseId } : {}),
+      ...(userId ? { createdById: userId, updatedById: userId } : {}),
+    };
+    const res = await createTaskFolderRecord(payload);
+    folderIdMap[path] = extractId(res?.data?.data);
+  }
+
+  return folderIdMap;
+}
+
+async function fetchTaskNoteFolders(files = []) {
+  if (!(files || []).some((file) => extractId(file?.folderId))) return [];
+  const params = {
+    pageSize: 2000,
+    page: 1,
+    filter: JSON.stringify({
+      $and: [
+        { storageType: { $eq: "cases" } },
+        { isDeleted: { $ne: true } },
+      ],
+    }),
+  };
+  try {
+    const res = await ctx.api.request({
+      url: "folders:list",
+      params,
     });
     return res?.data?.data || [];
   } catch {
     return [];
   }
 }
+
+const buildFolderLookup = (folders = []) =>
+  (folders || []).reduce((acc, folder) => {
+    const id = extractId(folder?.id);
+    if (id) acc[String(id)] = folder;
+    return acc;
+  }, {});
+
+const getFolderPathParts = (folderId, folderLookup = {}) => {
+  const parts = [];
+  const seen = new Set();
+  let currentId = extractId(folderId);
+  while (currentId && folderLookup[String(currentId)] && !seen.has(String(currentId))) {
+    seen.add(String(currentId));
+    const folder = folderLookup[String(currentId)];
+    parts.unshift(folder.name || folder.title || `Folder #${currentId}`);
+    currentId = extractId(folder.parentId);
+  }
+  return parts;
+};
+
+const getFolderIdChain = (folderId, folderLookup = {}) => {
+  const chain = [];
+  const seen = new Set();
+  let currentId = extractId(folderId);
+  while (currentId && folderLookup[String(currentId)] && !seen.has(String(currentId))) {
+    seen.add(String(currentId));
+    chain.unshift(String(currentId));
+    currentId = extractId(folderLookup[String(currentId)].parentId);
+  }
+  return chain;
+};
+
+const getDescendantFolderRecords = (folderId, folderLookup = {}) => {
+  const rootId = String(extractId(folderId) || "");
+  if (!rootId) return [];
+  const descendants = [];
+  const queue = [rootId];
+  const visited = new Set();
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    if (!currentId || visited.has(currentId)) continue;
+    visited.add(currentId);
+    const current = folderLookup[currentId];
+    if (current) descendants.push(current);
+    Object.values(folderLookup).forEach((folder) => {
+      if (String(extractId(folder?.parentId) || "") === currentId) {
+        queue.push(String(extractId(folder?.id)));
+      }
+    });
+  }
+  return descendants;
+};
+
+const getCommonPrefixLength = (paths = []) => {
+  const validPaths = paths.filter((path) => path.length > 0);
+  if (!validPaths.length) return 0;
+  let index = 0;
+  while (validPaths.every((path) => path[index] && path[index] === validPaths[0][index])) {
+    index += 1;
+  }
+  return index;
+};
 function initcap(str) {
   if (!str) return str;
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -681,14 +1473,198 @@ async function logActivity(
       fieldName,
       oldValue: oldValue ? String(oldValue) : null,
       newValue: newValue ? String(newValue) : null,
-      changedByName: changedByName || "Hệ thống",
+      changedByName: changedByName || "System",
       changedAt: now,
       createdAt: now, // 🌟 Đồng bộ createdAt
       batchId: batchId || null,
       dataId: dataId || null,
     });
-  } catch {}
+  } catch { }
 }
+
+const parseLegalStudySource = (value) => {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const isLinkedToLegalStudy = (record) =>
+  !!record?.legalStudyLinkedAt ||
+  !!extractId(record?.legalStudyId) ||
+  record?.moduleScope === LEGAL_STUDY_MODULE_SCOPE ||
+  record?.storageType === LEGAL_STUDY_STORAGE_TYPE;
+
+const isLinkedToLegalReference = (record) =>
+  !!record?.movedToLegalReferenceAt ||
+  !!extractId(record?.legalReferenceId) ||
+  record?.moduleScope === LEGAL_REFERENCE_MODULE_SCOPE ||
+  record?.storageType === LEGAL_REFERENCE_STORAGE_TYPE;
+
+const getLegalStudySourceLabel = (record) => {
+  const source = parseLegalStudySource(record?.legalStudySource);
+  if (!source) return "";
+  const taskTitle = source.taskTitle || "";
+  const subTaskTitle = source.subTaskTitle || "";
+  if (taskTitle && subTaskTitle) return `${taskTitle} / ${subTaskTitle}`;
+  return taskTitle || subTaskTitle || "";
+};
+
+const getLibraryDestinationConfig = (destinationType) =>
+  LIBRARY_DESTINATION_CONFIG[destinationType] ||
+  LIBRARY_DESTINATION_CONFIG[LIBRARY_DESTINATION.LEGAL_STUDY];
+
+const getLibraryRecordId = (record, destinationType) => {
+  if (destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE) {
+    return (
+      extractId(record?.legalReferenceId) ||
+      extractId(record?.legalReference) ||
+      extractId(record?.legalReferenceRecord) ||
+      extractId(record?.id)
+    );
+  }
+  return (
+    extractId(record?.legalStudyId) ||
+    extractId(record?.legalStudy) ||
+    extractId(record?.legalStudies) ||
+    extractId(record?.legalStudiesId) ||
+    extractId(record?.id)
+  );
+};
+
+const getLibraryRecordDisplayName = (record, destinationType) => {
+  if (!record) return "";
+  const fallbackLabel = getLibraryDestinationConfig(destinationType).label;
+  const code =
+    record.studyCode ||
+    record.referenceCode ||
+    record.code ||
+    record.referenceNo ||
+    "";
+  const title =
+    record.title ||
+    record.name ||
+    record.projectName ||
+    record.description ||
+    (record.id ? `${fallbackLabel} #${record.id}` : fallbackLabel);
+  return code && String(code) !== String(title) ? `${code} - ${title}` : title;
+};
+
+const getLibraryRecordInternalCompanyId = (record) =>
+  extractId(record?.internalCompanyId) ||
+  extractId(record?.internalCompany) ||
+  extractId(record?.companyId) ||
+  extractId(record?.company);
+
+const getRecordDestinationId = (record, destinationType) =>
+  destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE
+    ? extractId(record?.legalReferenceId) ||
+    extractId(record?.legalReference) ||
+    extractId(record?.legalReferenceRecord)
+    : extractId(record?.legalStudyId) ||
+    extractId(record?.legalStudy) ||
+    extractId(record?.legalStudies) ||
+    extractId(record?.legalStudiesId);
+
+const buildLibraryFolderTree = (folders = [], rootTitle = "Home") => {
+  const nodeMap = {};
+  const roots = [];
+  folders.forEach((folder) => {
+    const id = extractId(folder.id || folder);
+    if (!id) return;
+    nodeMap[String(id)] = {
+      title: folder.name || folder.title || `Folder #${id}`,
+      value: String(id),
+      key: String(id),
+      children: [],
+    };
+  });
+  folders.forEach((folder) => {
+    const id = String(extractId(folder.id || folder) || "");
+    const parentId = String(extractId(folder.parentId) || "");
+    if (!id || !nodeMap[id]) return;
+    if (parentId && nodeMap[parentId]) {
+      nodeMap[parentId].children.push(nodeMap[id]);
+    } else {
+      roots.push(nodeMap[id]);
+    }
+  });
+  return [
+    {
+      title: rootTitle,
+      value: "root",
+      key: `library_root_${normalizeLookupText(rootTitle).replace(/\s+/g, "_")}`,
+      children: roots,
+    },
+  ];
+};
+
+async function fetchLibraryDestinationRecords(destinationType) {
+  const config = getLibraryDestinationConfig(destinationType);
+  let lastError = null;
+  for (const url of config.listCandidates) {
+    try {
+      const res = await ctx.api.request({
+        url,
+        params: {
+          pageSize: 2000,
+          page: 1,
+          sort: ["-createdAt"],
+        },
+      });
+      return (res?.data?.data || []).filter((record) => !record?.isDeleted);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  console.warn(`Không thể tải danh sách ${config.label}`, lastError);
+  return [];
+}
+
+async function fetchLibraryDestinationFolders(destinationType, parentRecordId) {
+  const config = getLibraryDestinationConfig(destinationType);
+  const safeParentId = extractId(parentRecordId);
+  if (!safeParentId) return [];
+  const params = {
+    pageSize: 2000,
+    page: 1,
+    sort: ["createdAt"],
+    filter: JSON.stringify({
+      $and: [
+        { moduleScope: { $eq: config.moduleScope } },
+        { isDeleted: { $ne: true } },
+      ],
+    }),
+  };
+  try {
+    const res = await ctx.api.request({
+      url: "folders:list",
+      params,
+    });
+    return (res?.data?.data || []).filter(
+      (folder) =>
+        String(getRecordDestinationId(folder, destinationType) || "") ===
+        String(safeParentId),
+    );
+  } catch {
+    return [];
+  }
+}
+
+const buildLegalStudySource = (sourceContext = {}) => ({
+  type: "task_note",
+  collectionName: sourceContext.collectionName || "Task",
+  recordId: extractId(sourceContext.recordId) || null,
+  taskId: extractId(sourceContext.taskId) || null,
+  taskTitle: sourceContext.taskTitle || "",
+  subTaskId: extractId(sourceContext.subTaskId) || null,
+  subTaskTitle: sourceContext.subTaskTitle || "",
+  caseId: extractId(sourceContext.caseId) || null,
+  caseCode: sourceContext.caseCode || "",
+});
 
 async function fetchTimesheets(filter) {
   try {
@@ -725,18 +1701,68 @@ const deleteTimesheet = (id) =>
 // ============================================================
 // §4 PERMISSION
 // ============================================================
+const asArray = (value) => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
+const getUserRoleNames = (user) => {
+  const roleNames = asArray(user?.roles)
+    .map((role) =>
+      typeof role === "string"
+        ? role
+        : role?.name || role?.title || role?.slug || role?.role,
+    )
+    .filter(Boolean);
+  roleNames.push(user?.role, user?.systemRole);
+  return new Set(
+    roleNames
+      .filter(Boolean)
+      .map((role) => String(role).trim().toLowerCase()),
+  );
+};
+
 const isAdminUser = (user) => {
   if (!user) return false;
-  const role = user?.roles?.[0]?.name || user?.role || user?.systemRole || "";
+  const roleNames = getUserRoleNames(user);
   return (
-    role === "admin" ||
-    role === "root" ||
+    roleNames.has("admin") ||
+    roleNames.has("root") ||
     user?.isAdmin === true ||
     user?.isSuperAdmin === true
   );
 };
 
-const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
+const getFolderManagerRows = (folder) =>
+  asArray(folder?.folderManager || folder?.folderManagers);
+
+const getFolderMemberRows = (folder) =>
+  asArray(folder?.folderMember || folder?.folderMembers);
+
+const getPermissionLawyerId = (row) =>
+  extractId(row?.lawyerId) ||
+  extractId(row?.lawyer) ||
+  extractId(row?.id) ||
+  extractId(row);
+
+const getPermissionRole = (row, fallback = "viewer") =>
+  String(
+    row?.folderMembers?.role ||
+    row?.folderMember?.role ||
+    row?.through?.role ||
+    row?.role ||
+    fallback,
+  )
+    .trim()
+    .toLowerCase();
+
+const getFolderPermissions = (
+  folder,
+  user,
+  allFolders,
+  currentLawyerId,
+  visitedFolderIds = new Set(),
+) => {
   if (isAdminUser(user))
     return { isManager: true, isMember: true, canEdit: true };
   if (!folder) return { isManager: true, isMember: true, canEdit: true };
@@ -744,27 +1770,39 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
 
   const uid = extractId(user.id);
   const lwId = extractId(currentLawyerId);
+  const folderId = extractId(folder.id);
+  if (folderId && visitedFolderIds.has(String(folderId))) {
+    return { isManager: false, isMember: false, canEdit: false };
+  }
+  const nextVisitedFolderIds = new Set(visitedFolderIds);
+  if (folderId) nextVisitedFolderIds.add(String(folderId));
 
   // Owner check (Nocobase user ID)
   if (extractId(folder.createdById) === uid) {
     return { isManager: true, isMember: true, canEdit: true };
   }
 
-  const managers = folder.folderManager || folder.folderManagers || [];
-  const members = folder.folderMember || folder.folderMembers || [];
+  const managers = getFolderManagerRows(folder);
+  const members = getFolderMemberRows(folder);
 
   // Check explicit permissions using Lawyer ID
   if (lwId) {
-    const isExplicitManager = managers.some((m) => extractId(m.id) === lwId);
+    const isExplicitManager = managers.some(
+      (manager) =>
+        String(getPermissionLawyerId(manager) || "") === String(lwId),
+    );
     if (isExplicitManager)
       return { isManager: true, isMember: true, canEdit: true };
 
-    const explicitMember = members.find((m) => extractId(m.id) === lwId);
+    const explicitMember = members.find(
+      (member) =>
+        String(getPermissionLawyerId(member) || "") === String(lwId),
+    );
     if (explicitMember) {
-      const role =
-        explicitMember.folderMembers?.role || explicitMember.role || "viewer";
-      const canEdit = role === "editor";
-      return { isManager: false, isMember: true, canEdit };
+      const role = getPermissionRole(explicitMember);
+      const isManager = role === "manager";
+      const canEdit = isManager || role === "editor";
+      return { isManager, isMember: true, canEdit };
     }
   }
 
@@ -779,7 +1817,13 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
   if (!parentFolder)
     return { isManager: false, isMember: false, canEdit: false };
 
-  return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
+  return getFolderPermissions(
+    parentFolder,
+    user,
+    allFolders,
+    currentLawyerId,
+    nextVisitedFolderIds,
+  );
 };
 
 const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
@@ -801,11 +1845,17 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
       return;
     }
     if (lwId) {
-      const managers = f.folderManager || f.folderManagers || [];
-      const members = f.folderMember || f.folderMembers || [];
+      const managers = getFolderManagerRows(f);
+      const members = getFolderMemberRows(f);
       if (
-        managers.some((m) => extractId(m.id) === lwId) ||
-        members.some((m) => extractId(m.id) === lwId)
+        managers.some(
+          (manager) =>
+            String(getPermissionLawyerId(manager) || "") === String(lwId),
+        ) ||
+        members.some(
+          (member) =>
+            String(getPermissionLawyerId(member) || "") === String(lwId),
+        )
       ) {
         accessible.add(fId);
         return;
@@ -813,13 +1863,20 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
     }
   });
 
-  const getDescendantIdsRecursive = (pId, list) => {
+  const getDescendantIdsRecursive = (pId, list, visited = new Set()) => {
+    const parentKey = String(pId);
+    if (visited.has(parentKey)) return [];
+    const nextVisited = new Set(visited);
+    nextVisited.add(parentKey);
     let ids = [];
     list.forEach((f) => {
       if (extractId(f.parentId) === pId) {
         const id = extractId(f.id);
+        if (!id || nextVisited.has(String(id))) return;
         ids.push(id);
-        ids = ids.concat(getDescendantIdsRecursive(id, list));
+        ids = ids.concat(
+          getDescendantIdsRecursive(id, list, nextVisited),
+        );
       }
     });
     return ids;
@@ -834,7 +1891,11 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
   const navOnly = new Set();
   accessible.forEach((fId) => {
     let curr = allFolders.find((f) => extractId(f.id) === fId);
+    const seen = new Set();
     while (curr && curr.parentId) {
+      const currentId = extractId(curr.id);
+      if (currentId && seen.has(String(currentId))) break;
+      if (currentId) seen.add(String(currentId));
       const pId = extractId(curr.parentId);
       if (pId && !accessible.has(pId)) {
         navOnly.add(pId);
@@ -844,6 +1905,797 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
   });
 
   return { accessible, navOnly };
+};
+
+const extractLibraryRelationId = (value) => {
+  for (const item of asArray(value)) {
+    const id = extractId(item);
+    if (id) return id;
+  }
+  return null;
+};
+
+const getLibraryRecordCaseId = (record) =>
+  extractId(record?.caseId) ||
+  extractLibraryRelationId(record?.cases) ||
+  extractId(record?.projectId) ||
+  extractLibraryRelationId(record?.project);
+
+const getLibraryRecordLegalReferenceId = (record) =>
+  extractId(record?.legalReferenceId) ||
+  extractLibraryRelationId(record?.legalReference) ||
+  extractLibraryRelationId(record?.legalReferenceRecord) ||
+  extractLibraryRelationId(record?.internalTemplates) ||
+  extractId(record?.internalTemplatesId) ||
+  extractLibraryRelationId(record?.internalTemplate) ||
+  extractId(record?.internalTemplateId);
+
+const getLibraryRecordLegalStudyId = (record) =>
+  extractId(record?.legalStudyId) ||
+  extractLibraryRelationId(record?.legalStudy) ||
+  extractLibraryRelationId(record?.legalStudies) ||
+  extractId(record?.legalStudiesId);
+
+const getLibraryShareRowUserId = (row) =>
+  extractId(row?.userId) ||
+  extractLibraryRelationId(row?.users) ||
+  extractLibraryRelationId(row?.user);
+
+const getLibraryShareRowDocumentId = (row) =>
+  extractId(row?.documentId) ||
+  extractLibraryRelationId(row?.documents) ||
+  extractLibraryRelationId(row?.document);
+
+const isLibraryDocumentSharedWithUser = (document, currentUserId) => {
+  if (!currentUserId) return false;
+  return asArray(document?._shareRows).some(
+    (row) =>
+      String(getLibraryShareRowUserId(row) || "") === String(currentUserId),
+  );
+};
+
+const getLibraryEntityLabel = (record, fallback) => {
+  if (!record) return fallback;
+  const code =
+    record.caseCode ||
+    record.referenceCode ||
+    record.code ||
+    record.caseNumber ||
+    "";
+  const title =
+    record.projectName ||
+    record.title ||
+    record.name ||
+    record.description ||
+    "";
+  if (code && title && String(code) !== String(title)) {
+    return `${code} - ${title}`;
+  }
+  return title || code || fallback;
+};
+
+async function requestLibraryRows(url, paramsVariants = []) {
+  for (const params of paramsVariants) {
+    try {
+      const safeParams =
+        url === "documents:list"
+          ? await withDocumentSchemaSafeParams(params)
+          : params;
+      if (!safeParams) continue;
+      const response = await ctx.api.request({ url, params: safeParams });
+      return response?.data?.data || [];
+    } catch { }
+  }
+  return [];
+}
+
+async function fetchLibraryRelationRows(caseId, relationNames) {
+  const safeCaseId = extractId(caseId);
+  if (!safeCaseId) return [];
+  const collections = ["projects", "cases"];
+  for (const relationName of relationNames) {
+    for (const collectionName of collections) {
+      const url = `${collectionName}/${encodeURIComponent(safeCaseId)}/${relationName}:list`;
+      for (const params of [
+        { pageSize: 1000, page: 1, appends: ["createdBy"] },
+        { pageSize: 1000, page: 1 },
+      ]) {
+        try {
+          const response = await ctx.api.request({ url, params });
+          return (response?.data?.data || []).filter(
+            (record) => record?.isDeleted !== true,
+          );
+        } catch { }
+      }
+    }
+  }
+  return [];
+}
+
+async function fetchTaskLibraryData(currentUserId) {
+  const activeFilter = JSON.stringify({ isDeleted: { $ne: true } });
+  const [folders, baseDocuments, shareRows] = await Promise.all([
+    requestLibraryRows("folders:list", [
+      {
+        pageSize: 2000,
+        page: 1,
+        sort: ["createdAt"],
+        filter: activeFilter,
+        appends: [
+          "createdBy",
+          "folderManager",
+          "folderManagers",
+          "folderMember",
+          "folderMembers",
+        ],
+      },
+      {
+        pageSize: 2000,
+        page: 1,
+        sort: ["createdAt"],
+        filter: activeFilter,
+        appends: ["createdBy", "folderManager", "folderMember"],
+      },
+      {
+        pageSize: 2000,
+        page: 1,
+        sort: ["createdAt"],
+        filter: activeFilter,
+      },
+    ]),
+    requestLibraryRows("documents:list", [
+      {
+        pageSize: 2000,
+        page: 1,
+        sort: ["-createdAt"],
+        filter: activeFilter,
+        appends: ["fileAttachment", "createdBy"],
+      },
+      {
+        pageSize: 2000,
+        page: 1,
+        sort: ["-createdAt"],
+        filter: activeFilter,
+        appends: ["fileAttachment", "createdBy"],
+      },
+    ]),
+    currentUserId
+      ? requestLibraryRows("documentShares:list", [
+        {
+          pageSize: 2000,
+          page: 1,
+          sort: ["-createdAt"],
+          appends: ["users", "documents"],
+        },
+        {
+          pageSize: 2000,
+          page: 1,
+          sort: ["-createdAt"],
+        },
+      ])
+      : Promise.resolve([]),
+  ]);
+
+  const currentUserShareRows = shareRows.filter(
+    (row) =>
+      String(getLibraryShareRowUserId(row) || "") === String(currentUserId),
+  );
+  const sharedDocumentIds = Array.from(
+    new Set(
+      currentUserShareRows
+        .map(getLibraryShareRowDocumentId)
+        .filter(Boolean)
+        .map(String),
+    ),
+  );
+  const baseDocumentIds = new Set(
+    baseDocuments.map((document) => String(extractId(document) || "")),
+  );
+  const missingSharedIds = sharedDocumentIds.filter(
+    (id) => !baseDocumentIds.has(id),
+  );
+  const sharedDocuments = missingSharedIds.length
+    ? await requestLibraryRows("documents:list", [
+      {
+        pageSize: 2000,
+        page: 1,
+        filter: JSON.stringify({ id: { $in: missingSharedIds } }),
+        appends: ["fileAttachment", "createdBy"],
+      },
+      {
+        pageSize: 2000,
+        page: 1,
+        filter: JSON.stringify({ id: { $in: missingSharedIds } }),
+        appends: ["fileAttachment", "createdBy"],
+      },
+    ])
+    : [];
+
+  const shareMap = new Map();
+  currentUserShareRows.forEach((row) => {
+    const documentId = getLibraryShareRowDocumentId(row);
+    if (!documentId) return;
+    const key = String(documentId);
+    if (!shareMap.has(key)) shareMap.set(key, []);
+    shareMap.get(key).push(row);
+  });
+
+  const documentMap = new Map();
+  [...baseDocuments, ...sharedDocuments].forEach((document) => {
+    const documentId = extractId(document);
+    if (!documentId) return;
+    const key = String(documentId);
+    documentMap.set(key, {
+      ...document,
+      _shareRows: shareMap.get(key) || [],
+    });
+  });
+
+  return {
+    folders: folders.filter((folder) => folder?.isDeleted !== true),
+    documents: Array.from(documentMap.values()).filter(
+      (document) => document?.isDeleted !== true,
+    ),
+  };
+}
+
+const makeLibrarySource = (group, entityId = null) => ({
+  group,
+  entityId: extractId(entityId),
+});
+
+const getLibrarySourceKey = (source) =>
+  source
+    ? `${source.group}:${source.entityId ? String(source.entityId) : "root"}`
+    : "";
+
+const getDirectLibrarySource = (record, context) => {
+  const storageType = String(record?.storageType || "").trim().toLowerCase();
+  const moduleScope = String(record?.moduleScope || "").trim().toLowerCase();
+  const caseRecordId = getLibraryRecordCaseId(record);
+  const legalReferenceId = getLibraryRecordLegalReferenceId(record);
+  const legalStudyId = getLibraryRecordLegalStudyId(record);
+  const isLegalStudyRecord =
+    storageType === LEGAL_STUDY_STORAGE_TYPE ||
+    moduleScope === LEGAL_STUDY_MODULE_SCOPE;
+  const isLegalReferenceRecord =
+    storageType === LIBRARY_SOURCE.LEGAL_REFERENCE ||
+    moduleScope === LIBRARY_SOURCE.LEGAL_REFERENCE;
+
+  if (
+    storageType === MY_DOCUMENT_STORAGE_TYPE ||
+    moduleScope === MY_DOCUMENT_STORAGE_TYPE
+  ) {
+    return makeLibrarySource(LIBRARY_SOURCE.MY_DOCUMENTS);
+  }
+
+  if (
+    legalStudyId &&
+    context.legalStudyIds.has(String(legalStudyId))
+  ) {
+    return makeLibrarySource(LIBRARY_SOURCE.LEGAL_STUDY, legalStudyId);
+  }
+
+  if (isLegalStudyRecord) {
+    const source = parseLegalStudySource(record?.legalStudySource);
+    const sourceCaseId =
+      extractId(source?.caseId) ||
+      extractId(record?.sourceProjectId) ||
+      caseRecordId;
+    if (
+      context.currentCaseId &&
+      sourceCaseId &&
+      String(sourceCaseId) === String(context.currentCaseId)
+    ) {
+      return makeLibrarySource(LIBRARY_SOURCE.LEGAL_STUDY);
+    }
+    return null;
+  }
+
+  if (
+    legalReferenceId &&
+    context.legalReferenceIds.has(String(legalReferenceId))
+  ) {
+    return makeLibrarySource(
+      LIBRARY_SOURCE.LEGAL_REFERENCE,
+      legalReferenceId,
+    );
+  }
+
+  if (isLegalReferenceRecord) return null;
+
+  if (
+    caseRecordId &&
+    context.caseReferenceIds.has(String(caseRecordId))
+  ) {
+    return makeLibrarySource(
+      LIBRARY_SOURCE.CASE_REFERENCE,
+      caseRecordId,
+    );
+  }
+
+  if (
+    caseRecordId &&
+    context.currentCaseId &&
+    String(caseRecordId) === String(context.currentCaseId)
+  ) {
+    return makeLibrarySource(
+      LIBRARY_SOURCE.CASE_DOCUMENT,
+      context.currentCaseId,
+    );
+  }
+
+  return null;
+};
+
+const buildLibraryEntityMap = (records = []) => {
+  const map = new Map();
+  records.forEach((record) => {
+    const id = extractId(record);
+    if (id) map.set(String(id), record);
+  });
+  return map;
+};
+
+const sortLibraryRecords = (records = [], getLabel) =>
+  [...records].sort((left, right) =>
+    String(getLabel(left) || "").localeCompare(
+      String(getLabel(right) || ""),
+      "vi",
+      { sensitivity: "base" },
+    ),
+  );
+
+const getLibraryDocumentAttachment = (document) =>
+  Array.isArray(document?.fileAttachment)
+    ? document.fileAttachment[0]
+    : document?.fileAttachment;
+
+const getLibraryDocumentTitle = (document, attachment) =>
+  document?.title ||
+  document?.name ||
+  document?.documentCode ||
+  attachment?.title ||
+  attachment?.filename ||
+  `Document #${extractId(document) || ""}`;
+
+const getLibraryDocumentExtension = (document, attachment) => {
+  const explicitExtension = String(attachment?.extname || "").trim();
+  if (explicitExtension) {
+    return explicitExtension.startsWith(".")
+      ? explicitExtension.toLowerCase()
+      : `.${explicitExtension.toLowerCase()}`;
+  }
+  const fileName = String(
+    attachment?.filename ||
+    attachment?.title ||
+    document?.title ||
+    document?.name ||
+    "",
+  );
+  const match = fileName.match(/(\.[a-z0-9]+)$/i);
+  return match ? match[1].toLowerCase() : "";
+};
+
+const renderLibraryTreeTitle = (label, type = "folder", extension = "") => {
+  const fileInfo = getExtInfo(extension);
+  const icon =
+    type === "file"
+      ? React.createElement(
+        "span",
+        {
+          style: {
+            width: 22,
+            height: 22,
+            borderRadius: 5,
+            background: fileInfo.bg,
+            color: fileInfo.color,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            fontSize: 13,
+          },
+        },
+        fileInfo.icon,
+      )
+      : React.createElement(
+        "span",
+        {
+          style: {
+            width: 22,
+            height: 22,
+            borderRadius: 5,
+            background: "#FFF7E6",
+            color: "#D97706",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          },
+        },
+        TASK_FILE_ACTION_ICONS.folder,
+      );
+
+  return React.createElement(
+    "span",
+    {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        minWidth: 0,
+      },
+    },
+    icon,
+    React.createElement(
+      "span",
+      {
+        style: {
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        },
+      },
+      label,
+    ),
+  );
+};
+
+const buildTaskLibraryTree = ({
+  folders,
+  documents,
+  currentUser,
+  currentLawyerId,
+  currentCaseId,
+  caseReferences,
+  legalReferences,
+  legalStudies,
+}) => {
+  const userId = extractId(currentUser?.id);
+  const isAdmin = isAdminUser(currentUser);
+  const caseReferenceMap = buildLibraryEntityMap(caseReferences);
+  const legalReferenceMap = buildLibraryEntityMap(legalReferences);
+  const legalStudyMap = buildLibraryEntityMap(legalStudies);
+  const context = {
+    currentCaseId: extractId(currentCaseId),
+    caseReferenceIds: new Set(caseReferenceMap.keys()),
+    legalReferenceIds: new Set(legalReferenceMap.keys()),
+    legalStudyIds: new Set(legalStudyMap.keys()),
+  };
+
+  const folderMap = new Map();
+  folders.forEach((folder) => {
+    const id = extractId(folder);
+    if (id) folderMap.set(String(id), folder);
+  });
+
+  const folderSourceMap = new Map();
+  const resolvingFolderIds = new Set();
+  const resolveFolderSource = (folder) => {
+    const folderId = extractId(folder);
+    if (!folderId) return null;
+    const key = String(folderId);
+    if (folderSourceMap.has(key)) return folderSourceMap.get(key);
+    if (resolvingFolderIds.has(key)) return null;
+    resolvingFolderIds.add(key);
+
+    let source = getDirectLibrarySource(folder, context);
+    if (!source) {
+      const parentId = extractId(folder?.parentId);
+      const parentFolder = parentId
+        ? folderMap.get(String(parentId))
+        : null;
+      if (parentFolder) source = resolveFolderSource(parentFolder);
+    }
+
+    resolvingFolderIds.delete(key);
+    folderSourceMap.set(key, source);
+    return source;
+  };
+  folders.forEach(resolveFolderSource);
+
+  const { accessible, navOnly } = getVisibleFolderIds(
+    folders,
+    currentUser,
+    currentLawyerId,
+  );
+  const accessibleIds = new Set(
+    Array.from(accessible).filter(Boolean).map(String),
+  );
+  const navigationIds = new Set(
+    Array.from(navOnly).filter(Boolean).map(String),
+  );
+  const buckets = new Map();
+  const getBucket = (source) => {
+    const key = getLibrarySourceKey(source);
+    if (!buckets.has(key)) {
+      buckets.set(key, { source, folders: [], documents: [] });
+    }
+    return buckets.get(key);
+  };
+
+  folders.forEach((folder) => {
+    const folderId = extractId(folder);
+    const source = folderSourceMap.get(String(folderId || ""));
+    if (!folderId || !source) return;
+    const isPersonal = source.group === LIBRARY_SOURCE.MY_DOCUMENTS;
+    const isOwner =
+      userId &&
+      String(extractId(folder?.createdById) || "") === String(userId);
+    const canNavigate =
+      accessibleIds.has(String(folderId)) ||
+      navigationIds.has(String(folderId));
+    if (isPersonal ? !isOwner : !canNavigate) return;
+    getBucket(source).folders.push(folder);
+  });
+
+  documents.forEach((document) => {
+    const attachment = getLibraryDocumentAttachment(document);
+    if (!attachment?.id) return;
+
+    const folderId = extractId(document?.folderId);
+    const folderSource = folderId
+      ? folderSourceMap.get(String(folderId))
+      : null;
+    const source = getDirectLibrarySource(document, context) || folderSource;
+    if (!source) return;
+
+    const isOwner =
+      userId &&
+      [
+        extractId(document?.createdById),
+        extractId(document?.uploadedById),
+      ]
+        .filter(Boolean)
+        .some((id) => String(id) === String(userId));
+    const isShared = isLibraryDocumentSharedWithUser(document, userId);
+    const folderAccessible =
+      !folderId || accessibleIds.has(String(folderId));
+    let canView = false;
+
+    if (source.group === LIBRARY_SOURCE.MY_DOCUMENTS) {
+      canView = !!isOwner;
+    } else if (source.group === LIBRARY_SOURCE.LEGAL_STUDY) {
+      canView =
+        isAdmin ||
+        ((isOwner || isShared) && (folderAccessible || isShared));
+    } else {
+      canView = !!userId && (isAdmin || folderAccessible || isShared);
+    }
+
+    if (!canView) return;
+    getBucket(source).documents.push({
+      ...document,
+      _libraryDirectShare: isShared && !folderAccessible,
+    });
+  });
+
+  const buildDocumentNode = (document) => {
+    const attachment = getLibraryDocumentAttachment(document);
+    const documentId = extractId(document);
+    const title = getLibraryDocumentTitle(document, attachment);
+    const extension = getLibraryDocumentExtension(document, attachment);
+    return {
+      title: renderLibraryTreeTitle(title, "file", extension),
+      searchText: title,
+      value: `library_doc_${documentId}`,
+      key: `library_doc_${documentId}`,
+      isLeaf: true,
+      docData: document,
+      attData: attachment,
+    };
+  };
+
+  const pruneEmptyFolderNodes = (nodes) =>
+    nodes
+      .map((node) => ({
+        ...node,
+        children: pruneEmptyFolderNodes(node.children || []),
+      }))
+      .filter((node) => node.isLeaf || node.children.length > 0);
+
+  const buildBucketChildren = (bucket) => {
+    if (!bucket) return [];
+    const nodeMap = new Map();
+    const sortedFolders = sortLibraryRecords(
+      bucket.folders,
+      (folder) => folder?.name || folder?.title || "",
+    );
+    sortedFolders.forEach((folder) => {
+      const folderId = extractId(folder);
+      const folderTitle =
+        folder?.name || folder?.title || `Folder #${folderId}`;
+      nodeMap.set(String(folderId), {
+        title: renderLibraryTreeTitle(folderTitle),
+        searchText: folderTitle,
+        value: `library_folder_${folderId}`,
+        key: `library_folder_${folderId}`,
+        selectable: false,
+        children: [],
+      });
+    });
+
+    const roots = [];
+    sortedFolders.forEach((folder) => {
+      const folderId = String(extractId(folder) || "");
+      const parentId = String(extractId(folder?.parentId) || "");
+      const node = nodeMap.get(folderId);
+      if (!node) return;
+      if (parentId && nodeMap.has(parentId)) {
+        nodeMap.get(parentId).children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+
+    const rootDocuments = [];
+    const directShareDocuments = [];
+    sortLibraryRecords(
+      bucket.documents,
+      (document) =>
+        getLibraryDocumentTitle(
+          document,
+          getLibraryDocumentAttachment(document),
+        ),
+    ).forEach((document) => {
+      const folderId = String(extractId(document?.folderId) || "");
+      const documentNode = buildDocumentNode(document);
+      if (folderId && nodeMap.has(folderId) && !document._libraryDirectShare) {
+        nodeMap.get(folderId).children.push(documentNode);
+      } else if (document._libraryDirectShare) {
+        directShareDocuments.push(documentNode);
+      } else {
+        rootDocuments.push(documentNode);
+      }
+    });
+
+    const children = [
+      ...rootDocuments,
+      ...pruneEmptyFolderNodes(roots),
+    ];
+    if (directShareDocuments.length > 0) {
+      const sharedTitle = "Directly Shared";
+      children.push({
+        title: renderLibraryTreeTitle(sharedTitle),
+        searchText: sharedTitle,
+        value: `library_shared_${getLibrarySourceKey(bucket.source)}`,
+        key: `library_shared_${getLibrarySourceKey(bucket.source)}`,
+        selectable: false,
+        children: directShareDocuments,
+      });
+    }
+    return children;
+  };
+
+  const getGroupBuckets = (group) =>
+    Array.from(buckets.values()).filter(
+      (bucket) => bucket.source?.group === group,
+    );
+
+  const buildEntityGroupChildren = (
+    group,
+    entityMap,
+    fallbackLabel,
+    genericLabel = fallbackLabel,
+  ) =>
+    getGroupBuckets(group)
+      .sort((left, right) => {
+        const leftRecord = entityMap.get(String(left.source.entityId));
+        const rightRecord = entityMap.get(String(right.source.entityId));
+        const leftFallback = left.source.entityId
+          ? `${fallbackLabel} #${left.source.entityId}`
+          : genericLabel;
+        const rightFallback = right.source.entityId
+          ? `${fallbackLabel} #${right.source.entityId}`
+          : genericLabel;
+        return getLibraryEntityLabel(
+          leftRecord,
+          leftFallback,
+        ).localeCompare(
+          getLibraryEntityLabel(
+            rightRecord,
+            rightFallback,
+          ),
+          "vi",
+          { sensitivity: "base" },
+        );
+      })
+      .map((bucket) => {
+        const children = buildBucketChildren(bucket);
+        if (children.length === 0) return null;
+        const entityId = bucket.source.entityId;
+        const entityFallback = entityId
+          ? `${fallbackLabel} #${entityId}`
+          : genericLabel;
+        const entityTitle = getLibraryEntityLabel(
+          entityMap.get(String(entityId)),
+          entityFallback,
+        );
+        return {
+          title: renderLibraryTreeTitle(entityTitle),
+          searchText: entityTitle,
+          value: `library_entity_${group}_${entityId || "root"}`,
+          key: `library_entity_${group}_${entityId || "root"}`,
+          selectable: false,
+          children,
+        };
+      })
+      .filter(Boolean);
+
+  const caseBucket = buckets.get(
+    getLibrarySourceKey(
+      makeLibrarySource(LIBRARY_SOURCE.CASE_DOCUMENT, context.currentCaseId),
+    ),
+  );
+  const myDocumentsBucket = buckets.get(
+    getLibrarySourceKey(makeLibrarySource(LIBRARY_SOURCE.MY_DOCUMENTS)),
+  );
+  const groups = [
+    {
+      key: LIBRARY_SOURCE.CASE_DOCUMENT,
+      label: "Case Documents",
+      children: buildBucketChildren(caseBucket),
+    },
+    {
+      key: LIBRARY_SOURCE.CASE_REFERENCE,
+      label: "Case Reference",
+      children: buildEntityGroupChildren(
+        LIBRARY_SOURCE.CASE_REFERENCE,
+        caseReferenceMap,
+        "Case Reference",
+      ),
+    },
+    {
+      key: LIBRARY_SOURCE.LEGAL_REFERENCE,
+      label: "Legal Reference",
+      children: buildEntityGroupChildren(
+        LIBRARY_SOURCE.LEGAL_REFERENCE,
+        legalReferenceMap,
+        "Legal Reference",
+      ),
+    },
+    {
+      key: LIBRARY_SOURCE.LEGAL_STUDY,
+      label: "Legal Study",
+      children: buildEntityGroupChildren(
+        LIBRARY_SOURCE.LEGAL_STUDY,
+        legalStudyMap,
+        "Legal Study",
+        "Case Legal Study",
+      ),
+    },
+    {
+      key: LIBRARY_SOURCE.MY_DOCUMENTS,
+      label: "My Documents",
+      children: buildBucketChildren(myDocumentsBucket),
+    },
+  ];
+
+  return groups.map((group) => {
+    const fileCount = group.children.reduce(
+      (count, node) => {
+        const countLeaves = (item) =>
+          item?.isLeaf
+            ? 1
+            : asArray(item?.children).reduce(
+              (sum, child) => sum + countLeaves(child),
+              0,
+            );
+        return count + countLeaves(node);
+      },
+      0,
+    );
+    const groupTitle = `${group.label} (${fileCount})`;
+    return {
+      title: renderLibraryTreeTitle(groupTitle),
+      searchText: `${group.label} ${groupTitle}`,
+      value: `library_group_${group.key}`,
+      key: `library_group_${group.key}`,
+      selectable: false,
+      children: group.children,
+    };
+  });
 };
 
 const buildPerm = ({ currentUser, myLawyer, isManager, itemLawyerId }) => {
@@ -874,7 +2726,7 @@ const resolveStatus = (newStatus, item) => {
 // §5 ATOMS
 // ============================================================
 
-const ReloadButton = ({ onReload, loading, text = "Làm mới", style = {} }) => {
+const ReloadButton = ({ onReload, loading, text = "Refresh", style = {} }) => {
   return React.createElement(
     Button,
     {
@@ -954,7 +2806,7 @@ const ApprovalIcon = ({ isRequiredApproval }) => {
         alignItems: "center",
         justifyContent: "center",
       },
-      title: "Cần phê duyệt",
+      title: "Approval required",
     },
     React.createElement("span", { style: { fontSize: 12 } }, "🔐"),
   );
@@ -993,23 +2845,23 @@ const TruncatedCell = ({
       display,
     ),
     needTruncate &&
-      React.createElement(
-        "span",
-        {
-          onClick: (e) => {
-            e.stopPropagation();
-            setExpanded((v) => !v);
-          },
-          style: {
-            fontSize: 12,
-            color: "#1890ff",
-            cursor: "pointer",
-            userSelect: "none",
-            marginLeft: 4,
-          },
+    React.createElement(
+      "span",
+      {
+        onClick: (e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
         },
-        expanded ? "Thu gọn" : "Xem thêm",
-      ),
+        style: {
+          fontSize: 12,
+          color: "#1890ff",
+          cursor: "pointer",
+          userSelect: "none",
+          marginLeft: 4,
+        },
+      },
+      expanded ? "Collapse" : "View more",
+    ),
   );
   if (showTooltip && needTruncate)
     return React.createElement(
@@ -1022,7 +2874,6 @@ const TruncatedCell = ({
 
 const StatusBtn = ({
   status,
-  size = 15,
   onChange,
   isRequiredApproval = false,
   isBlocked = false,
@@ -1035,125 +2886,111 @@ const StatusBtn = ({
     "div",
     { style: { position: "relative", flexShrink: 0 } },
     React.createElement(
-      "div",
+      "span",
       {
         onClick: (e) => {
           e.stopPropagation();
           // 🌟 NẾU BỊ CHẶN QUYỀN SẼ BÁO LỖI NGAY TẠI ĐÂY
           if (readOnly) {
             message.warning(
-              "🔒 Chỉ quản lý hoặc người phụ trách mới được đổi trạng thái",
+              "🔒 Only managers or the assignee can change the status",
             );
             return;
           }
           setOpen((v) => !v);
         },
         title: readOnly
-          ? "Không có quyền chỉnh sửa"
+          ? "No edit permission"
           : isBlocked
-            ? "Task đang bị block bởi task trước"
+            ? "Task is blocked by a previous task"
             : cfg.label,
         style: {
-          width: size,
-          height: size,
-          borderRadius: "50%",
-          border: `2px solid ${cfg.color}`,
-          background:
-            status === "done"
-              ? cfg.color
-              : status === "inProgress"
-                ? `${cfg.color}25`
-                : status === "blocked"
-                  ? `${cfg.color}20`
-                  : "transparent",
-          cursor: readOnly ? "not-allowed" : "pointer",
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
+          gap: 4,
+          fontSize: 12,
+          fontFamily: FONT,
+          fontWeight: 500,
+          padding: "2px 8px",
+          borderRadius: 3,
+          background: cfg.bg,
+          color: cfg.color,
+          border: `1px solid ${cfg.border}`,
+          whiteSpace: "nowrap",
+          cursor: readOnly ? "not-allowed" : "pointer",
           opacity: readOnly ? 0.7 : 1,
         },
       },
-      status === "done" &&
-        React.createElement(
-          "span",
-          { style: { color: "#fff", fontSize: size * 0.6, lineHeight: 1 } },
-          "✓",
-        ),
-      status === "cancelled" &&
-        React.createElement(
-          "span",
-          { style: { color: cfg.color, fontSize: size * 0.6, lineHeight: 1 } },
-          "×",
-        ),
-      status === "blocked" &&
-        React.createElement(
-          "span",
-          { style: { color: cfg.color, fontSize: size * 0.55, lineHeight: 1 } },
-          "⏸",
-        ),
-    ),
-    open &&
+      cfg.label,
       !readOnly &&
       React.createElement(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            top: size + 4,
-            left: 0,
-            zIndex: 9999,
-            background: "#fff",
-            border: "1px solid #e8e8e8",
-            borderRadius: 6,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            padding: "4px 0",
-            minWidth: 160,
-          },
-          onMouseLeave: () => setOpen(false),
-        },
-        ...allowedKeys.map((k) => {
-          const v = STATUS_CFG[k];
-          return React.createElement(
-            "div",
-            {
-              key: k,
-              onClick: (e) => {
-                e.stopPropagation();
-                onChange && onChange(k);
-                setOpen(false);
-              },
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "7px 12px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontFamily: FONT,
-              },
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#f5f5f5"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "transparent"),
-            },
-            React.createElement("div", {
-              style: {
-                width: 9,
-                height: 9,
-                borderRadius: "50%",
-                background: v.color,
-                flexShrink: 0,
-              },
-            }),
-            React.createElement(
-              "span",
-              { style: { color: "#262626" } },
-              v.label,
-            ),
-          );
-        }),
+        "span",
+        { style: { fontSize: 12, lineHeight: 1, opacity: 0.6 } },
+        "▾",
       ),
+    ),
+    open &&
+    !readOnly &&
+    React.createElement(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "100%",
+          marginTop: 4,
+          left: 0,
+          zIndex: 9999,
+          background: "#fff",
+          border: "1px solid #e8e8e8",
+          borderRadius: 6,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          padding: "4px 0",
+          minWidth: 160,
+        },
+        onMouseLeave: () => setOpen(false),
+      },
+      ...allowedKeys.map((k) => {
+        const v = STATUS_CFG[k];
+        return React.createElement(
+          "div",
+          {
+            key: k,
+            onClick: (e) => {
+              e.stopPropagation();
+              onChange && onChange(k);
+              setOpen(false);
+            },
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "7px 12px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontFamily: FONT,
+            },
+            onMouseEnter: (e) =>
+              (e.currentTarget.style.background = "#f5f5f5"),
+            onMouseLeave: (e) =>
+              (e.currentTarget.style.background = "transparent"),
+          },
+          React.createElement("div", {
+            style: {
+              width: 9,
+              height: 9,
+              borderRadius: "50%",
+              background: v.color,
+              flexShrink: 0,
+            },
+          }),
+          React.createElement(
+            "span",
+            { style: { color: "#262626" } },
+            v.label,
+          ),
+        );
+      }),
+    ),
   );
 };
 
@@ -1170,7 +3007,7 @@ const ColHeader = () =>
         fontSize: 12,
         fontFamily: FONT,
         fontWeight: 700,
-        minWidth: 1300,
+        minWidth: 1420,
         color: "#8c8c8c",
         textTransform: "uppercase",
         letterSpacing: 0.5,
@@ -1183,31 +3020,35 @@ const ColHeader = () =>
       "STT",
     ),
     React.createElement("div", { style: { width: COL.toggle, flexShrink: 0 } }),
-    React.createElement("div", { style: { width: 22, flexShrink: 0 } }),
     React.createElement(
       "div",
       { style: { flex: 1, padding: "0 10px", minWidth: 120 } },
-      "Tiêu đề",
+      "Title",
+    ),
+    React.createElement(
+      "div",
+      { style: { width: COL.status, flexShrink: 0, padding: "0 8px" } },
+      "Status",
     ),
     React.createElement(
       "div",
       { style: { width: COL.updatedAt, textAlign: "center", flexShrink: 0 } },
-      "Ngày updated",
+      "Updated date",
     ),
     React.createElement(
       "div",
       { style: { width: COL.assign, textAlign: "center", flexShrink: 0 } },
-      "Người phụ trách",
+      "Assignee",
     ),
     React.createElement(
       "div",
       { style: { width: COL.desc, flexShrink: 0, padding: "0 8px" } },
-      "Nội dung diễn biến",
+      "Description",
     ),
     React.createElement(
       "div",
       { style: { width: COL.start, textAlign: "center", flexShrink: 0 } },
-      "Bắt đầu",
+      "Start",
     ),
     React.createElement(
       "div",
@@ -1227,7 +3068,7 @@ const ColHeader = () =>
     React.createElement(
       "div",
       { style: { width: COL.files, textAlign: "center", flexShrink: 0 } },
-      "Tài liệu",
+      "Documents",
     ),
     React.createElement("div", {
       style: { width: COL.approval, flexShrink: 0 },
@@ -1359,11 +3200,11 @@ const LawyerPicker = ({
           l.lawyerName,
         ),
         l.unitPrice > 0 &&
-          React.createElement(
-            "div",
-            { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-            `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/giờ`,
-          ),
+        React.createElement(
+          "div",
+          { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
+          `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/hr`,
+        ),
       ),
     );
   };
@@ -1377,7 +3218,7 @@ const LawyerPicker = ({
         autoFocus: true,
         value: q,
         onChange: (e) => setQ(e.target.value),
-        placeholder: "Tìm luật sư...",
+        placeholder: "Search lawyer...",
         style: {
           width: "100%",
           border: "1px solid #e8e8e8",
@@ -1394,33 +3235,33 @@ const LawyerPicker = ({
       "div",
       { style: { overflowY: "auto", flex: 1 } },
       cur &&
-        React.createElement(
-          "div",
-          {
-            onClick: (e) => {
-              e.stopPropagation();
-              onChange && onChange(null, null, null);
-              handleClose();
-            },
-            style: {
-              padding: "7px 12px",
-              fontSize: 12,
-              color: "#cf1322",
-              cursor: "pointer",
-              fontFamily: FONT,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              marginBottom: 4,
-              borderBottom: "1px solid #f0f0f0",
-            },
-            onMouseEnter: (e) => (e.currentTarget.style.background = "#fff1f0"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.background = "transparent"),
+      React.createElement(
+        "div",
+        {
+          onClick: (e) => {
+            e.stopPropagation();
+            onChange && onChange(null, null, null);
+            handleClose();
           },
-          React.createElement("span", null, "×"),
-          React.createElement("span", null, "Huỷ phân công"),
-        ),
+          style: {
+            padding: "7px 12px",
+            fontSize: 12,
+            color: "#cf1322",
+            cursor: "pointer",
+            fontFamily: FONT,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 4,
+            borderBottom: "1px solid #f0f0f0",
+          },
+          onMouseEnter: (e) => (e.currentTarget.style.background = "#fff1f0"),
+          onMouseLeave: (e) =>
+            (e.currentTarget.style.background = "transparent"),
+        },
+        React.createElement("span", null, "×"),
+        React.createElement("span", null, "Unassign"),
+      ),
       ...grouped.map(({ type, cfg, items }) =>
         React.createElement(
           "div",
@@ -1447,28 +3288,28 @@ const LawyerPicker = ({
         ),
       ),
       others.length > 0 &&
+      React.createElement(
+        "div",
+        null,
         React.createElement(
           "div",
-          null,
-          React.createElement(
-            "div",
-            {
-              style: {
-                padding: "5px 12px 3px",
-                fontSize: 12,
-                fontFamily: FONT,
-                fontWeight: 700,
-                color: "#8c8c8c",
-                textTransform: "uppercase",
-                letterSpacing: 0.6,
-                background: "#f5f5f5",
-                borderTop: "1px solid #f0f0f0",
-              },
+          {
+            style: {
+              padding: "5px 12px 3px",
+              fontSize: 12,
+              fontFamily: FONT,
+              fontWeight: 700,
+              color: "#8c8c8c",
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+              background: "#f5f5f5",
+              borderTop: "1px solid #f0f0f0",
             },
-            "Khác",
-          ),
-          ...others.map(renderLawyerRow),
+          },
+          "Other",
         ),
+        ...others.map(renderLawyerRow),
+      ),
     ),
   );
 
@@ -1499,57 +3340,57 @@ const LawyerPicker = ({
       },
       cur
         ? React.createElement(
-            React.Fragment,
-            null,
-            React.createElement(Av, { name: cur.lawyerName, color, size }),
-            React.createElement(
-              "span",
-              {
-                style: {
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  color: "#262626",
-                  fontWeight: 600,
-                },
+          React.Fragment,
+          null,
+          React.createElement(Av, { name: cur.lawyerName, color, size }),
+          React.createElement(
+            "span",
+            {
+              style: {
+                fontSize: 13,
+                fontFamily: FONT,
+                color: "#262626",
+                fontWeight: 600,
               },
-              cur.lawyerName,
-            ),
-            !readOnly &&
-              React.createElement(
-                "span",
-                { style: { fontSize: 12, color: "#bfbfbf", lineHeight: 1 } },
-                "▾",
-              ),
-          )
+            },
+            cur.lawyerName,
+          ),
+          !readOnly &&
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#bfbfbf", lineHeight: 1 } },
+            "▾",
+          ),
+        )
         : readOnly
           ? React.createElement("div", {
+            style: {
+              width: size,
+              height: size,
+              borderRadius: "50%",
+              background: "#f0f0f0",
+              border: "1px solid #e8e8e8",
+              flexShrink: 0,
+            },
+          })
+          : React.createElement(
+            "div",
+            {
+              title: "Assign lawyer",
               style: {
                 width: size,
                 height: size,
                 borderRadius: "50%",
-                background: "#f0f0f0",
-                border: "1px solid #e8e8e8",
-                flexShrink: 0,
+                border: "1.5px dashed #bfbfbf",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: size * 0.55,
+                color: "#bfbfbf",
               },
-            })
-          : React.createElement(
-              "div",
-              {
-                title: "Phân công luật sư",
-                style: {
-                  width: size,
-                  height: size,
-                  borderRadius: "50%",
-                  border: "1.5px dashed #bfbfbf",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: size * 0.55,
-                  color: "#bfbfbf",
-                },
-              },
-              "+",
-            ),
+            },
+            "+",
+          ),
     ),
     React.createElement(
       PortalDropdown,
@@ -1575,10 +3416,10 @@ const TaskPicker = ({
   );
   // Key thống nhất: ps.serviceId (catalog) hoặc ps.id (custom service)
   const serviceMap = useMemo(() => {
-    const m = { __none__: "Chưa gắn dịch vụ" };
+    const m = { __none__: "No service assigned" };
     services.forEach((ps) => {
       const key = ps.serviceId ? String(ps.serviceId) : String(ps.id);
-      m[key] = ps.serviceName || `Dịch vụ #${ps.id}`;
+      m[key] = ps.serviceName || `Service #${ps.id}`;
     });
     return m;
   }, [services]);
@@ -1607,7 +3448,7 @@ const TaskPicker = ({
     const noneKey = map["__none__"] ? ["__none__"] : [];
     return [...serviceKeys, ...noneKey].map((k) => ({
       key: k,
-      label: serviceMap[k] || "Dịch vụ #" + k,
+      label: serviceMap[k] || "Service #" + k,
       tasks: map[k],
     }));
   }, [filtered, services, serviceMap]);
@@ -1774,7 +3615,7 @@ const TaskPicker = ({
           autoFocus: true,
           value: q,
           onChange: (e) => setQ(e.target.value),
-          placeholder: "Tìm công việc theo tên...",
+          placeholder: "Search tasks by name...",
           style: {
             width: "100%",
             border: "1px solid #e8e8e8",
@@ -1792,64 +3633,64 @@ const TaskPicker = ({
         { style: { overflowY: "auto", flex: 1 } },
         grouped.length === 0
           ? React.createElement(
-              "div",
-              {
-                style: {
-                  padding: "16px",
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#bfbfbf",
-                  textAlign: "center",
-                },
+            "div",
+            {
+              style: {
+                padding: "16px",
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#bfbfbf",
+                textAlign: "center",
               },
-              "Không có công việc nào",
-            )
+            },
+            "No tasks found",
+          )
           : grouped.map((g) =>
+            React.createElement(
+              "div",
+              { key: g.key },
               React.createElement(
                 "div",
-                { key: g.key },
+                {
+                  style: {
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    fontWeight: 700,
+                    color: "#8c8c8c",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    background: "#f5f5f5",
+                    borderTop: "1px solid #efefef",
+                    borderBottom: "1px solid #efefef",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  },
+                },
                 React.createElement(
-                  "div",
+                  "span",
+                  { style: { fontSize: 11 } },
+                  "🗂",
+                ),
+                React.createElement("span", null, g.label),
+                React.createElement(
+                  "span",
                   {
                     style: {
-                      padding: "10px 12px",
+                      marginLeft: "auto",
+                      background: "#e0e0e0",
+                      borderRadius: 8,
+                      padding: "0 6px",
                       fontSize: 12,
-                      fontFamily: FONT,
-                      fontWeight: 700,
-                      color: "#8c8c8c",
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                      background: "#f5f5f5",
-                      borderTop: "1px solid #efefef",
-                      borderBottom: "1px solid #efefef",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
                     },
                   },
-                  React.createElement(
-                    "span",
-                    { style: { fontSize: 11 } },
-                    "🗂",
-                  ),
-                  React.createElement("span", null, g.label),
-                  React.createElement(
-                    "span",
-                    {
-                      style: {
-                        marginLeft: "auto",
-                        background: "#e0e0e0",
-                        borderRadius: 8,
-                        padding: "0 6px",
-                        fontSize: 12,
-                      },
-                    },
-                    String(g.tasks.length),
-                  ),
+                  String(g.tasks.length),
                 ),
-                g.tasks.map(renderTaskRow),
               ),
+              g.tasks.map(renderTaskRow),
             ),
+          ),
       ),
     );
   };
@@ -1858,10 +3699,10 @@ const TaskPicker = ({
     "div",
     { style: { position: "relative" } },
     open &&
-      React.createElement("div", {
-        style: { position: "fixed", inset: 0, zIndex: 9998 },
-        onClick: handleClose,
-      }),
+    React.createElement("div", {
+      style: { position: "fixed", inset: 0, zIndex: 9998 },
+      onClick: handleClose,
+    }),
     React.createElement(
       "div",
       {
@@ -1882,64 +3723,64 @@ const TaskPicker = ({
       },
       cur
         ? React.createElement(
-            React.Fragment,
-            null,
-            React.createElement("div", {
-              style: {
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: (STATUS_CFG[cur.status] || STATUS_CFG.toDo).color,
-                flexShrink: 0,
-              },
-            }),
-            React.createElement(
-              "span",
-              {
-                style: {
-                  fontSize: 14,
-                  fontFamily: FONT,
-                  color: "#262626",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  fontWeight: 500,
-                },
-              },
-              cur.title,
-            ),
-            React.createElement(StatusBadge, { status: cur.status }),
-            React.createElement(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  onChange(null);
-                },
-                style: {
-                  fontSize: 14,
-                  color: "#cf1322",
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  lineHeight: 1,
-                },
-              },
-              "×",
-            ),
-          )
-        : React.createElement(
+          React.Fragment,
+          null,
+          React.createElement("div", {
+            style: {
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: (STATUS_CFG[cur.status] || STATUS_CFG.toDo).color,
+              flexShrink: 0,
+            },
+          }),
+          React.createElement(
             "span",
             {
               style: {
                 fontSize: 14,
                 fontFamily: FONT,
-                color: "#bfbfbf",
+                color: "#262626",
                 flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontWeight: 500,
               },
             },
-            "Chọn công việc điều kiện...",
+            cur.title,
           ),
+          React.createElement(StatusBadge, { status: cur.status }),
+          React.createElement(
+            "span",
+            {
+              onClick: (e) => {
+                e.stopPropagation();
+                onChange(null);
+              },
+              style: {
+                fontSize: 14,
+                color: "#cf1322",
+                fontWeight: 700,
+                flexShrink: 0,
+                lineHeight: 1,
+              },
+            },
+            "×",
+          ),
+        )
+        : React.createElement(
+          "span",
+          {
+            style: {
+              fontSize: 14,
+              fontFamily: FONT,
+              color: "#bfbfbf",
+              flex: 1,
+            },
+          },
+          "Select a prerequisite task...",
+        ),
     ),
     renderDropdown(),
   );
@@ -2003,7 +3844,7 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
     n.createdBy?.nickname ||
     n.createdBy?.username ||
     n.createdBy?.email ||
-    (n.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n.createdById ? `User #${n.createdById}` : "Anonymous");
   if (!canAccess)
     return React.createElement(
       "div",
@@ -2023,7 +3864,7 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
       React.createElement(
         Text,
         { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-        "Bạn không có quyền xem lịch sử của task này.",
+        "You do not have permission to view this task's history.",
       ),
     );
 
@@ -2070,8 +3911,8 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
           React.createElement(
             "span",
             { style: { fontSize: 12, fontFamily: FONT, color: "#262626" } },
-            React.createElement("b", null, a.changedByName || "Hệ thống"),
-            ` ${isCreate ? "tạo" : "sửa"} [${tF(a.fieldName || "")}]`,
+            React.createElement("b", null, a.changedByName || "System"),
+            ` ${isCreate ? "created" : "edited"} [${tF(a.fieldName || "")}]`,
           ),
           React.createElement(
             "span",
@@ -2087,55 +3928,55 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
           ),
         ),
         (a.oldValue || a.newValue) &&
-          !isCreate &&
+        !isCreate &&
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              marginTop: 2,
+              flexWrap: "wrap",
+            },
+          },
+          a.oldValue &&
           React.createElement(
-            "div",
+            "span",
             {
               style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 2,
-                flexWrap: "wrap",
+                fontSize: 12,
+                color: "#cf1322",
+                background: "#fff1f0",
+                padding: "1px 5px",
+                borderRadius: 3,
+                textDecoration: "line-through",
               },
             },
-            a.oldValue &&
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    fontSize: 12,
-                    color: "#cf1322",
-                    background: "#fff1f0",
-                    padding: "1px 5px",
-                    borderRadius: 3,
-                    textDecoration: "line-through",
-                  },
-                },
-                formatActivityValue(a.oldValue),
-              ),
-            a.oldValue &&
-              a.newValue &&
-              React.createElement(
-                "span",
-                { style: { fontSize: 12, color: "#8c8c8c" } },
-                "→",
-              ),
-            a.newValue &&
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    fontSize: 12,
-                    color: "#389e0d",
-                    background: "#f6ffed",
-                    padding: "1px 5px",
-                    borderRadius: 3,
-                  },
-                },
-                formatActivityValue(a.newValue),
-              ),
+            formatActivityValue(a.oldValue),
           ),
+          a.oldValue &&
+          a.newValue &&
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#8c8c8c" } },
+            "→",
+          ),
+          a.newValue &&
+          React.createElement(
+            "span",
+            {
+              style: {
+                fontSize: 12,
+                color: "#389e0d",
+                background: "#f6ffed",
+                padding: "1px 5px",
+                borderRadius: 3,
+              },
+            },
+            formatActivityValue(a.newValue),
+          ),
+        ),
       ),
     );
   };
@@ -2182,7 +4023,7 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
             "span",
             { style: { fontSize: 12, fontFamily: FONT, color: "#262626" } },
             React.createElement("b", null, authorName(n)),
-            " thêm ghi chú",
+            " added a note",
           ),
           React.createElement(
             "span",
@@ -2210,37 +4051,37 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
             },
           },
           n.title &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  fontWeight: 600,
-                  color: "#006d75",
-                },
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                fontWeight: 600,
+                color: "#006d75",
               },
-              n.title,
-            ),
+            },
+            n.title,
+          ),
           n.body &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#595959",
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.5,
-                },
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#595959",
+                whiteSpace: "pre-wrap",
+                lineHeight: 1.5,
               },
-              (() => {
-                const plainText = n.body.replace(/<[^>]*>?/gm, "").trim();
-                return plainText.length > 100
-                  ? plainText.slice(0, 100) + "…"
-                  : plainText;
-              })(),
-            ),
+            },
+            (() => {
+              const plainText = n.body.replace(/<[^>]*>?/gm, "").trim();
+              return plainText.length > 100
+                ? plainText.slice(0, 100) + "…"
+                : plainText;
+            })(),
+          ),
         ),
       ),
     );
@@ -2297,9 +4138,9 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
               null,
               f.createdBy
                 ? userName(f.createdBy) || f.createdBy?.email
-                : "Hệ thống",
+                : "System",
             ),
-            " upload tài liệu",
+            " uploaded a document",
           ),
           React.createElement(
             "span",
@@ -2343,31 +4184,31 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
                 whiteSpace: "nowrap",
               },
             },
-            (f.title || att?.title || att?.filename || "(Chưa có tên)") +
-              fileExt,
+            (f.title || att?.title || att?.filename || "(Untitled)") +
+            fileExt,
           ),
           fullUrl &&
-            React.createElement(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  window.open(fullUrl, "_blank");
-                },
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#531dab",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  padding: "1px 6px",
-                  border: "1px solid #d3adf7",
-                  borderRadius: 3,
-                  background: "#fff",
-                },
+          React.createElement(
+            "span",
+            {
+              onClick: (e) => {
+                e.stopPropagation();
+                window.open(fullUrl, "_blank");
               },
-              "⬇️",
-            ),
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#531dab",
+                cursor: "pointer",
+                flexShrink: 0,
+                padding: "1px 6px",
+                border: "1px solid #d3adf7",
+                borderRadius: 3,
+                background: "#fff",
+              },
+            },
+            "⬇️",
+          ),
         ),
       ),
     );
@@ -2386,35 +4227,35 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
     },
     loading
       ? React.createElement(
-          "div",
-          { style: { textAlign: "center", padding: "8px 0" } },
-          React.createElement(Spin, { size: "small" }),
-        )
+        "div",
+        { style: { textAlign: "center", padding: "8px 0" } },
+        React.createElement(Spin, { size: "small" }),
+      )
       : items.length === 0
         ? React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: 12,
-                color: "#bfbfbf",
-                display: "block",
-                padding: "4px 0",
-                fontFamily: FONT,
-              },
+          Text,
+          {
+            style: {
+              fontSize: 12,
+              color: "#bfbfbf",
+              display: "block",
+              padding: "4px 0",
+              fontFamily: FONT,
             },
-            "Chưa có hoạt động nào",
-          )
+          },
+          "No activity yet",
+        )
         : React.createElement(
-            "div",
-            null,
-            ...items.map((item, i) => {
-              const key = `hp-${item._kind}-${i}`;
-              if (item._kind === "log") return renderLog(item.data, key);
-              if (item._kind === "note") return renderNote(item.data, key);
-              if (item._kind === "file") return renderFile(item.data, key);
-              return null;
-            }),
-          ),
+          "div",
+          null,
+          ...items.map((item, i) => {
+            const key = `hp-${item._kind}-${i}`;
+            if (item._kind === "log") return renderLog(item.data, key);
+            if (item._kind === "note") return renderNote(item.data, key);
+            if (item._kind === "file") return renderFile(item.data, key);
+            return null;
+          }),
+        ),
   );
 };
 // ======================== HELPER ====================================
@@ -2460,20 +4301,20 @@ const loadQuillAsync = () => {
         QuillLib && typeof QuillLib === "function"
           ? QuillLib
           : (QuillLib && QuillLib.default) ||
-            (QuillLib && QuillLib.Quill) ||
-            QuillLib;
+          (QuillLib && QuillLib.Quill) ||
+          QuillLib;
       if (!Q) throw new Error("Quill constructor not found in UMD export");
       try {
         const SizeStyle = Q.import("attributors/style/size");
         SizeStyle.whitelist = QUILL_FONT_SIZES;
         Q.register(SizeStyle, true);
-      } catch {}
+      } catch { }
       return Q;
     });
   return _quillLoadPromise;
 };
 // Kick off loading immediately so Quill is ready when component mounts
-loadQuillAsync().catch(() => {});
+loadQuillAsync().catch(() => { });
 
 // ── QuillEditor ────────────────────────────────────────────────────
 const QUILL_CUSTOM_CSS = `
@@ -2529,7 +4370,7 @@ const QuillEditor = ({
 
         const q = new Quill(containerRef.current, {
           theme: "snow",
-          placeholder: placeholder || "Viết bình luận...",
+          placeholder: placeholder || "Write a comment...",
           modules: {
             toolbar: {
               container: [
@@ -2574,23 +4415,23 @@ const QuillEditor = ({
         if (uploadBtn) {
           uploadBtn.innerHTML =
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>';
-          uploadBtn.title = "Đính kèm tài liệu";
+          uploadBtn.title = "Attach document";
         }
 
         // Add Tooltips to Quill toolbar buttons
         const tooltipMap = {
-          ".ql-bold": "In đậm (Ctrl+B)",
-          ".ql-italic": "In nghiêng (Ctrl+I)",
-          ".ql-underline": "Gạch chân (Ctrl+U)",
-          ".ql-strike": "Gạch ngang",
-          '.ql-indent[value="-1"]': "Giảm lề",
-          '.ql-indent[value="+1"]': "Tăng lề",
-          ".ql-blockquote": "Trích dẫn",
-          ".ql-code-block": "Đoạn mã",
-          '.ql-list[value="ordered"]': "Danh sách số",
-          '.ql-list[value="bullet"]': "Danh sách chấm",
-          ".ql-link": "Chèn liên kết",
-          ".ql-clean": "Xóa định dạng",
+          ".ql-bold": "Bold (Ctrl+B)",
+          ".ql-italic": "Italic (Ctrl+I)",
+          ".ql-underline": "Underline (Ctrl+U)",
+          ".ql-strike": "Strikethrough",
+          '.ql-indent[value="-1"]': "Decrease indent",
+          '.ql-indent[value="+1"]': "Increase indent",
+          ".ql-blockquote": "Blockquote",
+          ".ql-code-block": "Code block",
+          '.ql-list[value="ordered"]': "Numbered list",
+          '.ql-list[value="bullet"]': "Bullet list",
+          ".ql-link": "Insert link",
+          ".ql-clean": "Clear formatting",
         };
         Object.entries(tooltipMap).forEach(([selector, title]) => {
           const el = containerRef.current.parentElement.querySelector(selector);
@@ -2599,11 +4440,11 @@ const QuillEditor = ({
         const headerPicker = containerRef.current.parentElement.querySelector(
           ".ql-size .ql-picker-label",
         );
-        if (headerPicker) headerPicker.setAttribute("title", "Kích cỡ chữ");
+        if (headerPicker) headerPicker.setAttribute("title", "Font size");
         const alignPicker = containerRef.current.parentElement.querySelector(
           ".ql-align .ql-picker-label",
         );
-        if (alignPicker) alignPicker.setAttribute("title", "Căn lề");
+        if (alignPicker) alignPicker.setAttribute("title", "Alignment");
 
         // Sync initial value
         if (value) {
@@ -2638,7 +4479,7 @@ const QuillEditor = ({
       })
       .catch((e) => {
         console.error("Quill load error:", e);
-        setError("Không thể tải editor. Vui lòng kiểm tra kết nối mạng.");
+        setError("Could not load editor. Please check your network connection.");
       });
 
     return () => {
@@ -2671,30 +4512,30 @@ const QuillEditor = ({
     React.createElement("style", null, QUILL_CUSTOM_CSS),
     error
       ? React.createElement(
+        "div",
+        {
+          style: {
+            padding: "12px 16px",
+            color: "#ff4d4f",
+            fontSize: 13,
+            fontFamily: FONT,
+          },
+        },
+        error,
+      )
+      : !ready
+        ? React.createElement(
           "div",
           {
             style: {
               padding: "12px 16px",
-              color: "#ff4d4f",
+              color: "#bfbfbf",
               fontSize: 13,
               fontFamily: FONT,
             },
           },
-          error,
+          "Loading editor...",
         )
-      : !ready
-        ? React.createElement(
-            "div",
-            {
-              style: {
-                padding: "12px 16px",
-                color: "#bfbfbf",
-                fontSize: 13,
-                fontFamily: FONT,
-              },
-            },
-            "Đang tải editor...",
-          )
         : null,
     React.createElement("div", { ref: containerRef }),
   );
@@ -2790,136 +4631,136 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
           { style: { fontSize: 14, fontWeight: 700 } },
           "@",
         ),
-        "Nhắc đến ai",
+        "Mention someone",
       ),
 
       // ── Dropdown ───────────────────────────────────────────────
       open &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            zIndex: 9999,
+            background: "#fff",
+            border: "1px solid #e0e0e0",
+            borderRadius: 12,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
+            minWidth: 240,
+            maxHeight: 280,
+            overflowY: "auto",
+            padding: "6px 0",
+          },
+        },
+        // Search input
         React.createElement(
           "div",
           {
-            style: {
-              position: "absolute",
-              top: "calc(100% + 6px)",
-              left: 0,
-              zIndex: 9999,
-              background: "#fff",
-              border: "1px solid #e0e0e0",
-              borderRadius: 12,
-              boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
-              minWidth: 240,
-              maxHeight: 280,
-              overflowY: "auto",
-              padding: "6px 0",
-            },
+            style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" },
           },
-          // Search input
-          React.createElement(
+          React.createElement("input", {
+            autoFocus: true,
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            placeholder: "Search lawyer name...",
+            style: {
+              width: "100%",
+              boxSizing: "border-box",
+              border: "1px solid #e0e0e0",
+              borderRadius: 8,
+              padding: "5px 10px",
+              fontSize: 12,
+              fontFamily: FONT,
+              outline: "none",
+            },
+          }),
+        ),
+        // List
+        filtered.length === 0
+          ? React.createElement(
             "div",
             {
-              style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" },
-            },
-            React.createElement("input", {
-              autoFocus: true,
-              value: search,
-              onChange: (e) => setSearch(e.target.value),
-              placeholder: "Tìm tên luật sư...",
               style: {
-                width: "100%",
-                boxSizing: "border-box",
-                border: "1px solid #e0e0e0",
-                borderRadius: 8,
-                padding: "5px 10px",
+                padding: "12px",
+                textAlign: "center",
+                color: "#bfbfbf",
                 fontSize: 12,
                 fontFamily: FONT,
-                outline: "none",
               },
-            }),
-          ),
-          // List
-          filtered.length === 0
-            ? React.createElement(
-                "div",
-                {
-                  style: {
-                    padding: "12px",
-                    textAlign: "center",
-                    color: "#bfbfbf",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                  },
+            },
+            "Not found",
+          )
+          : filtered.map((l) => {
+            const selected = assignedIds.includes(l.id);
+            return React.createElement(
+              "div",
+              {
+                key: l.id,
+                onMouseDown: (e) => {
+                  e.preventDefault();
+                  toggle(l);
                 },
-                "Không tìm thấy",
-              )
-            : filtered.map((l) => {
-                const selected = assignedIds.includes(l.id);
-                return React.createElement(
+                style: {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 14px",
+                  cursor: "pointer",
+                  background: selected ? "#e6f4ff" : "transparent",
+                  borderLeft: selected
+                    ? "3px solid #1890ff"
+                    : "3px solid transparent",
+                  transition: "background 0.1s",
+                },
+                onMouseEnter: (e) => {
+                  if (!selected)
+                    e.currentTarget.style.background = "#f5f5f5";
+                },
+                onMouseLeave: (e) => {
+                  if (!selected)
+                    e.currentTarget.style.background = "transparent";
+                },
+              },
+              React.createElement(Av, { name: l.lawyerName, size: 28 }),
+              React.createElement(
+                "div",
+                { style: { flex: 1 } },
+                React.createElement(
                   "div",
                   {
-                    key: l.id,
-                    onMouseDown: (e) => {
-                      e.preventDefault();
-                      toggle(l);
-                    },
                     style: {
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "8px 14px",
-                      cursor: "pointer",
-                      background: selected ? "#e6f4ff" : "transparent",
-                      borderLeft: selected
-                        ? "3px solid #1890ff"
-                        : "3px solid transparent",
-                      transition: "background 0.1s",
-                    },
-                    onMouseEnter: (e) => {
-                      if (!selected)
-                        e.currentTarget.style.background = "#f5f5f5";
-                    },
-                    onMouseLeave: (e) => {
-                      if (!selected)
-                        e.currentTarget.style.background = "transparent";
+                      fontSize: 13,
+                      fontWeight: selected ? 700 : 400,
+                      color: selected ? "#096dd9" : "#262626",
+                      fontFamily: FONT,
                     },
                   },
-                  React.createElement(Av, { name: l.lawyerName, size: 28 }),
-                  React.createElement(
-                    "div",
-                    { style: { flex: 1 } },
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 13,
-                          fontWeight: selected ? 700 : 400,
-                          color: selected ? "#096dd9" : "#262626",
-                          fontFamily: FONT,
-                        },
-                      },
-                      l.lawyerName,
-                    ),
-                    l.lawyerType &&
-                      React.createElement(
-                        "div",
-                        { style: { fontSize: 11, color: "#8c8c8c" } },
-                        l.lawyerType,
-                      ),
-                  ),
-                  selected &&
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 16,
-                          color: "#1890ff",
-                          fontWeight: 700,
-                        },
-                      },
-                      "✓",
-                    ),
-                );
-              }),
-        ),
+                  l.lawyerName,
+                ),
+                l.lawyerType &&
+                React.createElement(
+                  "div",
+                  { style: { fontSize: 11, color: "#8c8c8c" } },
+                  l.lawyerType,
+                ),
+              ),
+              selected &&
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 16,
+                    color: "#1890ff",
+                    fontWeight: 700,
+                  },
+                },
+                "✓",
+              ),
+            );
+          }),
+      ),
     ),
 
     // ── Selected Tags ─────────────────────────────────────────────
@@ -3298,48 +5139,48 @@ const RichMentionInput = ({
   const FMT = [
     {
       key: "bold",
-      title: "Đậm (Ctrl+B)",
+      title: "Bold (Ctrl+B)",
       cmd: "bold",
       el: React.createElement("b", null, "B"),
     },
     {
       key: "italic",
-      title: "Nghiêng (Ctrl+I)",
+      title: "Italic (Ctrl+I)",
       cmd: "italic",
       el: React.createElement("i", null, "I"),
     },
     {
       key: "underline",
-      title: "Gạch chân (Ctrl+U)",
+      title: "Underline (Ctrl+U)",
       cmd: "underline",
       el: React.createElement("u", null, "U"),
     },
     {
       key: "strikeThrough",
-      title: "Gạch ngang",
+      title: "Strikethrough",
       cmd: "strikeThrough",
       el: React.createElement("s", null, "S"),
     },
     { key: "sep1" },
-    { key: "h1", title: "Tiêu đề lớn", cmd: "h1", el: "H1" },
-    { key: "h2", title: "Tiêu đề vừa", cmd: "h2", el: "H2" },
+    { key: "h1", title: "Large heading", cmd: "h1", el: "H1" },
+    { key: "h2", title: "Medium heading", cmd: "h2", el: "H2" },
     { key: "sep2" },
-    { key: "quote", title: "Trích dẫn", cmd: "quote", el: "❝" },
+    { key: "quote", title: "Blockquote", cmd: "quote", el: "❝" },
     {
       key: "insertUnorderedList",
-      title: "Danh sách chấm",
+      title: "Bullet list",
       cmd: "insertUnorderedList",
       el: "• —",
     },
     {
       key: "insertOrderedList",
-      title: "Danh sách số",
+      title: "Numbered list",
       cmd: "insertOrderedList",
       el: "1.—",
     },
     {
       key: "insertHorizontalRule",
-      title: "Kẻ ngang",
+      title: "Horizontal rule",
       cmd: "insertHorizontalRule",
       el: "─",
     },
@@ -3426,42 +5267,42 @@ const RichMentionInput = ({
       }),
       React.createElement(Sep, { key: "sep-upload" }),
       onUploadClick &&
+      React.createElement(
+        Tooltip,
+        { title: "Attach file", placement: "top" },
         React.createElement(
-          Tooltip,
-          { title: "Đính kèm tệp", placement: "top" },
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              onClick: onUploadClick,
-              style: {
-                minWidth: 28,
-                height: 26,
-                padding: "0 4px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px solid #ddd",
-                borderRadius: 4,
-                background: "#fff",
-                cursor: "pointer",
-                fontSize: 14,
-                fontFamily: FONT,
-                color: "#333",
-                userSelect: "none",
-              },
-              onMouseEnter: (e) => {
-                e.currentTarget.style.background = "#e8f4ff";
-                e.currentTarget.style.borderColor = "#1890ff";
-              },
-              onMouseLeave: (e) => {
-                e.currentTarget.style.background = "#fff";
-                e.currentTarget.style.borderColor = "#ddd";
-              },
+          "button",
+          {
+            type: "button",
+            onClick: onUploadClick,
+            style: {
+              minWidth: 28,
+              height: 26,
+              padding: "0 4px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              background: "#fff",
+              cursor: "pointer",
+              fontSize: 14,
+              fontFamily: FONT,
+              color: "#333",
+              userSelect: "none",
             },
-            "📎",
-          ),
+            onMouseEnter: (e) => {
+              e.currentTarget.style.background = "#e8f4ff";
+              e.currentTarget.style.borderColor = "#1890ff";
+            },
+            onMouseLeave: (e) => {
+              e.currentTarget.style.background = "#fff";
+              e.currentTarget.style.borderColor = "#ddd";
+            },
+          },
+          "📎",
         ),
+      ),
       React.createElement(
         "span",
         {
@@ -3472,7 +5313,7 @@ const RichMentionInput = ({
             fontFamily: FONT,
           },
         },
-        "@ nhắc · Ctrl+Enter gửi",
+        "@ mention · Ctrl+Enter to send",
       ),
     ),
     // ContentEditable Editor
@@ -3496,141 +5337,141 @@ const RichMentionInput = ({
         boxSizing: "border-box",
         background: "transparent",
       },
-      "data-placeholder": placeholder || "Viết bình luận... (@ để nhắc tên)",
+      "data-placeholder": placeholder || "Write a comment... (@ to mention someone)",
     }),
     // Dropdown Mentions
     showDD &&
-      filtered.length > 0 &&
+    filtered.length > 0 &&
+    React.createElement(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          zIndex: 9999,
+          background: "#fff",
+          border: "1px solid #e0e0e0",
+          borderRadius: 10,
+          boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
+          minWidth: 230,
+          maxHeight: 240,
+          overflowY: "auto",
+          padding: "4px 0",
+        },
+      },
       React.createElement(
         "div",
         {
           style: {
-            position: "absolute",
-            top: dropdownPos.top,
-            left: dropdownPos.left,
-            zIndex: 9999,
-            background: "#fff",
-            border: "1px solid #e0e0e0",
-            borderRadius: 10,
-            boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
-            minWidth: 230,
-            maxHeight: 240,
-            overflowY: "auto",
-            padding: "4px 0",
+            padding: "5px 12px 6px",
+            fontSize: 11,
+            color: "#888",
+            fontFamily: FONT,
+            borderBottom: "1px solid #f0f0f0",
           },
         },
-        React.createElement(
-          "div",
-          {
-            style: {
-              padding: "5px 12px 6px",
-              fontSize: 11,
-              color: "#888",
-              fontFamily: FONT,
-              borderBottom: "1px solid #f0f0f0",
+        query ? `Search lawyer: "${query}"` : "Mention a lawyer",
+      ),
+      React.createElement(
+        "div",
+        { ref: dropdownRef },
+        filtered.map((l, idx) =>
+          React.createElement(
+            "div",
+            {
+              key: l.id,
+              onMouseDown: (e) => {
+                e.preventDefault();
+                selectLawyer(l);
+              },
+              onMouseEnter: () => setActiveIdx(idx),
+              style: {
+                padding: "8px 12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                background: idx === activeIdx ? "#e6f4ff" : "transparent",
+                borderLeft:
+                  idx === activeIdx
+                    ? "3px solid #1890ff"
+                    : "3px solid transparent",
+                transition: "background 0.1s",
+              },
             },
-          },
-          query ? `Tìm luật sư: "${query}"` : "Nhắc tên luật sư",
-        ),
-        React.createElement(
-          "div",
-          { ref: dropdownRef },
-          filtered.map((l, idx) =>
+            React.createElement(Av, { name: l.lawyerName, size: 28 }),
             React.createElement(
               "div",
-              {
-                key: l.id,
-                onMouseDown: (e) => {
-                  e.preventDefault();
-                  selectLawyer(l);
-                },
-                onMouseEnter: () => setActiveIdx(idx),
-                style: {
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  background: idx === activeIdx ? "#e6f4ff" : "transparent",
-                  borderLeft:
-                    idx === activeIdx
-                      ? "3px solid #1890ff"
-                      : "3px solid transparent",
-                  transition: "background 0.1s",
-                },
-              },
-              React.createElement(Av, { name: l.lawyerName, size: 28 }),
+              null,
               React.createElement(
                 "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 13,
-                      fontWeight: idx === activeIdx ? 600 : 400,
-                      color: idx === activeIdx ? "#096dd9" : "#262626",
-                      fontFamily: FONT,
-                    },
+                {
+                  style: {
+                    fontSize: 13,
+                    fontWeight: idx === activeIdx ? 600 : 400,
+                    color: idx === activeIdx ? "#096dd9" : "#262626",
+                    fontFamily: FONT,
                   },
-                  l.lawyerName,
-                ),
-                l.lawyerType &&
-                  React.createElement(
-                    "div",
-                    { style: { fontSize: 11, color: "#888" } },
-                    l.lawyerType,
-                  ),
+                },
+                l.lawyerName,
+              ),
+              l.lawyerType &&
+              React.createElement(
+                "div",
+                { style: { fontSize: 11, color: "#888" } },
+                l.lawyerType,
               ),
             ),
           ),
         ),
       ),
+    ),
     // Tags List
     assignedIds.length > 0 &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            padding: "6px 12px 8px",
-            borderTop: "1px solid #f0f0f0",
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 6,
-            background: "#fafcff",
-          },
+    React.createElement(
+      "div",
+      {
+        style: {
+          padding: "6px 12px 8px",
+          borderTop: "1px solid #f0f0f0",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 6,
+          background: "#fafcff",
         },
-        React.createElement(
-          "span",
-          { style: { fontSize: 11, color: "#888", fontFamily: FONT } },
-          "Đã nhắc:",
-        ),
-        assignedIds.map((id) => {
-          const lawyer = lawyers.find((l) => l.id === id);
-          if (!lawyer) return null;
-          return React.createElement(
-            Tag,
-            {
-              key: id,
-              closable: true,
-              onClose: () => removeAssigned(id),
-              style: {
-                borderRadius: 12,
-                background: "#e6f4ff",
-                color: "#096dd9",
-                border: "1px solid #91caff",
-                fontSize: 12,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-              },
-            },
-            React.createElement(Av, { name: lawyer.lawyerName, size: 16 }),
-            lawyer.lawyerName,
-          );
-        }),
+      },
+      React.createElement(
+        "span",
+        { style: { fontSize: 11, color: "#888", fontFamily: FONT } },
+        "Mentioned:",
       ),
+      assignedIds.map((id) => {
+        const lawyer = lawyers.find((l) => l.id === id);
+        if (!lawyer) return null;
+        return React.createElement(
+          Tag,
+          {
+            key: id,
+            closable: true,
+            onClose: () => removeAssigned(id),
+            style: {
+              borderRadius: 12,
+              background: "#e6f4ff",
+              color: "#096dd9",
+              border: "1px solid #91caff",
+              fontSize: 12,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            },
+          },
+          React.createElement(Av, { name: lawyer.lawyerName, size: 16 }),
+          lawyer.lawyerName,
+        );
+      }),
+    ),
   );
 };
 // ============================================================
@@ -3646,6 +5487,7 @@ const UnifiedNoteThread = ({
   onFilesUpdate,
   refreshTrigger,
   caseId = null, // 🌟 Bổ sung caseId để tạo deep-link
+  taskContext = {},
 }) => {
   const currentLawyerId = useMemo(() => {
     const currentUserId = extractId(currentUser?.id);
@@ -3663,6 +5505,10 @@ const UnifiedNoteThread = ({
   const [previewDoc, setPreviewDoc] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [pendingDocs, setPendingDocs] = useState([]);
+  const [folderLookup, setFolderLookup] = useState({});
+  const pendingReplaceInputRef = useRef(null);
+  const pendingReplaceTargetRef = useRef(null);
+  const [replacingPendingIndex, setReplacingPendingIndex] = useState(null);
   const [pendingBatchId, setPendingBatchId] = useState(
     () => `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
   );
@@ -3671,14 +5517,18 @@ const UnifiedNoteThread = ({
   const [editAssignedIds, setEditAssignedIds] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
   const [expandedThreads, setExpandedThreads] = useState({});
+  const [expandedFileGroups, setExpandedFileGroups] = useState({});
   const [showAll, setShowAll] = useState(false);
+  const [libraryMoveTarget, setLibraryMoveTarget] = useState(null);
   const INITIAL_COUNT = 10;
   const reload = useCallback(() => {
     setLoading(true);
     Promise.all([
       fetchNotes(collectionName, recordId),
       fetchFiles(collectionName, recordId),
-    ]).then(([notes, files]) => {
+    ]).then(async ([notes, files]) => {
+      const folderRows = await fetchTaskNoteFolders(files);
+      setFolderLookup(buildFolderLookup(folderRows));
       const WINDOW_MS = 5000;
       const usedFileIds = new Set();
       const noteItems = notes.map((n) => {
@@ -3734,9 +5584,9 @@ const UnifiedNoteThread = ({
     n.createdBy?.nickname ||
     n.createdBy?.username ||
     n.createdBy?.email ||
-    (n.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n.createdById ? `User #${n.createdById}` : "Anonymous");
   const warnMentionOnly = () => {
-    message.warning("Vui lòng nhập nội dung bình luận trước khi nhắc tên.");
+    message.warning("Please enter a comment before mentioning someone.");
   };
   const handleSend = async () => {
     const hasText = getCommentText(body, true).length > 0;
@@ -3752,16 +5602,14 @@ const UnifiedNoteThread = ({
       // ── BƯỚC 1: Tạo Note với batchId ─────────────────────────
       const currentPath = window.location.origin + window.location.pathname;
       let linkedUrl = `${currentPath}`;
+      const actualCaseId =
+        extractId(caseId) ||
+        extractId(ctx.record?.id) ||
+        window.location.pathname.match(/filterbytk\/(\d+)/)?.[1];
 
       // 🌟 TỰ ĐỘNG TẠO DEEP-LINK NẾU LÀ TASK (Hardcore Join)
       if (collectionName === "Task") {
         const { buildUrl } = DEEP_LINK_CONFIG;
-
-        // Lấy caseId từ props hoặc trích xuất từ URL hiện tại
-        const actualCaseId =
-          extractId(caseId) ||
-          extractId(ctx.record?.id) ||
-          window.location.pathname.match(/filterbytk\/(\d+)/)?.[1];
 
         if (actualCaseId) {
           linkedUrl = buildUrl(recordId, actualCaseId);
@@ -3771,7 +5619,7 @@ const UnifiedNoteThread = ({
       const noteRes = await apiReq("notes:create", "POST", {
         collectionName,
         recordId,
-        title: "Bình luận",
+        title: "Comment",
         body: hasText ? body.trim() : null,
         linkedUrl,
         assignees: assignedIds,
@@ -3781,12 +5629,12 @@ const UnifiedNoteThread = ({
           : null,
         replyText: replyingTo?.note?.body
           ? replyingTo.note.body
-              .replace(/<[^>]*>?/gm, "")
-              .trim()
-              .substring(0, 150) +
-            (replyingTo.note.body.length > 150 ? "..." : "")
+            .replace(/<[^>]*>?/gm, "")
+            .trim()
+            .substring(0, 150) +
+          (replyingTo.note.body.length > 150 ? "..." : "")
           : replyingTo
-            ? "Tài liệu đính kèm"
+            ? "Attached document"
             : null,
         batchId,
         createdAt: currentTime, // 🌟 Đồng bộ thời gian tạo note
@@ -3811,7 +5659,7 @@ const UnifiedNoteThread = ({
           "assignees",
           null,
           names,
-          currentUser?.nickname || currentUser?.username || "Hệ thống",
+          currentUser?.nickname || currentUser?.username || "System",
           batchId,
           null,
           currentTime,
@@ -3824,7 +5672,7 @@ const UnifiedNoteThread = ({
           "assignees",
           null,
           names,
-          currentUser?.nickname || currentUser?.username || "Hệ thống",
+          currentUser?.nickname || currentUser?.username || "System",
           batchId,
           noteId,
           currentTime,
@@ -3833,16 +5681,26 @@ const UnifiedNoteThread = ({
 
       // ── BƯỚC 2: Tạo Document records cùng batchId ────────────
       if (hasFiles) {
+        const folderIdMap = await createTaskUploadFoldersFromEntries(
+          pendingDocs,
+          projectFolderId,
+          { caseId: actualCaseId, currentUser },
+        );
         const toISO = (val) => {
           if (!val) return null;
           const d = new Date(val);
           return isNaN(d.getTime()) ? null : d.toISOString();
         };
         for (const pDoc of pendingDocs) {
+          const relativeFolderPath = getRelativeFolderPath(pDoc.relativePath);
+          const targetFolderId =
+            folderIdMap[relativeFolderPath] || extractId(projectFolderId);
+          const docTitle =
+            pDoc.docTitle || pDoc.metadata.title?.trim() || pDoc.fileName;
           await apiReq("documents:create", "POST", {
+            title: docTitle,
             documentType: pDoc.metadata.documentType?.trim() || "",
             documentCode: pDoc.metadata.documentCode?.trim() || "",
-            title: pDoc.metadata.title?.trim() || pDoc.fileName,
             openingDate: toISO(pDoc.metadata.openingDate),
             signedAt: toISO(pDoc.metadata.signedAt),
             effectiveAt: toISO(pDoc.metadata.effectiveAt),
@@ -3854,9 +5712,12 @@ const UnifiedNoteThread = ({
             note: pDoc.metadata.note?.trim() || "",
             updatedById: currentUser?.id || null,
             updatedAt: new Date().toISOString(),
-            collectionName,
-            recordId: parseInt(recordId),
-            folderId: extractId(projectFolderId),
+            uploadedById: currentUser?.id || null,
+            ...buildDocumentRecordLink(collectionName, recordId, {
+              caseId: actualCaseId,
+              folderId: targetFolderId,
+            }),
+            storageType: "cases",
             createdById: currentUser?.id || null,
             createdAt: new Date().toISOString(),
             batchId,
@@ -3873,9 +5734,9 @@ const UnifiedNoteThread = ({
         `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       );
       reload();
-      message.success("Đã đăng bình luận");
+      message.success("Comment posted");
     } catch (e) {
-      message.error("Lỗi: " + (e?.message || "Thử lại"));
+      message.error("Error: " + (e?.message || "Please try again"));
     }
     setSending(false);
   };
@@ -3928,7 +5789,7 @@ const UnifiedNoteThread = ({
 
       if (oldNames !== newNames) {
         const userName =
-          currentUser?.nickname || currentUser?.username || "Hệ thống";
+          currentUser?.nickname || currentUser?.username || "System";
         await logActivity(
           "Note",
           noteId,
@@ -3968,28 +5829,28 @@ const UnifiedNoteThread = ({
       setEditingNoteId(null);
       setEditBody("");
       setEditAssignedIds([]);
-      message.success("Đã cập nhật bình luận");
+      message.success("Comment updated");
     } catch (e) {
-      message.error("Lỗi cập nhật");
+      message.error("Update failed");
     }
   };
 
   const handleDeleteNote = (item) => {
     const { note, files } = item;
     Modal.confirm({
-      title: "Xác nhận xóa",
+      title: "Confirm deletion",
       content: note
-        ? "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?"
-        : "Bạn có chắc chắn muốn xóa các tệp này không?",
-      okText: "Xóa",
-      cancelText: "Hủy",
+        ? "Are you sure you want to delete this comment and its attached files?"
+        : "Are you sure you want to delete these files?",
+      okText: "Delete",
+      cancelText: "Cancel",
       okType: "danger",
       onOk: async () => {
         try {
           const currentTime = new Date().toISOString();
           const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; // 🌟 BatchId riêng cho việc xóa
           const userName =
-            currentUser?.nickname || currentUser?.username || "Hệ thống";
+            currentUser?.nickname || currentUser?.username || "System";
 
           if (note) {
             await apiReq(`notes:update?filterByTk=${note.id}`, "POST", {
@@ -4045,9 +5906,9 @@ const UnifiedNoteThread = ({
             }
           }
           setFeed((prev) => prev.filter((i) => i !== item));
-          message.success("Đã xóa thành công");
+          message.success("Deleted successfully");
         } catch (e) {
-          message.error("Lỗi khi xóa");
+          message.error("Delete failed");
         }
       },
     });
@@ -4056,22 +5917,30 @@ const UnifiedNoteThread = ({
   const [editingFileId, setEditingFileId] = useState(null);
   const [editFileTitle, setEditFileTitle] = useState("");
   const [expandedPreviews, setExpandedPreviews] = useState({});
+  const [replacingFileDoc, setReplacingFileDoc] = useState(null);
 
   const handleSaveFileTitle = async (f) => {
     const newTitle = editFileTitle.trim();
     if (!newTitle) return;
     try {
       const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const oldTitle = f.title || "";
+      const attachment = getPrimaryAttachment(f);
+      const oldTitle = f.title || f.name || attachment?.title || attachment?.filename || "";
 
       await apiReq(`documents:update?filterByTk=${f.id}`, "POST", {
         title: newTitle,
+        name: newTitle,
         batchId: actionBatchId,
       });
+      if (attachment?.id) {
+        await apiReq(`attachments:update?filterByTk=${attachment.id}`, "POST", {
+          title: newTitle,
+        }).catch(() => { });
+      }
 
       // 🌟 Log thủ công vì SQL trigger chặn update title của documents
       const userName =
-        currentUser?.nickname || currentUser?.username || "Hệ thống";
+        currentUser?.nickname || currentUser?.username || "System";
       await logActivity(
         "Document",
         f.id,
@@ -4102,13 +5971,13 @@ const UnifiedNoteThread = ({
         prev.map((item) => ({
           ...item,
           files: item.files.map((file) =>
-            file.id === f.id ? { ...file, title: newTitle } : file,
+            file.id === f.id ? withSyncedDocumentFileTitle(file, newTitle) : file,
           ),
         })),
       );
-      message.success("Đã cập nhật tên tài liệu");
+      message.success("Document name updated");
     } catch (e) {
-      message.error("Lỗi cập nhật tên");
+      message.error("Failed to update name");
     }
     setEditingFileId(null);
     setEditFileTitle("");
@@ -4124,7 +5993,7 @@ const UnifiedNoteThread = ({
         : "." + att.extname.toLowerCase()
       : "";
     const rawFilename = att?.filename || "File";
-    const displayTitle = f.title || att?.title || rawFilename;
+    const displayTitle = f.title || f.name || att?.title || rawFilename;
     const fullUrl = getFullUrl(att?.url || att?.preview);
     const isPdf = ext === ".pdf";
     const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(
@@ -4137,11 +6006,90 @@ const UnifiedNoteThread = ({
       ".xlsx",
       ".ppt",
       ".pptx",
+      ".odt",
     ].includes(ext);
+    const officeViewerUrl =
+      isOffice && fullUrl
+        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`
+        : null;
     const canIframe = isPdf || isImage || isOffice;
     const isExpanded = !!expandedPreviews[f.id];
     const isEditingThisFile = editingFileId === f.id;
     const isMine = currentUser && f.createdById === currentUser.id;
+    const linkedLegalStudy = isLinkedToLegalStudy(f);
+    const linkedLegalReference = isLinkedToLegalReference(f);
+    const fileActionItems = [
+      {
+        key: "preview",
+        icon: TASK_FILE_ACTION_ICONS.preview,
+        label: isExpanded ? "Hide preview" : "View preview",
+        disabled: !fullUrl,
+      },
+      {
+        key: "download",
+        icon: TASK_FILE_ACTION_ICONS.download,
+        label: "Download",
+        disabled: !fullUrl,
+      },
+      canEdit && !linkedLegalStudy && {
+        key: "move_legal_study",
+        icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
+        label: "Move to Legal Study",
+      },
+      canEdit && !linkedLegalReference && {
+        key: "move_legal_reference",
+        icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+        label: "Move to Legal Reference",
+      },
+      isMine && canEdit && {
+        key: "edit",
+        icon: TASK_FILE_ACTION_ICONS.edit,
+        label: "Rename",
+      },
+      isMine && canEdit && {
+        key: "replace_file",
+        icon: TASK_FILE_ACTION_ICONS.replace,
+        label: "Replace file",
+      },
+    ].filter(Boolean);
+    const handleFileActionClick = ({ key, domEvent }) => {
+      domEvent?.stopPropagation?.();
+      if (key === "preview") {
+        if (!fullUrl) return;
+        if (canIframe) {
+          setExpandedPreviews((prev) => ({ ...prev, [f.id]: !prev[f.id] }));
+        } else {
+          setPreviewDoc(f);
+        }
+        return;
+      }
+      if (key === "download") {
+        if (fullUrl) window.open(fullUrl, "_blank");
+        return;
+      }
+      if (key === "move_legal_study") {
+        setLibraryMoveTarget({
+          record: f,
+          destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
+        });
+        return;
+      }
+      if (key === "move_legal_reference") {
+        setLibraryMoveTarget({
+          record: f,
+          destinationType: LIBRARY_DESTINATION.LEGAL_REFERENCE,
+        });
+        return;
+      }
+      if (key === "edit") {
+        setEditingFileId(f.id);
+        setEditFileTitle(displayTitle);
+        return;
+      }
+      if (key === "replace_file") {
+        setReplacingFileDoc(f);
+      }
+    };
 
     return React.createElement(
       "div",
@@ -4174,196 +6122,367 @@ const UnifiedNoteThread = ({
         // Title or edit input
         isEditingThisFile
           ? React.createElement("input", {
-              autoFocus: true,
-              value: editFileTitle,
-              onChange: (e) => setEditFileTitle(e.target.value),
-              onKeyDown: (e) => {
-                if (e.key === "Enter") handleSaveFileTitle(f);
-                if (e.key === "Escape") setEditingFileId(null);
-              },
+            autoFocus: true,
+            value: editFileTitle,
+            onChange: (e) => setEditFileTitle(e.target.value),
+            onKeyDown: (e) => {
+              if (e.key === "Enter") handleSaveFileTitle(f);
+              if (e.key === "Escape") setEditingFileId(null);
+            },
+            style: {
+              flex: 1,
+              fontSize: 13,
+              fontFamily: FONT,
+              border: "1px solid #1890ff",
+              borderRadius: 4,
+              padding: "3px 8px",
+              outline: "none",
+            },
+          })
+          : React.createElement(
+            "span",
+            {
+              onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
+              title: `Original file: ${rawFilename}`,
               style: {
-                flex: 1,
                 fontSize: 13,
                 fontFamily: FONT,
-                border: "1px solid #1890ff",
-                borderRadius: 4,
-                padding: "3px 8px",
-                outline: "none",
+                fontWeight: 600,
+                color: "#096dd9",
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                cursor: fullUrl ? "pointer" : "default",
+                textDecoration: fullUrl ? "underline" : "none",
+                textUnderlineOffset: 3,
               },
-            })
-          : React.createElement(
-              "span",
-              {
-                onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
-                title: `File gốc: ${rawFilename}`,
-                style: {
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  fontWeight: 600,
-                  color: "#096dd9",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  cursor: fullUrl ? "pointer" : "default",
-                  textDecoration: fullUrl ? "underline" : "none",
-                  textUnderlineOffset: 3,
-                },
-              },
-              displayTitle,
-            ),
+            },
+            displayTitle,
+          ),
         // Action buttons
         isEditingThisFile
           ? React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "span",
-                {
-                  onClick: () => handleSaveFileTitle(f),
-                  style: {
-                    fontSize: 12,
-                    padding: "2px 10px",
-                    cursor: "pointer",
-                    color: "#fff",
-                    background: "#1890ff",
-                    borderRadius: 4,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  },
+            React.Fragment,
+            null,
+            React.createElement(
+              "span",
+              {
+                onClick: () => handleSaveFileTitle(f),
+                style: {
+                  fontSize: 12,
+                  padding: "2px 10px",
+                  cursor: "pointer",
+                  color: "#fff",
+                  background: "#1890ff",
+                  borderRadius: 4,
+                  fontWeight: 600,
+                  flexShrink: 0,
                 },
-                "Lưu",
-              ),
-              React.createElement(
-                "span",
-                {
-                  onClick: () => setEditingFileId(null),
-                  style: {
-                    fontSize: 12,
-                    padding: "2px 8px",
-                    cursor: "pointer",
-                    color: "#595959",
-                    border: "1px solid #d9d9d9",
-                    borderRadius: 4,
-                    flexShrink: 0,
-                  },
-                },
-                "Hủy",
-              ),
-            )
-          : React.createElement(
-              React.Fragment,
-              null,
-              canIframe &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () =>
-                      setExpandedPreviews((prev) => ({
-                        ...prev,
-                        [f.id]: !prev[f.id],
-                      })),
-                    title: isExpanded ? "Ẩn preview" : "Xem preview",
-                    style: {
-                      fontSize: 12,
-                      padding: "2px 8px",
-                      cursor: "pointer",
-                      color: "#595959",
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 4,
-                      flexShrink: 0,
-                      fontWeight: 500,
-                    },
-                  },
-                  isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
-                ),
-              fullUrl &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      window.open(fullUrl, "_blank");
-                    },
-                    style: {
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#531dab",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      padding: "2px 8px",
-                      background: "#f9f0ff",
-                      borderRadius: 4,
-                      border: "1px solid #d3adf7",
-                    },
-                  },
-                  "Tải về",
-                ),
-              isMine &&
-                canEdit &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => {
-                      setEditingFileId(f.id);
-                      setEditFileTitle(displayTitle);
-                    },
-                    style: {
-                      fontSize: 12,
-                      padding: "2px 8px",
-                      cursor: "pointer",
-                      color: "#8c8c8c",
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 4,
-                      flexShrink: 0,
-                    },
-                  },
-                  "✏️",
-                ),
+              },
+              "Save",
             ),
+            React.createElement(
+              "span",
+              {
+                onClick: () => setEditingFileId(null),
+                style: {
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  cursor: "pointer",
+                  color: "#595959",
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  flexShrink: 0,
+                },
+              },
+              "Cancel",
+            ),
+          )
+          : React.createElement(
+            Dropdown,
+            {
+              trigger: ["click"],
+              placement: "bottomRight",
+              menu: {
+                items: fileActionItems,
+                onClick: handleFileActionClick,
+              },
+            },
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                title: "Actions",
+                onClick: (e) => e.stopPropagation(),
+                style: {
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  border: "1px solid #E5E7EB",
+                  background: "#FFFFFF",
+                  color: "#4B5563",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  padding: 0,
+                },
+              },
+              TASK_FILE_ACTION_ICONS.more,
+            ),
+          ),
       ),
       // ── Inline iframe preview ─────────────────────────────────
       isExpanded &&
-        fullUrl &&
+      fullUrl &&
+      renderTaskFilePreviewFrame({
+        fullUrl,
+        title: displayTitle,
+        isPdf,
+        isImage,
+        isOffice,
+        officeViewerUrl,
+        height: isOffice ? 660 : isPdf ? 620 : 440,
+      }),
+    );
+  };
+
+  const renderFileGroup = (files = []) => {
+    const safeFiles = (files || []).filter(Boolean);
+    if (safeFiles.length === 0) return null;
+    if (safeFiles.length === 1) return renderFileRow(safeFiles[0]);
+
+    const projectRootFolderId = String(extractId(projectFolderId) || "");
+    const folderIds = new Set(
+      safeFiles
+        .map((file) => String(extractId(file?.folderId) || ""))
+        .filter(Boolean),
+    );
+    const singleFolderId = folderIds.size === 1 ? Array.from(folderIds)[0] : "";
+    const pathList = safeFiles.map((file) =>
+      getFolderPathParts(file?.folderId, folderLookup),
+    );
+    const hasFolderStructure =
+      folderIds.size > 1 ||
+      (!!singleFolderId && singleFolderId !== projectRootFolderId);
+    const commonPrefixLength = hasFolderStructure
+      ? getCommonPrefixLength(pathList)
+      : 0;
+    const firstPath = pathList.find((path) => path.length > 0) || [];
+    const folderName =
+      firstPath[Math.max(0, commonPrefixLength - 1)] ||
+      firstPath[firstPath.length - 1] ||
+      "Folder";
+    const groupLabel = folderName;
+    const groupKey = [
+      hasFolderStructure ? "folder" : "files",
+      safeFiles[0]?.batchId || "",
+      firstPath.join("/"),
+      safeFiles.map((file) => extractId(file?.id)).filter(Boolean).join("_"),
+    ].join(":");
+    const isFolderExpanded = !!expandedFileGroups[groupKey];
+    const shouldRenderFiles = !hasFolderStructure || isFolderExpanded;
+    const shouldScrollFiles = safeFiles.length > 5;
+    const countBadge = React.createElement(
+      "span",
+      {
+        style: {
+          fontSize: 11,
+          fontWeight: 600,
+          color: "#4B5563",
+          background: "#F3F4F6",
+          border: "1px solid #E5E7EB",
+          borderRadius: 999,
+          padding: "2px 8px",
+          lineHeight: "16px",
+          flexShrink: 0,
+        },
+      },
+      `${safeFiles.length} file`,
+    );
+
+    if (!hasFolderStructure) {
+      return React.createElement(
+        "div",
+        {
+          style: {
+            marginTop: 8,
+            border: "1px solid #E5E7EB",
+            borderRadius: 8,
+            background: "#FFFFFF",
+            padding: "8px 10px 10px",
+          },
+        },
         React.createElement(
           "div",
-          { style: { borderTop: "1px solid #f0f0f0", background: "#f8f9fa" } },
-          isPdf
-            ? React.createElement("iframe", {
-                src: fullUrl,
-                style: {
-                  width: "100%",
-                  height: 420,
-                  border: "none",
-                  display: "block",
-                },
-                title: displayTitle,
-              })
-            : isImage
-              ? React.createElement("img", {
-                  src: fullUrl,
-                  alt: displayTitle,
-                  style: {
-                    width: "100%",
-                    maxHeight: 400,
-                    objectFit: "contain",
-                    display: "block",
-                    background: "#fff",
-                  },
-                })
-              : isOffice
-                ? React.createElement("iframe", {
-                    src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`,
-                    style: {
-                      width: "100%",
-                      height: 600,
-                      border: "none",
-                      display: "block",
-                    },
-                    title: displayTitle,
-                  })
-                : null,
+          {
+            style: {
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              marginBottom: 2,
+              minHeight: 20,
+            },
+          },
+          countBadge,
         ),
+        React.createElement(
+          "div",
+          {
+            style: {
+              maxHeight: shouldScrollFiles ? 310 : "none",
+              overflowY: shouldScrollFiles ? "auto" : "visible",
+              paddingRight: shouldScrollFiles ? 4 : 0,
+            },
+          },
+          ...safeFiles.map((file) =>
+            React.createElement(
+              "div",
+              { key: file.id || `${file.title}-${file.createdAt}` },
+              renderFileRow(file),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return React.createElement(
+      "div",
+      {
+        style: {
+          marginTop: 8,
+          border: "1px solid #E5E7EB",
+          borderRadius: 8,
+          background: "#FFFFFF",
+          overflow: "hidden",
+        },
+      },
+      React.createElement(
+        "div",
+        {
+          onClick: hasFolderStructure
+            ? () =>
+              setExpandedFileGroups((prev) => ({
+                ...prev,
+                [groupKey]: !prev[groupKey],
+              }))
+            : undefined,
+          style: {
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 12px",
+            background: "#F8FAFC",
+            borderBottom: shouldRenderFiles ? "1px solid #E5E7EB" : "none",
+            fontFamily: FONT,
+            cursor: hasFolderStructure ? "pointer" : "default",
+            userSelect: "none",
+          },
+        },
+        hasFolderStructure &&
+        React.createElement(
+          "span",
+          {
+            style: {
+              width: 16,
+              color: "#6B7280",
+              fontSize: 12,
+              transform: isFolderExpanded ? "rotate(90deg)" : "rotate(0deg)",
+              transition: "transform 0.15s",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            },
+          },
+          "▶",
+        ),
+        React.createElement(
+          "span",
+          {
+            style: {
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              background: hasFolderStructure ? "#EFF6FF" : "#F3F4F6",
+              color: hasFolderStructure ? "#185FA5" : "#4B5563",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            },
+          },
+          hasFolderStructure
+            ? TASK_FILE_ACTION_ICONS.folder
+            : TASK_FILE_ACTION_ICONS.files,
+        ),
+        React.createElement(
+          "div",
+          {
+            style: {
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            },
+          },
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#111827",
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              },
+            },
+            groupLabel,
+          ),
+          countBadge,
+        ),
+      ),
+      shouldRenderFiles &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "2px 10px 10px",
+            maxHeight: shouldScrollFiles ? 310 : "none",
+            overflowY: shouldScrollFiles ? "auto" : "visible",
+          },
+        },
+        ...safeFiles.map((file) => {
+          const pathParts = getFolderPathParts(file?.folderId, folderLookup);
+          const relativeLabel = hasFolderStructure
+            ? pathParts.slice(commonPrefixLength).join(" / ")
+            : "";
+          return React.createElement(
+            "div",
+            { key: file.id || `${file.title}-${file.createdAt}` },
+            relativeLabel &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  margin: "8px 2px -2px",
+                  fontSize: 11,
+                  color: "#6B7280",
+                  fontFamily: FONT,
+                },
+              },
+              relativeLabel,
+            ),
+            renderFileRow(file),
+          );
+        }),
+      ),
     );
   };
 
@@ -4374,7 +6493,7 @@ const UnifiedNoteThread = ({
       ? authorName(note)
       : firstFile?.createdBy
         ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-        : "Hệ thống";
+        : "System";
     const time = note?.createdAt || firstFile?.createdAt;
     const hasBody = !!note?.body;
     const hasFiles = files.length > 0;
@@ -4406,8 +6525,8 @@ const UnifiedNoteThread = ({
         {
           style: {
             display: "flex",
-            gap: 12,
-            padding: "16px 20px",
+            gap: 10,
+            padding: "14px 16px",
             borderBottom: isChild ? "none" : "1px solid #f0f0f0",
             borderLeft: isChild ? "2px solid #e6f4ff" : "none",
             marginLeft: 0,
@@ -4461,322 +6580,595 @@ const UnifiedNoteThread = ({
           ),
           isEditing
             ? React.createElement(
+              "div",
+              { style: { marginTop: 10 } },
+              React.createElement(CommentComposer, {
+                value: editBody,
+                onChange: setEditBody,
+                onAssignMultiple: setEditAssignedIds,
+                assignedIds: editAssignedIds,
+                lawyers,
+                onSubmit: () => handleSaveEdit(note.id),
+              }),
+              React.createElement(
                 "div",
-                { style: { marginTop: 10 } },
-                React.createElement(CommentComposer, {
-                  value: editBody,
-                  onChange: setEditBody,
-                  onAssignMultiple: setEditAssignedIds,
-                  assignedIds: editAssignedIds,
-                  lawyers,
-                  onSubmit: () => handleSaveEdit(note.id),
-                }),
+                {
+                  style: {
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                    marginTop: 8,
+                  },
+                },
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => {
+                      setEditingNoteId(null);
+                      setEditBody("");
+                      setEditAssignedIds([]);
+                    },
+                    style: {
+                      fontSize: 12,
+                      padding: "4px 12px",
+                      cursor: "pointer",
+                      color: "#595959",
+                      border: "1px solid #d9d9d9",
+                      borderRadius: 4,
+                      fontFamily: FONT,
+                    },
+                  },
+                  "Cancel",
+                ),
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => handleSaveEdit(note.id),
+                    style: {
+                      fontSize: 12,
+                      padding: "4px 16px",
+                      cursor: "pointer",
+                      color: "#fff",
+                      background: "#1890ff",
+                      borderRadius: 4,
+                      fontWeight: 600,
+                      fontFamily: FONT,
+                    },
+                  },
+                  "Save changes",
+                ),
+              ),
+            )
+            : (hasBody || hasFiles) &&
+            React.createElement(
+              "div",
+              null,
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    fontSize: 13,
+                    fontFamily: FONT,
+                    color: "#262626",
+                    lineHeight: 1.7,
+                    background: hasFiles && !hasBody ? "transparent" : "#f8f9fa",
+                    borderRadius: hasFiles && !hasBody ? 0 : 8,
+                    padding: hasFiles && !hasBody ? 0 : "12px 14px",
+                    borderLeft: hasFiles && !hasBody ? "none" : "3px solid #1890ff",
+                  },
+                },
+                !isChild &&
+                note?.replyText &&
                 React.createElement(
                   "div",
                   {
                     style: {
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 8,
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#595959",
+                      background: "#fff",
+                      border: "1px solid #e8e8e8",
+                      borderLeft: "3px solid #bfbfbf",
+                      borderRadius: "4px",
+                      padding: "6px 10px",
+                      marginBottom: 8,
+                      whiteSpace: "pre-wrap",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    },
+                  },
+                  React.createElement(
+                    "b",
+                    { style: { color: "#8c8c8c", marginRight: 4 } },
+                    "Quote:",
+                  ),
+                  " ",
+                  note.replyText,
+                ),
+                hasBody &&
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      marginBottom: hasFiles ? 8 : 0,
+                    },
+                  },
+                  renderRichText(note.body, lawyers),
+                ),
+                note?.assignees &&
+                note.assignees.length > 0 &&
+                React.createElement(
+                  "div",
+                  {
+                    style: {
                       marginTop: 8,
+                      display: "flex",
+                      gap: 6,
+                      flexWrap: "wrap",
+                      alignItems: "center",
                     },
                   },
                   React.createElement(
                     "span",
                     {
-                      onClick: () => {
-                        setEditingNoteId(null);
-                        setEditBody("");
-                        setEditAssignedIds([]);
-                      },
                       style: {
                         fontSize: 12,
-                        padding: "4px 12px",
-                        cursor: "pointer",
-                        color: "#595959",
-                        border: "1px solid #d9d9d9",
-                        borderRadius: 4,
+                        color: "#8c8c8c",
                         fontFamily: FONT,
                       },
                     },
-                    "Hủy",
+                    "Mentioned:",
                   ),
-                  React.createElement(
-                    "span",
-                    {
-                      onClick: () => handleSaveEdit(note.id),
-                      style: {
-                        fontSize: 12,
-                        padding: "4px 16px",
-                        cursor: "pointer",
-                        color: "#fff",
-                        background: "#1890ff",
-                        borderRadius: 4,
-                        fontWeight: 600,
-                        fontFamily: FONT,
-                      },
-                    },
-                    "Lưu thay đổi",
-                  ),
-                ),
-              )
-            : (hasBody || hasFiles) &&
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 13,
-                        fontFamily: FONT,
-                        color: "#262626",
-                        lineHeight: 1.7,
-                        background: "#f8f9fa",
-                        borderRadius: 8,
-                        padding: "12px 14px",
-                        borderLeft: "3px solid #1890ff",
-                      },
-                    },
-                    !isChild &&
-                      note?.replyText &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#595959",
-                            background: "#fff",
-                            border: "1px solid #e8e8e8",
-                            borderLeft: "3px solid #bfbfbf",
-                            borderRadius: "4px",
-                            padding: "6px 10px",
-                            marginBottom: 8,
-                            whiteSpace: "pre-wrap",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          },
-                        },
-                        React.createElement(
-                          "b",
-                          { style: { color: "#8c8c8c", marginRight: 4 } },
-                          "Trích dẫn:",
-                        ),
-                        " ",
-                        note.replyText,
-                      ),
-                    hasBody &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            marginBottom: hasFiles ? 8 : 0,
-                          },
-                        },
-                        renderRichText(note.body, lawyers),
-                      ),
-                    note?.assignees &&
-                      note.assignees.length > 0 &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            marginTop: 8,
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          },
-                        },
-                        React.createElement(
-                          "span",
-                          {
-                            style: {
-                              fontSize: 12,
-                              color: "#8c8c8c",
-                              fontFamily: FONT,
-                            },
-                          },
-                          "Đã nhắc đến:",
-                        ),
-                        ...note.assignees.map((assigneeItem) => {
-                          const assigneeId =
-                            typeof assigneeItem === "object" &&
-                            assigneeItem !== null
-                              ? assigneeItem.id
-                              : assigneeItem;
-                          const l = lawyers?.find((lw) => lw.id === assigneeId);
-                          if (!l) return null;
-                          return React.createElement(
-                            "span",
-                            {
-                              key: l.id,
-                              style: {
-                                fontSize: 12,
-                                color: "#096dd9",
-                                background: "#e6f4ff",
-                                border: "1px solid #91caff",
-                                padding: "2px 8px",
-                                borderRadius: 4,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                fontFamily: FONT,
-                                fontWeight: 500,
-                              },
-                            },
-                            "@",
-                            l.lawyerName,
-                          );
-                        }),
-                      ),
-                    ...files.map((f) => renderFileRow(f)),
-                  ),
-                  (note || files.length > 0) &&
-                    (canEdit || isMyItem) &&
-                    !isEditing &&
-                    React.createElement(
-                      "div",
+                  ...note.assignees.map((assigneeItem) => {
+                    const assigneeId =
+                      typeof assigneeItem === "object" &&
+                        assigneeItem !== null
+                        ? assigneeItem.id
+                        : assigneeItem;
+                    const l = lawyers?.find((lw) => lw.id === assigneeId);
+                    if (!l) return null;
+                    return React.createElement(
+                      "span",
                       {
+                        key: l.id,
                         style: {
-                          display: "flex",
+                          fontSize: 12,
+                          color: "#096dd9",
+                          background: "#e6f4ff",
+                          border: "1px solid #91caff",
+                          padding: "2px 8px",
+                          borderRadius: 4,
+                          display: "inline-flex",
                           alignItems: "center",
-                          gap: 12,
-                          marginTop: 6,
-                          paddingLeft: 4,
+                          fontFamily: FONT,
+                          fontWeight: 500,
                         },
                       },
-                      React.createElement(
-                        "span",
-                        {
-                          onClick: () => setReplyingTo(item),
-                          style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#52c41a",
-                            cursor: "pointer",
-                            textDecoration: "underline",
-                            textUnderlineOffset: "2px",
-                          },
-                          onMouseEnter: (e) =>
-                            (e.currentTarget.style.color = "#389e0d"),
-                          onMouseLeave: (e) =>
-                            (e.currentTarget.style.color = "#52c41a"),
-                        },
-                        "Phản hồi",
-                      ),
-                      isMyItem &&
-                        note &&
-                        React.createElement(
-                          "span",
-                          {
-                            onClick: () => {
-                              setEditingNoteId(note.id);
-                              setEditBody(note.body || "");
-                              setEditAssignedIds(
-                                (note.assignees || []).map((a) =>
-                                  typeof a === "object" ? a.id : a,
-                                ),
-                              );
-                            },
-                            style: {
-                              fontSize: 12,
-                              fontFamily: FONT,
-                              color: "#595959",
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                              (e.currentTarget.style.color = "#1890ff"),
-                            onMouseLeave: (e) =>
-                              (e.currentTarget.style.color = "#595959"),
-                          },
-                          "Chỉnh sửa",
-                        ),
-                      isMyItem &&
-                        React.createElement(
-                          "span",
-                          {
-                            onClick: () => handleDeleteNote(item),
-                            style: {
-                              fontSize: 12,
-                              fontFamily: FONT,
-                              color: "#ff4d4f",
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                              (e.currentTarget.style.color = "#cf1322"),
-                            onMouseLeave: (e) =>
-                              (e.currentTarget.style.color = "#ff4d4f"),
-                          },
-                          "Xóa",
-                        ),
-                    ),
+                      "@",
+                      l.lawyerName,
+                    );
+                  }),
                 ),
+                renderFileGroup(files),
+              ),
+              (note || files.length > 0) &&
+              (canEdit || isMyItem) &&
+              !isEditing &&
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    marginTop: 6,
+                    paddingLeft: 4,
+                  },
+                },
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => setReplyingTo(item),
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#52c41a",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#389e0d"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#52c41a"),
+                  },
+                  "Reply",
+                ),
+                isMyItem &&
+                note &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => {
+                      setEditingNoteId(note.id);
+                      setEditBody(note.body || "");
+                      setEditAssignedIds(
+                        (note.assignees || []).map((a) =>
+                          typeof a === "object" ? a.id : a,
+                        ),
+                      );
+                    },
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#595959",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#1890ff"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#595959"),
+                  },
+                  "Edit",
+                ),
+                isMyItem &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => handleDeleteNote(item),
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#ff4d4f",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#cf1322"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#ff4d4f"),
+                  },
+                  "Delete",
+                ),
+              ),
+            ),
           isReplyingToThis ? renderComposerBlock(true) : null,
         ),
       ),
       hasReplies &&
+      React.createElement(
+        "div",
+        {
+          style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
+        },
         React.createElement(
           "div",
           {
-            style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
-          },
-          React.createElement(
-            "div",
-            {
-              onClick: () =>
-                setExpandedThreads((p) => ({ ...p, [note.id]: !p[note.id] })),
-              style: {
-                fontSize: 12,
-                color: "#1890ff",
-                cursor: "pointer",
-                fontWeight: 600,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 12px",
-                background: "#f0f8ff",
-                borderRadius: 4,
-                border: "1px dashed #91caff",
-                userSelect: "none",
-              },
+            onClick: () =>
+              setExpandedThreads((p) => ({ ...p, [note.id]: !p[note.id] })),
+            style: {
+              fontSize: 12,
+              color: "#1890ff",
+              cursor: "pointer",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 12px",
+              background: "#f0f8ff",
+              borderRadius: 4,
+              border: "1px dashed #91caff",
+              userSelect: "none",
             },
-            isExpanded
-              ? "▲ Thu gọn phản hồi"
-              : `▼ Xem ${replies.length} phản hồi`,
-            !isExpanded &&
-              React.createElement(
-                Avatar.Group,
-                { size: "small", maxCount: 3 },
-                replies.map((r, i) =>
-                  React.createElement(Av, {
-                    key: i,
-                    name: r.note ? authorName(r.note) : "Ẩn danh",
-                    size: 16,
-                  }),
-                ),
-              ),
-          ),
-          isExpanded &&
-            React.createElement(
-              "div",
-              { style: { marginTop: 8 } },
-              ...replies.map((child, idx) =>
-                renderItem(child, `${key}-child-${idx}`, true),
-              ),
+          },
+          isExpanded
+            ? "▲ Collapse replies"
+            : `▼ View ${replies.length} replies`,
+          !isExpanded &&
+          React.createElement(
+            Avatar.Group,
+            { size: "small", maxCount: 3 },
+            replies.map((r, i) =>
+              React.createElement(Av, {
+                key: i,
+                name: r.note ? authorName(r.note) : "Anonymous",
+                size: 16,
+              }),
             ),
+          ),
         ),
+        isExpanded &&
+        React.createElement(
+          "div",
+          { style: { marginTop: 8 } },
+          ...replies.map((child, idx) =>
+            renderItem(child, `${key}-child-${idx}`, true),
+          ),
+        ),
+      ),
     );
+  };
+
+  const triggerReplacePendingFile = (index) => {
+    pendingReplaceTargetRef.current = index;
+    pendingReplaceInputRef.current?.click();
+  };
+
+  const handlePendingReplaceFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    const index = pendingReplaceTargetRef.current;
+    pendingReplaceTargetRef.current = null;
+    if (!file || index == null || !pendingDocs[index]) return;
+    setReplacingPendingIndex(index);
+    try {
+      const attachment = await uploadTaskAttachment(file, file.name);
+      setPendingDocs((prev) =>
+        prev.map((doc, i) => {
+          if (i !== index) return doc;
+          const oldRelativePath = String(doc.relativePath || "");
+          const pathParts = oldRelativePath.split("/").filter(Boolean);
+          pathParts.pop();
+          const newRelativePath = pathParts.length
+            ? [...pathParts, file.name].join("/")
+            : file.name;
+          const hadAutoTitle = doc.docTitle === doc.fileName;
+          return {
+            ...doc,
+            attIds: [{ id: attachment.id }],
+            fileName: file.name,
+            fileSize: file.size || 0,
+            relativePath: oldRelativePath ? newRelativePath : doc.relativePath,
+            docTitle: hadAutoTitle ? file.name : doc.docTitle,
+          };
+        }),
+      );
+      message.success("File replaced");
+    } catch (e) {
+      message.error("Failed to replace file: " + (e?.message || "Please try again"));
+    } finally {
+      setReplacingPendingIndex(null);
+    }
   };
 
   const renderPendingChips = () => {
     if (pendingDocs.length === 0) return null;
+    const shouldRenderGrouped =
+      pendingDocs.length > 1 || pendingDocs.some((doc) => doc.uploadKind === "folder");
+    if (shouldRenderGrouped) {
+      const groups = [];
+      const groupMap = {};
+      pendingDocs.forEach((doc, index) => {
+        const key = doc.uploadGroupId || `single_${index}`;
+        if (!groupMap[key]) {
+          groupMap[key] = { key, items: [] };
+          groups.push(groupMap[key]);
+        }
+        groupMap[key].items.push({ ...doc, _index: index });
+      });
+      return React.createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            gap: 8,
+            flexDirection: "column",
+            marginTop: 12,
+          },
+        },
+        ...groups.map((group) => {
+          const first = group.items[0] || {};
+          const isFolder = first.uploadKind === "folder";
+          const folderName =
+            String(first.relativePath || "").split("/").filter(Boolean)[0] ||
+            "Folder";
+          const groupTitle = isFolder
+            ? `Folder: ${folderName}`
+            : `${group.items.length} attached files`;
+          return React.createElement(
+            "div",
+            {
+              key: group.key,
+              style: {
+                background: "#F8FAFC",
+                border: "1px solid #E5E7EB",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 12,
+                fontFamily: FONT,
+              },
+            },
+            React.createElement(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 8 } },
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    width: 22,
+                    height: 22,
+                    borderRadius: 6,
+                    color: isFolder ? "#185FA5" : "#4B5563",
+                    background: isFolder ? "#EFF6FF" : "#FFFFFF",
+                    border: "1px solid #E5E7EB",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  },
+                },
+                isFolder
+                  ? TASK_FILE_ACTION_ICONS.folder
+                  : TASK_FILE_ACTION_ICONS.files,
+              ),
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    color: "#111827",
+                    fontWeight: 700,
+                  },
+                },
+                groupTitle,
+              ),
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    color: "#D97706",
+                    background: "#FFF7ED",
+                    border: "1px solid #FDBA74",
+                    borderRadius: 999,
+                    padding: "1px 8px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                  },
+                },
+                "Pending",
+              ),
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () =>
+                    setPendingDocs((prev) =>
+                      prev.filter(
+                        (_, index) =>
+                          !group.items.some((item) => item._index === index),
+                      ),
+                    ),
+                  style: {
+                    border: "none",
+                    background: "transparent",
+                    color: "#DC2626",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: "0 2px",
+                  },
+                },
+                "×",
+              ),
+            ),
+            React.createElement(
+              "div",
+              {
+                style: {
+                  marginTop: 8,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                },
+              },
+              ...group.items.slice(0, 8).map((doc) =>
+                React.createElement(
+                  "div",
+                  {
+                    key: `${group.key}_${doc._index}`,
+                    style: {
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "#FFFFFF",
+                      border: "1px solid #EEF2F7",
+                      borderRadius: 6,
+                      padding: "5px 8px",
+                      color: "#374151",
+                    },
+                  },
+                  React.createElement(
+                    "span",
+                    {
+                      title: doc.relativePath || doc.fileName,
+                      style: {
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      },
+                    },
+                    doc.relativePath || doc.fileName,
+                  ),
+                  formatUploadSize(doc.fileSize) &&
+                  React.createElement(
+                    "span",
+                    {
+                      style: {
+                        color: "#9CA3AF",
+                        fontSize: 11,
+                        flexShrink: 0,
+                      },
+                    },
+                    formatUploadSize(doc.fileSize),
+                  ),
+                  React.createElement(
+                    "button",
+                    {
+                      type: "button",
+                      title: "Replace file",
+                      disabled: replacingPendingIndex === doc._index,
+                      onClick: () => triggerReplacePendingFile(doc._index),
+                      style: {
+                        border: "none",
+                        background: "transparent",
+                        color: "#185FA5",
+                        cursor:
+                          replacingPendingIndex === doc._index
+                            ? "wait"
+                            : "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: 0,
+                        flexShrink: 0,
+                        opacity: replacingPendingIndex === doc._index ? 0.5 : 1,
+                      },
+                    },
+                    TASK_FILE_ACTION_ICONS.replace,
+                  ),
+                ),
+              ),
+              group.items.length > 8 &&
+              React.createElement(
+                "div",
+                { style: { color: "#6B7280", fontSize: 11, paddingLeft: 2 } },
+                `+${group.items.length - 8} more files`,
+              ),
+            ),
+            first.metadata?.note &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  marginTop: 6,
+                  color: "#262626",
+                  padding: "6px 10px",
+                  background: "rgba(255,255,255,0.7)",
+                  borderRadius: 4,
+                },
+              },
+              React.createElement(
+                "span",
+                { style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 } },
+                "Note content:",
+              ),
+              first.metadata.note,
+            ),
+          );
+        }),
+      );
+    }
     return React.createElement(
       "div",
       {
@@ -4788,7 +7180,7 @@ const UnifiedNoteThread = ({
         },
       },
       ...pendingDocs.map((doc, i) => {
-        const name = doc.metadata.title || doc.fileName || "Tài liệu";
+        const name = doc.metadata.title || doc.fileName || "Document";
         return React.createElement(
           "div",
           {
@@ -4834,7 +7226,28 @@ const UnifiedNoteThread = ({
                   fontWeight: 600,
                 },
               },
-              "Chờ gửi",
+              "Pending",
+            ),
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                title: "Replace file",
+                disabled: replacingPendingIndex === i,
+                onClick: () => triggerReplacePendingFile(i),
+                style: {
+                  border: "none",
+                  background: "transparent",
+                  color: "#185FA5",
+                  cursor: replacingPendingIndex === i ? "wait" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: 0,
+                  flexShrink: 0,
+                  opacity: replacingPendingIndex === i ? 0.5 : 1,
+                },
+              },
+              TASK_FILE_ACTION_ICONS.replace,
             ),
             React.createElement(
               "span",
@@ -4854,26 +7267,26 @@ const UnifiedNoteThread = ({
             ),
           ),
           doc.metadata.note &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  marginTop: 6,
-                  color: "#262626",
-                  padding: "6px 10px",
-                  background: "rgba(255,255,255,0.7)",
-                  borderRadius: 4,
-                },
+          React.createElement(
+            "div",
+            {
+              style: {
+                marginTop: 6,
+                color: "#262626",
+                padding: "6px 10px",
+                background: "rgba(255,255,255,0.7)",
+                borderRadius: 4,
               },
-              React.createElement(
-                "span",
-                {
-                  style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
-                },
-                "Nội dung ghi chú:",
-              ),
-              doc.metadata.note,
+            },
+            React.createElement(
+              "span",
+              {
+                style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
+              },
+              "Note content:",
             ),
+            doc.metadata.note,
+          ),
         );
       }),
     );
@@ -4914,71 +7327,71 @@ const UnifiedNoteThread = ({
         },
       },
       replyingTo &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "8px 12px",
+            background: "#f5f5f5",
+            borderLeft: "3px solid #1890ff",
+            marginBottom: 10,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            borderRadius: "0 4px 4px 0",
+          },
+        },
         React.createElement(
           "div",
-          {
-            style: {
-              padding: "8px 12px",
-              background: "#f5f5f5",
-              borderLeft: "3px solid #1890ff",
-              marginBottom: 10,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              borderRadius: "0 4px 4px 0",
-            },
-          },
+          null,
           React.createElement(
             "div",
-            null,
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#8c8c8c",
-                  fontFamily: FONT,
-                },
+            {
+              style: {
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#8c8c8c",
+                fontFamily: FONT,
               },
-              "Đang trả lời ",
-              replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
-            ),
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  color: "#595959",
-                  fontFamily: FONT,
-                  marginTop: 4,
-                  whiteSpace: "pre-wrap",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                },
-              },
-              replyingTo.note?.body
-                ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
-                : "Tài liệu đính kèm",
-            ),
+            },
+            "Replying to ",
+            replyingTo.note ? authorName(replyingTo.note) : "Document",
           ),
           React.createElement(
             "div",
             {
-              onClick: () => setReplyingTo(null),
               style: {
-                cursor: "pointer",
-                color: "#bfbfbf",
-                fontSize: 16,
-                lineHeight: 1,
-                padding: "0 4px",
+                fontSize: 12,
+                color: "#595959",
+                fontFamily: FONT,
+                marginTop: 4,
+                whiteSpace: "pre-wrap",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
               },
             },
-            "×",
+            replyingTo.note?.body
+              ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
+              : "Attached document",
           ),
         ),
+        React.createElement(
+          "div",
+          {
+            onClick: () => setReplyingTo(null),
+            style: {
+              cursor: "pointer",
+              color: "#bfbfbf",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: "0 4px",
+            },
+          },
+          "×",
+        ),
+      ),
       React.createElement(CommentComposer, {
         value: body,
         onChange: setBody,
@@ -5025,7 +7438,7 @@ const UnifiedNoteThread = ({
               border: "none",
             },
           },
-          sending ? "Đang gửi..." : "Bình luận",
+          sending ? "Sending..." : "Comment",
         ),
       ),
     );
@@ -5033,79 +7446,132 @@ const UnifiedNoteThread = ({
 
   return React.createElement(
     "div",
-    { style: { height: "100%", overflowY: "auto", background: "#fff" } },
+    {
+      style: {
+        height: "100%",
+        overflowY: "auto",
+        overflowX: "hidden",
+        background: "#fff",
+      },
+    },
     !replyingTo ? renderComposerBlock(false) : null,
     React.createElement(
       "div",
       { style: { paddingBottom: 24 } },
       loading
         ? React.createElement(
-            "div",
-            { style: { textAlign: "center", padding: "24px 0" } },
-            React.createElement(Spin, { size: "small" }),
-          )
+          "div",
+          { style: { textAlign: "center", padding: "24px 0" } },
+          React.createElement(Spin, { size: "small" }),
+        )
         : feed.length === 0
           ? React.createElement(
+            "div",
+            {
+              style: {
+                textAlign: "center",
+                padding: "32px 0",
+                fontSize: 13,
+                fontFamily: FONT,
+                color: "#bfbfbf",
+              },
+            },
+            "No comments or documents yet",
+          )
+          : React.createElement(
+            "div",
+            null,
+            ...rootItems.map((item, i) => renderItem(item, `item-${i}`)),
+            hasMore &&
+            React.createElement(
               "div",
               {
+                onClick: () => setShowAll((v) => !v),
                 style: {
+                  margin: "16px",
                   textAlign: "center",
-                  padding: "32px 0",
-                  fontSize: 13,
+                  fontSize: 12,
                   fontFamily: FONT,
-                  color: "#bfbfbf",
+                  color: "#1890ff",
+                  cursor: "pointer",
+                  padding: "7px 0",
+                  border: "1px dashed #91caff",
+                  borderRadius: 6,
+                  background: "#f0f8ff",
                 },
+                onMouseEnter: (e) =>
+                  (e.currentTarget.style.background = "#d6ecff"),
+                onMouseLeave: (e) =>
+                  (e.currentTarget.style.background = "#f0f8ff"),
               },
-              "Chưa có bình luận hay tài liệu nào",
-            )
-          : React.createElement(
-              "div",
-              null,
-              ...rootItems.map((item, i) => renderItem(item, `item-${i}`)),
-              hasMore &&
-                React.createElement(
-                  "div",
-                  {
-                    onClick: () => setShowAll((v) => !v),
-                    style: {
-                      margin: "16px",
-                      textAlign: "center",
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#1890ff",
-                      cursor: "pointer",
-                      padding: "7px 0",
-                      border: "1px dashed #91caff",
-                      borderRadius: 6,
-                      background: "#f0f8ff",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.background = "#d6ecff"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.background = "#f0f8ff"),
-                  },
-                  showAll
-                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${feed.length})`
-                    : `▼ Xem thêm ${feed.length - INITIAL_COUNT} bình luận (tổng ${feed.length})`,
-                ),
+              showAll
+                ? `▲ Collapse (showing ${INITIAL_COUNT} of ${feed.length})`
+                : `▼ View ${feed.length - INITIAL_COUNT} more comments (${feed.length} total)`,
             ),
+          ),
     ),
+    React.createElement("input", {
+      key: "pending-replace-input",
+      ref: pendingReplaceInputRef,
+      type: "file",
+      style: { display: "none" },
+      onChange: handlePendingReplaceFileChange,
+    }),
     previewDoc &&
-      React.createElement(PreviewModal, {
-        doc: previewDoc,
-        onClose: () => setPreviewDoc(null),
-      }),
+    React.createElement(PreviewModal, {
+      doc: previewDoc,
+      onClose: () => setPreviewDoc(null),
+    }),
     React.createElement(FileUploadModal, {
       open: showUploadModal,
       onClose: () => setShowUploadModal(false),
       onAddPending: (newDocData) =>
-        setPendingDocs((prev) => [...prev, newDocData]),
+        setPendingDocs((prev) => [
+          ...prev,
+          ...(Array.isArray(newDocData) ? newDocData : [newDocData]),
+        ]),
       collectionName,
       recordId,
       currentUser,
       currentLawyerId,
       lawyers,
       projectFolderId,
+      caseId,
+    }),
+    replacingFileDoc &&
+    React.createElement(FileUploadModal, {
+      open: !!replacingFileDoc,
+      editDoc: replacingFileDoc,
+      onClose: () => setReplacingFileDoc(null),
+      onSuccess: () => {
+        setReplacingFileDoc(null);
+        reload();
+      },
+      collectionName,
+      recordId,
+      currentUser,
+      currentLawyerId,
+      lawyers,
+      projectFolderId,
+      caseId,
+    }),
+    libraryMoveTarget &&
+    React.createElement(LibraryMoveModal, {
+      open: !!libraryMoveTarget,
+      record: libraryMoveTarget.record,
+      destinationType: libraryMoveTarget.destinationType,
+      sourceContext: {
+        collectionName,
+        recordId,
+        caseId,
+        ...taskContext,
+      },
+      currentUser,
+      onClose: () => setLibraryMoveTarget(null),
+      onSuccess: () => {
+        setLibraryMoveTarget(null);
+        reload();
+      },
     }),
   );
 };
@@ -5155,85 +7621,459 @@ const PreviewModal = ({ doc, onClose }) => {
       open: !!doc,
       onCancel: onClose,
       centered: true,
-      width: isPdf || isOffice ? "88%" : "auto",
+      width: isPdf || isOffice ? "96vw" : "auto",
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
         displayName,
       ),
-      bodyStyle: { padding: 0 },
+      bodyStyle: {
+        padding: 0,
+        maxWidth: "100%",
+        overflowX: "hidden",
+        overflowY: "hidden",
+      },
       footer: [
         fullUrl &&
-          React.createElement(
-            Button,
-            {
-              key: "dl",
-              onClick: () => window.open(fullUrl, "_blank"),
-            },
-            "⬇️ Tải về",
-          ),
-        React.createElement(Button, { key: "cl", onClick: onClose }, "Đóng"),
+        React.createElement(
+          Button,
+          {
+            key: "dl",
+            onClick: () => window.open(fullUrl, "_blank"),
+          },
+          "⬇️ Download",
+        ),
+        React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
       ].filter(Boolean),
     },
-    // PDF
-    isPdf &&
-      fullUrl &&
-      React.createElement("iframe", {
-        src: fullUrl,
-        style: {
-          width: "100%",
-          height: "80vh",
-          border: "none",
-          display: "block",
-        },
-        title: displayName,
-      }),
-    // Image
-    isImage &&
-      fullUrl &&
-      React.createElement("img", {
-        src: fullUrl,
-        alt: displayName,
-        style: {
-          maxWidth: "100%",
-          maxHeight: "80vh",
-          display: "block",
-          margin: "0 auto",
-          padding: 16,
-        },
-      }),
-    // Office — Microsoft Web Viewer
-    isOffice &&
-      officeViewerUrl &&
-      React.createElement(
-        "div",
-        { style: { padding: 0 } },
-        React.createElement("iframe", {
-          src: officeViewerUrl,
-          style: {
-            width: "100%",
-            height: "80vh",
-            border: "none",
-            display: "block",
-          },
-          title: displayName,
-          frameBorder: "0",
-        }),
-      ),
+    renderTaskFilePreviewFrame({
+      fullUrl,
+      title: displayName,
+      isPdf,
+      isImage,
+      isOffice,
+      officeViewerUrl,
+      height: "82vh",
+      modal: true,
+    }),
     // Fallback
     !isPdf &&
-      !isImage &&
-      !isOffice &&
+    !isImage &&
+    !isOffice &&
+    React.createElement(
+      "div",
+      {
+        style: { padding: 32, textAlign: "center" },
+      },
+      React.createElement(Empty, {
+        description:
+          "Cannot preview this file type — please download to open",
+      }),
+    ),
+  );
+};
+
+const LibraryMoveModal = ({
+  open,
+  record,
+  destinationType,
+  sourceContext,
+  currentUser,
+  onClose,
+  onSuccess,
+}) => {
+  const config = getLibraryDestinationConfig(destinationType);
+  const [parentRecords, setParentRecords] = useState([]);
+  const [selectedRecordId, setSelectedRecordId] = useState(null);
+  const [folderTree, setFolderTree] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [targetFolderId, setTargetFolderId] = useState("root");
+  const [loading, setLoading] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const isFolder = record?._type === "folder";
+  const sourceLabel =
+    getLegalStudySourceLabel(record) ||
+    sourceContext?.subTaskTitle ||
+    sourceContext?.taskTitle ||
+    "";
+  const att = Array.isArray(record?.fileAttachment)
+    ? record.fileAttachment[0]
+    : record?.fileAttachment;
+  const recordName =
+    record?.title ||
+    record?.name ||
+    att?.title ||
+    att?.filename ||
+    (isFolder ? "Folder" : "Document");
+  const selectedParentRecord = parentRecords.find(
+    (item) =>
+      String(getLibraryRecordId(item, destinationType) || "") ===
+      String(selectedRecordId || ""),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const loadRecords = async () => {
+      setLoading(true);
+      const rows = await fetchLibraryDestinationRecords(destinationType);
+      if (cancelled) return;
+      setParentRecords(rows);
+      const currentParentId = getRecordDestinationId(record, destinationType);
+      const hasCurrentParent = rows.some(
+        (item) =>
+          String(getLibraryRecordId(item, destinationType) || "") ===
+          String(currentParentId || ""),
+      );
+      setSelectedRecordId(
+        hasCurrentParent ? String(currentParentId) : null,
+      );
+      setTargetFolderId("root");
+      setFolders([]);
+      setFolderTree([]);
+      setLoading(false);
+    };
+    loadRecords();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, record?.id, destinationType]);
+
+  useEffect(() => {
+    if (!open || !selectedRecordId) {
+      setFolders([]);
+      setFolderTree([]);
+      setTargetFolderId("root");
+      return;
+    }
+    let cancelled = false;
+    const loadFolders = async () => {
+      setLoadingFolders(true);
+      const rows = await fetchLibraryDestinationFolders(
+        destinationType,
+        selectedRecordId,
+      );
+      if (cancelled) return;
+      const selected = parentRecords.find(
+        (item) =>
+          String(getLibraryRecordId(item, destinationType) || "") ===
+          String(selectedRecordId),
+      );
+      setFolders(rows);
+      setFolderTree(
+        buildLibraryFolderTree(
+          rows,
+          getLibraryRecordDisplayName(selected, destinationType) || config.label,
+        ),
+      );
+      const currentFolderId = extractId(record?.folderId);
+      const folderBelongsToSelectedRecord = rows.some(
+        (folder) => extractId(folder?.id) === currentFolderId,
+      );
+      setTargetFolderId(
+        folderBelongsToSelectedRecord ? String(currentFolderId) : "root",
+      );
+      setLoadingFolders(false);
+    };
+    loadFolders();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    selectedRecordId,
+    destinationType,
+    record?.folderId,
+    parentRecords,
+  ]);
+
+  const getFolderName = (folderId) => {
+    const id = String(extractId(folderId) || "");
+    if (!id) {
+      return (
+        getLibraryRecordDisplayName(selectedParentRecord, destinationType) ||
+        config.label
+      );
+    }
+    const folder = folders.find((item) => String(extractId(item.id)) === id);
+    return folder?.name || folder?.title || `${config.label} / Folder #${id}`;
+  };
+
+  const handleSubmit = async () => {
+    const recordId = extractId(record?.id || record);
+    const parentRecordId = extractId(selectedRecordId);
+    if (!recordId) {
+      message.warning(
+        `Could not find the ${isFolder ? "folder" : "document"} to move into ${config.label}`,
+      );
+      return;
+    }
+    if (!parentRecordId || !selectedParentRecord) {
+      message.warning(`Please select a ${config.label}`);
+      return;
+    }
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const userId = extractId(currentUser?.id);
+      const safeTargetFolderId = targetFolderId === "root" ? null : extractId(targetFolderId);
+      const hasOriginFolder =
+        record?.originFolderId !== undefined &&
+        record?.originFolderId !== null &&
+        record?.originFolderId !== "";
+      const oldFolderId = hasOriginFolder
+        ? extractId(record.originFolderId)
+        : extractId(record?.folderId || record?.parentId);
+      const oldScope =
+        record?.originScope ||
+        (record?.moduleScope &&
+          ![
+            LEGAL_STUDY_MODULE_SCOPE,
+            LEGAL_REFERENCE_MODULE_SCOPE,
+          ].includes(record.moduleScope)
+          ? record.moduleScope
+          : CASE_DOCUMENT_SCOPE);
+      const sourceSnapshot = {
+        ...(parseLegalStudySource(record?.legalStudySource) || {}),
+        ...buildLegalStudySource(sourceContext),
+      };
+      const batchId = `lib_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+      const internalCompanyId =
+        getLibraryRecordInternalCompanyId(selectedParentRecord);
+      const relationPayload = {
+        legalStudyId:
+          destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
+            ? parentRecordId
+            : null,
+        legalReferenceId:
+          destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE
+            ? parentRecordId
+            : null,
+      };
+      const commonPayload = {
+        moduleScope: config.moduleScope,
+        storageType: config.storageType,
+        ...relationPayload,
+        internalCompanyId: internalCompanyId || null,
+        originScope: oldScope,
+        originFolderId: oldFolderId || null,
+        legalStudyLinkedAt:
+          destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
+            ? record?.legalStudyLinkedAt || now
+            : null,
+        legalStudySource: sourceSnapshot,
+        movedToLegalReferenceAt:
+          destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE ? now : null,
+        movedToLegalReferenceById:
+          destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE
+            ? userId || null
+            : null,
+        updatedAt: now,
+        ...(userId ? { updatedById: userId } : {}),
+      };
+
+      let updatedRecord = null;
+      if (isFolder) {
+        const folderCommonPayload = { ...commonPayload };
+        delete folderCommonPayload.movedToLegalReferenceAt;
+        delete folderCommonPayload.movedToLegalReferenceById;
+        const foldersToMove =
+          Array.isArray(record?._foldersToMove) &&
+            record._foldersToMove.length > 0
+            ? record._foldersToMove
+            : [record];
+        const filesToMove = Array.isArray(record?._filesToMove)
+          ? record._filesToMove
+          : [];
+        for (const folder of foldersToMove) {
+          const folderId = extractId(folder?.id || folder);
+          if (!folderId) continue;
+          await apiReq(`folders:update?filterByTk=${folderId}`, "POST", {
+            ...folderCommonPayload,
+            ...(folderId === recordId
+              ? { parentId: safeTargetFolderId }
+              : {}),
+          });
+        }
+        for (const childFile of filesToMove) {
+          const childFileId = extractId(childFile?.id || childFile);
+          if (!childFileId) continue;
+          await apiReq(`documents:update?filterByTk=${childFileId}`, "POST", {
+            ...commonPayload,
+          });
+        }
+        updatedRecord = {
+          ...record,
+          ...folderCommonPayload,
+          parentId: safeTargetFolderId,
+        };
+      } else {
+        const payload = {
+          ...commonPayload,
+          folderId: safeTargetFolderId,
+        };
+        await apiReq(`documents:update?filterByTk=${recordId}`, "POST", payload);
+        updatedRecord = { ...record, ...payload };
+      }
+
+      const changedBy = userName(currentUser) || currentUser?.username || "System";
+      const targetLabel = getFolderName(safeTargetFolderId);
+      await logActivity(
+        isFolder ? "Folder" : "Document",
+        recordId,
+        destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
+          ? ACTIVITY_ACTION.LINK_LEGAL_STUDY
+          : ACTIVITY_ACTION.LINK_LEGAL_REFERENCE,
+        config.relationField,
+        sourceLabel || null,
+        `${targetLabel} - ${recordName}`,
+        changedBy,
+        batchId,
+        null,
+        now,
+      );
+      if (sourceContext?.collectionName && sourceContext?.recordId) {
+        await logActivity(
+          initcap(sourceContext.collectionName),
+          extractId(sourceContext.recordId),
+          destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
+            ? ACTIVITY_ACTION.LINK_LEGAL_STUDY
+            : ACTIVITY_ACTION.LINK_LEGAL_REFERENCE,
+          isFolder ? "folders" : "documents",
+          null,
+          `${recordName} -> ${targetLabel}`,
+          changedBy,
+          batchId,
+          recordId,
+          now,
+        );
+      }
+
+      message.success(
+        `Moved ${isFolder ? "folder" : "document"} into ${config.label}`,
+      );
+      onSuccess?.(updatedRecord);
+      onClose?.();
+    } catch (e) {
+      console.error(`Could not move record into ${config.label}`, e);
+      message.error(
+        `Failed to move ${isFolder ? "folder" : "document"} into ${config.label}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return React.createElement(
+    Modal,
+    {
+      open,
+      title: `Move to ${config.label}`,
+      onCancel: saving ? undefined : onClose,
+      width: 520,
+      destroyOnClose: true,
+      footer: [
+        React.createElement(
+          Button,
+          { key: "cancel", onClick: onClose, disabled: saving },
+          "Cancel",
+        ),
+        React.createElement(
+          Button,
+          {
+            key: "submit",
+            type: "primary",
+            loading: saving,
+            onClick: handleSubmit,
+            disabled: !selectedRecordId,
+          },
+          `Move to ${config.label}`,
+        ),
+      ],
+    },
+    React.createElement(
+      "div",
+      { style: { fontFamily: FONT, display: "flex", flexDirection: "column", gap: 14 } },
+      React.createElement(
+        "div",
+        { style: { fontSize: 13, color: "#374151" } },
+        React.createElement(
+          "div",
+          { style: { fontWeight: 700, marginBottom: 4 } },
+          recordName,
+        ),
+        sourceLabel &&
+        React.createElement(
+          "div",
+          { style: { color: "#6B7280" } },
+          "Source: ",
+          sourceLabel,
+        ),
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "div",
+          { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
+          `Select ${config.label}`,
+        ),
+        React.createElement(Select, {
+          value: selectedRecordId,
+          loading,
+          showSearch: true,
+          optionFilterProp: "label",
+          style: { width: "100%" },
+          placeholder: `Select a ${config.label} record...`,
+          options: parentRecords.map((item) => ({
+            value: String(getLibraryRecordId(item, destinationType)),
+            label: getLibraryRecordDisplayName(item, destinationType),
+          })),
+          onChange: (value) => {
+            setSelectedRecordId(value || null);
+            setTargetFolderId("root");
+          },
+        }),
+      ),
+      React.createElement(
+        "div",
+        null,
+        React.createElement(
+          "div",
+          { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
+          `Destination folder in ${config.label}`,
+        ),
+        React.createElement(TreeSelect, {
+          value: targetFolderId,
+          treeData: folderTree,
+          loading: loadingFolders,
+          disabled: !selectedRecordId,
+          treeDefaultExpandAll: true,
+          showSearch: true,
+          treeNodeFilterProp: "title",
+          style: { width: "100%" },
+          dropdownStyle: { maxHeight: 360, overflow: "auto" },
+          placeholder: `Select a folder in ${config.label}...`,
+          onChange: (value) => setTargetFolderId(value || "root"),
+        }),
+      ),
       React.createElement(
         "div",
         {
-          style: { padding: 32, textAlign: "center" },
+          style: {
+            fontSize: 12,
+            color: "#6B7280",
+            background: "#F9FAFB",
+            border: "1px solid #E5E7EB",
+            borderRadius: 6,
+            padding: "8px 10px",
+          },
         },
-        React.createElement(Empty, {
-          description:
-            "Không thể xem trước định dạng này — vui lòng tải về để mở",
-        }),
+        `${isFolder ? "The folder and its documents" : "The file"} remain accessible from Task Notes. This action moves the current record into ${config.label} while keeping the source metadata for traceability.`,
       ),
+    ),
   );
 };
 
@@ -5249,31 +8089,49 @@ const FileUploadModal = ({
   lawyers = [],
   editDoc = null,
   projectFolderId,
+  caseId = null,
 }) => {
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState([]);
   const [uploading, setUploading] = useState(false);
   const isEdit = !!editDoc;
+  // Tracks the title that was auto-filled from editDoc, so we know whether
+  // the user has since typed a custom title or it's still the old file's name.
+  const initialEditTitleRef = useRef("");
 
   const [activeTab, setActiveTab] = useState("local");
   const [treeData, setTreeData] = useState([]);
+  const [libraryExpandedKeys, setLibraryExpandedKeys] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [selectedLibDoc, setSelectedLibDoc] = useState(null);
   const { TreeSelect } = ctx.antd;
   const currentUserId = extractId(currentUser?.id);
   const safeCurrentLawyerId = extractId(currentLawyerId);
+  const currentRoleSignature = [
+    ...Array.from(getUserRoleNames(currentUser)).sort(),
+    currentUser?.isAdmin === true ? "isAdmin" : "",
+    currentUser?.isSuperAdmin === true ? "isSuperAdmin" : "",
+  ].join("|");
+  const resolvedLibraryCaseId =
+    extractId(caseId) ||
+    extractId(PROJECT_ID) ||
+    extractId(ctx.record?.projectId) ||
+    extractId(ctx.record?.caseId);
 
   useEffect(() => {
     if (!open) return;
     setTreeData([]);
+    setLibraryExpandedKeys([]);
     setLibraryLoaded(false);
     setSelectedLibDoc(null);
     if (isEdit && editDoc) {
+      const initialTitle = editDoc.title || editDoc.name || "";
+      initialEditTitleRef.current = initialTitle;
       form.setFieldsValue({
         documentType: editDoc.documentType || "",
         documentCode: editDoc.documentCode || "",
-        title: editDoc.title || "",
+        title: initialTitle,
         openingDate: editDoc.openingDate
           ? editDoc.openingDate.slice(0, 10)
           : "",
@@ -5300,122 +8158,72 @@ const FileUploadModal = ({
   useEffect(() => {
     if (!open) return;
     setTreeData([]);
+    setLibraryExpandedKeys([]);
     setSelectedLibDoc(null);
     setLibraryLoaded(false);
-  }, [open, currentUserId, safeCurrentLawyerId]);
+  }, [
+    open,
+    currentUserId,
+    safeCurrentLawyerId,
+    currentRoleSignature,
+    resolvedLibraryCaseId,
+  ]);
 
   useEffect(() => {
     if (
       open &&
       activeTab === "library" &&
-      !libraryLoaded &&
-      !libraryLoading
+      !libraryLoaded
     ) {
+      let cancelled = false;
       const fetchLibraryData = async () => {
         setLibraryLoading(true);
         try {
-          const [fRes, dRes] = await Promise.all([
-            ctx.api.request({
-              url: "folders:list",
-              params: {
-                pageSize: 1000,
-                page: 1,
-                appends: ["folderMember", "folderManager"],
-              },
-            }),
-            ctx.api.request({
-              url: "documents:list",
-              params: {
-                pageSize: 1000,
-                page: 1,
-                filter: JSON.stringify({ isDeleted: { $ne: true } }),
-                fields:
-                  "id,title,documentCode,folderId,fileAttachment,createdById,isDeleted",
-                appends: ["fileAttachment", "createdBy"],
-              },
-            }),
+          const [
+            libraryData,
+            caseReferences,
+            legalReferences,
+            legalStudies,
+          ] = await Promise.all([
+            fetchTaskLibraryData(currentUserId),
+            fetchLibraryRelationRows(resolvedLibraryCaseId, [
+              "caseReferences",
+            ]),
+            fetchLibraryRelationRows(resolvedLibraryCaseId, [
+              "legalReference",
+              "legalReferences",
+            ]),
+            fetchLibraryRelationRows(resolvedLibraryCaseId, [
+              "legalStudy",
+              "legalStudies",
+            ]),
           ]);
-          const allF = fRes?.data?.data || [];
-          const allD = dRes?.data?.data || [];
-
-          const { accessible, navOnly } = getVisibleFolderIds(
-            allF,
-            currentUser,
-            safeCurrentLawyerId,
+          if (cancelled) return;
+          setTreeData(
+            buildTaskLibraryTree({
+              ...libraryData,
+              currentUser,
+              currentLawyerId: safeCurrentLawyerId,
+              currentCaseId: resolvedLibraryCaseId,
+              caseReferences,
+              legalReferences,
+              legalStudies,
+            }),
           );
-
-          const visibleFolderIds = new Set([...accessible, ...navOnly]);
-          const allowedF = allF.filter((f) =>
-            visibleFolderIds.has(extractId(f.id)),
-          );
-
-          const generateTree = () => {
-            const nodeMap = {};
-            allowedF.forEach((f) => {
-              nodeMap[extractId(f.id)] = {
-                title: `📁 ${f.name}`,
-                value: `folder_${f.id}`,
-                key: `folder_${f.id}`,
-                selectable: false,
-                children: [],
-              };
-            });
-
-            allD.forEach((d) => {
-              if (
-                !d.fileAttachment ||
-                (Array.isArray(d.fileAttachment) &&
-                  d.fileAttachment.length === 0)
-              )
-                return;
-              const fId = extractId(d.folderId);
-              if (!fId || !accessible.has(fId) || !nodeMap[fId]) return;
-
-              const fileId = extractId(d.id);
-              const att = Array.isArray(d.fileAttachment)
-                ? d.fileAttachment[0]
-                : d.fileAttachment;
-              if (!att?.id) return;
-              nodeMap[fId].children.push({
-                title: `📄 ${d.title || d.documentCode || "Untitled"} (${att.title || att.filename})`,
-                value: `doc_${fileId}`,
-                key: `doc_${fileId}`,
-                isLeaf: true,
-                docData: d,
-                attData: att,
-              });
-            });
-
-            const rootNodes = [];
-            allowedF.forEach((f) => {
-              const pId = extractId(f.parentId);
-              if (pId && nodeMap[pId]) {
-                nodeMap[pId].children.push(nodeMap[extractId(f.id)]);
-              } else {
-                rootNodes.push(nodeMap[extractId(f.id)]);
-              }
-            });
-
-            // Clean up empty folders (optional, but better UX)
-            const pruneEmpty = (nodes) => {
-              return nodes.filter((n) => {
-                if (n.isLeaf) return true;
-                n.children = pruneEmpty(n.children || []);
-                return n.children.length > 0;
-              });
-            };
-
-            return pruneEmpty(rootNodes);
-          };
-
-          setTreeData(generateTree());
         } catch (e) {
-          console.error(e);
+          console.error("Không thể tải dữ liệu thư viện", e);
+          if (!cancelled) setTreeData([]);
+        } finally {
+          if (!cancelled) {
+            setLibraryLoaded(true);
+            setLibraryLoading(false);
+          }
         }
-        setLibraryLoaded(true);
-        setLibraryLoading(false);
       };
       fetchLibraryData();
+      return () => {
+        cancelled = true;
+      };
     }
   }, [
     activeTab,
@@ -5423,11 +8231,9 @@ const FileUploadModal = ({
     libraryLoaded,
     currentUserId,
     safeCurrentLawyerId,
+    currentRoleSignature,
+    resolvedLibraryCaseId,
   ]);
-
-  // 🌟 Effect để re-filter tree khi filter thay đổi mà không cần fetch lại API (nếu đã có data)
-  // Tuy nhiên ở đây fetchLibraryData đang nằm trong useEffect và setTreeData trực tiếp.
-  // Để tối ưu, ta có thể tách allF/allD ra state riêng. Nhưng hiện tại làm đơn giản trước.
 
   const findTreeDoc = (nodes, val) => {
     for (const node of nodes || []) {
@@ -5450,7 +8256,7 @@ const FileUploadModal = ({
       const currentTitle = form.getFieldValue("title");
       if (!currentTitle) {
         form.setFieldsValue({
-          title: found.docData.title || found.attData.filename,
+          title: found.docData.title || found.docData.name || found.attData.filename,
         });
       }
     } else {
@@ -5458,36 +8264,122 @@ const FileUploadModal = ({
     }
   };
 
+  const toggleLibraryTreeNode = useCallback((nodeKey) => {
+    const key = String(nodeKey || "");
+    if (!key) return;
+    setLibraryExpandedKeys((currentKeys) =>
+      currentKeys.includes(key)
+        ? currentKeys.filter((currentKey) => currentKey !== key)
+        : [...currentKeys, key],
+    );
+  }, []);
+
+  const interactiveLibraryTreeData = useMemo(() => {
+    const decorateNodes = (nodes = []) =>
+      nodes.map((node) => {
+        const children = decorateNodes(node.children || []);
+        const expandable = !node.isLeaf && children.length > 0;
+        if (!expandable) return { ...node, children };
+
+        const toggleNode = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleLibraryTreeNode(node.key || node.value);
+        };
+
+        return {
+          ...node,
+          children,
+          title: React.createElement(
+            "span",
+            {
+              role: "button",
+              tabIndex: 0,
+              onMouseDown: (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              },
+              onClick: toggleNode,
+              onKeyDown: (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  toggleNode(event);
+                }
+              },
+              title: "Click to expand or collapse the folder",
+              style: {
+                display: "inline-flex",
+                alignItems: "center",
+                width: "100%",
+                cursor: "pointer",
+              },
+            },
+            node.title,
+          ),
+        };
+      });
+
+    return decorateNodes(treeData);
+  }, [treeData, toggleLibraryTreeNode]);
+
   const handleClose = () => {
     form.resetFields();
     setFileList([]);
     setSelectedLibDoc(null);
     setTreeData([]);
+    setLibraryExpandedKeys([]);
     setLibraryLoaded(false);
     onClose();
   };
 
-  const uploadFile = async () => {
-    const file = fileList[0].originFileObj;
-    const formData = new window.FormData();
-    formData.append("file", file, file.name);
-    const uploadRes = await ctx.api.request({
-      url: "attachments:create",
-      method: "POST",
-      params: { attachmentField: "documents.fileAttachment" },
-      data: formData,
-      // headers: { "Content-Type": "multipart/form-data" }, // Để trình duyệt tự set kèm boundary
-    });
-    const att = uploadRes?.data?.data;
-    if (!att?.id) throw new Error("Upload thất bại");
-    return [{ id: att.id }];
+  const getSelectedUploadItems = () =>
+    (fileList || [])
+      .map((item) => ({ item, file: getUploadItemFile(item) }))
+      .filter(({ file }) => !!file);
+
+  const uploadSingleFile = async (item) => {
+    const file = getUploadItemFile(item);
+    const relativePath = activeTab === "folder" ? getUploadRelativePath(item) : "";
+    const pathParts = String(relativePath || file?.name || "")
+      .split("/")
+      .filter(Boolean);
+    const fileName = pathParts[pathParts.length - 1] || file?.name || "File";
+    const attachment = await uploadTaskAttachment(file, fileName);
+    return {
+      attIds: [{ id: attachment.id }],
+      fileName,
+      relativePath,
+      fileSize: file?.size || 0,
+    };
+  };
+
+  const buildUploadEntries = async (values) => {
+    const selectedItems = getSelectedUploadItems();
+    const uploadGroupId = createTaskUploadBatchId(
+      activeTab === "folder" ? "fld" : "mul",
+    );
+    const isSingle = selectedItems.length === 1;
+    const entries = [];
+    for (const { item } of selectedItems) {
+      const uploaded = await uploadSingleFile(item);
+      entries.push({
+        ...uploaded,
+        uploadKind: activeTab === "folder" ? "folder" : "files",
+        uploadGroupId,
+        docTitle:
+          isSingle && values.title?.trim()
+            ? values.title.trim()
+            : uploaded.fileName,
+        metadata: values,
+      });
+    }
+    return entries;
   };
 
   const cloneLibraryFile = async (attData) => {
     // Reference the existing attachment directly — no re-upload needed
     // This avoids FormData restrictions and is equally valid since the
     // document record created is independent from the library document record.
-    if (!attData?.id) throw new Error("Không tìm thấy attachment gốc");
+    if (!attData?.id) throw new Error("Original attachment not found");
     return [{ id: attData.id }];
   };
 
@@ -5504,102 +8396,150 @@ const FileUploadModal = ({
       return;
     }
     const values = form.getFieldsValue();
-    const hasLocalFile = fileList.length > 0;
+    const hasSelectedUpload = fileList.length > 0;
     const hasLibFile = !!selectedLibDoc;
-    const hasFile = activeTab === "local" ? hasLocalFile : hasLibFile;
+    const hasUploadFile =
+      activeTab === "local" || activeTab === "folder"
+        ? hasSelectedUpload
+        : hasLibFile;
     const hasDrive = !!values.googleDriveUrl?.trim();
 
-    if (!isEdit && !hasFile && !hasDrive) {
-      message.error("Vui lòng chọn file hoặc nhập Drive URL");
+    if (isEdit && activeTab === "folder" && hasSelectedUpload) {
+      message.warning("Updating a document only supports replacing a single file; folder upload is not supported.");
+      return;
+    }
+    if (isEdit && activeTab === "local" && fileList.length > 1) {
+      message.warning("Updating a document only supports a single file.");
+      return;
+    }
+    if (!isEdit && !hasUploadFile && !hasDrive) {
+      message.error("Please select a file or enter a Drive URL");
       return;
     }
 
-    if (onAddPending) {
-      setUploading(true);
-      try {
-        let attIds = null;
-        let fileName = "Google Drive Link";
-        if (activeTab === "local" && hasLocalFile) {
-          attIds = await uploadFile();
-          fileName = fileList[0].name;
-        } else if (activeTab === "library" && hasLibFile) {
-          attIds = await cloneLibraryFile(selectedLibDoc.attData);
-          const attData = selectedLibDoc.attData;
-          const ext = attData.extname
-            ? attData.extname.startsWith(".")
-              ? attData.extname
-              : `.${attData.extname}`
-            : "";
-          fileName = attData.filename || `cloned_file${ext}`;
-          if (ext && !fileName.toLowerCase().endsWith(ext.toLowerCase()))
-            fileName += ext;
-        }
-        onAddPending({ attIds, fileName, metadata: values });
-        handleClose();
-      } catch (e) {
-        message.error(`Lỗi upload: ${e.message}`);
-      } finally {
-        setUploading(false);
+    const buildLibraryEntry = async () => {
+      const attIds = await cloneLibraryFile(selectedLibDoc.attData);
+      const attData = selectedLibDoc.attData;
+      const ext = attData.extname
+        ? attData.extname.startsWith(".")
+          ? attData.extname
+          : `.${attData.extname}`
+        : "";
+      let fileName = attData.filename || `cloned_file${ext}`;
+      if (ext && !fileName.toLowerCase().endsWith(ext.toLowerCase())) fileName += ext;
+      return {
+        attIds,
+        fileName,
+        docTitle: values.title?.trim() || fileName,
+        metadata: values,
+        uploadKind: "library",
+        uploadGroupId: createTaskUploadBatchId("lib"),
+      };
+    };
+
+    const buildDriveEntry = () => ({
+      attIds: null,
+      fileName: "Google Drive Link",
+      docTitle: values.title?.trim() || "Google Drive Link",
+      metadata: values,
+      uploadKind: "drive",
+      uploadGroupId: createTaskUploadBatchId("drv"),
+    });
+
+    const buildEntries = async () => {
+      if ((activeTab === "local" || activeTab === "folder") && hasSelectedUpload) {
+        return buildUploadEntries(values);
       }
-      return;
-    }
+      if (activeTab === "library" && hasLibFile) return [await buildLibraryEntry()];
+      if (hasDrive) return [buildDriveEntry()];
+      return [];
+    };
 
     setUploading(true);
     try {
-      let attIds = null;
-      if (hasFile) {
-        if (activeTab === "local") {
-          attIds = await uploadFile();
-        } else {
-          attIds = await cloneLibraryFile(selectedLibDoc.attData);
-        }
+      const uploadEntries = await buildEntries();
+      if (onAddPending) {
+        onAddPending(uploadEntries);
+        handleClose();
+        return;
       }
+
       const now = new Date().toISOString();
-      const payload = {
-        documentType: values.documentType?.trim() || "",
-        documentCode: values.documentCode?.trim() || "",
-        title: values.title?.trim() || "",
-        openingDate: toISO(values.openingDate),
-        signedAt: toISO(values.signedAt),
-        effectiveAt: toISO(values.effectiveAt),
-        senderName: values.senderName?.trim() || "",
-        recipientName: values.recipientName?.trim() || "",
-        language: values.language?.trim() || "",
-        docFormat: values.docFormat?.trim() || "",
-        googleDriveUrl: values.googleDriveUrl?.trim() || "",
-        description: values.description?.trim() || "", // 🌟 Bổ sung gửi data tóm tắt
-        note: values.note?.trim() || "",
-        updatedById: extractId(currentUser?.id) || null,
-        updatedAt: now,
-        folderId: extractId(projectFolderId),
-        ...(attIds && { fileAttachment: attIds }),
+      const actualCaseId =
+        resolvedLibraryCaseId ||
+        window.location.pathname.match(/filterbytk\/(\d+)/)?.[1];
+      const buildPayload = (entry, targetFolderId) => {
+        const docTitle =
+          entry?.docTitle || values.title?.trim() || entry?.fileName || "";
+        return {
+          title: docTitle,
+          documentType: values.documentType?.trim() || "",
+          documentCode: values.documentCode?.trim() || "",
+          openingDate: toISO(values.openingDate),
+          signedAt: toISO(values.signedAt),
+          effectiveAt: toISO(values.effectiveAt),
+          senderName: values.senderName?.trim() || "",
+          recipientName: values.recipientName?.trim() || "",
+          language: values.language?.trim() || "",
+          docFormat: values.docFormat?.trim() || "",
+          googleDriveUrl: values.googleDriveUrl?.trim() || "",
+          description: values.description?.trim() || "",
+          note: values.note?.trim() || "",
+          updatedById: extractId(currentUser?.id) || null,
+          updatedAt: now,
+          uploadedById: extractId(currentUser?.id) || null,
+          folderId: extractId(targetFolderId),
+          moduleScope: CASE_DOCUMENT_SCOPE,
+          storageType: "cases",
+          ...(entry?.attIds && { fileAttachment: entry.attIds }),
+        };
       };
 
       if (isEdit) {
+        const entry = uploadEntries[0] || null;
+        const payload = buildPayload(entry, projectFolderId);
         await ctx.api.request({
           url: "documents:update",
           method: "POST",
           params: { filterByTk: editDoc.id },
           data: payload,
         });
-        message.success("✅ Cập nhật thành công!");
+        message.success("✅ Updated successfully!");
       } else {
-        await apiReq("documents:create", "POST", {
-          ...payload,
-          collectionName,
-          recordId: parseInt(recordId),
-          createdById: currentUser?.id || null,
-          createdAt: now,
-          batchId: `upd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        });
-        message.success("✅ Upload thành công!");
+        const batchId = createTaskUploadBatchId("upd");
+        const folderIdMap = await createTaskUploadFoldersFromEntries(
+          uploadEntries,
+          projectFolderId,
+          { caseId: actualCaseId, currentUser },
+        );
+        for (const entry of uploadEntries) {
+          const relativeFolderPath = getRelativeFolderPath(entry.relativePath);
+          const targetFolderId =
+            folderIdMap[relativeFolderPath] || extractId(projectFolderId);
+          await apiReq("documents:create", "POST", {
+            ...buildPayload(entry, targetFolderId),
+            ...buildDocumentRecordLink(collectionName, recordId, {
+              caseId: actualCaseId,
+              folderId: targetFolderId,
+            }),
+            createdById: currentUser?.id || null,
+            createdAt: now,
+            batchId,
+          });
+        }
+        message.success(
+          uploadEntries.length > 1
+            ? `✅ Uploaded ${uploadEntries.length} files successfully!`
+            : "✅ Uploaded successfully!",
+        );
       }
       handleClose();
       if (onSuccess) onSuccess();
     } catch (e) {
-      message.error("Lỗi: " + (e?.message || "Thử lại"));
+      message.error("Error: " + (e?.message || "Please try again"));
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   const inpStyle = { fontSize: 12, fontFamily: FONT };
@@ -5632,7 +8572,7 @@ const FileUploadModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontFamily: FONT, fontSize: 14 } },
-        isEdit ? "✏️ Cập nhật tài liệu" : "📎 Đính kèm tài liệu",
+        isEdit ? "✏️ Update document" : "📎 Attach document",
       ),
       footer: [
         React.createElement(
@@ -5643,7 +8583,7 @@ const FileUploadModal = ({
             disabled: uploading,
             style: { fontFamily: FONT },
           },
-          "Huỷ",
+          "Cancel",
         ),
         React.createElement(
           Button,
@@ -5656,42 +8596,42 @@ const FileUploadModal = ({
           },
           uploading
             ? isEdit
-              ? "Đang cập nhật..."
-              : "Đang xử lý..."
+              ? "Updating..."
+              : "Processing..."
             : isEdit
-              ? "Cập nhật"
+              ? "Update"
               : onAddPending
-                ? "Xác nhận đính kèm"
+                ? "Confirm attach"
                 : "Upload",
         ),
       ],
     },
     currentUser &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            background: "#f6ffed",
-            border: "1px solid #b7eb8f",
-            borderRadius: 6,
-            padding: "6px 12px",
-            marginBottom: 12,
-            fontSize: 12,
-            color: "#595959",
-            fontFamily: FONT,
-          },
+    React.createElement(
+      "div",
+      {
+        style: {
+          background: "#f6ffed",
+          border: "1px solid #b7eb8f",
+          borderRadius: 6,
+          padding: "6px 12px",
+          marginBottom: 12,
+          fontSize: 12,
+          color: "#595959",
+          fontFamily: FONT,
         },
-        `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
-        React.createElement(
-          "strong",
-          null,
-          userName(currentUser) || currentUser.email,
-        ),
+      },
+      `👤 ${isEdit ? "Updated" : "Attached"} by: `,
+      React.createElement(
+        "strong",
+        null,
+        userName(currentUser) || currentUser.email,
       ),
+    ),
     React.createElement(
       Form,
       { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
-      divider("Định danh"),
+      divider("Identification"),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
@@ -5699,8 +8639,8 @@ const FileUploadModal = ({
           Form.Item,
           {
             name: "documentType",
-            label: "Loại văn bản",
-            rules: [{ required: true, message: "Vui lòng nhập loại văn bản" }],
+            label: "Document type",
+            rules: [{ required: true, message: "Please enter the document type" }],
           },
           React.createElement(
             "div",
@@ -5708,7 +8648,7 @@ const FileUploadModal = ({
             React.createElement(Input, {
               allowClear: true,
               maxLength: 150,
-              placeholder: "VD: Hợp đồng, Biên bản...",
+              placeholder: "e.g., Contract, Minutes...",
               list: "doc-type-list",
               style: inpStyle,
             }),
@@ -5723,11 +8663,11 @@ const FileUploadModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "title", label: "Tên tài liệu" },
+          { name: "title", label: "Document name" },
           React.createElement(Input, {
             allowClear: true,
             placeholder:
-              "Nhập tên đầy đủ của tài liệu (Sẽ lấy tên file nếu bỏ trống)",
+              "Enter the full document name (defaults to the file name if left blank)",
             style: inpStyle,
           }),
         ),
@@ -5737,16 +8677,16 @@ const FileUploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "documentCode", label: "Số hiệu" },
+          { name: "documentCode", label: "Document number" },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: 123/2024/HĐ",
+            placeholder: "e.g., 123/2024/CT",
             style: inpStyle,
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "openingDate", label: "Ngày ban hành" },
+          { name: "openingDate", label: "Issued date" },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
@@ -5758,7 +8698,7 @@ const FileUploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "signedAt", label: "Ngày ký" },
+          { name: "signedAt", label: "Signed date" },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
@@ -5766,32 +8706,32 @@ const FileUploadModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "effectiveAt", label: "Ngày hiệu lực" },
+          { name: "effectiveAt", label: "Effective date" },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
           }),
         ),
       ),
-      divider("Bên liên quan"),
+      divider("Related Parties"),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "senderName", label: "Người gửi" },
+          { name: "senderName", label: "Sender" },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân / tổ chức gửi",
+            placeholder: "Sender's name / organization",
             style: inpStyle,
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "recipientName", label: "Người nhận" },
+          { name: "recipientName", label: "Recipient" },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân / tổ chức nhận",
+            placeholder: "Recipient's name / organization",
             style: inpStyle,
           }),
         ),
@@ -5799,25 +8739,29 @@ const FileUploadModal = ({
 
       React.createElement(
         Form.Item,
-        { name: "description", label: "Tóm tắt nội dung" },
+        { name: "description", label: "Summary" },
         React.createElement(Input.TextArea, {
           rows: 3,
           allowClear: true,
-          placeholder: "Mô tả ngắn gọn nội dung chính...",
+          placeholder: "Briefly describe the main content...",
         }),
       ),
-      divider("File đính kèm"),
+      divider("Attached File"),
       React.createElement(ctx.antd.Tabs, {
         activeKey: activeTab,
-        onChange: setActiveTab,
+        onChange: (key) => {
+          setActiveTab(key);
+          setFileList([]);
+          setSelectedLibDoc(null);
+        },
         items: [
           {
             key: "local",
-            label: "Upload từ máy tính",
+            label: "Upload from computer",
             children: React.createElement(
               Form.Item,
               {
-                label: isEdit ? "Thay file mới (tuỳ chọn)" : "Chọn file",
+                label: isEdit ? "Replace with new file (optional)" : "Select file",
                 style: { marginBottom: 0 },
               },
               React.createElement(
@@ -5825,8 +8769,24 @@ const FileUploadModal = ({
                 {
                   fileList,
                   beforeUpload: () => false,
-                  onChange: ({ fileList: fl }) => setFileList(fl.slice(-1)),
-                  maxCount: 1,
+                  multiple: !isEdit,
+                  onChange: ({ fileList: fl }) => {
+                    const nextList = isEdit ? fl.slice(-1) : fl;
+                    setFileList(nextList);
+                    if (isEdit && nextList.length > 0) {
+                      const newFile = getUploadItemFile(nextList[0]);
+                      const currentTitle = (form.getFieldValue("title") || "").trim();
+                      // Only auto-fill if the user hasn't customized the title away
+                      // from the old file's name — otherwise a manual title is kept.
+                      if (
+                        newFile?.name &&
+                        (!currentTitle || currentTitle === initialEditTitleRef.current)
+                      ) {
+                        form.setFieldsValue({ title: newFile.name });
+                      }
+                    }
+                  },
+                  ...(isEdit ? { maxCount: 1 } : {}),
                   style: { padding: "6px 0" },
                 },
                 React.createElement(
@@ -5844,72 +8804,125 @@ const FileUploadModal = ({
                       fontFamily: FONT,
                     },
                   },
-                  "Kéo thả hoặc ",
+                  "Drag and drop or ",
                   React.createElement(
                     "span",
                     { style: { color: "#1890ff" } },
-                    "click để chọn",
+                    "click to select",
                   ),
+                ),
+              ),
+            ),
+          },
+          !isEdit && {
+            key: "folder",
+            label: "Upload folder",
+            children: React.createElement(
+              Form.Item,
+              {
+                label: "Select folder",
+                style: { marginBottom: 0 },
+              },
+              React.createElement(
+                Dragger,
+                {
+                  fileList,
+                  beforeUpload: () => false,
+                  multiple: true,
+                  directory: true,
+                  webkitdirectory: "true",
+                  onChange: ({ fileList: fl }) => setFileList(fl),
+                  style: { padding: "6px 0" },
+                },
+                React.createElement(
+                  "p",
+                  { style: { margin: "0 0 6px", color: "#185FA5" } },
+                  TASK_FILE_ACTION_ICONS.folder,
+                ),
+                React.createElement(
+                  "p",
+                  {
+                    style: {
+                      fontSize: 12,
+                      color: "#595959",
+                      margin: 0,
+                      fontFamily: FONT,
+                    },
+                  },
+                  "Select a folder to preserve its structure when rendered in Task Notes",
                 ),
               ),
             ),
           },
           {
             key: "library",
-            label: "Chọn từ Thư viện",
+            label: "Select from Library",
             children: React.createElement(
               "div",
               { style: { padding: "8px 0" } },
               libraryLoading
                 ? React.createElement(
+                  "div",
+                  { style: { textAlign: "center", padding: 20 } },
+                  React.createElement(ctx.antd.Spin, { size: "small" }),
+                  React.createElement(
                     "div",
-                    { style: { textAlign: "center", padding: 20 } },
-                    React.createElement(ctx.antd.Spin, { size: "small" }),
-                    React.createElement(
-                      "div",
-                      {
-                        style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
-                      },
-                      "Đang tải thư viện...",
-                    ),
-                  )
-                : React.createElement(
-                    "div",
-                    null,
-                    React.createElement(TreeSelect, {
-                      style: { width: "100%" },
-                      treeData,
-                      placeholder: "Tìm kiếm và chọn file từ thư viện...",
-                      treeDefaultExpandAll: true,
-                      allowClear: true,
-                      showSearch: true,
-                      treeNodeFilterProp: "title",
-                      onChange: handleTreeSelect,
-                      value: selectedLibDoc ? selectedLibDoc.value : undefined,
-                      dropdownStyle: { maxHeight: 400, overflow: "auto" },
-                    }),
+                    {
+                      style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
+                    },
+                    "Loading library...",
                   ),
+                )
+                : React.createElement(
+                  "div",
+                  null,
+                  React.createElement(TreeSelect, {
+                    style: { width: "100%" },
+                    treeData: interactiveLibraryTreeData,
+                    placeholder: "Search and select a file from the library...",
+                    treeDefaultExpandAll: false,
+                    treeExpandedKeys: libraryExpandedKeys,
+                    onTreeExpand: (expandedKeys) =>
+                      setLibraryExpandedKeys(
+                        (expandedKeys || []).map((key) => String(key)),
+                      ),
+                    allowClear: true,
+                    showSearch: true,
+                    filterTreeNode: (input, node) => {
+                      const searchText =
+                        node?.searchText || node?.props?.searchText || "";
+                      return normalizeLookupText(searchText).includes(
+                        normalizeLookupText(input),
+                      );
+                    },
+                    notFoundContent:
+                      "No documents you have access to",
+                    onChange: handleTreeSelect,
+                    value: selectedLibDoc ? selectedLibDoc.value : undefined,
+                    dropdownStyle: { maxHeight: 400, overflow: "auto" },
+                  }),
+                ),
             ),
           },
-        ],
+        ].filter(Boolean),
       }),
       React.createElement(
         Form.Item,
-        { name: "googleDriveUrl", label: "Google Drive URL (tuỳ chọn)" },
+        { name: "googleDriveUrl", label: "Google Drive URL (optional)" },
         React.createElement(Input, {
           placeholder: "https://docs.google.com/...",
           allowClear: true,
           style: inpStyle,
         }),
       ),
-      divider("Ghi chú"),
+      divider("Note"),
       React.createElement(
         Form.Item,
-        { name: "note", label: "Ghi chú" },
+        { name: "note", label: "Note" },
         React.createElement(Input.TextArea, {
           rows: 2,
           allowClear: true,
-          placeholder: "Nhập ghi chú...",
+          placeholder: "Enter a note...",
           style: inpStyle,
         }),
       ),
@@ -5972,11 +8985,11 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
           updatedAt: new Date().toISOString(),
         },
       });
-      message.success("✅ Cập nhật thành công!");
+      message.success("✅ Updated successfully!");
       setEditing(false);
       onSuccess();
     } catch (e) {
-      message.error("Lỗi: " + (e?.message || "Thử lại"));
+      message.error("Error: " + (e?.message || "Please try again"));
     }
     setSaving(false);
   };
@@ -6017,55 +9030,55 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
               },
             },
             doc.title ||
-              attachment?.title ||
-              attachment?.filename ||
-              "(Chưa có tên)",
+            attachment?.title ||
+            attachment?.filename ||
+            "(Untitled)",
           ),
           doc.documentType &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  color: "#8c8c8c",
-                  fontFamily: FONT,
-                  marginTop: 2,
-                },
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                color: "#8c8c8c",
+                fontFamily: FONT,
+                marginTop: 2,
               },
-              doc.documentType,
-            ),
+            },
+            doc.documentType,
+          ),
         ),
       ),
       extra: editing
         ? React.createElement(
-            Space,
-            null,
-            React.createElement(
-              Button,
-              { size: "small", onClick: () => setEditing(false) },
-              "Huỷ",
-            ),
-            React.createElement(
-              Button,
-              {
-                size: "small",
-                type: "primary",
-                loading: saving,
-                onClick: handleSave,
-              },
-              "💾 Lưu",
-            ),
-          )
-        : React.createElement(
+          Space,
+          null,
+          React.createElement(
+            Button,
+            { size: "small", onClick: () => setEditing(false) },
+            "Cancel",
+          ),
+          React.createElement(
             Button,
             {
               size: "small",
               type: "primary",
-              ghost: true,
-              onClick: () => setEditing(true),
+              loading: saving,
+              onClick: handleSave,
             },
-            "✏️ Chỉnh sửa",
+            "💾 Save",
           ),
+        )
+        : React.createElement(
+          Button,
+          {
+            size: "small",
+            type: "primary",
+            ghost: true,
+            onClick: () => setEditing(true),
+          },
+          "✏️ Edit",
+        ),
     },
     React.createElement(
       Descriptions,
@@ -6083,12 +9096,12 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
       },
       React.createElement(
         Descriptions.Item,
-        { label: "Loại văn bản" },
+        { label: "Document type" },
         doc.documentType || "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Số hiệu" },
+        { label: "Document number" },
         React.createElement(
           "span",
           { style: { fontFamily: "monospace", fontSize: 12 } },
@@ -6097,38 +9110,38 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Ngày ban hành" },
+        { label: "Issued date" },
         doc.openingDate ? formatDate(doc.openingDate) : "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Ngày ký" },
+        { label: "Signed date" },
         doc.signedAt ? formatDate(doc.signedAt) : "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Ngày hiệu lực" },
+        { label: "Effective date" },
         doc.effectiveAt
           ? React.createElement(
-              Text,
-              { style: { color: "#389e0d", fontWeight: 500 } },
-              formatDate(doc.effectiveAt),
-            )
+            Text,
+            { style: { color: "#389e0d", fontWeight: 500 } },
+            formatDate(doc.effectiveAt),
+          )
           : "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Tên tài liệu" },
-        React.createElement(Text, { strong: true }, doc.title || "(Chưa có)"),
+        { label: "Document name" },
+        React.createElement(Text, { strong: true }, doc.title || "(None)"),
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Người gửi" },
+        { label: "Sender" },
         doc.senderName || "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Người nhận" },
+        { label: "Recipient" },
         doc.recipientName || "—",
       ),
       React.createElement(
@@ -6136,20 +9149,20 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
         { label: "Google Drive" },
         doc.googleDriveUrl
           ? React.createElement(
-              Button,
-              {
-                type: "link",
-                size: "small",
-                style: { padding: 0 },
-                onClick: () => window.open(doc.googleDriveUrl, "_blank"),
-              },
-              "🔗 Mở link",
-            )
+            Button,
+            {
+              type: "link",
+              size: "small",
+              style: { padding: 0 },
+              onClick: () => window.open(doc.googleDriveUrl, "_blank"),
+            },
+            "🔗 Open link",
+          )
           : "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Ghi chú" },
+        { label: "Note" },
         React.createElement(
           Text,
           { style: { whiteSpace: "pre-wrap", fontSize: 12 } },
@@ -6158,33 +9171,33 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Ngày tạo" },
+        { label: "Created date" },
         doc.createdAt ? fmt(doc.createdAt, "full") : "—",
       ),
       React.createElement(
         Descriptions.Item,
-        { label: "Người tạo" },
+        { label: "Created by" },
         doc.createdBy ? userName(doc.createdBy) || doc.createdBy?.email : "—",
       ),
     ),
     attachment &&
-      fullUrl &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            marginTop: 16,
-            paddingTop: 12,
-            borderTop: "1px solid #f0f0f0",
-          },
+    fullUrl &&
+    React.createElement(
+      "div",
+      {
+        style: {
+          marginTop: 16,
+          paddingTop: 12,
+          borderTop: "1px solid #f0f0f0",
         },
-        (isPdf || isImage) &&
-          React.createElement(
-            Button,
-            { size: "small", onClick: () => window.open(fullUrl, "_blank") },
-            "👁 Xem trước",
-          ),
+      },
+      (isPdf || isImage) &&
+      React.createElement(
+        Button,
+        { size: "small", onClick: () => window.open(fullUrl, "_blank") },
+        "👁 Preview",
       ),
+    ),
   );
 };
 
@@ -6244,25 +9257,25 @@ const TimesheetModal = ({
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
   const handleSave = async () => {
     if (!hasLawyer) {
-      message.warning("Task chưa được phân công luật sư");
+      message.warning("The task has not been assigned to a lawyer");
       return;
     }
     const finalDuration = parseFloat(form.duration || 0);
     if (!finalDuration || finalDuration <= 0) {
-      message.warning("Vui lòng nhập số giờ thực hiện");
+      message.warning("Please enter the number of hours worked");
       return;
     }
     if (finalDuration > 24) {
-      message.warning("Số giờ không được vượt quá 24 giờ");
+      message.warning("Hours cannot exceed 24");
       return;
     }
     if (!form.workingDay) {
-      message.warning("Vui lòng chọn ngày giờ thực hiện");
+      message.warning("Please select the date and time worked");
       return;
     }
     const startDT = new Date(form.workingDay);
     if (isNaN(startDT.getTime())) {
-      message.warning("Ngày giờ không hợp lệ");
+      message.warning("Invalid date/time");
       return;
     }
     const endDT = new Date(startDT.getTime() + finalDuration * 3600000);
@@ -6297,7 +9310,7 @@ const TimesheetModal = ({
     try {
       if (isEdit) {
         await updateTimesheet(extractId(editEntry.id), payload);
-        message.success("✅ Đã cập nhật");
+        message.success("✅ Updated");
       } else {
         // 🌟 ĐÃ BỎ status: 'draft', ĐỂ BACKEND TỰ QUYẾT ĐỊNH
         await createTimesheet(payload);
@@ -6309,12 +9322,12 @@ const TimesheetModal = ({
               : `tasks:update?filterByTk=${extractId(item.id)}`;
           await apiReq(updateUrl, "POST", { workRate });
         }
-        message.success("✅ Đã lưu timesheet");
+        message.success("✅ Timesheet saved");
       }
       onClose();
       onSuccess();
     } catch (err) {
-      message.error("Lỗi: " + (err?.message || "Thử lại"));
+      message.error("Error: " + (err?.message || "Please try again"));
     }
     setSaving(false);
   };
@@ -6375,325 +9388,325 @@ const TimesheetModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        isEdit ? "✏️ Cập nhật giờ làm việc" : "⏱ Ghi nhận giờ làm việc",
+        isEdit ? "✏️ Update work hours" : "⏱ Log work hours",
       ),
     },
     !hasLawyer
       ? React.createElement(
+        "div",
+        { style: { textAlign: "center", padding: "30px 0" } },
+        React.createElement(
           "div",
-          { style: { textAlign: "center", padding: "30px 0" } },
+          { style: { fontSize: 32, marginBottom: 12 } },
+          "⚠️",
+        ),
+        React.createElement(
+          Text,
+          {
+            style: {
+              fontSize: 14,
+              fontFamily: FONT,
+              color: "#cf1322",
+              display: "block",
+            },
+          },
+          "This task has not been assigned to a lawyer",
+        ),
+      )
+      : React.createElement(
+        "div",
+        null,
+
+        /* Luật sư (read-only) */
+        fld(
+          "👨‍⚖️ Lawyer",
           React.createElement(
             "div",
-            { style: { fontSize: 32, marginBottom: 12 } },
-            "⚠️",
-          ),
-          React.createElement(
-            Text,
             {
               style: {
-                fontSize: 14,
-                fontFamily: FONT,
-                color: "#cf1322",
-                display: "block",
+                ...inpS,
+                background: "#f5f5f5",
+                color: "#595959",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "not-allowed",
+                borderRadius: 6,
               },
             },
-            "Công việc chưa được phân công luật sư",
+            React.createElement(Av, {
+              name: assignedLawyer.lawyerName,
+              color:
+                LAWYER_COLORS[
+                lawyers.indexOf(assignedLawyer) % LAWYER_COLORS.length
+                ],
+              size: 22,
+            }),
+            React.createElement(
+              "span",
+              { style: { fontWeight: 500 } },
+              assignedLawyer.lawyerName,
+            ),
           ),
-        )
-      : React.createElement(
+        ),
+        /* Ngày giờ thực hiện */
+        fld(
+          "📅 Date & time worked *",
+          React.createElement("input", {
+            type: "datetime-local",
+            value: form.workingDay,
+            onChange: (e) => set("workingDay", e.target.value),
+            style: inpS,
+            onFocus: focusB,
+            onBlur: blurB,
+          }),
+        ),
+        /* Số giờ */
+        React.createElement(
           "div",
-          null,
-
-          /* Luật sư (read-only) */
-          fld(
-            "👨‍⚖️ Luật sư",
+          { style: { marginBottom: 14 } },
+          lbl("⏱ Hours worked *"),
+          React.createElement(
+            "div",
+            { style: { position: "relative" } },
+            React.createElement("input", {
+              type: "number",
+              step: "0.5",
+              min: "0.5",
+              max: "24",
+              placeholder: "e.g., 2",
+              value: form.duration,
+              onChange: (e) => set("duration", e.target.value),
+              style: {
+                ...inpS,
+                fontSize: 13,
+                fontWeight: 700,
+                paddingRight: 50,
+                textAlign: "center",
+                border: dur > 0 ? "2px solid #1890ff" : "1px solid #e8e8e8",
+              },
+              onFocus: focusB,
+              onBlur: blurB,
+              autoFocus: true,
+            }),
+            React.createElement(
+              "span",
+              {
+                style: {
+                  position: "absolute",
+                  right: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: 13,
+                  color: "#8c8c8c",
+                  fontFamily: FONT,
+                  pointerEvents: "none",
+                },
+              },
+              "hrs",
+            ),
+          ),
+          dur > 0 &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                marginTop: 8,
+                padding: "10px 14px",
+                background: "#e6f4ff",
+                borderRadius: 8,
+                border: "1px solid #91caff",
+              },
+            },
             React.createElement(
               "div",
               {
                 style: {
-                  ...inpS,
-                  background: "#f5f5f5",
-                  color: "#595959",
                   display: "flex",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 8,
-                  cursor: "not-allowed",
-                  borderRadius: 6,
+                  marginBottom: wrPrev ? 6 : 0,
                 },
               },
-              React.createElement(Av, {
-                name: assignedLawyer.lawyerName,
-                color:
-                  LAWYER_COLORS[
-                    lawyers.indexOf(assignedLawyer) % LAWYER_COLORS.length
-                  ],
-                size: 22,
-              }),
-              React.createElement(
-                "span",
-                { style: { fontWeight: 500 } },
-                assignedLawyer.lawyerName,
-              ),
-            ),
-          ),
-          /* Ngày giờ thực hiện */
-          fld(
-            "📅 Ngày giờ thực hiện *",
-            React.createElement("input", {
-              type: "datetime-local",
-              value: form.workingDay,
-              onChange: (e) => set("workingDay", e.target.value),
-              style: inpS,
-              onFocus: focusB,
-              onBlur: blurB,
-            }),
-          ),
-          /* Số giờ */
-          React.createElement(
-            "div",
-            { style: { marginBottom: 14 } },
-            lbl("⏱ Số giờ thực hiện *"),
-            React.createElement(
-              "div",
-              { style: { position: "relative" } },
-              React.createElement("input", {
-                type: "number",
-                step: "0.5",
-                min: "0.5",
-                max: "24",
-                placeholder: "Ví dụ: 2",
-                value: form.duration,
-                onChange: (e) => set("duration", e.target.value),
-                style: {
-                  ...inpS,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  paddingRight: 50,
-                  textAlign: "center",
-                  border: dur > 0 ? "2px solid #1890ff" : "1px solid #e8e8e8",
-                },
-                onFocus: focusB,
-                onBlur: blurB,
-                autoFocus: true,
-              }),
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    position: "absolute",
-                    right: 14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: 13,
-                    color: "#8c8c8c",
-                    fontFamily: FONT,
-                    pointerEvents: "none",
-                  },
-                },
-                "giờ",
-              ),
-            ),
-            dur > 0 &&
               React.createElement(
                 "div",
-                {
-                  style: {
-                    marginTop: 8,
-                    padding: "10px 14px",
-                    background: "#e6f4ff",
-                    borderRadius: 8,
-                    border: "1px solid #91caff",
-                  },
-                },
+                null,
                 React.createElement(
                   "div",
                   {
                     style: {
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: wrPrev ? 6 : 0,
+                      fontSize: 11,
+                      fontFamily: FONT,
+                      color: "#8c8c8c",
+                      marginBottom: 2,
                     },
                   },
-                  React.createElement(
-                    "div",
-                    null,
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 11,
-                          fontFamily: FONT,
-                          color: "#8c8c8c",
-                          marginBottom: 2,
-                        },
-                      },
-                      "🕐 Kết thúc dự kiến",
-                    ),
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 13,
-                          fontFamily: FONT,
-                          fontWeight: 600,
-                          color: "#096dd9",
-                        },
-                      },
-                      endPreview
-                        ? endPreview.toLocaleString("vi-VN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—",
-                    ),
-                  ),
-                  React.createElement(
-                    "div",
-                    { style: { textAlign: "right" } },
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 11,
-                          fontFamily: FONT,
-                          color: "#8c8c8c",
-                          marginBottom: 2,
-                        },
-                      },
-                      "⏱ Tổng",
-                    ),
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 16,
-                          fontFamily: FONT,
-                          fontWeight: 700,
-                          color: "#096dd9",
-                        },
-                      },
-                      fmtHours(dur),
-                    ),
-                  ),
+                  "🕐 Expected end time",
                 ),
-                wrPrev &&
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        paddingTop: 6,
-                        borderTop: "1px solid #bae0ff",
-                      },
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 13,
+                      fontFamily: FONT,
+                      fontWeight: 600,
+                      color: "#096dd9",
                     },
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 11,
-                          fontFamily: FONT,
-                          color: "#8c8c8c",
-                        },
-                      },
-                      "⚡ Năng suất:",
-                    ),
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          fontWeight: 700,
-                          padding: "2px 10px",
-                          borderRadius: 10,
-                          background: wrPrev.bg,
-                          color: wrPrev.color,
-                        },
-                      },
-                      wrPrev.label,
-                    ),
-                  ),
+                  },
+                  endPreview
+                    ? endPreview.toLocaleString("vi-VN", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                    : "—",
+                ),
               ),
-          ),
-          isManager &&
-            fld(
-              "💵 Đơn giá / giờ (₫)",
-              React.createElement("input", {
-                type: "number",
-                placeholder: "Đơn giá/giờ",
-                value: form.hourlyRate,
-                onChange: (e) => set("hourlyRate", e.target.value),
-                style: inpS,
-                onFocus: focusB,
-                onBlur: blurB,
-              }),
+              React.createElement(
+                "div",
+                { style: { textAlign: "right" } },
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 11,
+                      fontFamily: FONT,
+                      color: "#8c8c8c",
+                      marginBottom: 2,
+                    },
+                  },
+                  "⏱ Total",
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 16,
+                      fontFamily: FONT,
+                      fontWeight: 700,
+                      color: "#096dd9",
+                    },
+                  },
+                  fmtHours(dur),
+                ),
+              ),
             ),
-          /* Mô tả */
-          fld(
-            "📝 Nội dung mô tả công việc",
-            React.createElement("textarea", {
-              value: form.description,
-              onChange: (e) => set("description", e.target.value),
-              placeholder: "Mô tả ngắn gọn công việc đã thực hiện...",
-              rows: 3,
-              style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
-              onFocus: focusB,
-              onBlur: blurB,
-            }),
-          ),
-          /* Footer */
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-                marginTop: 16,
-                paddingTop: 12,
-                borderTop: "1px solid #f0f0f0",
-              },
-            },
+            wrPrev &&
             React.createElement(
               "div",
               {
-                onClick: onClose,
                 style: {
-                  padding: "7px 20px",
-                  borderRadius: 6,
-                  border: "1px solid #e8e8e8",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  color: "#595959",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingTop: 6,
+                  borderTop: "1px solid #bae0ff",
                 },
               },
-              "Huỷ",
-            ),
-            React.createElement(
-              "div",
-              {
-                onClick: saving ? null : handleSave,
-                style: {
-                  padding: "7px 24px",
-                  borderRadius: 6,
-                  background: saving ? "#f5f5f5" : "#1890ff",
-                  color: saving ? "#bfbfbf" : "#fff",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  fontWeight: 700,
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 11,
+                    fontFamily: FONT,
+                    color: "#8c8c8c",
+                  },
                 },
-              },
-              saving ? "Đang lưu..." : isEdit ? "Cập nhật" : "+ Ghi nhận giờ",
+                "⚡ Efficiency:",
+              ),
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    fontWeight: 700,
+                    padding: "2px 10px",
+                    borderRadius: 10,
+                    background: wrPrev.bg,
+                    color: wrPrev.color,
+                  },
+                },
+                wrPrev.label,
+              ),
             ),
           ),
         ),
+        isManager &&
+        fld(
+          "💵 Rate / hour (₫)",
+          React.createElement("input", {
+            type: "number",
+            placeholder: "Rate/hour",
+            value: form.hourlyRate,
+            onChange: (e) => set("hourlyRate", e.target.value),
+            style: inpS,
+            onFocus: focusB,
+            onBlur: blurB,
+          }),
+        ),
+        /* Mô tả */
+        fld(
+          "📝 Work description",
+          React.createElement("textarea", {
+            value: form.description,
+            onChange: (e) => set("description", e.target.value),
+            placeholder: "Briefly describe the work performed...",
+            rows: 3,
+            style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
+            onFocus: focusB,
+            onBlur: blurB,
+          }),
+        ),
+        /* Footer */
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 16,
+              paddingTop: 12,
+              borderTop: "1px solid #f0f0f0",
+            },
+          },
+          React.createElement(
+            "div",
+            {
+              onClick: onClose,
+              style: {
+                padding: "7px 20px",
+                borderRadius: 6,
+                border: "1px solid #e8e8e8",
+                cursor: "pointer",
+                fontSize: 13,
+                fontFamily: FONT,
+                color: "#595959",
+              },
+            },
+            "Cancel",
+          ),
+          React.createElement(
+            "div",
+            {
+              onClick: saving ? null : handleSave,
+              style: {
+                padding: "7px 24px",
+                borderRadius: 6,
+                background: saving ? "#f5f5f5" : "#1890ff",
+                color: saving ? "#bfbfbf" : "#fff",
+                cursor: saving ? "not-allowed" : "pointer",
+                fontSize: 13,
+                fontFamily: FONT,
+                fontWeight: 700,
+              },
+            },
+            saving ? "Saving..." : isEdit ? "Update" : "+ Log hours",
+          ),
+        ),
+      ),
   );
 };
 
@@ -6724,7 +9737,7 @@ const TimesheetTab = ({
       React.createElement(
         Text,
         { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-        "Chỉ người được phân công hoặc quản lý mới xem được.",
+        "Only the assignee or manager can view this.",
       ),
     );
 
@@ -6771,10 +9784,10 @@ const TimesheetTab = ({
     setDeleting(id);
     try {
       await deleteTimesheet(extractId(id));
-      message.success("Đã xoá");
+      message.success("Deleted");
       reload();
     } catch {
-      message.error("Xoá thất bại");
+      message.error("Delete failed");
     }
     setDeleting(null);
   };
@@ -6793,40 +9806,40 @@ const TimesheetTab = ({
       },
       hasLawyer
         ? React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: 8 } },
+          React.createElement(Av, {
+            name: assignedLawyer.lawyerName,
+            color: lawyerMap[extractId(assignedLawyer.id)]?.color,
+            size: 22,
+          }),
+          React.createElement(
             "div",
-            { style: { display: "flex", alignItems: "center", gap: 8 } },
-            React.createElement(Av, {
-              name: assignedLawyer.lawyerName,
-              color: lawyerMap[extractId(assignedLawyer.id)]?.color,
-              size: 22,
-            }),
+            null,
             React.createElement(
-              "div",
-              null,
-              React.createElement(
-                Text,
-                {
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    fontWeight: 600,
-                    display: "block",
-                  },
+              Text,
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  display: "block",
                 },
-                assignedLawyer.lawyerName,
-              ),
-              React.createElement(
-                Text,
-                { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-                `${fmtVND(assignedLawyer.unitPrice || 0)}/giờ${estDur > 0 ? `  ·  Dự kiến: ${fmtHours(estDur)}` : ""}`,
-              ),
+              },
+              assignedLawyer.lawyerName,
             ),
-          )
-        : React.createElement(
-            "span",
-            { style: { fontSize: 12, fontFamily: FONT, color: "#cf1322" } },
-            "⚠ Chưa phân công",
+            React.createElement(
+              Text,
+              { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
+              `${fmtVND(assignedLawyer.unitPrice || 0)}/hr${estDur > 0 ? `  ·  Estimated: ${fmtHours(estDur)}` : ""}`,
+            ),
           ),
+        )
+        : React.createElement(
+          "span",
+          { style: { fontSize: 12, fontFamily: FONT, color: "#cf1322" } },
+          "⚠ Not assigned",
+        ),
 
       // 🌟 HEADER BUTTONS (Thêm nút Reload ở đây)
       React.createElement(
@@ -6839,339 +9852,339 @@ const TimesheetTab = ({
           text: "",
         }),
         hasLawyer &&
-          React.createElement(
-            "div",
-            {
-              onClick: () => {
-                setEditEntry(null);
-                setModal(true);
-              },
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                padding: "5px 12px",
-                borderRadius: 5,
-                background: "#1890ff",
-                color: "#fff",
-                cursor: "pointer",
-                fontWeight: 600,
-              },
+        React.createElement(
+          "div",
+          {
+            onClick: () => {
+              setEditEntry(null);
+              setModal(true);
             },
-            "＋ Thêm",
-          ),
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              padding: "5px 12px",
+              borderRadius: 5,
+              background: "#1890ff",
+              color: "#fff",
+              cursor: "pointer",
+              fontWeight: 600,
+            },
+          },
+          "＋ Add",
+        ),
       ),
     ),
 
     sheets.length > 0 &&
+    React.createElement(
+      "div",
+      {
+        style: {
+          display: "grid",
+          gridTemplateColumns: isManager ? "1fr 1fr 1fr" : "1fr 1fr",
+          gap: 8,
+        },
+      },
       React.createElement(
         "div",
         {
           style: {
-            display: "grid",
-            gridTemplateColumns: isManager ? "1fr 1fr 1fr" : "1fr 1fr",
-            gap: 8,
+            background: "#e6f4ff",
+            borderRadius: 6,
+            padding: "8px 10px",
+            border: "1px solid #91caff",
           },
         },
         React.createElement(
-          "div",
+          Text,
           {
             style: {
-              background: "#e6f4ff",
-              borderRadius: 6,
-              padding: "8px 10px",
-              border: "1px solid #91caff",
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#096dd9",
+              fontWeight: 700,
+              display: "block",
+              marginBottom: 2,
             },
           },
-          React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#096dd9",
-                fontWeight: 700,
-                display: "block",
-                marginBottom: 2,
-              },
-            },
-            "⏱ Tổng giờ",
-          ),
-          React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                fontWeight: 700,
-                color: "#096dd9",
-                display: "block",
-              },
-            },
-            fmtHours(totalHours),
-          ),
+          "⏱ Total hours",
         ),
         React.createElement(
-          "div",
+          Text,
           {
             style: {
-              background: item.workRate
-                ? workRateCfg(item.workRate).bg
-                : "#f9f0ff",
-              borderRadius: 6,
-              padding: "8px 10px",
-              border: "1px solid #d3adf7",
+              fontSize: 12,
+              fontFamily: FONT,
+              fontWeight: 700,
+              color: "#096dd9",
+              display: "block",
             },
           },
-          React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#531dab",
-                fontWeight: 700,
-                display: "block",
-                marginBottom: 2,
-              },
-            },
-            "⚡ Năng suất",
-          ),
-          React.createElement(
-            Text,
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                fontWeight: 700,
-                color: item.workRate
-                  ? workRateCfg(item.workRate).color
-                  : "#8c8c8c",
-                display: "block",
-              },
-            },
-            item.workRate ? workRateCfg(item.workRate).label : "—",
-          ),
+          fmtHours(totalHours),
         ),
-        isManager &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                background: "#f6ffed",
-                borderRadius: 6,
-                padding: "8px 10px",
-                border: "1px solid #b7eb8f",
-              },
-            },
-            React.createElement(
-              Text,
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#389e0d",
-                  fontWeight: 700,
-                  display: "block",
-                  marginBottom: 2,
-                },
-              },
-              "💰 Thành tiền",
-            ),
-            React.createElement(
-              Text,
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  fontWeight: 700,
-                  color: "#389e0d",
-                  display: "block",
-                },
-              },
-              fmtVND(totalAmount),
-            ),
-          ),
       ),
+      React.createElement(
+        "div",
+        {
+          style: {
+            background: item.workRate
+              ? workRateCfg(item.workRate).bg
+              : "#f9f0ff",
+            borderRadius: 6,
+            padding: "8px 10px",
+            border: "1px solid #d3adf7",
+          },
+        },
+        React.createElement(
+          Text,
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#531dab",
+              fontWeight: 700,
+              display: "block",
+              marginBottom: 2,
+            },
+          },
+          "⚡ Efficiency",
+        ),
+        React.createElement(
+          Text,
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              fontWeight: 700,
+              color: item.workRate
+                ? workRateCfg(item.workRate).color
+                : "#8c8c8c",
+              display: "block",
+            },
+          },
+          item.workRate ? workRateCfg(item.workRate).label : "—",
+        ),
+      ),
+      isManager &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            background: "#f6ffed",
+            borderRadius: 6,
+            padding: "8px 10px",
+            border: "1px solid #b7eb8f",
+          },
+        },
+        React.createElement(
+          Text,
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#389e0d",
+              fontWeight: 700,
+              display: "block",
+              marginBottom: 2,
+            },
+          },
+          "💰 Total amount",
+        ),
+        React.createElement(
+          Text,
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              fontWeight: 700,
+              color: "#389e0d",
+              display: "block",
+            },
+          },
+          fmtVND(totalAmount),
+        ),
+      ),
+    ),
 
     loading
       ? React.createElement(
-          "div",
-          { style: { textAlign: "center", padding: 16 } },
-          React.createElement(Spin, { size: "small" }),
-        )
+        "div",
+        { style: { textAlign: "center", padding: 16 } },
+        React.createElement(Spin, { size: "small" }),
+      )
       : sheets.length === 0
         ? React.createElement(
-            "div",
-            {
-              style: {
-                textAlign: "center",
-                padding: "16px 0",
-                color: "#bfbfbf",
-                fontSize: 12,
-                fontFamily: FONT,
-                border: "1px dashed #f0f0f0",
-                borderRadius: 6,
-              },
+          "div",
+          {
+            style: {
+              textAlign: "center",
+              padding: "16px 0",
+              color: "#bfbfbf",
+              fontSize: 12,
+              fontFamily: FONT,
+              border: "1px dashed #f0f0f0",
+              borderRadius: 6,
             },
-            hasLawyer
-              ? "Chưa có bản ghi giờ làm việc nào"
-              : "Phân công luật sư trước",
-          )
+          },
+          hasLawyer
+            ? "No time entries yet"
+            : "Assign a lawyer first",
+        )
         : React.createElement(
-            "div",
-            { style: { display: "flex", flexDirection: "column", gap: 6 } },
-            ...sheets.map((s) => {
-              const wr = s.workRate != null ? workRateCfg(s.workRate) : null;
-              return React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: 6 } },
+          ...sheets.map((s) => {
+            const wr = s.workRate != null ? workRateCfg(s.workRate) : null;
+            return React.createElement(
+              "div",
+              {
+                key: s.id,
+                style: {
+                  background: "#fff",
+                  borderRadius: 6,
+                  padding: "10px 12px",
+                  border: "1px solid #e8e8e8",
+                },
+              },
+              React.createElement(
                 "div",
                 {
-                  key: s.id,
                   style: {
-                    background: "#fff",
-                    borderRadius: 6,
-                    padding: "10px 12px",
-                    border: "1px solid #e8e8e8",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 4,
                   },
                 },
                 React.createElement(
                   "div",
                   {
-                    style: {
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    },
+                    style: { display: "flex", alignItems: "center", gap: 6 },
                   },
-                  React.createElement(
-                    "div",
-                    {
-                      style: { display: "flex", alignItems: "center", gap: 6 },
-                    },
-                    React.createElement(
-                      Text,
-                      {
-                        style: {
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          color: "#262626",
-                          fontWeight: 600,
-                        },
-                      },
-                      fmt(s.workingDay, "full") || "—",
-                    ),
-                  ),
-                  wr &&
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          fontWeight: 600,
-                          padding: "1px 6px",
-                          borderRadius: 8,
-                          background: wr.bg,
-                          color: wr.color,
-                        },
-                      },
-                      `⚡ ${wr.label}`,
-                    ),
-                ),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#595959",
-                    },
-                  },
-                  React.createElement(
-                    "span",
-                    { style: { fontWeight: 700, color: "#096dd9" } },
-                    fmtHours(parseFloat(s.duration) || 0),
-                  ),
-                  isManager &&
-                    s.amount > 0 &&
-                    React.createElement(
-                      "span",
-                      { style: { fontWeight: 700, color: "#389e0d" } },
-                      `= ${fmtVND(s.amount)}`,
-                    ),
-                ),
-                s.description &&
                   React.createElement(
                     Text,
                     {
                       style: {
                         fontSize: 12,
                         fontFamily: FONT,
-                        color: "#8c8c8c",
-                        display: "block",
-                        marginTop: 3,
+                        color: "#262626",
+                        fontWeight: 600,
                       },
                     },
-                    s.description,
+                    fmt(s.workingDay, "full") || "—",
                   ),
+                ),
+                wr &&
+                React.createElement(
+                  "span",
+                  {
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      fontWeight: 600,
+                      padding: "1px 6px",
+                      borderRadius: 8,
+                      background: wr.bg,
+                      color: wr.color,
+                    },
+                  },
+                  `⚡ ${wr.label}`,
+                ),
+              ),
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#595959",
+                  },
+                },
+                React.createElement(
+                  "span",
+                  { style: { fontWeight: 700, color: "#096dd9" } },
+                  fmtHours(parseFloat(s.duration) || 0),
+                ),
+                isManager &&
+                s.amount > 0 &&
+                React.createElement(
+                  "span",
+                  { style: { fontWeight: 700, color: "#389e0d" } },
+                  `= ${fmtVND(s.amount)}`,
+                ),
+              ),
+              s.description &&
+              React.createElement(
+                Text,
+                {
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#8c8c8c",
+                    display: "block",
+                    marginTop: 3,
+                  },
+                },
+                s.description,
+              ),
 
-                // 🌟 NÚT SỬA/XOÁ (Đã bỏ quy trình gửi duyệt vô nghĩa)
+              // 🌟 NÚT SỬA/XOÁ (Đã bỏ quy trình gửi duyệt vô nghĩa)
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 6,
+                    paddingTop: 6,
+                    marginTop: 4,
+                    borderTop: "1px solid #f5f5f5",
+                  },
+                },
                 React.createElement(
                   "div",
                   {
+                    onClick: () => {
+                      setEditEntry(s);
+                      setModal(true);
+                    },
                     style: {
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 6,
-                      paddingTop: 6,
-                      marginTop: 4,
-                      borderTop: "1px solid #f5f5f5",
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      padding: "3px 10px",
+                      borderRadius: 4,
+                      border: "1px solid #e8e8e8",
+                      color: "#595959",
+                      cursor: "pointer",
+                      background: "#fafafa",
                     },
                   },
-                  React.createElement(
-                    "div",
-                    {
-                      onClick: () => {
-                        setEditEntry(s);
-                        setModal(true);
-                      },
-                      style: {
-                        fontSize: 12,
-                        fontFamily: FONT,
-                        padding: "3px 10px",
-                        borderRadius: 4,
-                        border: "1px solid #e8e8e8",
-                        color: "#595959",
-                        cursor: "pointer",
-                        background: "#fafafa",
-                      },
-                    },
-                    "✏️ Sửa",
-                  ),
-                  React.createElement(
-                    "div",
-                    {
-                      onClick: () => handleDelete(s.id),
-                      style: {
-                        fontSize: 12,
-                        fontFamily: FONT,
-                        padding: "3px 10px",
-                        borderRadius: 4,
-                        border: "1px solid #ffa39e",
-                        color: "#cf1322",
-                        cursor: "pointer",
-                        background: "#fff1f0",
-                      },
-                    },
-                    deleting === s.id ? "..." : "🗑 Xoá",
-                  ),
+                  "✏️ Edit",
                 ),
-              );
-            }),
-          ),
+                React.createElement(
+                  "div",
+                  {
+                    onClick: () => handleDelete(s.id),
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      padding: "3px 10px",
+                      borderRadius: 4,
+                      border: "1px solid #ffa39e",
+                      color: "#cf1322",
+                      cursor: "pointer",
+                      background: "#fff1f0",
+                    },
+                  },
+                  deleting === s.id ? "..." : "🗑 Delete",
+                ),
+              ),
+            );
+          }),
+        ),
 
     React.createElement(TimesheetModal, {
       open: modal,
@@ -7248,9 +10261,9 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
     React.createElement(
       "div",
       null,
-      `Phụ trách: ${lawyerName || "Chưa phân công"}`,
+      `Assignee: ${lawyerName || "Not assigned"}`,
     ),
-    React.createElement("div", null, `Trạng thái: ${statusInfo.label}`),
+    React.createElement("div", null, `Status: ${statusInfo.label}`),
   );
   return React.createElement(
     "div",
@@ -7316,21 +10329,21 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
           ),
         ),
         lawyerName &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: statusInfo.color,
-                opacity: 0.75,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              },
+        React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: statusInfo.color,
+              opacity: 0.75,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             },
-            `👤 ${lawyerName}`,
-          ),
+          },
+          `👤 ${lawyerName}`,
+        ),
       ),
     ),
   );
@@ -7357,9 +10370,9 @@ const NextStepInlineEditor = ({
         nextStepDescription: val || null,
       });
       onUpdate({ ...item, nextStepDescription: val || null });
-      message.success("✅ Đã lưu bước tiếp theo");
+      message.success("✅ Next step saved");
     } catch {
-      message.error("Lưu thất bại");
+      message.error("Save failed");
     }
     setSaving(false);
   };
@@ -7381,7 +10394,7 @@ const NextStepInlineEditor = ({
           minHeight: 40,
         },
       },
-      val ? `→ ${val}` : "(Chưa có bước tiếp theo)",
+      val ? `→ ${val}` : "(No next step yet)",
     );
   }
   return React.createElement(
@@ -7391,7 +10404,7 @@ const NextStepInlineEditor = ({
       value: val,
       onChange: (e) => setVal(e.target.value),
       placeholder:
-        "VD: Khải soạn LoA theo Detailed outline, gửi khách hàng review...",
+        "e.g., Draft the LoA per the Detailed Outline, send to client for review...",
       rows: 3,
       style: {
         width: "100%",
@@ -7423,21 +10436,21 @@ const NextStepInlineEditor = ({
         },
       },
       isDirty &&
-        React.createElement(
-          "span",
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              color: "#fa8c16",
-              background: "#fff7e6",
-              border: "1px solid #ffd591",
-              borderRadius: 10,
-              padding: "1px 8px",
-            },
+      React.createElement(
+        "span",
+        {
+          style: {
+            fontSize: 12,
+            fontFamily: FONT,
+            color: "#fa8c16",
+            background: "#fff7e6",
+            border: "1px solid #ffd591",
+            borderRadius: 10,
+            padding: "1px 8px",
           },
-          "Chưa lưu",
-        ),
+        },
+        "Unsaved",
+      ),
       React.createElement(
         "div",
         {
@@ -7453,7 +10466,7 @@ const NextStepInlineEditor = ({
             cursor: saving ? "not-allowed" : isDirty ? "pointer" : "default",
           },
         },
-        saving ? "Đang lưu..." : isDirty ? "💾 Lưu" : "✓ Đã lưu",
+        saving ? "Saving..." : isDirty ? "💾 Save" : "✓ Saved",
       ),
     ),
   );
@@ -7482,9 +10495,9 @@ const DescriptionInlineEditor = ({
           : `tasks:update?filterByTk=${item.id}`;
       await apiReq(url, "POST", { description: val || null });
       onUpdate({ ...item, description: val || null });
-      message.success("✅ Đã lưu");
+      message.success("✅ Saved");
     } catch {
-      message.error("Lưu thất bại");
+      message.error("Save failed");
     }
     setSaving(false);
   };
@@ -7506,7 +10519,7 @@ const DescriptionInlineEditor = ({
           minHeight: 64,
         },
       },
-      val || "(Chưa có nội dung)",
+      val || "(No content yet)",
     );
   }
 
@@ -7516,7 +10529,7 @@ const DescriptionInlineEditor = ({
     React.createElement("textarea", {
       value: val,
       onChange: (e) => setVal(e.target.value),
-      placeholder: "Nhập nội dung diễn biến...",
+      placeholder: "Enter Description...",
       rows: 4,
       style: {
         width: "100%",
@@ -7547,21 +10560,21 @@ const DescriptionInlineEditor = ({
         },
       },
       isDirty &&
-        React.createElement(
-          "span",
-          {
-            style: {
-              fontSize: 11,
-              fontFamily: FONT,
-              color: "#fa8c16",
-              background: "#fff7e6",
-              border: "1px solid #ffd591",
-              borderRadius: 10,
-              padding: "1px 8px",
-            },
+      React.createElement(
+        "span",
+        {
+          style: {
+            fontSize: 11,
+            fontFamily: FONT,
+            color: "#fa8c16",
+            background: "#fff7e6",
+            border: "1px solid #ffd591",
+            borderRadius: 10,
+            padding: "1px 8px",
           },
-          "Chưa lưu",
-        ),
+        },
+        "Unsaved",
+      ),
       React.createElement(
         "div",
         {
@@ -7577,7 +10590,7 @@ const DescriptionInlineEditor = ({
             cursor: saving ? "not-allowed" : isDirty ? "pointer" : "default",
           },
         },
-        saving ? "Đang lưu..." : isDirty ? "💾 Lưu" : "✓ Đã lưu",
+        saving ? "Saving..." : isDirty ? "💾 Save" : "✓ Saved",
       ),
     ),
   );
@@ -7603,7 +10616,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
     n?.createdBy?.nickname ||
     n?.createdBy?.username ||
     n?.createdBy?.email ||
-    (n?.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n?.createdById ? `User #${n.createdById}` : "Anonymous");
 
   const getActivityTime = (a) =>
     new Date(
@@ -7621,27 +10634,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
   const activityLogKey = (a) =>
     a?.batchId
       ? [
-          "batch",
-          a.collectionName || "",
-          extractId(a.recordId) || "",
-          a.action || "",
-          a.fieldName || "",
-          a.batchId || "",
-          extractId(a.dataId) || "",
-          a.oldValue || "",
-          a.newValue || "",
-        ].join("|")
+        "batch",
+        a.collectionName || "",
+        extractId(a.recordId) || "",
+        a.action || "",
+        a.fieldName || "",
+        a.batchId || "",
+        extractId(a.dataId) || "",
+        a.oldValue || "",
+        a.newValue || "",
+      ].join("|")
       : [
-          "time",
-          a?.collectionName || "",
-          extractId(a?.recordId) || "",
-          a?.action || "",
-          a?.fieldName || "",
-          extractId(a?.dataId) || "",
-          a?.oldValue || "",
-          a?.newValue || "",
-          a?.changedAt || a?.updatedAt || a?.createdAt || "",
-        ].join("|");
+        "time",
+        a?.collectionName || "",
+        extractId(a?.recordId) || "",
+        a?.action || "",
+        a?.fieldName || "",
+        extractId(a?.dataId) || "",
+        a?.oldValue || "",
+        a?.newValue || "",
+        a?.changedAt || a?.updatedAt || a?.createdAt || "",
+      ].join("|");
 
   const activityLogRenderKey = (a) => {
     const field = ["title", "documents"].includes(a?.fieldName)
@@ -7754,6 +10767,12 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
       updated: "\u0111\u00e3 ch\u1ec9nh s\u1eeda",
       deleted: "\u0111\u00e3 x\u00f3a b\u1ecf",
       uploaded: "\u0111\u00e3 t\u1ea3i l\u00ean",
+      link_legal_study: "\u0111\u00e3 \u0111\u01b0a v\u00e0o Legal Study",
+      link_legal_ref: "\u0111\u00e3 \u0111\u01b0a v\u00e0o Legal Reference",
+      linked_legal_study: "\u0111\u00e3 \u0111\u01b0a v\u00e0o Legal Study",
+      unlinked_legal_study: "\u0111\u00e3 g\u1ee1 kh\u1ecfi Legal Study",
+      linked_legal_reference:
+        "\u0111\u00e3 \u0111\u01b0a v\u00e0o Legal Reference",
     };
     return (
       layoutLabels[layoutType] ||
@@ -8235,290 +11254,290 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
 
       // ── Reply context ──────────────────────────────────────────────────
       parentAuthor &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            fontSize: 12,
+            color: "#8c8c8c",
+            fontFamily: FONT,
+            fontStyle: "italic",
+          },
+        },
+        `replied to ${parentAuthor}:`,
+      ),
+
+      // ── Nội dung bình luận ─────────────────────────────────────────────
+      hasBody &&
+      React.createElement(
+        "div",
+        null,
         React.createElement(
           "div",
           {
             style: {
               fontSize: 12,
+              fontWeight: 600,
               color: "#8c8c8c",
+              marginBottom: 6,
               fontFamily: FONT,
-              fontStyle: "italic",
+              display: showBodyLabel ? "block" : "none",
             },
           },
-          `đã phản hồi ${parentAuthor}:`,
+          "Comment content:",
         ),
-
-      // ── Nội dung bình luận ─────────────────────────────────────────────
-      hasBody &&
         React.createElement(
           "div",
-          null,
+          {
+            style: {
+              background: isDel
+                ? "#fff1f0"
+                : isCommentOnly
+                  ? "#fff"
+                  : "#e6fffb",
+              border: isDel
+                ? "1px solid #ffa39e"
+                : isCommentOnly
+                  ? "1px solid #e8e8e8"
+                  : "1px solid #87e8de",
+              borderLeft: `3px solid ${isDel ? "#ff4d4f" : "#13c2c2"}`,
+              borderRadius: isCommentOnly ? 6 : 8,
+              padding: isCommentOnly ? "9px 12px" : "10px 14px",
+              fontSize: 13,
+              fontFamily: FONT,
+              lineHeight: 1.6,
+            },
+          },
+
+          // Quote parent note
+          parentNote &&
           React.createElement(
             "div",
             {
               style: {
-                fontSize: 12,
-                fontWeight: 600,
+                borderLeft: "2px solid #1890ff",
+                paddingLeft: 8,
+                marginBottom: 8,
                 color: "#8c8c8c",
-                marginBottom: 6,
-                fontFamily: FONT,
-                display: showBodyLabel ? "block" : "none",
+                fontSize: 12,
+                fontStyle: "italic",
               },
             },
-            "Nội dung bình luận:",
+            renderRichText(parentNote.body, lawyers),
           ),
+
+          // Updated: oldBody gạch đỏ
+          isUpdated &&
+          oldBody &&
+          React.createElement("div", {
+            style: {
+              color: "#ff4d4f",
+              textDecoration: "line-through",
+              marginBottom: 4,
+              opacity: 0.8,
+            },
+            dangerouslySetInnerHTML: {
+              __html:
+                typeof oldBody === "string"
+                  ? oldBody
+                  : renderRichText(oldBody, lawyers),
+            },
+          }),
+          isUpdated &&
+          oldBody &&
+          body &&
           React.createElement(
             "div",
-            {
+            { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
+            "↓ changed to ↓",
+          ),
+
+          // Nội dung hiện tại
+          body
+            ? React.createElement("div", {
               style: {
-                background: isDel
-                  ? "#fff1f0"
-                  : isCommentOnly
-                    ? "#fff"
-                    : "#e6fffb",
-                border: isDel
-                  ? "1px solid #ffa39e"
-                  : isCommentOnly
-                    ? "1px solid #e8e8e8"
-                    : "1px solid #87e8de",
-                borderLeft: `3px solid ${isDel ? "#ff4d4f" : "#13c2c2"}`,
-                borderRadius: isCommentOnly ? 6 : 8,
-                padding: isCommentOnly ? "9px 12px" : "10px 14px",
-                fontSize: 13,
-                fontFamily: FONT,
-                lineHeight: 1.6,
+                color: isDel ? "#8c8c8c" : "#262626",
+                textDecoration: isDel ? "line-through" : "none",
               },
-            },
-
-            // Quote parent note
-            parentNote &&
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    borderLeft: "2px solid #1890ff",
-                    paddingLeft: 8,
-                    marginBottom: 8,
-                    color: "#8c8c8c",
-                    fontSize: 12,
-                    fontStyle: "italic",
-                  },
-                },
-                renderRichText(parentNote.body, lawyers),
-              ),
-
-            // Updated: oldBody gạch đỏ
-            isUpdated &&
-              oldBody &&
-              React.createElement("div", {
-                style: {
-                  color: "#ff4d4f",
-                  textDecoration: "line-through",
-                  marginBottom: 4,
-                  opacity: 0.8,
-                },
+              dangerouslySetInnerHTML: {
+                __html:
+                  typeof body === "string"
+                    ? body
+                    : renderRichText(body, lawyers),
+              },
+            })
+            : isDel && oldBody
+              ? React.createElement("div", {
+                style: { color: "#8c8c8c", textDecoration: "line-through" },
                 dangerouslySetInnerHTML: {
                   __html:
                     typeof oldBody === "string"
                       ? oldBody
                       : renderRichText(oldBody, lawyers),
                 },
-              }),
-            isUpdated &&
-              oldBody &&
-              body &&
-              React.createElement(
-                "div",
-                { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
-                "↓ thay đổi thành ↓",
+              })
+              : React.createElement(
+                "span",
+                { style: { color: "#8c8c8c", fontStyle: "italic" } },
+                "(Note mentions someone)",
               ),
-
-            // Nội dung hiện tại
-            body
-              ? React.createElement("div", {
-                  style: {
-                    color: isDel ? "#8c8c8c" : "#262626",
-                    textDecoration: isDel ? "line-through" : "none",
-                  },
-                  dangerouslySetInnerHTML: {
-                    __html:
-                      typeof body === "string"
-                        ? body
-                        : renderRichText(body, lawyers),
-                  },
-                })
-              : isDel && oldBody
-                ? React.createElement("div", {
-                    style: { color: "#8c8c8c", textDecoration: "line-through" },
-                    dangerouslySetInnerHTML: {
-                      __html:
-                        typeof oldBody === "string"
-                          ? oldBody
-                          : renderRichText(oldBody, lawyers),
-                    },
-                  })
-                : React.createElement(
-                    "span",
-                    { style: { color: "#8c8c8c", fontStyle: "italic" } },
-                    "(Ghi chú có nhắc tên)",
-                  ),
-          ),
         ),
+      ),
 
       // ── Đã nhắc đến ai ─────────────────────────────────────────────────
       hasAssignees &&
+      React.createElement(
+        "div",
+        null,
         React.createElement(
           "div",
-          null,
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#8c8c8c",
-                marginBottom: 4,
-                fontFamily: FONT,
-              },
+          {
+            style: {
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#8c8c8c",
+              marginBottom: 4,
+              fontFamily: FONT,
             },
-            "Đã nhắc đến ai:",
-          ),
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                background: "#fafafa",
-                padding: "6px 10px",
-                borderRadius: 8,
-                border: "1px solid #f0f0f0",
-                gap: 4,
-              },
+          },
+          "Mentioned:",
+        ),
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              background: "#fafafa",
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #f0f0f0",
+              gap: 4,
             },
-            // Updated: old tags gạch đỏ → mũi tên → new tags
-            isUpdated &&
-              oldAssignees &&
-              React.createElement(
-                React.Fragment,
-                null,
-                renderAssigneeTags(oldAssignees, true, false),
-                assignees?.length > 0 &&
-                  React.createElement(
-                    "span",
-                    {
-                      style: {
-                        margin: "0 6px",
-                        color: "#bfbfbf",
-                        fontSize: 12,
-                      },
-                    },
-                    "→",
-                  ),
-              ),
-            // Current / deleted
-            renderAssigneeTags(
-              isDel && !isUpdated && oldAssignees ? oldAssignees : assignees,
-              isDel && !isUpdated,
-              isDel,
+          },
+          // Updated: old tags gạch đỏ → mũi tên → new tags
+          isUpdated &&
+          oldAssignees &&
+          React.createElement(
+            React.Fragment,
+            null,
+            renderAssigneeTags(oldAssignees, true, false),
+            assignees?.length > 0 &&
+            React.createElement(
+              "span",
+              {
+                style: {
+                  margin: "0 6px",
+                  color: "#bfbfbf",
+                  fontSize: 12,
+                },
+              },
+              "→",
             ),
           ),
+          // Current / deleted
+          renderAssigneeTags(
+            isDel && !isUpdated && oldAssignees ? oldAssignees : assignees,
+            isDel && !isUpdated,
+            isDel,
+          ),
         ),
+      ),
 
       // ── Tệp đính kèm ───────────────────────────────────────────────────
       hasFiles &&
+      React.createElement(
+        "div",
+        { style: { marginTop: 4 } },
         React.createElement(
           "div",
-          { style: { marginTop: 4 } },
-          React.createElement(
+          {
+            style: {
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#8c8c8c",
+              marginBottom: 4,
+              fontFamily: FONT,
+              display: showFileLabel ? "block" : "none",
+            },
+          },
+          "Attached files:",
+        ),
+        files.map((f) => {
+          const att = Array.isArray(f.fileAttachment)
+            ? f.fileAttachment[0]
+            : f.fileAttachment;
+          const rawName =
+            f.title || att?.title || att?.filename || "(Untitled)";
+          const fExt = att?.extname || "";
+          const displayName = rawName
+            .toLowerCase()
+            .endsWith(fExt.toLowerCase())
+            ? rawName
+            : rawName + fExt;
+          const eInfo = getExtInfo(fExt);
+          const fUrl = getFullUrl(att?.url || att?.preview);
+          const isFileDeleted = f.isDeleted || isDel;
+
+          return React.createElement(
             "div",
             {
+              key: f.id,
               style: {
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#8c8c8c",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: isFileDeleted ? "#fff1f0" : "#f9f0ff",
+                border: isFileDeleted
+                  ? "1px solid #ffa39e"
+                  : "1px solid #d3adf7",
+                borderLeft: `3px solid ${isFileDeleted ? "#ff4d4f" : "#722ed1"}`,
+                borderRadius: 4,
+                padding: "4px 10px",
                 marginBottom: 4,
-                fontFamily: FONT,
-                display: showFileLabel ? "block" : "none",
+                opacity: isFileDeleted ? 0.7 : 1,
+                cursor: fUrl && !isFileDeleted ? "pointer" : "default",
               },
+              onClick:
+                fUrl && !isFileDeleted
+                  ? () => window.open(fUrl, "_blank")
+                  : undefined,
             },
-            "Tệp đính kèm:",
-          ),
-          files.map((f) => {
-            const att = Array.isArray(f.fileAttachment)
-              ? f.fileAttachment[0]
-              : f.fileAttachment;
-            const rawName =
-              f.title || att?.title || att?.filename || "(Chưa có tên)";
-            const fExt = att?.extname || "";
-            const displayName = rawName
-              .toLowerCase()
-              .endsWith(fExt.toLowerCase())
-              ? rawName
-              : rawName + fExt;
-            const eInfo = getExtInfo(fExt);
-            const fUrl = getFullUrl(att?.url || att?.preview);
-            const isFileDeleted = f.isDeleted || isDel;
-
-            return React.createElement(
-              "div",
+            React.createElement(
+              "span",
+              { style: { fontSize: 12 } },
+              eInfo.icon,
+            ),
+            React.createElement(
+              "span",
               {
-                key: f.id,
                 style: {
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  background: isFileDeleted ? "#fff1f0" : "#f9f0ff",
-                  border: isFileDeleted
-                    ? "1px solid #ffa39e"
-                    : "1px solid #d3adf7",
-                  borderLeft: `3px solid ${isFileDeleted ? "#ff4d4f" : "#722ed1"}`,
-                  borderRadius: 4,
-                  padding: "4px 10px",
-                  marginBottom: 4,
-                  opacity: isFileDeleted ? 0.7 : 1,
-                  cursor: fUrl && !isFileDeleted ? "pointer" : "default",
+                  fontSize: 11,
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  color: isFileDeleted ? "#8c8c8c" : "#262626",
+                  textDecoration: isFileDeleted ? "line-through" : "none",
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 },
-                onClick:
-                  fUrl && !isFileDeleted
-                    ? () => window.open(fUrl, "_blank")
-                    : undefined,
               },
-              React.createElement(
-                "span",
-                { style: { fontSize: 12 } },
-                eInfo.icon,
-              ),
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    fontSize: 11,
-                    fontFamily: FONT,
-                    fontWeight: 600,
-                    color: isFileDeleted ? "#8c8c8c" : "#262626",
-                    textDecoration: isFileDeleted ? "line-through" : "none",
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  },
-                },
-                displayName,
-              ),
-              fUrl &&
-                !isFileDeleted &&
-                React.createElement(
-                  "span",
-                  {
-                    style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
-                  },
-                  "TẢI VỀ",
-                ),
-            );
-          }),
-        ),
+              displayName,
+            ),
+            fUrl &&
+            !isFileDeleted &&
+            React.createElement(
+              "span",
+              {
+                style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
+              },
+              "DOWNLOAD",
+            ),
+          );
+        }),
+      ),
     );
   };
 
@@ -8528,14 +11547,14 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
       a.action === "created"
         ? a.createdAt || a.changedAt || a.updatedAt
         : a.changedAt || a.updatedAt || a.createdAt;
-    const fieldLabel = tF(a.fieldName || "dữ liệu");
-    const user = a.changedByName || "Hệ thống";
+    const fieldLabel = tF(a.fieldName || "data");
+    const user = a.changedByName || "System";
     const actionLabel =
       a.action === "created"
-        ? `\u0111\u00e3 t\u1ea1o ${fieldLabel}`
+        ? `created ${fieldLabel}`
         : a.action === "deleted"
-          ? `\u0111\u00e3 x\u00f3a ${fieldLabel}`
-          : `\u0111\u00e3 c\u1eadp nh\u1eadt ${fieldLabel}`;
+          ? `deleted ${fieldLabel}`
+          : `updated ${fieldLabel}`;
     const oldVal = a.oldValue ? formatActivityValue(a.oldValue) : "—";
     const newVal = a.newValue ? formatActivityValue(a.newValue) : "—";
     const showOldValue = a.action !== "created";
@@ -8578,7 +11597,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
           React.createElement(
             "span",
             { style: { fontSize: 13, color: "#595959" } },
-            ` ${actionLabel} lúc `,
+            ` ${actionLabel} at `,
           ),
           React.createElement(
             "span",
@@ -8603,30 +11622,30 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
         React.createElement(
           "span",
           { style: { color: "#8c8c8c", fontWeight: 700 } },
-          "Giá trị:",
+          "Value:",
         ),
         showOldValue &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                color: "#cf1322",
-                background: "#fff1f0",
-                padding: "2px 8px",
-                borderRadius: 4,
-                textDecoration: a.oldValue ? "line-through" : "none",
-                maxWidth: "100%",
-                overflowWrap: "anywhere",
-              },
+        React.createElement(
+          "span",
+          {
+            style: {
+              color: "#cf1322",
+              background: "#fff1f0",
+              padding: "2px 8px",
+              borderRadius: 4,
+              textDecoration: a.oldValue ? "line-through" : "none",
+              maxWidth: "100%",
+              overflowWrap: "anywhere",
             },
-            oldVal,
-          ),
+          },
+          oldVal,
+        ),
         showArrow &&
-          React.createElement(
-            "span",
-            { style: { color: "#8c8c8c", fontWeight: 700 } },
-            "→",
-          ),
+        React.createElement(
+          "span",
+          { style: { color: "#8c8c8c", fontWeight: 700 } },
+          "→",
+        ),
         React.createElement(
           "span",
           {
@@ -8797,10 +11816,10 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
     // Tên user hiển thị
     const user =
       firstIt._kind === "log"
-        ? firstIt.data.changedByName || "Hệ thống"
+        ? firstIt.data.changedByName || "System"
         : firstIt.note
           ? authorName(firstIt.note)
-          : "Hệ thống";
+          : "System";
 
     const actionLabel = getLayoutActionLabel(
       layoutType,
@@ -8868,28 +11887,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
           React.createElement(
             "span",
             { style: { color: "#8c8c8c", fontSize: 12, fontFamily: FONT } },
-            `${actionLabel} l\u00fac ${fmt(latestTime, "full") || "\u2014"}`,
+            `${actionLabel} at ${fmt(latestTime, "full") || "\u2014"}`,
           ),
           badge &&
-            React.createElement(
-              "span",
-              {
-                style: {
-                  fontSize: 11,
-                  color: layoutType === "fileOnly" ? "#531dab" : "#006d75",
-                  background: layoutType === "fileOnly" ? "#f9f0ff" : "#e6fffb",
-                  border: `1px solid ${
-                    layoutType === "fileOnly" ? "#d3adf7" : "#87e8de"
+          React.createElement(
+            "span",
+            {
+              style: {
+                fontSize: 11,
+                color: layoutType === "fileOnly" ? "#531dab" : "#006d75",
+                background: layoutType === "fileOnly" ? "#f9f0ff" : "#e6fffb",
+                border: `1px solid ${layoutType === "fileOnly" ? "#d3adf7" : "#87e8de"
                   }`,
-                  borderRadius: 4,
-                  padding: "1px 6px",
-                  marginLeft: 6,
-                  fontFamily: FONT,
-                  whiteSpace: "nowrap",
-                },
+                borderRadius: 4,
+                padding: "1px 6px",
+                marginLeft: 6,
+                fontFamily: FONT,
+                whiteSpace: "nowrap",
               },
-              badge,
-            ),
+            },
+            badge,
+          ),
         ),
       ),
 
@@ -8906,12 +11924,12 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
         },
         renderActionSummary(actionSummary),
         compositeNoteLog ||
-          items.map((it, idx) => {
-            if (it._kind === "log") return renderLogInner(it, idx, isDeleted);
-            if (it._kind === "unified")
-              return renderUnifiedInner(it, idx, isDeleted);
-            return null;
-          }),
+        items.map((it, idx) => {
+          if (it._kind === "log") return renderLogInner(it, idx, isDeleted);
+          if (it._kind === "unified")
+            return renderUnifiedInner(it, idx, isDeleted);
+          return null;
+        }),
       ),
     );
   };
@@ -8969,7 +11987,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
               fontFamily: FONT,
             },
           },
-          "Tệp đính kèm:",
+          "Attached files:",
         ),
         React.createElement(
           "div",
@@ -8983,55 +12001,55 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
             },
           },
           isUpd &&
-            a.oldValue &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  color: "#ff4d4f",
-                  textDecoration: "line-through",
-                  fontSize: 12,
-                  marginBottom: 4,
-                },
+          a.oldValue &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                color: "#ff4d4f",
+                textDecoration: "line-through",
+                fontSize: 12,
+                marginBottom: 4,
               },
-              a.oldValue,
-            ),
+            },
+            a.oldValue,
+          ),
           isUpd &&
-            a.oldValue &&
-            a.newValue &&
-            React.createElement(
-              "div",
-              { style: { fontSize: 10, color: "#bfbfbf", margin: "2px 0" } },
-              "↓",
-            ),
+          a.oldValue &&
           a.newValue &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontWeight: 600,
-                  fontSize: 13,
-                  color: isDel ? "#8c8c8c" : "#262626",
-                  textDecoration: isDel ? "line-through" : "none",
-                },
+          React.createElement(
+            "div",
+            { style: { fontSize: 10, color: "#bfbfbf", margin: "2px 0" } },
+            "↓",
+          ),
+          a.newValue &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontWeight: 600,
+                fontSize: 13,
+                color: isDel ? "#8c8c8c" : "#262626",
+                textDecoration: isDel ? "line-through" : "none",
               },
-              a.newValue,
-            ),
+            },
+            a.newValue,
+          ),
           isDel &&
-            !isUpd &&
-            a.oldValue &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontWeight: 600,
-                  fontSize: 13,
-                  color: "#8c8c8c",
-                  textDecoration: "line-through",
-                },
+          !isUpd &&
+          a.oldValue &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontWeight: 600,
+                fontSize: 13,
+                color: "#8c8c8c",
+                textDecoration: "line-through",
               },
-              a.oldValue,
-            ),
+            },
+            a.oldValue,
+          ),
         ),
       );
     }
@@ -9062,42 +12080,42 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
             fontFamily: FONT,
           },
         },
-        isUpd ? `cập nhật [${label}]` : `đã xóa [${label}]`,
+        isUpd ? `updated [${label}]` : `deleted [${label}]`,
       ),
       (a.oldValue || a.newValue) &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              background: isDel ? "#fff1f0" : "#fafafa",
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #f0f0f0",
-              opacity: isDel ? 0.7 : 1,
-              marginTop: 4,
-            },
+      React.createElement(
+        "div",
+        {
+          style: {
+            fontSize: 12,
+            fontFamily: FONT,
+            background: isDel ? "#fff1f0" : "#fafafa",
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: "1px solid #f0f0f0",
+            opacity: isDel ? 0.7 : 1,
+            marginTop: 4,
           },
-          a.oldValue &&
-            React.createElement("div", {
-              style: {
-                color: "#ff4d4f",
-                textDecoration: "line-through",
-                marginBottom: a.newValue ? 4 : 0,
-              },
-              dangerouslySetInnerHTML: {
-                __html: formatActivityValue(a.oldValue),
-              },
-            }),
-          a.newValue &&
-            React.createElement("div", {
-              style: { color: isDel ? "#8c8c8c" : "#262626" },
-              dangerouslySetInnerHTML: {
-                __html: formatActivityValue(a.newValue),
-              },
-            }),
-        ),
+        },
+        a.oldValue &&
+        React.createElement("div", {
+          style: {
+            color: "#ff4d4f",
+            textDecoration: "line-through",
+            marginBottom: a.newValue ? 4 : 0,
+          },
+          dangerouslySetInnerHTML: {
+            __html: formatActivityValue(a.oldValue),
+          },
+        }),
+        a.newValue &&
+        React.createElement("div", {
+          style: { color: isDel ? "#8c8c8c" : "#262626" },
+          dangerouslySetInnerHTML: {
+            __html: formatActivityValue(a.newValue),
+          },
+        }),
+      ),
     );
   };
 
@@ -9171,7 +12189,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
             color: "#262626",
           },
         },
-        "Lịch sử hoạt động",
+        "Activity History",
       ),
       React.createElement(ReloadButton, {
         onReload: reloadData,
@@ -9186,62 +12204,62 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
       { style: { flex: 1, overflowY: "auto" } },
       loading
         ? React.createElement(
-            "div",
-            { style: { textAlign: "center", padding: 30 } },
-            React.createElement(Spin, { size: "large" }),
-          )
+          "div",
+          { style: { textAlign: "center", padding: 30 } },
+          React.createElement(Spin, { size: "large" }),
+        )
         : items.length === 0
           ? React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 13,
+                color: "#bfbfbf",
+                textAlign: "center",
+                padding: "30px 0",
+                fontFamily: FONT,
+              },
+            },
+            "No activity yet",
+          )
+          : React.createElement(
+            "div",
+            null,
+            ...visibleItems.map((item, i) => {
+              if (item._kind === "group")
+                return renderGroup(item, `act-${i}`);
+              if (item._kind === "taskLog")
+                return renderTaskLog(item, `act-task-${i}`);
+              return null;
+            }),
+            hasMore &&
+            React.createElement(
               "div",
               {
+                onClick: () => setShowAll((v) => !v),
                 style: {
-                  fontSize: 13,
-                  color: "#bfbfbf",
+                  margin: "16px",
                   textAlign: "center",
-                  padding: "30px 0",
+                  fontSize: 12,
                   fontFamily: FONT,
+                  color: "#1890ff",
+                  cursor: "pointer",
+                  padding: "8px 0",
+                  border: "1px dashed #91caff",
+                  borderRadius: 6,
+                  background: "#f0f8ff",
+                  fontWeight: 600,
                 },
+                onMouseEnter: (e) =>
+                  (e.currentTarget.style.background = "#d6ecff"),
+                onMouseLeave: (e) =>
+                  (e.currentTarget.style.background = "#f0f8ff"),
               },
-              "Chưa có hoạt động nào",
-            )
-          : React.createElement(
-              "div",
-              null,
-              ...visibleItems.map((item, i) => {
-                if (item._kind === "group")
-                  return renderGroup(item, `act-${i}`);
-                if (item._kind === "taskLog")
-                  return renderTaskLog(item, `act-task-${i}`);
-                return null;
-              }),
-              hasMore &&
-                React.createElement(
-                  "div",
-                  {
-                    onClick: () => setShowAll((v) => !v),
-                    style: {
-                      margin: "16px",
-                      textAlign: "center",
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#1890ff",
-                      cursor: "pointer",
-                      padding: "8px 0",
-                      border: "1px dashed #91caff",
-                      borderRadius: 6,
-                      background: "#f0f8ff",
-                      fontWeight: 600,
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.background = "#d6ecff"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.background = "#f0f8ff"),
-                  },
-                  showAll
-                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${items.length})`
-                    : `▼ Xem thêm ${items.length - INITIAL_COUNT} hoạt động (tổng ${items.length})`,
-                ),
+              showAll
+                ? `▲ Collapse (showing ${INITIAL_COUNT} of ${items.length})`
+                : `▼ View ${items.length - INITIAL_COUNT} more activities (${items.length} total)`,
             ),
+          ),
     ),
   );
 };
@@ -9266,13 +12284,36 @@ const DetailModal = ({
   if (!item) return null;
   const name = type === "subTask" ? item.subTaskName : item.title;
   const collectionName = type === "subTask" ? "SubTask" : "Task";
+  const detailCaseId =
+    extractId(item.caseId) ||
+    extractId(item.projectId) ||
+    extractId(PROJECT_ID);
   const st = STATUS_CFG[item.status] || STATUS_CFG.toDo;
 
-  const canEdit = isManager || isAssignedToThis;
-  const canManage = isManager;
-  const canAccessFilesAndTimesheet = isManager || isAssignedToThis;
+  const serviceDeleted = isTaskServiceDeleted(item);
+  const canEdit = !serviceDeleted && (isManager || isAssignedToThis);
+  const canManage = !serviceDeleted && isManager;
+  const canAccessFilesAndTimesheet = !serviceDeleted && (isManager || isAssignedToThis);
 
   const _pool = tasksInService || allTasksInProject;
+  const legalStudyTaskContext = useMemo(() => {
+    const recordId = extractId(item.id);
+    const sourceTaskId = type === "subTask" ? extractId(item.taskId) : recordId;
+    const parentTask =
+      type === "subTask"
+        ? (_pool || []).find((task) => extractId(task.id) === sourceTaskId)
+        : item;
+    return {
+      collectionName,
+      recordId,
+      taskId: sourceTaskId,
+      taskTitle: parentTask?.title || (type === "task" ? item.title : ""),
+      subTaskId: type === "subTask" ? recordId : null,
+      subTaskTitle: type === "subTask" ? item.subTaskName || item.title || "" : "",
+      caseId: detailCaseId,
+      caseCode: item.caseCode || item.project?.caseCode || "",
+    };
+  }, [item, type, collectionName, _pool, detailCaseId]);
 
   const isLastTask = useMemo(() => {
     if (type !== "task" || !item.serviceId) return false;
@@ -9294,37 +12335,113 @@ const DetailModal = ({
   const [editFileTitle, setEditFileTitle] = useState("");
   const [expandedPreviews, setExpandedPreviews] = useState({});
   const [cmtRefreshTrigger, setCmtRefreshTrigger] = useState(0);
+  const [libraryMoveTarget, setLibraryMoveTarget] = useState(null);
+  const [detailFolderLookup, setDetailFolderLookup] = useState({});
+  const [expandedAttachmentFolders, setExpandedAttachmentFolders] = useState({});
 
   const handleSaveFileTitle = async (f) => {
     const newTitle = editFileTitle.trim();
     if (!newTitle) return;
     try {
+      const now = new Date().toISOString();
+      const userId = extractId(currentUser?.id);
+      const attachment = getPrimaryAttachment(f);
       await apiReq(`documents:update?filterByTk=${f.id}`, "POST", {
         title: newTitle,
+        name: newTitle,
+        updatedAt: now,
+        ...(userId ? { updatedById: userId } : {}),
       });
+      if (attachment?.id) {
+        await apiReq(`attachments:update?filterByTk=${attachment.id}`, "POST", {
+          title: newTitle,
+        }).catch(() => { });
+      }
       // Update local item files state to reflect change
       if (onUpdate) {
         const updatedFiles = allFiles.map((file) =>
-          file.id === f.id ? { ...file, title: newTitle } : file,
+          file.id === f.id ? withSyncedDocumentFileTitle(file, newTitle) : file,
         );
         onUpdate({ ...item, _files: updatedFiles });
       }
-      message.success("Đã cập nhật tên tài liệu");
+      message.success("Document name updated");
     } catch (e) {
-      message.error("Lỗi cập nhật tên");
+      message.error("Failed to update name");
     }
     setEditingFileId(null);
     setEditFileTitle("");
   };
 
   const allFiles = item._files || [];
-  const templateFiles = allFiles.filter(
-    (f) => f.documentType && f.documentType.toLowerCase().trim() === "file mẫu",
-  );
-  const regularFiles = allFiles.filter(
-    (f) =>
-      !f.documentType || f.documentType.toLowerCase().trim() !== "file mẫu",
-  );
+  const attachmentFiles = allFiles.filter((file) => !file.isDeleted);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTaskNoteFolders(attachmentFiles).then((folders) => {
+      if (!cancelled) setDetailFolderLookup(buildFolderLookup(folders));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachmentFiles.map((file) => `${file.id}:${file.folderId}`).join("|")]);
+
+  const reloadAttachments = useCallback(async () => {
+    const fresh = await fetchFiles(collectionName, extractId(item.id));
+    const folders = await fetchTaskNoteFolders(fresh);
+    setDetailFolderLookup(buildFolderLookup(folders));
+    onUpdate({ ...item, _files: fresh });
+  }, [collectionName, item, onUpdate]);
+
+  const attachmentTree = useMemo(() => {
+    const rootFolderId = String(extractId(projectFolderId) || "");
+    const folderMap = {};
+    const looseFiles = [];
+
+    attachmentFiles.forEach((file) => {
+      const folderId = String(extractId(file.folderId) || "");
+      const chain = getFolderIdChain(folderId, detailFolderLookup);
+      let groupFolderId = "";
+      if (folderId && chain.length > 0) {
+        const rootIndex = rootFolderId ? chain.indexOf(rootFolderId) : -1;
+        groupFolderId =
+          rootIndex >= 0 ? chain[rootIndex + 1] || "" : chain[0] || folderId;
+      }
+      if (!groupFolderId || groupFolderId === rootFolderId) {
+        looseFiles.push(file);
+        return;
+      }
+      if (!folderMap[groupFolderId]) {
+        const folder = detailFolderLookup[groupFolderId] || {};
+        const descendantFolders = getDescendantFolderRecords(
+          groupFolderId,
+          detailFolderLookup,
+        );
+        folderMap[groupFolderId] = {
+          id: groupFolderId,
+          name: folder.name || folder.title || `Folder #${groupFolderId}`,
+          record: {
+            ...folder,
+            id: extractId(folder?.id) || extractId(groupFolderId),
+            _type: "folder",
+            _foldersToMove: descendantFolders.length
+              ? descendantFolders
+              : [folder],
+            _filesToMove: [],
+          },
+          files: [],
+        };
+      }
+      folderMap[groupFolderId].files.push(file);
+      folderMap[groupFolderId].record._filesToMove.push(file);
+    });
+
+    return {
+      folders: Object.values(folderMap).sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), "vi"),
+      ),
+      documents: looseFiles,
+    };
+  }, [attachmentFiles, detailFolderLookup, projectFolderId]);
 
   const inpStyle = {
     border: "1px solid #e8e8e8",
@@ -9336,6 +12453,8 @@ const DetailModal = ({
     color: "#262626",
     background: "#fff",
     width: "100%",
+    minWidth: 0,
+    height: 32,
     boxSizing: "border-box",
   };
   const inpReadOnly = {
@@ -9343,6 +12462,55 @@ const DetailModal = ({
     background: "#fafafa",
     color: "#8c8c8c",
     cursor: "not-allowed",
+  };
+  const detailGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+    gap: 16,
+    marginBottom: 16,
+  };
+  const detailFieldStyle = { minWidth: 0 };
+  const detailSelectStyle = {
+    width: "100%",
+    minWidth: 0,
+    fontFamily: FONT,
+  };
+  const detailControlShellStyle = (enabled = true, extra = {}) => ({
+    width: "100%",
+    minWidth: 0,
+    height: 32,
+    minHeight: 32,
+    border: "1px solid #e8e8e8",
+    borderRadius: 4,
+    padding: "4px 10px",
+    background: enabled ? "#fff" : "#fafafa",
+    display: "flex",
+    alignItems: "center",
+    boxSizing: "border-box",
+    fontSize: 12,
+    fontFamily: FONT,
+    color: enabled ? "#262626" : "#8c8c8c",
+    ...extra,
+  });
+  const detailInlineInputStyle = (enabled = true) => ({
+    flex: 1,
+    minWidth: 0,
+    height: "100%",
+    border: "none",
+    outline: "none",
+    padding: 0,
+    background: "transparent",
+    fontSize: 12,
+    fontFamily: FONT,
+    color: enabled ? "#262626" : "#8c8c8c",
+    cursor: enabled ? "text" : "not-allowed",
+  });
+  const detailTimeRangeStyle = {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+    alignItems: "center",
+    gap: 8,
   };
 
   const toLocalDT = (iso) => {
@@ -9385,7 +12553,7 @@ const DetailModal = ({
         prevTask.status !== "cancelled"
       ) {
         if (!["cancelled", "blocked"].includes(newSt)) {
-          message.warning(`Cần hoàn thành "${prevTask.title}" trước`);
+          message.warning(`Must complete "${prevTask.title}" first`);
           return;
         }
       }
@@ -9416,10 +12584,10 @@ const DetailModal = ({
       );
       if (onStatusChange)
         onStatusChange(extractId(item.id), resolvedSt, type, data);
-      message.success(`Trạng thái: ${STATUS_CFG[resolvedSt]?.label}`);
+      message.success(`Status: ${STATUS_CFG[resolvedSt]?.label}`);
     } catch (error) {
       message.error(
-        "Lỗi Backend: Tài khoản chưa được cấp quyền sửa trường này!",
+        "Backend error: your account does not have permission to edit this field!",
       );
       onUpdate({ ...item });
     }
@@ -9445,9 +12613,9 @@ const DetailModal = ({
     onUpdate({ ...item, priority: newPr });
     try {
       await apiReq(url, "POST", { priority: newPr });
-      message.success("Đã cập nhật mức độ ưu tiên");
+      message.success("Priority updated");
     } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
+      message.error("Backend error: No permission to update");
       onUpdate({ ...item });
     }
   };
@@ -9467,9 +12635,9 @@ const DetailModal = ({
     onUpdate({ ...item, [field]: nameVal.trim() });
     try {
       await apiReq(url, "POST", { [field]: nameVal.trim() });
-      message.success("Đã cập nhật tên công việc");
+      message.success("Task name updated");
     } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
+      message.error("Backend error: No permission to update");
       onUpdate({ ...item });
       setNameVal(name);
     }
@@ -9487,9 +12655,9 @@ const DetailModal = ({
           ? `subTasks:update?filterByTk=${extractId(item.id)}`
           : `tasks:update?filterByTk=${extractId(item.id)}`;
       await apiReq(url, "POST", { estimatedDuration: newVal });
-      message.success("Đã cập nhật thời gian dự kiến");
+      message.success("Estimated duration updated");
     } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
+      message.error("Backend error: No permission to update");
       onUpdate({ ...item });
       setEstDurVal(oldVal || "");
     }
@@ -9513,76 +12681,76 @@ const DetailModal = ({
     ),
     canEdit && editName
       ? React.createElement("input", {
-          value: nameVal,
-          onChange: (e) => setNameVal(e.target.value),
-          autoFocus: true,
-          onKeyDown: (e) => {
-            if (e.key === "Enter") saveName();
-            if (e.key === "Escape") setEditName(false);
-          },
-          onBlur: saveName,
+        value: nameVal,
+        onChange: (e) => setNameVal(e.target.value),
+        autoFocus: true,
+        onKeyDown: (e) => {
+          if (e.key === "Enter") saveName();
+          if (e.key === "Escape") setEditName(false);
+        },
+        onBlur: saveName,
+        style: {
+          fontSize: 16,
+          fontWeight: 600,
+          fontFamily: FONT,
+          border: "none",
+          borderBottom: "2px solid #1890ff",
+          outline: "none",
+          background: "transparent",
+          padding: "2px 4px",
+          minWidth: 300,
+        },
+      })
+      : React.createElement(
+        "span",
+        {
+          onClick: canEdit ? () => setEditName(true) : undefined,
           style: {
             fontSize: 16,
             fontWeight: 600,
             fontFamily: FONT,
-            border: "none",
-            borderBottom: "2px solid #1890ff",
-            outline: "none",
-            background: "transparent",
-            padding: "2px 4px",
-            minWidth: 300,
+            color: "#1a1a1a",
+            cursor: canEdit ? "text" : "default",
           },
-        })
-      : React.createElement(
-          "span",
-          {
-            onClick: canEdit ? () => setEditName(true) : undefined,
-            style: {
-              fontSize: 16,
-              fontWeight: 600,
-              fontFamily: FONT,
-              color: "#1a1a1a",
-              cursor: canEdit ? "text" : "default",
-            },
-          },
-          nameVal || name,
-        ),
+        },
+        nameVal || name,
+      ),
 
     item.isRequiredApproval &&
-      React.createElement(
-        "span",
-        {
-          style: {
-            fontSize: 11,
-            padding: "2px 6px",
-            borderRadius: 3,
-            background: "#fff7e6",
-            color: "#d46b08",
-            border: "1px solid #ffd591",
-          },
+    React.createElement(
+      "span",
+      {
+        style: {
+          fontSize: 11,
+          padding: "2px 6px",
+          borderRadius: 3,
+          background: "#fff7e6",
+          color: "#d46b08",
+          border: "1px solid #ffd591",
         },
-        "Cần phê duyệt",
-      ),
+      },
+      "Approval required",
+    ),
     item._od &&
-      React.createElement(
-        "span",
-        {
-          style: {
-            fontSize: 11,
-            padding: "2px 6px",
-            borderRadius: 3,
-            background: "#fff1f0",
-            color: "#cf1322",
-            border: "1px solid #ffa39e",
-          },
+    React.createElement(
+      "span",
+      {
+        style: {
+          fontSize: 11,
+          padding: "2px 6px",
+          borderRadius: 3,
+          background: "#fff1f0",
+          color: "#cf1322",
+          border: "1px solid #ffa39e",
         },
-        "Quá hạn",
-      ),
+      },
+      "Overdue",
+    ),
   );
 
   const renderFileList = (
     files,
-    emptyMsg = "Chưa có tệp đính kèm nào.",
+    emptyMsg = "No attached files yet.",
     hideTime = false,
   ) => {
     if (files.length === 0)
@@ -9603,7 +12771,7 @@ const DetailModal = ({
       {
         style: {
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
           gap: 10,
         },
       },
@@ -9620,8 +12788,69 @@ const DetailModal = ({
         if (ext && originalName.toLowerCase().endsWith(ext))
           originalName = originalName.slice(0, -ext.length);
         const finalFileName = originalName + ext;
+        const displayTitle = f.title || f.name || att?.title || finalFileName;
         const isEditingThisFile = editingFileId === f.id;
         const fullUrl = getFullUrl(att?.url || att?.preview);
+        const linkedLegalStudy = isLinkedToLegalStudy(f);
+        const linkedLegalReference = isLinkedToLegalReference(f);
+        const fileActionItems = [
+          {
+            key: "preview",
+            icon: TASK_FILE_ACTION_ICONS.preview,
+            label: "View preview",
+            disabled: !fullUrl,
+          },
+          {
+            key: "download",
+            icon: TASK_FILE_ACTION_ICONS.download,
+            label: "Download",
+            disabled: !fullUrl,
+          },
+          canEdit && !linkedLegalStudy && {
+            key: "move_legal_study",
+            icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
+            label: "Move to Legal Study",
+          },
+          canEdit && !linkedLegalReference && {
+            key: "move_legal_reference",
+            icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+            label: "Move to Legal Reference",
+          },
+          canEdit && {
+            key: "edit",
+            icon: TASK_FILE_ACTION_ICONS.edit,
+            label: "Rename",
+          },
+        ].filter(Boolean);
+        const handleFileActionClick = ({ key, domEvent }) => {
+          domEvent?.stopPropagation?.();
+          if (key === "preview") {
+            if (fullUrl) setPreviewDoc(f);
+            return;
+          }
+          if (key === "download") {
+            if (fullUrl) window.open(fullUrl, "_blank");
+            return;
+          }
+          if (key === "move_legal_study") {
+            setLibraryMoveTarget({
+              record: f,
+              destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
+            });
+            return;
+          }
+          if (key === "move_legal_reference") {
+            setLibraryMoveTarget({
+              record: f,
+              destinationType: LIBRARY_DESTINATION.LEGAL_REFERENCE,
+            });
+            return;
+          }
+          if (key === "edit") {
+            setEditingFileId(f.id);
+            setEditFileTitle(displayTitle);
+          }
+        };
         return React.createElement(
           "div",
           {
@@ -9656,84 +12885,369 @@ const DetailModal = ({
               { style: { flex: 1, minWidth: 0 } },
               isEditingThisFile
                 ? React.createElement("input", {
-                    autoFocus: true,
-                    value: editFileTitle,
-                    onChange: (e) => setEditFileTitle(e.target.value),
-                    onClick: (e) => e.stopPropagation(),
-                    onKeyDown: (e) => {
-                      if (e.key === "Enter") handleSaveFileTitle(f);
-                      if (e.key === "Escape") setEditingFileId(null);
-                    },
-                    style: {
-                      width: "100%",
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      border: "1px solid #1890ff",
-                      borderRadius: 4,
-                      padding: "2px 6px",
-                      outline: "none",
-                    },
-                  })
-                : React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "#096dd9",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      },
-                    },
-                    f.title || att?.title || finalFileName,
-                  ),
-            ),
-            !isEditingThisFile &&
-              canEdit &&
-              React.createElement(
-                "span",
-                {
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    setEditingFileId(f.id);
-                    setEditFileTitle(f.title || att?.title || finalFileName);
+                  autoFocus: true,
+                  value: editFileTitle,
+                  onChange: (e) => setEditFileTitle(e.target.value),
+                  onClick: (e) => e.stopPropagation(),
+                  onKeyDown: (e) => {
+                    if (e.key === "Enter") handleSaveFileTitle(f);
+                    if (e.key === "Escape") setEditingFileId(null);
                   },
                   style: {
+                    width: "100%",
                     fontSize: 12,
-                    cursor: "pointer",
-                    color: "#8c8c8c",
-                    padding: "2px 4px",
+                    fontFamily: FONT,
+                    border: "1px solid #1890ff",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    outline: "none",
                   },
-                },
-                "✏️",
-              ),
-          ),
-          f.note &&
+                })
+                : React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#096dd9",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    },
+                  },
+                  displayTitle,
+                ),
+            ),
+            !isEditingThisFile &&
             React.createElement(
-              "div",
+              Dropdown,
               {
-                style: {
-                  fontSize: 11,
-                  color: "#262626",
-                  marginTop: 4,
-                  padding: "6px 10px",
-                  background: "#fff",
-                  borderRadius: 4,
-                  border: "1px solid #f0f0f0",
+                trigger: ["click"],
+                placement: "bottomRight",
+                menu: {
+                  items: fileActionItems,
+                  onClick: handleFileActionClick,
                 },
               },
               React.createElement(
-                "span",
+                "button",
                 {
-                  style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
+                  type: "button",
+                  title: "Actions",
+                  onClick: (e) => e.stopPropagation(),
+                  style: {
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    border: "1px solid #E5E7EB",
+                    background: "#FFFFFF",
+                    color: "#4B5563",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    padding: 0,
+                  },
                 },
-                "Nội dung ghi chú:",
+                TASK_FILE_ACTION_ICONS.more,
               ),
-              f.note,
             ),
+          ),
+          f.note &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 11,
+                color: "#262626",
+                marginTop: 4,
+                padding: "6px 10px",
+                background: "#fff",
+                borderRadius: 4,
+                border: "1px solid #f0f0f0",
+              },
+            },
+            React.createElement(
+              "span",
+              {
+                style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
+              },
+              "Note content:",
+            ),
+            f.note,
+          ),
         );
       }),
+    );
+  };
+
+  const renderScrollableFileList = (files, emptyMsg) =>
+    React.createElement(
+      "div",
+      {
+        style: {
+          maxHeight: files.length > 5 ? 360 : "none",
+          overflowY: files.length > 5 ? "auto" : "visible",
+          paddingRight: files.length > 5 ? 4 : 0,
+        },
+      },
+      renderFileList(files, emptyMsg, true),
+    );
+
+  const renderAttachmentSection = () => {
+    const folderGroups = attachmentTree.folders || [];
+    const documentFiles = attachmentTree.documents || [];
+    return React.createElement(
+      "div",
+      null,
+      React.createElement(
+        "div",
+        {
+          style: {
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#262626",
+            marginBottom: 12,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+          },
+        },
+        React.createElement(
+          "span",
+          null,
+          "Attached Files ",
+          React.createElement(
+            "span",
+            { style: { color: "#6B7280", fontWeight: 500 } },
+            `(${folderGroups.length} Folders - ${documentFiles.length} Documents)`,
+          ),
+        ),
+        React.createElement(ReloadButton, {
+          onReload: reloadAttachments,
+          size: "small",
+        }),
+      ),
+      React.createElement(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 14 } },
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+                marginBottom: 8,
+              },
+            },
+            "Folders",
+          ),
+          folderGroups.length === 0
+            ? React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  color: "#bfbfbf",
+                  fontStyle: "italic",
+                  fontFamily: FONT,
+                },
+              },
+              "No folders yet.",
+            )
+            : React.createElement(
+              "div",
+              { style: { display: "flex", flexDirection: "column", gap: 8 } },
+              ...folderGroups.map((group) => {
+                const expanded = !!expandedAttachmentFolders[group.id];
+                const linkedLegalStudy = isLinkedToLegalStudy(group.record);
+                const linkedLegalReference = isLinkedToLegalReference(group.record);
+                const folderActionItems = [
+                  canEdit && !linkedLegalStudy && {
+                    key: "move_legal_study",
+                    icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
+                    label: "Move folder to Legal Study",
+                  },
+                  canEdit && !linkedLegalReference && {
+                    key: "move_legal_reference",
+                    icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+                    label: "Move folder to Legal Reference",
+                  },
+                ].filter(Boolean);
+                return React.createElement(
+                  "div",
+                  {
+                    key: group.id,
+                    style: {
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 8,
+                      background: "#FFFFFF",
+                      overflow: "hidden",
+                    },
+                  },
+                  React.createElement(
+                    "div",
+                    {
+                      onClick: () =>
+                        setExpandedAttachmentFolders((prev) => ({
+                          ...prev,
+                          [group.id]: !prev[group.id],
+                        })),
+                      style: {
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 10px",
+                        cursor: "pointer",
+                        background: "#F8FAFC",
+                        borderBottom: expanded ? "1px solid #E5E7EB" : "none",
+                        userSelect: "none",
+                      },
+                    },
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          width: 14,
+                          color: "#6B7280",
+                          fontSize: 11,
+                          transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+                          transition: "transform 0.15s",
+                          display: "inline-flex",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        },
+                      },
+                      "▶",
+                    ),
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          color: "#185FA5",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          flexShrink: 0,
+                        },
+                      },
+                      TASK_FILE_ACTION_ICONS.folder,
+                    ),
+                    React.createElement(
+                      "span",
+                      {
+                        title: group.name,
+                        style: {
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "#111827",
+                        },
+                      },
+                      group.name,
+                    ),
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 11,
+                          color: "#4B5563",
+                          background: "#F3F4F6",
+                          border: "1px solid #E5E7EB",
+                          borderRadius: 999,
+                          padding: "1px 7px",
+                          flexShrink: 0,
+                        },
+                      },
+                      `${group.files.length} documents`,
+                    ),
+                    folderActionItems.length > 0 &&
+                    React.createElement(
+                      Dropdown,
+                      {
+                        trigger: ["click"],
+                        placement: "bottomRight",
+                        menu: {
+                          items: folderActionItems,
+                          onClick: ({ key, domEvent }) => {
+                            domEvent?.stopPropagation?.();
+                            setLibraryMoveTarget({
+                              record: group.record,
+                              destinationType:
+                                key === "move_legal_reference"
+                                  ? LIBRARY_DESTINATION.LEGAL_REFERENCE
+                                  : LIBRARY_DESTINATION.LEGAL_STUDY,
+                            });
+                          },
+                        },
+                      },
+                      React.createElement(
+                        Button,
+                        {
+                          type: "text",
+                          size: "small",
+                          onClick: (event) => event.stopPropagation(),
+                          style: {
+                            width: 26,
+                            height: 26,
+                            padding: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#6B7280",
+                          },
+                        },
+                        TASK_FILE_ACTION_ICONS.more,
+                      ),
+                    ),
+                  ),
+                  expanded &&
+                  React.createElement(
+                    "div",
+                    { style: { padding: 8 } },
+                    renderScrollableFileList(
+                      group.files,
+                      "This folder has no documents yet.",
+                    ),
+                  ),
+                );
+              }),
+            ),
+        ),
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#6B7280",
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+                marginBottom: 8,
+              },
+            },
+            "Documents",
+          ),
+          renderScrollableFileList(
+            documentFiles,
+            "No attached documents yet.",
+          ),
+        ),
+      ),
     );
   };
   const headerBar = (txt, extra = null) =>
@@ -9765,7 +13279,7 @@ const DetailModal = ({
         open: true,
         onCancel: onClose,
         footer: null,
-        width: 1200,
+        width: "96vw",
         centered: true,
         title: modalTitle,
         bodyStyle: {
@@ -9794,7 +13308,7 @@ const DetailModal = ({
             flexShrink: 0,
           },
         },
-        React.createElement(
+        canAccessFilesAndTimesheet && React.createElement(
           "div",
           {
             style: {
@@ -9815,97 +13329,97 @@ const DetailModal = ({
             onMouseEnter: (e) => (e.currentTarget.style.background = "#bae0ff"),
             onMouseLeave: (e) => (e.currentTarget.style.background = "#e6f4ff"),
           },
-          "Ghi nhận Timesheet",
+          "Log Timesheet",
         ),
         isManager &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 16px",
-                background: "#f5f5f5",
-                color: "#595959",
-                border: "1px solid #d9d9d9",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "0.2s",
-              },
-              onClick: () => setOpenActivity(true),
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#e8e8e8"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "#f5f5f5"),
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 16px",
+              background: "#f5f5f5",
+              color: "#595959",
+              border: "1px solid #d9d9d9",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "0.2s",
             },
-            "Lịch sử hoạt động",
-          ),
-        type === "task" &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 16px",
-                background: "#f6ffed",
-                color: "#389e0d",
-                border: "1px solid #b7eb8f",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "0.2s",
-              },
-              onClick: () => onOpenAddSubModal(item.id),
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#d9f7be"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "#f6ffed"),
+            onClick: () => setOpenActivity(true),
+            onMouseEnter: (e) =>
+              (e.currentTarget.style.background = "#e8e8e8"),
+            onMouseLeave: (e) =>
+              (e.currentTarget.style.background = "#f5f5f5"),
+          },
+          "Activity History",
+        ),
+        type === "task" && canEdit &&
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 16px",
+              background: "#f6ffed",
+              color: "#389e0d",
+              border: "1px solid #b7eb8f",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "0.2s",
             },
-            "＋ Tạo công việc phụ",
-          ),
-        isLastTask &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 16px",
-                background: "#fff7e6",
-                color: "#d46b08",
-                border: "1px solid #ffd591",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "0.2s",
-              },
-              onClick: async () => {
-                const popupUid = "qlk80ukgcot";
-                onClose?.();
-                await new Promise((resolve) => setTimeout(resolve, 180));
-                await ctx.openView(popupUid, {
-                  mode: "dialog",
-                  title: ctx.t
-                    ? ctx.t("Tạo yêu cầu thanh toán")
-                    : "Tạo yêu cầu thanh toán",
-                  size: "medium",
-                });
-              },
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#ffe7ba"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "#fff7e6"),
+            onClick: () => onOpenAddSubModal(item.id),
+            onMouseEnter: (e) =>
+              (e.currentTarget.style.background = "#d9f7be"),
+            onMouseLeave: (e) =>
+              (e.currentTarget.style.background = "#f6ffed"),
+          },
+          "＋ Create subtask",
+        ),
+        isLastTask && canManage &&
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 16px",
+              background: "#fff7e6",
+              color: "#d46b08",
+              border: "1px solid #ffd591",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "0.2s",
             },
-            "💳 Tạo yêu cầu thanh toán",
-          ),
+            onClick: async () => {
+              const popupUid = "qlk80ukgcot";
+              onClose?.();
+              await new Promise((resolve) => setTimeout(resolve, 180));
+              await ctx.openView(popupUid, {
+                mode: "dialog",
+                title: ctx.t
+                  ? ctx.t("Create payment request")
+                  : "Create payment request",
+                size: "medium",
+              });
+            },
+            onMouseEnter: (e) =>
+              (e.currentTarget.style.background = "#ffe7ba"),
+            onMouseLeave: (e) =>
+              (e.currentTarget.style.background = "#fff7e6"),
+          },
+          "💳 Create payment request",
+        ),
       ),
 
       // 🌟 CHIA GRID THEO TỶ LỆ 4 - 6
@@ -9914,9 +13428,10 @@ const DetailModal = ({
         {
           style: {
             display: "grid",
-            gridTemplateColumns: "4fr 6fr",
+            gridTemplateColumns: "minmax(340px, 3fr) minmax(0, 7fr)",
             flex: 1,
             overflow: "hidden",
+            minWidth: 0,
           },
         },
         // ── CỘT TRÁI (Thông tin chung - 4 Phần) ──
@@ -9928,12 +13443,13 @@ const DetailModal = ({
               flexDirection: "column",
               borderRight: "1px solid #f0f0f0",
               overflow: "hidden",
+              minWidth: 0,
             },
           },
-          headerBar("Thông tin chung"),
+          headerBar("General Information"),
           React.createElement(
             "div",
-            { style: { padding: "20px 24px", overflowY: "auto", flex: 1 } },
+            { style: { padding: "16px 18px", overflowY: "auto", flex: 1 } },
             React.createElement(
               "div",
               {
@@ -9949,17 +13465,10 @@ const DetailModal = ({
               // 🌟 SẮP XẾP LẠI THÀNH 2 CỘT TRÁNH BỊ ÉP NHỎ
               React.createElement(
                 "div",
-                {
-                  style: {
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                    marginBottom: 16,
-                  },
-                },
+                { style: detailGridStyle },
                 React.createElement(
                   "div",
-                  null,
+                  { style: detailFieldStyle },
                   React.createElement(
                     "div",
                     {
@@ -9971,13 +13480,13 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Trạng thái",
+                    "Status",
                   ),
                   React.createElement(Select, {
                     value: item.status,
                     onChange: canEdit ? handleStatus : undefined,
                     disabled: !canEdit,
-                    style: { width: "100%", fontFamily: FONT },
+                    style: detailSelectStyle,
                     options: getStatusKeys(item.isRequiredApproval).map(
                       (k) => ({
                         label: React.createElement(
@@ -10006,7 +13515,7 @@ const DetailModal = ({
                 ),
                 React.createElement(
                   "div",
-                  null,
+                  { style: detailFieldStyle },
                   React.createElement(
                     "div",
                     {
@@ -10018,13 +13527,13 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Mức độ ưu tiên",
+                    "Priority",
                   ),
                   React.createElement(Select, {
                     value: item.priority || "medium",
                     onChange: canEdit ? handlePriority : undefined,
                     disabled: !canEdit,
-                    style: { width: "100%", fontFamily: FONT },
+                    style: detailSelectStyle,
                     options: Object.entries(PRIORITY_CFG).map(([k, v]) => ({
                       label: `${v.label}`,
                       value: k,
@@ -10057,7 +13566,7 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Thời gian dự kiến",
+                    "Estimated duration",
                   ),
                   React.createElement(
                     "div",
@@ -10073,7 +13582,7 @@ const DetailModal = ({
                         ? (e) => setEstDurVal(e.target.value)
                         : undefined,
                       readOnly: !canEdit,
-                      placeholder: "Số giờ...",
+                      placeholder: "Hours...",
                       style: {
                         ...(canEdit ? inpStyle : inpReadOnly),
                         width: "100%",
@@ -10089,7 +13598,7 @@ const DetailModal = ({
                           flexShrink: 0,
                         },
                       },
-                      "giờ",
+                      "hrs",
                     ),
                   ),
                 ),
@@ -10107,7 +13616,7 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Người phụ trách",
+                    "Assignee",
                   ),
                   React.createElement(
                     "div",
@@ -10159,7 +13668,7 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Yêu cầu xét duyệt",
+                    "Approval required",
                   ),
                   React.createElement(
                     "label",
@@ -10188,17 +13697,17 @@ const DetailModal = ({
                       disabled: !canManage,
                       onChange: canManage
                         ? async (e) => {
-                            const newVal = e.target.checked;
-                            const payload = { isRequiredApproval: newVal };
-                            if (!newVal) payload.approvedById = null; // 🌟 TỰ ĐỘNG XÓA NGƯỜI DUYỆT KHI TOGGLE TẮT
+                          const newVal = e.target.checked;
+                          const payload = { isRequiredApproval: newVal };
+                          if (!newVal) payload.approvedById = null; // 🌟 TỰ ĐỘNG XÓA NGƯỜI DUYỆT KHI TOGGLE TẮT
 
-                            const url =
-                              type === "subTask"
-                                ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                                : `tasks:update?filterByTk=${extractId(item.id)}`;
-                            await apiReq(url, "POST", payload);
-                            onUpdate({ ...item, ...payload });
-                          }
+                          const url =
+                            type === "subTask"
+                              ? `subTasks:update?filterByTk=${extractId(item.id)}`
+                              : `tasks:update?filterByTk=${extractId(item.id)}`;
+                          await apiReq(url, "POST", payload);
+                          onUpdate({ ...item, ...payload });
+                        }
                         : undefined,
                       style: {
                         width: 14,
@@ -10218,8 +13727,8 @@ const DetailModal = ({
                         },
                       },
                       item.isRequiredApproval
-                        ? "Cần phê duyệt"
-                        : "Không yêu cầu",
+                        ? "Required"
+                        : "Not required",
                     ),
                   ),
                 ),
@@ -10237,7 +13746,7 @@ const DetailModal = ({
                         marginBottom: 4,
                       },
                     },
-                    "Người xét duyệt",
+                    "Approver",
                   ),
                   React.createElement(
                     "div",
@@ -10265,34 +13774,34 @@ const DetailModal = ({
                       onChange:
                         canManage && item.isRequiredApproval
                           ? async (id, n, c) => {
-                              const url =
-                                type === "subTask"
-                                  ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                                  : `tasks:update?filterByTk=${extractId(item.id)}`;
-                              const payload = withTaskLinkedUrl(
-                                { approvedById: id },
-                                item,
-                                type,
-                              );
-                              await apiReq(url, "POST", payload);
-                              onUpdate({ ...item, ...payload });
-                            }
+                            const url =
+                              type === "subTask"
+                                ? `subTasks:update?filterByTk=${extractId(item.id)}`
+                                : `tasks:update?filterByTk=${extractId(item.id)}`;
+                            const payload = withTaskLinkedUrl(
+                              { approvedById: id },
+                              item,
+                              type,
+                            );
+                            await apiReq(url, "POST", payload);
+                            onUpdate({ ...item, ...payload });
+                          }
                           : undefined,
                     }),
                     !item.approvedById &&
-                      item.isRequiredApproval &&
-                      React.createElement(
-                        "span",
-                        {
-                          style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#bfbfbf",
-                            marginLeft: 4,
-                          },
+                    item.isRequiredApproval &&
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 12,
+                          fontFamily: FONT,
+                          color: "#bfbfbf",
+                          marginLeft: 4,
                         },
-                        "Chọn...",
-                      ),
+                      },
+                      "Select...",
+                    ),
                   ),
                 ),
               ),
@@ -10312,7 +13821,7 @@ const DetailModal = ({
                       marginBottom: 4,
                     },
                   },
-                  "Thời gian thực hiện",
+                  "Timeline",
                 ),
                 React.createElement(
                   "div",
@@ -10325,23 +13834,23 @@ const DetailModal = ({
                     readOnly: !canEdit,
                     onBlur: canEdit
                       ? async (e) => {
-                          const field =
-                            type === "subTask" ? "date" : "startDate";
-                          const val = e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : null;
-                          onUpdate({ ...item, [field]: val });
-                          const apiUrl =
-                            type === "subTask"
-                              ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                              : `tasks:update?filterByTk=${extractId(item.id)}`;
-                          try {
-                            await apiReq(apiUrl, "POST", { [field]: val });
-                            message.success("Đã cập nhật thời gian");
-                          } catch (e) {
-                            message.error("Lỗi: Không thể cập nhật");
-                          }
+                        const field =
+                          type === "subTask" ? "date" : "startDate";
+                        const val = e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null;
+                        onUpdate({ ...item, [field]: val });
+                        const apiUrl =
+                          type === "subTask"
+                            ? `subTasks:update?filterByTk=${extractId(item.id)}`
+                            : `tasks:update?filterByTk=${extractId(item.id)}`;
+                        try {
+                          await apiReq(apiUrl, "POST", { [field]: val });
+                          message.success("Time updated");
+                        } catch (e) {
+                          message.error("Error: Could not update");
                         }
+                      }
                       : undefined,
                     style: {
                       ...(canEdit ? inpStyle : inpReadOnly),
@@ -10362,23 +13871,23 @@ const DetailModal = ({
                     readOnly: !canEdit,
                     onBlur: canEdit
                       ? async (e) => {
-                          const field =
-                            type === "subTask" ? "deadline" : "dueDate";
-                          const val = e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : null;
-                          onUpdate({ ...item, [field]: val });
-                          const apiUrl =
-                            type === "subTask"
-                              ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                              : `tasks:update?filterByTk=${extractId(item.id)}`;
-                          try {
-                            await apiReq(apiUrl, "POST", { [field]: val });
-                            message.success("Đã cập nhật thời gian");
-                          } catch (e) {
-                            message.error("Lỗi: Không thể cập nhật");
-                          }
+                        const field =
+                          type === "subTask" ? "deadline" : "dueDate";
+                        const val = e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null;
+                        onUpdate({ ...item, [field]: val });
+                        const apiUrl =
+                          type === "subTask"
+                            ? `subTasks:update?filterByTk=${extractId(item.id)}`
+                            : `tasks:update?filterByTk=${extractId(item.id)}`;
+                        try {
+                          await apiReq(apiUrl, "POST", { [field]: val });
+                          message.success("Time updated");
+                        } catch (e) {
+                          message.error("Error: Could not update");
                         }
+                      }
                       : undefined,
                     style: {
                       ...(canEdit ? inpStyle : inpReadOnly),
@@ -10407,7 +13916,7 @@ const DetailModal = ({
                       marginBottom: 12,
                     },
                   },
-                  "Mô tả công việc",
+                  "Task Description",
                 ),
                 React.createElement(DescriptionInlineEditor, {
                   item,
@@ -10417,56 +13926,6 @@ const DetailModal = ({
                 }),
               ),
               type === "task" &&
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#262626",
-                        marginBottom: 12,
-                      },
-                    },
-                    "Công việc phụ thuộc (Pending Issue)",
-                  ),
-                  React.createElement(TaskPicker, {
-                    allTasks: _pool,
-                    currentTaskId: extractId(item.id),
-                    value: extractId(item.previousTaskId),
-                    services,
-                    readOnly: !canManage,
-                    onChange: canManage
-                      ? async (newPrevId) => {
-                          const found = _pool.find(
-                            (t) => extractId(t.id) === extractId(newPrevId),
-                          );
-                          const newStatus = newPrevId
-                            ? found?.status !== "done" &&
-                              found?.status !== "cancelled"
-                              ? "blocked"
-                              : item.status
-                            : item.status === "blocked"
-                              ? "toDo"
-                              : item.status;
-                          const payload = {
-                            previousTaskId: newPrevId || null,
-                            status: newStatus,
-                          };
-                          await apiReq(
-                            type === "subTask"
-                              ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                              : `tasks:update?filterByTk=${extractId(item.id)}`,
-                            "POST",
-                            payload,
-                          );
-                          onUpdate({ ...item, ...payload });
-                        }
-                      : () => {},
-                  }),
-                ),
               React.createElement(
                 "div",
                 null,
@@ -10480,13 +13939,41 @@ const DetailModal = ({
                       marginBottom: 12,
                     },
                   },
-                  "Bước tiếp theo (Next Step)",
+                  "Prerequisite Task (Pending Issue)",
                 ),
-                React.createElement(NextStepInlineEditor, {
-                  item,
-                  onUpdate,
-                  currentUser,
-                  readOnly: !canEdit,
+                React.createElement(TaskPicker, {
+                  allTasks: _pool,
+                  currentTaskId: extractId(item.id),
+                  value: extractId(item.previousTaskId),
+                  services,
+                  readOnly: !canManage,
+                  onChange: canManage
+                    ? async (newPrevId) => {
+                      const found = _pool.find(
+                        (t) => extractId(t.id) === extractId(newPrevId),
+                      );
+                      const newStatus = newPrevId
+                        ? found?.status !== "done" &&
+                          found?.status !== "cancelled"
+                          ? "blocked"
+                          : item.status
+                        : item.status === "blocked"
+                          ? "toDo"
+                          : item.status;
+                      const payload = {
+                        previousTaskId: newPrevId || null,
+                        status: newStatus,
+                      };
+                      await apiReq(
+                        type === "subTask"
+                          ? `subTasks:update?filterByTk=${extractId(item.id)}`
+                          : `tasks:update?filterByTk=${extractId(item.id)}`,
+                        "POST",
+                        payload,
+                      );
+                      onUpdate({ ...item, ...payload });
+                    }
+                    : () => { },
                 }),
               ),
               React.createElement(
@@ -10500,58 +13987,18 @@ const DetailModal = ({
                       fontWeight: 600,
                       color: "#262626",
                       marginBottom: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
                     },
                   },
-                  "Tệp đính kèm file mẫu" +
-                    (templateFiles.length > 0
-                      ? ` (${templateFiles.length})`
-                      : ""),
-                  React.createElement(ReloadButton, {
-                    onReload: async () => {
-                      const fresh = await fetchFiles(
-                        collectionName,
-                        extractId(item.id),
-                      );
-                      onUpdate({ ...item, _files: fresh });
-                    },
-                    size: "small",
-                  }),
+                  "Next Step",
                 ),
-                renderFileList(templateFiles, "Chưa có file mẫu nào.", true),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                      marginTop: 24,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    },
-                  },
-                  "Tệp đính kèm" +
-                    (regularFiles.length > 0
-                      ? ` (${regularFiles.length})`
-                      : ""),
-                  React.createElement(ReloadButton, {
-                    onReload: async () => {
-                      const fresh = await fetchFiles(
-                        collectionName,
-                        extractId(item.id),
-                      );
-                      onUpdate({ ...item, _files: fresh });
-                    },
-                    size: "small",
-                  }),
-                ),
-                renderFileList(regularFiles, "Chưa có tệp đính kèm nào."),
+                React.createElement(NextStepInlineEditor, {
+                  item,
+                  onUpdate,
+                  currentUser,
+                  readOnly: !canEdit,
+                }),
               ),
+              renderAttachmentSection(),
             ),
           ),
         ),
@@ -10564,10 +14011,11 @@ const DetailModal = ({
               flexDirection: "column",
               background: "#fff",
               overflow: "hidden",
+              minWidth: 0,
             },
           },
           headerBar(
-            "Bình luận & Báo cáo",
+            "Comments & Reports",
             React.createElement(ReloadButton, {
               onReload: () => setCmtRefreshTrigger((v) => v + 1),
               size: "small",
@@ -10581,10 +14029,11 @@ const DetailModal = ({
               recordId: extractId(item.id),
               currentUser,
               lawyers,
-              canEdit: true, // 🌟 Mở quyền cho tất cả User bình luận & upload
+              canEdit: !serviceDeleted,
               projectFolderId,
               refreshTrigger: cmtRefreshTrigger,
-              caseId: extractId(item.caseId), // 🌟 Truyền caseId xuống để tạo link
+              caseId: detailCaseId,
+              taskContext: legalStudyTaskContext,
             }),
           ),
         ),
@@ -10593,7 +14042,7 @@ const DetailModal = ({
     React.createElement(
       Drawer,
       {
-        title: "Quản lý Timesheet",
+        title: "Manage Timesheet",
         placement: "right",
         width: 550,
         onClose: () => setOpenTimesheet(false),
@@ -10607,13 +14056,13 @@ const DetailModal = ({
         currentUser,
         projectManagerId,
         isManager: canManage,
-        canAccess: true,
+        canAccess: canAccessFilesAndTimesheet,
       }),
     ),
     React.createElement(
       Drawer,
       {
-        title: "Lịch sử hoạt động",
+        title: "Activity History",
         placement: "right",
         width: 700,
         onClose: () => setOpenActivity(false),
@@ -10627,10 +14076,31 @@ const DetailModal = ({
       }),
     ),
     previewDoc &&
-      React.createElement(PreviewModal, {
-        doc: previewDoc,
-        onClose: () => setPreviewDoc(null),
-      }),
+    React.createElement(PreviewModal, {
+      doc: previewDoc,
+      onClose: () => setPreviewDoc(null),
+    }),
+    libraryMoveTarget &&
+    React.createElement(LibraryMoveModal, {
+      open: !!libraryMoveTarget,
+      record: libraryMoveTarget.record,
+      destinationType: libraryMoveTarget.destinationType,
+      sourceContext: legalStudyTaskContext,
+      currentUser,
+      onClose: () => setLibraryMoveTarget(null),
+      onSuccess: (updatedFile) => {
+        setLibraryMoveTarget(null);
+        if (onUpdate && updatedFile?._type !== "folder") {
+          const updatedFiles = allFiles.map((file) =>
+            file.id === updatedFile.id ? { ...file, ...updatedFile } : file,
+          );
+          onUpdate({ ...item, _files: updatedFiles });
+        } else {
+          reloadAttachments();
+        }
+        setCmtRefreshTrigger((v) => v + 1);
+      },
+    }),
   );
 };
 
@@ -10688,7 +14158,14 @@ const AddTaskModal = ({
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      message.warning("Vui lòng nhập tên công việc");
+      message.warning("Please enter a task name");
+      return;
+    }
+    const selectedService = services.find(
+      (ps) => getProjectServiceTaskKey(ps) === String(form.serviceId || ""),
+    );
+    if (selectedService && isDeletedServiceRecord(selectedService)) {
+      message.warning("This service has been deleted; a new task cannot be created.");
       return;
     }
     setSaving(true);
@@ -10720,12 +14197,12 @@ const AddTaskModal = ({
       if (form.nextStepDescription)
         payload.nextStepDescription = form.nextStepDescription;
       await apiReq("tasks:create", "POST", payload);
-      message.success("✅ Đã tạo công việc");
+      message.success("✅ Task created");
       onSave();
       onClose();
       setForm(INIT_FORM);
     } catch {
-      message.error("Tạo thất bại");
+      message.error("Creation failed");
     }
     setSaving(false);
   };
@@ -10776,7 +14253,7 @@ const AddTaskModal = ({
       ...opts.map((o) =>
         React.createElement(
           "option",
-          { key: o.value, value: o.value },
+          { key: o.value, value: o.value, disabled: !!o.disabled },
           o.label,
         ),
       ),
@@ -10813,23 +14290,23 @@ const AddTaskModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "📋 Tạo công việc mới",
+        "📋 Create new task",
       ),
     },
     React.createElement(
       "div",
       { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
       fld(
-        "Tên công việc *",
-        inp("Nhập tên công việc...", form.title, (v) => set("title", v)),
+        "Task name *",
+        inp("Enter task name...", form.title, (v) => set("title", v)),
       ),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         fld(
-          "👨‍⚖️ Luật sư phụ trách",
+          "👨‍⚖️ Assigned lawyer",
           sel(
-            "-- Phân công --",
+            "-- Assign --",
             form.lawyerId,
             (v) => set("lawyerId", v ? Number(v) : null),
             lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
@@ -10838,38 +14315,43 @@ const AddTaskModal = ({
         React.createElement(
           "div",
           { style: { marginBottom: 12 } },
-          lbl("🗂 Dịch vụ"),
+          lbl("🗂 Service"),
           services.length === 0
             ? React.createElement(
-                "div",
-                {
-                  style: {
-                    border: "1px solid #ffe58f",
-                    borderRadius: 4,
-                    padding: "7px 10px",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#d46b08",
-                    background: "#fffbe6",
-                  },
+              "div",
+              {
+                style: {
+                  border: "1px solid #ffe58f",
+                  borderRadius: 4,
+                  padding: "7px 10px",
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#d46b08",
+                  background: "#fffbe6",
                 },
-                "⚠ Chưa có dịch vụ",
-              )
+              },
+              "⚠ No services yet",
+            )
             : sel(
-                "-- Chọn dịch vụ --",
-                form.serviceId,
-                (v) => set("serviceId", v ? Number(v) : null),
-                // Hiển thị TẤT CẢ projectServices (cả catalog và custom)
-                // Catalog service: value = ps.serviceId
-                // Custom service: value = ps.id (projectService id, dùng làm key thống nhất)
-                services.map((ps) => ({
-                  value: ps.serviceId || ps.id,
-                  label: ps.serviceName || `Dịch vụ #${ps.id}`,
-                })),
-              ),
+              "-- Select service --",
+              form.serviceId,
+              (v) => set("serviceId", v ? Number(v) : null),
+              // Hiển thị TẤT CẢ projectServices (cả catalog và custom)
+              // Catalog service: value = ps.serviceId
+              // Custom service: value = ps.id (projectService id, dùng làm key thống nhất)
+              services.map((ps) => {
+                const disabled = isDeletedServiceRecord(ps);
+                const serviceLabel = ps.serviceName || `Service #${ps.id}`;
+                return {
+                  value: getProjectServiceTaskKey(ps),
+                  label: `${serviceLabel}${disabled ? " 🔒" : ""}`,
+                  disabled,
+                };
+              }),
+            ),
         ),
         fld(
-          "📅 Ngày bắt đầu",
+          "📅 Start date",
           inp("", form.startDate, (v) => set("startDate", v), "date"),
         ),
         fld(
@@ -10877,9 +14359,9 @@ const AddTaskModal = ({
           inp("", form.dueDate, (v) => set("dueDate", v), "date"),
         ),
         fld(
-          "⏱ Thời gian dự kiến (giờ)",
+          "⏱ Estimated duration (hours)",
           inp(
-            "Ví dụ: 4",
+            "e.g., 4",
             form.estimatedDuration,
             (v) => set("estimatedDuration", v),
             "number",
@@ -10889,7 +14371,7 @@ const AddTaskModal = ({
       React.createElement(
         "div",
         { style: { marginBottom: 12 } },
-        lbl("⛓ Pending Issue (tuỳ chọn)"),
+        lbl("⛓ Pending Issue (optional)"),
         React.createElement(TaskPicker, {
           allTasks: tasksForDependency,
           currentTaskId: null,
@@ -10898,66 +14380,66 @@ const AddTaskModal = ({
           onChange: (v) => set("previousTaskId", v),
         }),
         prevTask &&
+        React.createElement(
+          "div",
+          {
+            style: {
+              marginTop: 6,
+              padding: "7px 12px",
+              background: prevTask.status === "done" ? "#f6ffed" : "#f9f0ff",
+              border: `1px solid ${prevTask.status === "done" ? "#b7eb8f" : "#d3adf7"}`,
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            },
+          },
+          React.createElement(StatusBadge, { status: prevTask.status }),
           React.createElement(
-            "div",
+            "span",
             {
               style: {
-                marginTop: 6,
-                padding: "7px 12px",
-                background: prevTask.status === "done" ? "#f6ffed" : "#f9f0ff",
-                border: `1px solid ${prevTask.status === "done" ? "#b7eb8f" : "#d3adf7"}`,
-                borderRadius: 6,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#262626",
+                fontWeight: 500,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               },
             },
-            React.createElement(StatusBadge, { status: prevTask.status }),
-            React.createElement(
+            prevTask.title,
+          ),
+          prevTask.status === "done"
+            ? React.createElement(
               "span",
               {
                 style: {
                   fontSize: 12,
                   fontFamily: FONT,
-                  color: "#262626",
-                  fontWeight: 500,
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  color: "#389e0d",
+                  fontWeight: 600,
                 },
               },
-              prevTask.title,
+              "✓ Done",
+            )
+            : React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#722ed1",
+                  fontWeight: 600,
+                },
+              },
+              '⏸ New task → "Waiting"',
             ),
-            prevTask.status === "done"
-              ? React.createElement(
-                  "span",
-                  {
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#389e0d",
-                      fontWeight: 600,
-                    },
-                  },
-                  "✓ Đã xong",
-                )
-              : React.createElement(
-                  "span",
-                  {
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#722ed1",
-                      fontWeight: 600,
-                    },
-                  },
-                  '⏸ Task mới → "Đang chờ"',
-                ),
-          ),
+        ),
       ),
       fld(
-        "⚡ Mức độ ưu tiên",
+        "⚡ Priority",
         React.createElement(
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -10985,7 +14467,7 @@ const AddTaskModal = ({
         ),
       ),
       fld(
-        "🔐 Yêu cầu phê duyệt",
+        "🔐 Approval required",
         React.createElement(
           "label",
           {
@@ -11031,52 +14513,52 @@ const AddTaskModal = ({
               },
             },
             form.isRequiredApproval
-              ? "🔐 Bật — cần phê duyệt"
-              : "Yêu cầu phê duyệt trước khi hoàn thành",
+              ? "🔐 On — approval required"
+              : "Require approval before completion",
           ),
         ),
       ),
       form.isRequiredApproval &&
-        fld(
-          "👤 Người xét duyệt",
-          React.createElement(
-            "div",
-            {
-              style: {
-                padding: "8px 12px",
-                border: "1px solid #ffd591",
-                borderRadius: 6,
-                background: "#fffbe6",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              },
+      fld(
+        "👤 Approver",
+        React.createElement(
+          "div",
+          {
+            style: {
+              padding: "8px 12px",
+              border: "1px solid #ffd591",
+              borderRadius: 6,
+              background: "#fffbe6",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
             },
-            React.createElement(
-              "span",
-              { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
-              "🔐",
-            ),
-            React.createElement(LawyerPicker, {
-              lawyers,
-              value: form.approvedById,
-              size: 22,
-              onChange: (id) => set("approvedById", id),
-            }),
-            !form.approvedById &&
-              React.createElement(
-                "span",
-                { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                "Chọn người xét duyệt...",
-              ),
+          },
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
+            "🔐",
+          ),
+          React.createElement(LawyerPicker, {
+            lawyers,
+            value: form.approvedById,
+            size: 22,
+            onChange: (id) => set("approvedById", id),
+          }),
+          !form.approvedById &&
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
+            "Select an approver...",
           ),
         ),
+      ),
       fld(
-        "📝 Nội dung diễn biến",
+        "📝 Description",
         React.createElement("textarea", {
           value: form.description,
           onChange: (e) => set("description", e.target.value),
-          placeholder: "Nội dung diễn biến...",
+          placeholder: "Description...",
           rows: 3,
           style: {
             width: "100%",
@@ -11099,7 +14581,7 @@ const AddTaskModal = ({
         React.createElement("textarea", {
           value: form.nextStepDescription,
           onChange: (e) => set("nextStepDescription", e.target.value),
-          placeholder: "Bước tiếp theo sau khi hoàn thành...",
+          placeholder: "Next step after completion...",
           rows: 2,
           style: {
             width: "100%",
@@ -11143,7 +14625,7 @@ const AddTaskModal = ({
               color: "#595959",
             },
           },
-          "Huỷ",
+          "Cancel",
         ),
         React.createElement(
           "div",
@@ -11160,7 +14642,7 @@ const AddTaskModal = ({
               fontWeight: 600,
             },
           },
-          saving ? "Đang lưu..." : "Tạo công việc",
+          saving ? "Saving..." : "Created Task",
         ),
       ),
     ),
@@ -11194,7 +14676,7 @@ const AddSubtaskModal = ({
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      message.warning("Vui lòng nhập tên công việc phụ");
+      message.warning("Please enter a subtask name");
       return;
     }
     setSaving(true);
@@ -11222,12 +14704,12 @@ const AddSubtaskModal = ({
       if (form.nextStepDescription)
         payload.nextStepDescription = form.nextStepDescription;
       await apiReq("subTasks:create", "POST", payload);
-      message.success("✅ Đã Tạo công việc phụ");
+      message.success("✅ Subtask created");
       onSave();
       onClose();
       setForm(INIT_FORM);
     } catch {
-      message.error("Tạo thất bại");
+      message.error("Creation failed");
     }
     setSaving(false);
   };
@@ -11311,39 +14793,39 @@ const AddSubtaskModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "📋 Tạo công việc phụ",
+        "📋 Create subtask",
       ),
     },
     React.createElement(
       "div",
       { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
       fld(
-        "Tạo công việc phụ *",
-        inp("Nhập tên công việc...", form.title, (v) => set("title", v)),
+        "Subtask name *",
+        inp("Enter task name...", form.title, (v) => set("title", v)),
       ),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         fld(
-          "👨‍⚖️ Luật sư phụ trách",
+          "👨‍⚖️ Assigned lawyer",
           sel(
-            "-- Phân công --",
+            "-- Assign --",
             form.lawyerId,
             (v) => set("lawyerId", v ? Number(v) : null),
             lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
           ),
         ),
         fld(
-          "⏱ Thời gian dự kiến (giờ)",
+          "⏱ Estimated duration (hours)",
           inp(
-            "Ví dụ: 4",
+            "e.g., 4",
             form.estimatedDuration,
             (v) => set("estimatedDuration", v),
             "number",
           ),
         ),
         fld(
-          "📅 Ngày bắt đầu",
+          "📅 Start date",
           inp("", form.startDate, (v) => set("startDate", v), "date"),
         ),
         fld(
@@ -11352,7 +14834,7 @@ const AddSubtaskModal = ({
         ),
       ),
       fld(
-        "⚡ Mức độ ưu tiên",
+        "⚡ Priority",
         React.createElement(
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -11380,7 +14862,7 @@ const AddSubtaskModal = ({
         ),
       ),
       fld(
-        "🔐 Yêu cầu phê duyệt",
+        "🔐 Approval required",
         React.createElement(
           "label",
           {
@@ -11426,52 +14908,52 @@ const AddSubtaskModal = ({
               },
             },
             form.isRequiredApproval
-              ? "🔐 Bật — cần phê duyệt"
-              : "Yêu cầu phê duyệt trước khi hoàn thành",
+              ? "🔐 On — approval required"
+              : "Require approval before completion",
           ),
         ),
       ),
       form.isRequiredApproval &&
-        fld(
-          "👤 Người xét duyệt",
-          React.createElement(
-            "div",
-            {
-              style: {
-                padding: "8px 12px",
-                border: "1px solid #ffd591",
-                borderRadius: 6,
-                background: "#fffbe6",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              },
+      fld(
+        "👤 Approver",
+        React.createElement(
+          "div",
+          {
+            style: {
+              padding: "8px 12px",
+              border: "1px solid #ffd591",
+              borderRadius: 6,
+              background: "#fffbe6",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
             },
-            React.createElement(
-              "span",
-              { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
-              "🔐",
-            ),
-            React.createElement(LawyerPicker, {
-              lawyers,
-              value: form.approvedById,
-              size: 22,
-              onChange: (id) => set("approvedById", id),
-            }),
-            !form.approvedById &&
-              React.createElement(
-                "span",
-                { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                "Chọn người xét duyệt...",
-              ),
+          },
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
+            "🔐",
+          ),
+          React.createElement(LawyerPicker, {
+            lawyers,
+            value: form.approvedById,
+            size: 22,
+            onChange: (id) => set("approvedById", id),
+          }),
+          !form.approvedById &&
+          React.createElement(
+            "span",
+            { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
+            "Select an approver...",
           ),
         ),
+      ),
       fld(
-        "📝 Mô tả chi tiết",
+        "📝 Detailed Description",
         React.createElement("textarea", {
           value: form.description,
           onChange: (e) => set("description", e.target.value),
-          placeholder: "Mô tả chi tiết công việc con...",
+          placeholder: "Describe the subtask in detail...",
           rows: 3,
           style: {
             width: "100%",
@@ -11494,7 +14976,7 @@ const AddSubtaskModal = ({
         React.createElement("textarea", {
           value: form.nextStepDescription,
           onChange: (e) => set("nextStepDescription", e.target.value),
-          placeholder: "Bước tiếp theo sau khi hoàn thành...",
+          placeholder: "Next step after completion...",
           rows: 2,
           style: {
             width: "100%",
@@ -11538,7 +15020,7 @@ const AddSubtaskModal = ({
               color: "#595959",
             },
           },
-          "Huỷ",
+          "Cancel",
         ),
         React.createElement(
           "div",
@@ -11555,7 +15037,7 @@ const AddSubtaskModal = ({
               fontWeight: 600,
             },
           },
-          saving ? "Đang lưu..." : "Tạo công việc phụ",
+          saving ? "Saving..." : "Create Subtask",
         ),
       ),
     ),
@@ -11625,7 +15107,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
               color: "#096dd9",
             },
           },
-          `📎 ${files.length} tài liệu`,
+          `📎 ${files.length} documents`,
         ),
         React.createElement(
           "span",
@@ -11654,7 +15136,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
           const extInfo = getExtInfo(fileExt);
           const fullUrl = getFullUrl(att?.url || att?.preview);
           const name =
-            f.title || att?.title || att?.filename || "(Chưa có tên)";
+            f.title || att?.title || att?.filename || "(Untitled)";
 
           // 🌟 Mở rộng danh sách Preview cho cả file Office
           const canPreview = [
@@ -11715,13 +15197,13 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                   textUnderlineOffset: "2px",
                 },
                 title: canPreview
-                  ? "Click để xem trước"
-                  : "Định dạng này không hỗ trợ xem trước",
+                  ? "Click to preview"
+                  : "This format doesn't support preview",
                 onClick: canPreview
                   ? (e) => {
-                      e.stopPropagation();
-                      setPreviewDoc(f);
-                    }
+                    e.stopPropagation();
+                    setPreviewDoc(f);
+                  }
                   : undefined,
               },
               name + fileExt,
@@ -11732,30 +15214,30 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
               "div",
               { style: { display: "flex", gap: 4, flexShrink: 0 } },
               fullUrl &&
-                React.createElement(
-                  "span",
-                  {
-                    title: "Tải về",
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      window.open(fullUrl, "_blank");
-                    },
-                    style: {
-                      fontSize: 12,
-                      padding: "2px 6px",
-                      borderRadius: 3,
-                      border: "1px solid #91caff",
-                      color: "#096dd9",
-                      cursor: "pointer",
-                      background: "#fff",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.background = "#e6f4ff"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.background = "#fff"),
+              React.createElement(
+                "span",
+                {
+                  title: "Download",
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    window.open(fullUrl, "_blank");
                   },
-                  "⬇️",
-                ),
+                  style: {
+                    fontSize: 12,
+                    padding: "2px 6px",
+                    borderRadius: 3,
+                    border: "1px solid #91caff",
+                    color: "#096dd9",
+                    cursor: "pointer",
+                    background: "#fff",
+                  },
+                  onMouseEnter: (e) =>
+                    (e.currentTarget.style.background = "#e6f4ff"),
+                  onMouseLeave: (e) =>
+                    (e.currentTarget.style.background = "#fff"),
+                },
+                "⬇️",
+              ),
             ),
           );
         }),
@@ -11782,8 +15264,11 @@ const TaskRow = ({
   isAssigneeOnly = false,
   myLawyerId = null,
   onDeleteTask,
+  onReorderTask,
+  groupServiceKey,
 }) => {
   const [hov, setHov] = useState(false);
+  const [dragOverPos, setDragOverPos] = useState(null); // "before" | "after" | null
   const [showMenu, setShowMenu] = useState(false);
   const [filePopup, setFilePopup] = useState(false);
   const [fileAnchorRect, setFileAnchorRect] = useState(null);
@@ -11792,11 +15277,83 @@ const TaskRow = ({
   const done = task._subs?.filter((s) => s.status === "done").length || 0;
   const total = task._subs?.length || 0;
   const isBlocked = task.status === "blocked";
+  const serviceDeleted = isTaskServiceDeleted(task);
+  const taskRecordId = getTaskRecordId(task);
 
   // 🌟 FIX QUYỀN TRÊN TABLE ROW (Quét cả trường lawyer)
   const taskLawyerId = extractId(task.lawyerId) || extractId(task.lawyer);
   const isAssignedToThis = myLawyerId && taskLawyerId === extractId(myLawyerId);
-  const canEdit = isManager || isAssignedToThis;
+  const canEdit = !serviceDeleted && (isManager || isAssignedToThis);
+  const menuActive = hov || showMenu;
+  const handleTaskMenuAction = (event, action) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
+    if (!taskRecordId) {
+      setShowMenu(false);
+      message.error("Task ID not found for this action.");
+      return;
+    }
+
+    if (action === "addSubTask") {
+      onToggle(taskRecordId, true);
+      onOpenAddSubModal(taskRecordId);
+      setShowMenu(false);
+      return;
+    }
+
+    if (action === "deleteTask") {
+      if (typeof onDeleteTask !== "function") {
+        console.error("[TaskManagement] onDeleteTask handler is missing", {
+          taskRecordId,
+          task,
+        });
+        message.error("The delete task action has not been configured.");
+        setShowMenu(false);
+        return;
+      }
+      onDeleteTask(taskRecordId, "task", task.title);
+      setShowMenu(false);
+    }
+  };
+
+  const canDrag = !serviceDeleted && typeof onReorderTask === "function";
+  const handleRowDragStart = (e) => {
+    if (!canDrag) return;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({ type: "task", id: extractId(task.id) }),
+    );
+  };
+  const handleRowDragOver = (e) => {
+    if (!canDrag) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pos = e.clientY - rect.top < rect.height / 2 ? "before" : "after";
+    setDragOverPos(pos);
+    e.dataTransfer.dropEffect = "move";
+  };
+  const handleRowDragLeave = (e) => {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setDragOverPos(null);
+  };
+  const handleRowDrop = (e) => {
+    if (!canDrag) return;
+    e.preventDefault();
+    const pos = dragOverPos;
+    setDragOverPos(null);
+    const raw = e.dataTransfer.getData("application/json");
+    if (!raw) return;
+    let payload = null;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!payload || payload.type !== "task") return;
+    onReorderTask(payload.id, extractId(task.id), groupServiceKey, pos || "before");
+  };
 
   return React.createElement(
     React.Fragment,
@@ -11809,17 +15366,23 @@ const TaskRow = ({
           alignItems: "center",
           minHeight: 44,
           borderBottom: expanded ? "none" : "1px solid #f0f0f0",
-          background: isBlocked ? "#fdf6ff" : hov ? "#f0f7ff" : "#fff",
+          background: serviceDeleted ? "#fafafa" : isBlocked ? "#fdf6ff" : hov ? "#f0f7ff" : "#fff",
           transition: "background 0.1s",
-          borderLeft: isBlocked ? "3px solid #722ed1" : "3px solid transparent",
-          minWidth: 1300,
+          borderLeft: serviceDeleted ? "3px solid #bfbfbf" : isBlocked ? "3px solid #722ed1" : "3px solid transparent",
+          borderTop: dragOverPos === "before" ? "2px solid #1677ff" : "2px solid transparent",
+          borderBottomWidth: dragOverPos === "after" ? 2 : undefined,
+          borderBottomColor: dragOverPos === "after" ? "#1677ff" : undefined,
+          minWidth: 1420,
           width: "100%",
+          cursor: canDrag ? "grab" : undefined,
         },
+        draggable: canDrag,
+        onDragStart: handleRowDragStart,
+        onDragOver: handleRowDragOver,
+        onDragLeave: handleRowDragLeave,
+        onDrop: handleRowDrop,
         onMouseEnter: () => setHov(true),
-        onMouseLeave: () => {
-          setHov(false);
-          setShowMenu(false);
-        },
+        onMouseLeave: () => setHov(false),
       },
       // Context menu
       React.createElement(
@@ -11836,113 +15399,112 @@ const TaskRow = ({
         },
         canEdit
           ? React.createElement(
-              "div",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  setShowMenu((v) => !v);
-                },
-                style: {
-                  width: 22,
-                  height: 22,
-                  borderRadius: 4,
-                  background: hov ? "#e6f4ff" : "transparent",
-                  border: hov ? "1px solid #91caff" : "1px solid transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: hov ? "pointer" : "default",
-                  fontSize: 12,
-                  color: hov ? "#096dd9" : "transparent",
-                  fontWeight: 700,
-                  transition: "all 0.15s",
-                  userSelect: "none",
-                },
+            "div",
+            {
+              onMouseDown: (e) => {
+                e.preventDefault();
+                e.stopPropagation();
               },
-              "⋮",
-            )
+              onClick: (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowMenu((v) => !v);
+              },
+              style: {
+                width: 22,
+                height: 22,
+                borderRadius: 4,
+                background: menuActive ? "#e6f4ff" : "transparent",
+                border: menuActive ? "1px solid #91caff" : "1px solid transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                fontSize: 12,
+                color: menuActive ? "#096dd9" : "transparent",
+                fontWeight: 700,
+                transition: "all 0.15s",
+                userSelect: "none",
+              },
+            },
+            "⋮",
+          )
           : React.createElement(
-              "span",
-              { style: { fontSize: 12, color: "#d9d9d9" } },
-              "",
-            ),
+            "span",
+            { style: { fontSize: 12, color: "#d9d9d9" } },
+            "",
+          ),
 
         showMenu &&
+        canEdit &&
+        React.createElement(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: 0,
+              top: 28,
+              zIndex: 9999,
+              background: "#fff",
+              border: "1px solid #e8e8e8",
+              borderRadius: 6,
+              boxShadow: "0 6px 20px rgba(0,0,0,0.14)",
+              minWidth: 180,
+              padding: "4px 0",
+            },
+            onMouseDown: (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            },
+            onClick: (e) => e.stopPropagation(),
+          },
           canEdit &&
           React.createElement(
             "div",
             {
+              onClick: (e) => handleTaskMenuAction(e, "addSubTask"),
               style: {
-                position: "absolute",
-                left: 0,
-                bottom: "100%",
-                marginBottom: 4,
-                zIndex: 9999,
-                background: "#fff",
-                border: "1px solid #e8e8e8",
-                borderRadius: 6,
-                boxShadow: "0 6px 20px rgba(0,0,0,0.14)",
-                minWidth: 180,
-                padding: "4px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#262626",
               },
-              onMouseLeave: () => setShowMenu(false),
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.background = "#f5f5f5"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.background = "transparent"),
             },
-            canEdit &&
-              React.createElement(
-                "div",
-                {
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    setShowMenu(false);
-                    onToggle(task.id, true);
-                    onOpenAddSubModal(task.id);
-                  },
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 14px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#262626",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.background = "#f5f5f5"),
-                  onMouseLeave: (e) =>
-                    (e.currentTarget.style.background = "transparent"),
-                },
-                React.createElement("span", null, "➕"),
-                "Tạo công việc phụ",
-              ),
-            canEdit &&
-              React.createElement(
-                "div",
-                {
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    setShowMenu(false);
-                    onDeleteTask(task.id, "task", task.title);
-                  },
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 14px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#cf1322",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.background = "#fff1f0"),
-                  onMouseLeave: (e) =>
-                    (e.currentTarget.style.background = "transparent"),
-                },
-                React.createElement("span", null, "🗑️"),
-                "Xoá công việc",
-              ),
+            React.createElement("span", null, "➕"),
+            "Create subtask",
           ),
+          canEdit &&
+          React.createElement(
+            "div",
+            {
+              onClick: (e) => handleTaskMenuAction(e, "deleteTask"),
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 14px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#cf1322",
+              },
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.background = "#fff1f0"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.background = "transparent"),
+            },
+            React.createElement("span", null, "🗑️"),
+            "Delete task",
+          ),
+        ),
       ),
       // STT
       React.createElement(
@@ -11964,21 +15526,21 @@ const TaskRow = ({
       React.createElement(
         "div",
         {
-          onClick: () => onToggle(task.id),
+          onClick: serviceDeleted ? undefined : () => onToggle(task.id),
           style: {
             width: COL.toggle,
             height: 24,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: hasSubs ? "pointer" : "default",
+            cursor: !serviceDeleted && hasSubs ? "pointer" : "default",
             flexShrink: 0,
             borderRadius: 4,
             fontSize: 12,
             fontWeight: 700,
           },
           onMouseEnter: (e) => {
-            if (hasSubs) e.currentTarget.style.background = "#e6f4ff";
+            if (!serviceDeleted && hasSubs) e.currentTarget.style.background = "#e6f4ff";
           },
           onMouseLeave: (e) => {
             e.currentTarget.style.background = "transparent";
@@ -11986,48 +15548,24 @@ const TaskRow = ({
         },
         hasSubs ? (expanded ? "▾" : "▸") : " ",
       ),
-      // Status button
-      React.createElement(
-        "div",
-        {
-          style: {
-            width: 22,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          },
-        },
-        React.createElement(StatusBtn, {
-          status: task.status,
-          size: 15,
-          onChange: canEdit ? (s) => onStatus(task.id, s, "task") : null,
-          isRequiredApproval: task.isRequiredApproval,
-          isBlocked,
-          readOnly: !canEdit,
-        }),
-      ),
       // Title
       React.createElement(
         "div",
         {
-          onClick: () => onOpen(task, "task", tasksInService),
+          onClick: serviceDeleted
+            ? undefined
+            : () => onOpen(task, "task", tasksInService),
+          title: serviceDeleted ? "Service is locked" : undefined,
           style: {
             flex: 1,
             padding: "4px 10px",
             fontSize: 12,
             fontWeight: 500,
             fontFamily: FONT,
-            cursor: "pointer",
-            color:
-              task.status === "done"
-                ? "#bfbfbf"
-                : isBlocked
-                  ? "#722ed1"
-                  : task._od
-                    ? "#cf1322"
-                    : "#262626",
-            textDecoration: task.status === "done" ? "line-through" : "none",
+            cursor: serviceDeleted ? "not-allowed" : "pointer",
+            color: task._od
+              ? "#cf1322"
+              : (STATUS_CFG[task.status]?.color || "#262626"),
             minWidth: 100,
             wordBreak: "break-word",
             whiteSpace: "normal",
@@ -12036,25 +15574,45 @@ const TaskRow = ({
         },
         task.title,
         hasSubs &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                display: "inline-block",
-                marginLeft: 6,
-                fontSize: 11,
-                fontFamily: FONT,
-                color: "#8c8c8c",
-                background: "#f0f0f0",
-                borderRadius: 8,
-                padding: "1px 6px",
-                fontWeight: 400,
-                verticalAlign: "middle",
-                whiteSpace: "nowrap",
-              },
+        React.createElement(
+          "span",
+          {
+            style: {
+              display: "inline-block",
+              marginLeft: 6,
+              fontSize: 11,
+              fontFamily: FONT,
+              color: "#8c8c8c",
+              background: "#f0f0f0",
+              borderRadius: 8,
+              padding: "1px 6px",
+              fontWeight: 400,
+              verticalAlign: "middle",
+              whiteSpace: "nowrap",
             },
-            `${done}/${total}`,
-          ),
+          },
+          `${done}/${total}`,
+        ),
+      ),
+      // Trạng thái
+      React.createElement(
+        "div",
+        {
+          style: {
+            width: COL.status,
+            flexShrink: 0,
+            padding: "0 8px",
+            display: "flex",
+            alignItems: "center",
+          },
+        },
+        React.createElement(StatusBtn, {
+          status: task.status,
+          onChange: canEdit ? (s) => onStatus(task.id, s, "task") : null,
+          isRequiredApproval: task.isRequiredApproval,
+          isBlocked,
+          readOnly: !canEdit,
+        }),
       ),
       // Updated At
       React.createElement(
@@ -12087,7 +15645,7 @@ const TaskRow = ({
           lawyers,
           value: task.lawyerId,
           size: 22,
-          readOnly: !isManager || isAssigneeOnly,
+          readOnly: serviceDeleted || !isManager || isAssigneeOnly,
           onChange: (id, n, c) => onAssign(task.id, id, n, c, "task"),
         }),
       ),
@@ -12105,31 +15663,31 @@ const TaskRow = ({
         },
         task.description
           ? React.createElement(
-              Tooltip,
-              { title: task.description, placement: "topLeft" },
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#595959",
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    lineHeight: 1.5,
-                    cursor: "pointer",
-                  },
+            Tooltip,
+            { title: task.description, placement: "topLeft" },
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#595959",
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  lineHeight: 1.5,
+                  cursor: "pointer",
                 },
-                task.description,
-              ),
-            )
-          : React.createElement(
-              "span",
-              { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
-              "—",
+              },
+              task.description,
             ),
+          )
+          : React.createElement(
+            "span",
+            { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
+            "—",
+          ),
       ),
       // Start date
       React.createElement(
@@ -12182,32 +15740,32 @@ const TaskRow = ({
         },
         task.nextStepDescription
           ? React.createElement(
-              Tooltip,
-              { title: task.nextStepDescription, placement: "topLeft" },
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#096dd9",
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    lineHeight: 1.5,
-                    cursor: "pointer",
-                    fontWeight: 500,
-                  },
+            Tooltip,
+            { title: task.nextStepDescription, placement: "topLeft" },
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#096dd9",
+                  overflow: "hidden",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  lineHeight: 1.5,
+                  cursor: "pointer",
+                  fontWeight: 500,
                 },
-                `→ ${task.nextStepDescription}`,
-              ),
-            )
-          : React.createElement(
-              "span",
-              { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
-              "—",
+              },
+              `→ ${task.nextStepDescription}`,
             ),
+          )
+          : React.createElement(
+            "span",
+            { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
+            "—",
+          ),
       ),
       // Files — hiển thị số lượng file thực, click popup preview
       React.createElement(
@@ -12223,85 +15781,87 @@ const TaskRow = ({
         },
         task._files && task._files.length > 0
           ? React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "div",
-                {
-                  ref: filesBtnRef,
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    const rect = filesBtnRef.current?.getBoundingClientRect();
-                    setFileAnchorRect(rect || null);
-                    setFilePopup((v) => !v);
-                  },
-                  title: `${task._files.length} tài liệu — click để xem`,
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    padding: "3px 8px",
-                    borderRadius: 4,
-                    border: "1px solid #d3adf7",
-                    color: "#531dab",
-                    cursor: "pointer",
-                    background: filePopup ? "#efe0ff" : "#f9f0ff",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontWeight: 700,
-                    transition: "background 0.1s",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.background = "#efe0ff"),
-                  onMouseLeave: (e) => {
-                    if (!filePopup)
-                      e.currentTarget.style.background = "#f9f0ff";
-                  },
-                },
-                React.createElement("span", null, "📎"),
-                React.createElement(
-                  "span",
-                  { style: { fontSize: 12, fontWeight: 700 } },
-                  task._files.length,
-                ),
-              ),
-              filePopup &&
-                React.createElement(TaskFilePreviewPopup, {
-                  files: task._files,
-                  anchorRect: fileAnchorRect,
-                  onClose: () => setFilePopup(false),
-                }),
-            )
-          : React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(
               "div",
               {
+                ref: filesBtnRef,
                 onClick: (e) => {
                   e.stopPropagation();
-                  onOpen(task, "task", tasksInService);
+                  const rect = filesBtnRef.current?.getBoundingClientRect();
+                  setFileAnchorRect(rect || null);
+                  setFilePopup((v) => !v);
                 },
-                title: "Chưa có tài liệu — mở chi tiết để upload",
+                title: `${task._files.length} documents — click to view`,
                 style: {
                   fontSize: 12,
+                  fontFamily: FONT,
                   padding: "3px 8px",
                   borderRadius: 4,
-                  border: "1px solid #f0f0f0",
-                  color: "#d9d9d9",
+                  border: "1px solid #d3adf7",
+                  color: "#531dab",
                   cursor: "pointer",
-                  background: "transparent",
+                  background: filePopup ? "#efe0ff" : "#f9f0ff",
                   display: "flex",
                   alignItems: "center",
+                  gap: 4,
+                  fontWeight: 700,
+                  transition: "background 0.1s",
                 },
-                onMouseEnter: (e) => {
-                  e.currentTarget.style.borderColor = "#d3adf7";
-                  e.currentTarget.style.color = "#bfbfbf";
-                },
+                onMouseEnter: (e) =>
+                  (e.currentTarget.style.background = "#efe0ff"),
                 onMouseLeave: (e) => {
-                  e.currentTarget.style.borderColor = "#f0f0f0";
-                  e.currentTarget.style.color = "#d9d9d9";
+                  if (!filePopup)
+                    e.currentTarget.style.background = "#f9f0ff";
                 },
               },
-              "📎",
+              React.createElement("span", null, "📎"),
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, fontWeight: 700 } },
+                task._files.length,
+              ),
             ),
+            filePopup &&
+            React.createElement(TaskFilePreviewPopup, {
+              files: task._files,
+              anchorRect: fileAnchorRect,
+              onClose: () => setFilePopup(false),
+            }),
+          )
+          : React.createElement(
+            "div",
+            {
+              onClick: (e) => {
+                e.stopPropagation();
+                if (!serviceDeleted) onOpen(task, "task", tasksInService);
+              },
+              title: serviceDeleted
+                ? "Service is locked"
+                : "No documents yet — open details to upload",
+              style: {
+                fontSize: 12,
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: "1px solid #f0f0f0",
+                color: "#d9d9d9",
+                cursor: serviceDeleted ? "not-allowed" : "pointer",
+                background: "transparent",
+                display: "flex",
+                alignItems: "center",
+              },
+              onMouseEnter: (e) => {
+                e.currentTarget.style.borderColor = "#d3adf7";
+                e.currentTarget.style.color = "#bfbfbf";
+              },
+              onMouseLeave: (e) => {
+                e.currentTarget.style.borderColor = "#f0f0f0";
+                e.currentTarget.style.color = "#d9d9d9";
+              },
+            },
+            "📎",
+          ),
       ),
       React.createElement(ApprovalIcon, {
         isRequiredApproval: task.isRequiredApproval,
@@ -12309,259 +15869,254 @@ const TaskRow = ({
     ),
     // SubTask rows
     expanded &&
-      React.createElement(
-        "div",
-        { style: { background: "#fafcff" } },
-        ...(task._subs || []).map((s, index) => {
-          // 🌟 SỬA ĐOẠN NÀY
-          const subLawyerId = extractId(s.lawyerId) || extractId(s.lawyer);
-          const canEditSub =
-            isManager || (myLawyerId && subLawyerId === extractId(myLawyerId));
-          const isSubBlocked = s.status === "blocked";
-          const i = index + 1;
-          return React.createElement(
+    React.createElement(
+      "div",
+      { style: { background: "#fafcff" } },
+      ...(task._subs || []).map((s, index) => {
+        // 🌟 SỬA ĐOẠN NÀY
+              const subTaskRecordId = getSubTaskRecordId(s);
+        const subLawyerId = extractId(s.lawyerId) || extractId(s.lawyer);
+        const canEditSub =
+          !serviceDeleted && (isManager || (myLawyerId && subLawyerId === extractId(myLawyerId)));
+        const isSubBlocked = s.status === "blocked";
+        const i = index + 1;
+        return React.createElement(
+          "div",
+          {
+            key: s.id,
+            style: {
+              display: "flex",
+              alignItems: "center",
+              minHeight: 38,
+              borderBottom: "1px solid #f0f0f0",
+              background: isSubBlocked ? "#fdf6ff" : "#fafcff",
+              borderLeft: "3px solid transparent",
+            },
+          },
+          // 14. Cột Menu
+          React.createElement(
             "div",
             {
-              key: s.id,
               style: {
+                width: COL.menu,
+                flexShrink: 0,
                 display: "flex",
-                alignItems: "center",
-                minHeight: 38,
-                borderBottom: "1px solid #f0f0f0",
-                background: isSubBlocked ? "#fdf6ff" : "#fafcff",
-                borderLeft: "3px solid transparent",
+                justifyContent: "center",
               },
             },
-            // 14. Cột Menu
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.menu,
-                  flexShrink: 0,
-                  display: "flex",
-                  justifyContent: "center",
-                },
-              },
-              isManager
-                ? React.createElement(
-                    "span",
-                    {
-                      style: {
-                        fontSize: 14,
-                        color: "#cf1322",
-                        cursor: "pointer",
-                      },
-                      title: "Xoá công việc phụ",
-                      onClick: (e) => {
-                        e.stopPropagation();
-                        onDeleteTask(s.id, "subTask", s.subTaskName);
-                      },
-                    },
-                    "🗑️",
-                  )
-                : React.createElement(
-                    "span",
-                    { style: { fontSize: 12, color: "#d9d9d9" } },
-                    "—",
-                  ),
-            ),
-            // 1. Cột STT (Để trống hoặc hiển thị ký hiệu con)
-            React.createElement("div", {
-              style: { width: COL.stt, flexShrink: 0 },
-            }),
-            // 2. Cột Toggle (Hiển thị đường dẫn góc L)
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.toggle,
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                },
-              },
-              React.createElement(
+            isManager && !serviceDeleted
+              ? React.createElement(
                 "span",
-                { style: { color: "#d9d9d9", fontSize: 10 } },
-                "└─",
+                {
+                  style: {
+                    fontSize: 14,
+                    color: "#cf1322",
+                    cursor: "pointer",
+                  },
+                  title: "Delete subtask",
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    onDeleteTask(subTaskRecordId, "subTask", s.subTaskName);
+                  },
+                },
+                "🗑️",
+              )
+              : React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#d9d9d9" } },
+                "—",
               ),
-            ),
-            // 3. Cột Status
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: 22,
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                },
+          ),
+          // 1. Cột STT (Để trống hoặc hiển thị ký hiệu con)
+          React.createElement("div", {
+            style: { width: COL.stt, flexShrink: 0 },
+          }),
+          // 2. Cột Toggle (Hiển thị đường dẫn góc L)
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.toggle,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               },
-              React.createElement(StatusBtn, {
-                status: s.status,
-                size: 13,
-                onChange: canEditSub
-                  ? (st) => onStatus(s.id, st, "subTask")
-                  : null,
-                isRequiredApproval: s.isRequiredApproval,
-                isBlocked: isSubBlocked,
-                readOnly: !canEditSub,
-              }),
-            ),
-            // 4. Cột Title (Dùng flex: 1 để khớp với task chính)
+            },
             React.createElement(
-              "div",
-              {
-                onClick: () => onOpen(s, "subTask"),
-                style: {
-                  flex: 1,
-                  padding: "0 10px",
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color:
-                    s.status === "done"
-                      ? "#bfbfbf"
-                      : isSubBlocked
-                        ? "#722ed1"
-                        : s._od
-                          ? "#cf1322"
-                          : "#595959",
-                  textDecoration: s.status === "done" ? "line-through" : "none",
-                  cursor: "pointer",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                },
+              "span",
+              { style: { color: "#d9d9d9", fontSize: 10 } },
+              "└─",
+            ),
+          ),
+          // 3. Cột Title (Dùng flex: 1 để khớp với task chính)
+          React.createElement(
+            "div",
+            {
+              onClick: serviceDeleted ? undefined : () => onOpen(s, "subTask"),
+              title: serviceDeleted ? "Service is locked" : undefined,
+              style: {
+                flex: 1,
+                padding: "0 10px",
+                fontSize: 12,
+                fontFamily: FONT,
+                color: s._od
+                  ? "#cf1322"
+                  : (STATUS_CFG[s.status]?.color || "#595959"),
+                cursor: serviceDeleted ? "not-allowed" : "pointer",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               },
-              s.subTaskName,
-            ),
-            // 5. Cột UpdatedAt
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.updatedAt,
-                  textAlign: "center",
-                  flexShrink: 0,
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: s.updatedAt ? "#8c8c8c" : "#d9d9d9",
-                },
+            },
+            s.subTaskName,
+          ),
+          // 4. Cột Trạng thái
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.status,
+                flexShrink: 0,
+                padding: "0 8px",
+                display: "flex",
+                alignItems: "center",
               },
-              s.updatedAt ? fmt(s.updatedAt, "full") : "—",
-            ),
-            // 6. Cột Lawyer Picker
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.assign,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                },
-              },
-              React.createElement(LawyerPicker, {
-                lawyers,
-                value: s.lawyerId,
-                size: 20,
-                readOnly: !isManager || isAssigneeOnly,
-                onChange: (id, n, c) => onAssign(s.id, id, n, c, "subTask"),
-              }),
-            ),
-            // 7. Cột Description
-            React.createElement(
-              "div",
-              { style: { width: COL.desc, flexShrink: 0, padding: "4px 8px" } },
-              s.description
-                ? React.createElement(
-                    Tooltip,
-                    { title: s.description, placement: "topLeft" },
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          color: "#8c8c8c",
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          lineHeight: 1.5,
-                        },
-                      },
-                      s.description,
-                    ),
-                  )
-                : React.createElement(
-                    "span",
-                    { style: { fontSize: 12, color: "#d9d9d9" } },
-                    "—",
-                  ),
-            ),
-            // 8. Cột Start Date
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.start,
-                  textAlign: "center",
-                  flexShrink: 0,
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#8c8c8c",
-                },
-              },
-              fmt(s.date, "date") || "—",
-            ),
-            // 9. Cột Deadline
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.deadline,
-                  textAlign: "center",
-                  flexShrink: 0,
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: s._od ? "#cf1322" : "#8c8c8c",
-                },
-              },
-              fmt(s.deadline, "date") || "—",
-            ),
-            // 10. Cột Pending Issue (Subtask thường không có dependency phức tạp)
-            React.createElement("div", {
-              style: { width: COL.pendingIssue, flexShrink: 0 },
-            }),
-            // 11. Cột Next Step
-            React.createElement("div", {
-              style: { width: COL.nextStep, flexShrink: 0 },
-            }),
-            // 12. Cột Files
-            React.createElement(
-              "div",
-              {
-                style: {
-                  width: COL.files,
-                  flexShrink: 0,
-                  textAlign: "center",
-                  color: "#d9d9d9",
-                },
-              },
-              "—",
-            ),
-            // 13. Cột Approval Icon
-            React.createElement(ApprovalIcon, {
+            },
+            React.createElement(StatusBtn, {
+              status: s.status,
+              onChange: canEditSub
+                ? (st) => onStatus(s.id, st, "subTask")
+                : null,
               isRequiredApproval: s.isRequiredApproval,
+              isBlocked: isSubBlocked,
+              readOnly: !canEditSub,
             }),
-          );
-        }),
-      ),
+          ),
+          // 5. Cột UpdatedAt
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.updatedAt,
+                textAlign: "center",
+                flexShrink: 0,
+                fontSize: 12,
+                fontFamily: FONT,
+                color: s.updatedAt ? "#8c8c8c" : "#d9d9d9",
+              },
+            },
+            s.updatedAt ? fmt(s.updatedAt, "full") : "—",
+          ),
+          // 6. Cột Lawyer Picker
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.assign,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              },
+            },
+            React.createElement(LawyerPicker, {
+              lawyers,
+              value: s.lawyerId,
+              size: 20,
+              readOnly: serviceDeleted || !isManager || isAssigneeOnly,
+              onChange: (id, n, c) => onAssign(s.id, id, n, c, "subTask"),
+            }),
+          ),
+          // 7. Cột Description
+          React.createElement(
+            "div",
+            { style: { width: COL.desc, flexShrink: 0, padding: "4px 8px" } },
+            s.description
+              ? React.createElement(
+                Tooltip,
+                { title: s.description, placement: "topLeft" },
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#8c8c8c",
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      lineHeight: 1.5,
+                    },
+                  },
+                  s.description,
+                ),
+              )
+              : React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#d9d9d9" } },
+                "—",
+              ),
+          ),
+          // 8. Cột Start Date
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.start,
+                textAlign: "center",
+                flexShrink: 0,
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#8c8c8c",
+              },
+            },
+            fmt(s.date, "date") || "—",
+          ),
+          // 9. Cột Deadline
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.deadline,
+                textAlign: "center",
+                flexShrink: 0,
+                fontSize: 12,
+                fontFamily: FONT,
+                color: s._od ? "#cf1322" : "#8c8c8c",
+              },
+            },
+            fmt(s.deadline, "date") || "—",
+          ),
+          // 10. Cột Pending Issue (Subtask thường không có dependency phức tạp)
+          React.createElement("div", {
+            style: { width: COL.pendingIssue, flexShrink: 0 },
+          }),
+          // 11. Cột Next Step
+          React.createElement("div", {
+            style: { width: COL.nextStep, flexShrink: 0 },
+          }),
+          // 12. Cột Files
+          React.createElement(
+            "div",
+            {
+              style: {
+                width: COL.files,
+                flexShrink: 0,
+                textAlign: "center",
+                color: "#d9d9d9",
+              },
+            },
+            "—",
+          ),
+          // 13. Cột Approval Icon
+          React.createElement(ApprovalIcon, {
+            isRequiredApproval: s.isRequiredApproval,
+          }),
+        );
+      }),
+    ),
   );
 };
 // ── Service Section ────────────────────────────────────────
@@ -12583,10 +16138,23 @@ const ServiceSection = ({
   isAssigneeOnly = false,
   myLawyerId = null,
   onDeleteTask,
+  serviceDeleted = false,
+  onReorderTask,
+  groupServiceKey,
 }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(serviceDeleted);
   const doneCnt = tasks.filter((t) => t.status === "done").length;
   const totalCnt = tasks.length;
+  const isCollapsed = serviceDeleted || collapsed;
+
+  useEffect(() => {
+    if (serviceDeleted) setCollapsed(true);
+  }, [serviceDeleted]);
+
+  const toggleService = () => {
+    if (!serviceDeleted) setCollapsed((value) => !value);
+  };
+
   return React.createElement(
     "div",
     {
@@ -12600,16 +16168,32 @@ const ServiceSection = ({
     React.createElement(
       "div",
       {
-        onClick: () => setCollapsed((v) => !v),
+        onClick: toggleService,
+        onKeyDown: serviceDeleted
+          ? undefined
+          : (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              toggleService();
+            }
+          },
+        role: serviceDeleted ? undefined : "button",
+        tabIndex: serviceDeleted ? -1 : 0,
+        "aria-expanded": serviceDeleted ? false : !isCollapsed,
+        title: serviceDeleted
+          ? "This service has been deleted and locked. The task list cannot be opened."
+          : (isCollapsed ? "Expand task list" : "Collapse task list"),
         style: {
           display: "flex",
-          minWidth: 1300,
+          minWidth: 1420,
           width: "100%",
           alignItems: "center",
           padding: "10px 14px",
           background: colorCfg.bg,
-          cursor: "pointer",
-          borderRadius: collapsed ? 8 : "8px 8px 0 0",
+          cursor: serviceDeleted ? "not-allowed" : "pointer",
+          borderRadius: isCollapsed ? 8 : "8px 8px 0 0",
+          color: serviceDeleted ? "#8c8c8c" : colorCfg.text,
+          userSelect: "none",
         },
       },
       React.createElement(
@@ -12617,49 +16201,63 @@ const ServiceSection = ({
         {
           style: {
             marginRight: 8,
-            transform: collapsed ? "rotate(-90deg)" : "none",
-            transition: "0.2s",
+            width: 16,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: serviceDeleted || !isCollapsed ? "none" : "rotate(-90deg)",
+            transition: "transform 0.2s",
+            color: serviceDeleted ? "#8c8c8c" : colorCfg.text,
           },
         },
-        "▾",
+        serviceDeleted ? renderServiceLockIcon(15) : "▾",
       ),
       React.createElement(
         "b",
-        { style: { flex: 1, fontSize: 12 } },
+        {
+          style: {
+            flex: 1,
+            fontSize: 12,
+            color: serviceDeleted ? "#595959" : "inherit",
+          },
+        },
         serviceName,
       ),
       React.createElement(
         "span",
         { style: { fontSize: 12 } },
-        `${doneCnt}/${totalCnt} hoàn thành`,
+        `${doneCnt}/${totalCnt} done`,
       ),
     ),
-    !collapsed &&
-      React.createElement(
-        "div",
-        null,
-        React.createElement(ColHeader),
-        ...tasks.map((t, index) =>
-          React.createElement(TaskRow, {
-            key: t.id,
-            task: t,
-            stt: index + 1,
-            lawyers,
-            expanded: !!expanded[t.id],
-            onToggle,
-            onStatus,
-            onOpen,
-            onAssign,
-            onUpdate,
-            isManager,
-            onOpenAddSubModal,
-            allTasksInProject,
-            tasksInService: tasks,
-            isAssigneeOnly,
-            myLawyerId,
-          }),
-        ),
+    !isCollapsed &&
+    React.createElement(
+      "div",
+      null,
+      React.createElement(ColHeader),
+      ...tasks.map((t, index) =>
+        React.createElement(TaskRow, {
+          key: t.id,
+          task: t,
+          stt: index + 1,
+          lawyers,
+          expanded: !!expanded[t.id],
+          onToggle,
+          onStatus,
+          onOpen,
+          onAssign,
+          onUpdate,
+          isManager,
+          onOpenAddSubModal,
+          allTasksInProject,
+          tasksInService: tasks,
+          isAssigneeOnly,
+          myLawyerId,
+          onDeleteTask,
+          onReorderTask,
+          groupServiceKey,
+        }),
       ),
+    ),
   );
 };
 // ============================================================
@@ -12682,15 +16280,19 @@ const ListView = ({
   showAddTask,
   setShowAddTask,
   onDeleteTask,
+  onReorderTask,
 }) => {
   // services = projectServices của case này
   // Key quy ước: nếu ps.serviceId có (catalog service) → dùng ps.serviceId
   //           nếu ps.serviceId = null (custom service) → dùng ps.id (projectService id)
   // task.serviceId sẽ lưu đúng key này khi tạo công việc
   const serviceMap = {};
+  const serviceDeletedMap = {};
   services.forEach((ps) => {
-    const key = ps.serviceId ? String(ps.serviceId) : String(ps.id);
-    serviceMap[key] = ps.serviceName || `Dịch vụ #${ps.id}`;
+    const key = getProjectServiceTaskKey(ps);
+    const deleted = isDeletedServiceRecord(ps);
+    serviceMap[key] = ps.serviceName || `Service #${ps.id}`;
+    serviceDeletedMap[key] = deleted;
   });
   const grouped = {};
   tasks.forEach((t) => {
@@ -12699,9 +16301,7 @@ const ListView = ({
     grouped[key].push(t);
   });
   // Thứ tự hiển thị: tất cả projectServices (kể cả custom) rồi mới đến __none__
-  const serviceOrder = services.map((ps) =>
-    ps.serviceId ? String(ps.serviceId) : String(ps.id)
-  );
+  const serviceOrder = services.map((ps) => getProjectServiceTaskKey(ps));
   // Nhóm có task + nhóm chưa có task nào (hiển thị rỗng để user tạo task mới)
   const allServiceKeys = serviceOrder; // Luôn hiển thị tất cả dịch vụ
   const extraKeys = Object.keys(grouped).filter(
@@ -12720,23 +16320,30 @@ const ListView = ({
         display: "flex",
         flexDirection: "column",
         gap: 0,
-        minWidth: 1300,
+        minWidth: 1420,
       },
     },
     ...orderedKeys.map((key) => {
       const colorCfg =
         key === "__none__"
           ? {
+            bg: "#fafafa",
+            border: "#e8e8e8",
+            text: "#8c8c8c",
+            dot: "#bfbfbf",
+          }
+          : serviceDeletedMap[key]
+            ? {
               bg: "#fafafa",
-              border: "#e8e8e8",
+              border: "#d9d9d9",
               text: "#8c8c8c",
               dot: "#bfbfbf",
             }
-          : SERVICE_COLORS[serviceOrder.indexOf(key) % SERVICE_COLORS.length];
+            : SERVICE_COLORS[orderedKeys.indexOf(key) % SERVICE_COLORS.length];
       const svcName =
         key === "__none__"
-          ? "Chưa gắn dịch vụ"
-          : serviceMap[key] || `Dịch vụ #${key}`;
+          ? "No service assigned"
+          : serviceMap[key] || `Service #${key}`;
       return React.createElement(ServiceSection, {
         key,
         serviceId: key,
@@ -12755,6 +16362,10 @@ const ListView = ({
         allTasksInProject: tasks,
         isAssigneeOnly,
         myLawyerId,
+        serviceDeleted: !!serviceDeletedMap[key],
+        onDeleteTask,
+        onReorderTask,
+        groupServiceKey: key,
       });
     }),
   );
@@ -12821,15 +16432,16 @@ const ProjectTasksTab = () => {
         await Promise.all([
           fetchAll(
             "tasks:list",
-            "id,title,status,updatedAt,priority,startDate,dueDate,closedDate,lawyerId,projectId,serviceId,description,estimatedDuration,workRate,isRequiredApproval,rejectionReason,approvedById,approvedAt,acceptedAt,previousTaskId,blockedReason,nextStepDescription,linkedUrl",
+            "id,title,status,updatedAt,priority,startDate,dueDate,closedDate,lawyerId,projectId,serviceId,description,estimatedDuration,workRate,isRequiredApproval,rejectionReason,approvedById,approvedAt,acceptedAt,previousTaskId,blockedReason,nextStepDescription,linkedUrl,taskIndex",
             { projectId: { $eq: safeProjectId } },
+            ["taskIndex", "id"],
           ),
           fetchAll(
             "subTasks:list",
             "id,subTaskName,status,priority,date,deadline,closedDate,lawyerId,taskId,description,hourlyRate,estimatedDuration,isRequiredApproval,rejectionReason,approvedById,updatedAt,linkedUrl",
           ),
           fetchAll("lawyers:list", "id,lawyerName,unitPrice,lawyerType,userId"),
-          fetchAll("projectServices:list", "id,serviceId,serviceName,serviceType,description,basePrice", {
+          fetchAll("projectServices:list", "id,serviceId,serviceName,serviceType,description,basePrice,status", {
             projectId: { $eq: safeProjectId },
           }),
           getCurrentUser(),
@@ -12849,10 +16461,10 @@ const ProjectTasksTab = () => {
         });
         setProjectManagerId(
           projRes?.data?.data?.projectManagerId ||
-            projRes?.data?.projectManagerId ||
-            null,
+          projRes?.data?.projectManagerId ||
+          null,
         );
-      } catch {}
+      } catch { }
 
       const lMap = {};
       allLawyers.forEach((l, i) => {
@@ -12866,24 +16478,7 @@ const ProjectTasksTab = () => {
       let allTaskFiles = [];
 
       if (taskIds.length > 0) {
-        try {
-          const fileRes = await ctx.api.request({
-            url: "documents:list",
-            params: {
-              pageSize: 2000,
-              filter: JSON.stringify({
-                $and: [
-                  { collectionName: { $eq: "Task" } },
-                  { recordId: { $in: taskIds } },
-                ],
-              }),
-              appends: ["fileAttachment", "createdBy", "updatedBy"],
-            },
-          });
-          allTaskFiles = fileRes?.data?.data || [];
-        } catch (e) {
-          console.error("Lỗi lấy danh sách files đính kèm", e);
-        }
+        allTaskFiles = await fetchTaskDocumentsByIds(taskIds);
       }
 
       const fileMap = {};
@@ -12891,12 +16486,21 @@ const ProjectTasksTab = () => {
         fileMap[id] = [];
       });
       allTaskFiles.forEach((f) => {
-        if (fileMap[f.recordId]) fileMap[f.recordId].push(f);
+        const taskId = getDocumentTaskId(f);
+        if (taskId && fileMap[taskId]) fileMap[taskId].push(f);
       });
+
+      const serviceDeletedLookup = {};
+      allServices.forEach((ps) => {
+        serviceDeletedLookup[getProjectServiceTaskKey(ps)] = isDeletedServiceRecord(ps);
+      });
+      const getTaskServiceDeleted = (taskLike) =>
+        !!taskLike?.serviceId && !!serviceDeletedLookup[String(taskLike.serviceId)];
 
       const enriched = allTasks.map((t) => ({
         ...t,
         _type: "task",
+        _serviceDeleted: getTaskServiceDeleted(t),
         _ln: lMap[t.lawyerId]?.name || null,
         _lc: lMap[t.lawyerId]?.color || "#8c8c8c",
         _od: isOD(t.dueDate, t.status),
@@ -12907,6 +16511,7 @@ const ProjectTasksTab = () => {
           .map((s) => ({
             ...s,
             _type: "subTask",
+            _serviceDeleted: getTaskServiceDeleted(t),
             _ln: lMap[s.lawyerId]?.name || null,
             _lc: lMap[s.lawyerId]?.color || "#8c8c8c",
             _od: isOD(s.deadline, s.status),
@@ -12918,7 +16523,7 @@ const ProjectTasksTab = () => {
       setServices(allServices);
       setCurrentUser(user);
     } catch (error) {
-      message.error("Lỗi khi tải dữ liệu, vui lòng làm mới!");
+      message.error("Error loading data, please refresh!");
       console.error(error);
     } finally {
       setLoading(false);
@@ -12981,6 +16586,7 @@ const ProjectTasksTab = () => {
     async (doneTaskId, allCurrentTasks, changedByName) => {
       const nextTasks = allCurrentTasks.filter(
         (t) =>
+          !isTaskServiceDeleted(t) &&
           extractId(t.previousTaskId) === extractId(doneTaskId) &&
           t.status === "blocked",
       );
@@ -12996,12 +16602,12 @@ const ProjectTasksTab = () => {
               extractId(t.id),
               "updated",
               "status",
-              "Đang chờ",
-              "Chưa thực hiện",
-              "Hệ thống (auto-unblock)",
+              "Waiting",
+              "Not started",
+              "System (auto-unblock)",
             );
-            message.success(`🔓 "${t.title}" đã được mở khoá`);
-          } catch {}
+            message.success(`🔓 "${t.title}" has been unblocked`);
+          } catch { }
         }),
       );
       setTasks((prev) =>
@@ -13031,9 +16637,14 @@ const ProjectTasksTab = () => {
         }
       }
 
+      if (isTaskServiceDeleted(targetItem)) {
+        message.warning("This service has been deleted; the task cannot be updated.");
+        return;
+      }
+
       if (!checkCanEditTask(targetItem)) {
         message.warning(
-          "Bạn không phải người phụ trách, không có quyền đổi trạng thái.",
+          "You are not the assignee and do not have permission to change the status.",
         );
         return;
       }
@@ -13049,7 +16660,7 @@ const ProjectTasksTab = () => {
         ) {
           if (!["cancelled", "blocked"].includes(newStatus)) {
             message.warning(
-              `⛓ Task đang chờ "${prevTask.title}" hoàn thành trước`,
+              `⛓ Task is waiting for "${prevTask.title}" to complete first`,
             );
             return;
           }
@@ -13058,7 +16669,7 @@ const ProjectTasksTab = () => {
 
       const resolvedSt = resolveStatus(newStatus, targetItem);
       if (resolvedSt === "pending" && newStatus === "done")
-        message.info('📋 Task cần phê duyệt — đã chuyển sang "Chờ phê duyệt"');
+        message.info('📋 Task requires approval — moved to "Pending approval"');
 
       const url =
         type === "subTask"
@@ -13107,7 +16718,7 @@ const ProjectTasksTab = () => {
       } catch (e) {
         console.error("🛑 LỖI API BACKEND (NocoBase):", e);
         message.error(
-          "Lỗi Backend: Tài khoản của bạn chưa được cấp quyền (Role) sửa data!",
+          "Backend error: your account has not been granted permission (Role) to edit data!",
         );
         reload();
       }
@@ -13126,7 +16737,7 @@ const ProjectTasksTab = () => {
   const handleAssign = useCallback(
     async (id, lawyerId, lawyerName, lawyerColor, type) => {
       if (!isManager) {
-        message.warning("Bạn không có quyền phân công người phụ trách.");
+        message.warning("You do not have permission to assign an assignee.");
         return;
       }
       const url =
@@ -13136,9 +16747,13 @@ const ProjectTasksTab = () => {
       const targetItem =
         type === "subTask"
           ? tasks
-              .flatMap((t) => t._subs || [])
-              .find((s) => extractId(s.id) === extractId(id))
+            .flatMap((t) => t._subs || [])
+            .find((s) => extractId(s.id) === extractId(id))
           : tasks.find((t) => extractId(t.id) === extractId(id));
+      if (isTaskServiceDeleted(targetItem)) {
+        message.warning("This service has been deleted; the task cannot be updated.");
+        return;
+      }
       const payload = withTaskLinkedUrl(
         { lawyerId: extractId(lawyerId) },
         targetItem || { id },
@@ -13158,11 +16773,11 @@ const ProjectTasksTab = () => {
             _subs: t._subs.map((s) =>
               extractId(s.id) === extractId(id) && type === "subTask"
                 ? {
-                    ...s,
-                    ...payload,
-                    _ln: lawyerName,
-                    _lc: lawyerColor || "#8c8c8c",
-                  }
+                  ...s,
+                  ...payload,
+                  _ln: lawyerName,
+                  _lc: lawyerColor || "#8c8c8c",
+                }
                 : s,
             ),
           };
@@ -13170,46 +16785,145 @@ const ProjectTasksTab = () => {
       );
       try {
         await apiReq(url, "POST", payload);
-        message.success(lawyerName ? `✅ ${lawyerName}` : "Đã bỏ phân công");
+        message.success(lawyerName ? `✅ ${lawyerName}` : "Assignment removed");
       } catch {
-        message.error("Thất bại");
+        message.error("Failed");
         reload();
       }
     },
     [reload, isManager, tasks],
   );
 
+  const destroyTaskRecord = useCallback(async (recordId, recordType) => {
+    const safeId = extractId(recordId);
+    if (!safeId) throw new Error("Missing record id.");
+
+    const resource = recordType === "subTask" ? "subTasks" : "tasks";
+    console.info("[TaskManagement] destroy request", {
+      resource,
+      filterByTk: safeId,
+      recordType,
+    });
+    const hardDeleteAttempts = [
+      () =>
+        ctx.api.request({
+          url: `${resource}:destroy`,
+          method: "POST",
+          params: { filterByTk: safeId },
+        }),
+      () =>
+        ctx.api.request({
+          url: `${resource}:destroy?filterByTk=${encodeURIComponent(safeId)}`,
+          method: "POST",
+        }),
+      () =>
+        ctx.api.request({
+          url: `${resource}:destroy`,
+          method: "DELETE",
+          params: { filterByTk: safeId },
+        }),
+    ];
+
+    let lastError = null;
+    for (const attempt of hardDeleteAttempts) {
+      try {
+        await attempt();
+        return "destroy";
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("Delete request failed.");
+  }, []);
+
+  const removeDeletedTaskFromState = useCallback((recordId, recordType) => {
+    const safeId = extractId(recordId);
+    if (!safeId) return;
+
+    setTasks((prev) =>
+      recordType === "task"
+        ? prev.filter((task) => getTaskRecordId(task) !== safeId)
+        : prev.map((task) => ({
+          ...task,
+          _subs: (task._subs || []).filter((subTask) => getSubTaskRecordId(subTask) !== safeId),
+        })),
+    );
+    setDetail((current) =>
+      current &&
+      (current.type === "subTask"
+        ? getSubTaskRecordId(current.item)
+        : getTaskRecordId(current.item)) === safeId
+        ? null
+        : current,
+    );
+  }, []);
+
   // ── handleDeleteTask ──────────────────────────
   const handleDeleteTask = useCallback(
     (id, type, taskName) => {
+      const safeId = extractId(id);
+      const targetItem =
+        type === "subTask"
+          ? tasks
+            .flatMap((t) => t._subs || [])
+            .find((s) => getSubTaskRecordId(s) === safeId)
+          : tasks.find((t) => getTaskRecordId(t) === safeId);
+      console.info("[TaskManagement] delete click", {
+        rawId: id,
+        safeId,
+        type,
+        taskName,
+        found: !!targetItem,
+        recordId: type === "subTask" ? getSubTaskRecordId(targetItem) : getTaskRecordId(targetItem),
+      });
+      if (!safeId) {
+        message.error("Task ID not found for deletion.");
+        return;
+      }
+      if (isTaskServiceDeleted(targetItem)) {
+        message.warning("This service has been deleted; the task cannot be deleted.");
+        return;
+      }
       Modal.confirm({
-        title: `Xác nhận xoá ${type === "task" ? "công việc" : "công việc phụ"}`,
+        title: `Confirm deletion of ${type === "task" ? "task" : "subtask"}`,
         content: React.createElement(
           "div",
           { style: { fontFamily: FONT } },
-          "Bạn có chắc chắn muốn xoá ",
+          "Are you sure you want to delete ",
           React.createElement("b", null, taskName),
-          "? Hành động này không thể hoàn tác.",
+          "? This action cannot be undone.",
         ),
-        okText: "Xoá vĩnh viễn",
+        okText: "Delete permanently",
         okType: "danger",
-        cancelText: "Huỷ",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
-            const url =
-              type === "subTask"
-                ? `subTasks:destroy?filterByTk=${extractId(id)}`
-                : `tasks:destroy?filterByTk=${extractId(id)}`;
-            await apiReq(url, "POST");
-            message.success("✅ Đã xoá thành công");
+            const childSubTaskIds =
+              type === "task"
+                ? (targetItem?._subs || []).map((subTask) => getSubTaskRecordId(subTask)).filter(Boolean)
+                : [];
+
+            for (const subTaskId of childSubTaskIds) {
+              try {
+                await destroyTaskRecord(subTaskId, "subTask");
+              } catch (childError) {
+                console.warn("[TaskManagement] delete child subtask failed", childError);
+              }
+            }
+            await destroyTaskRecord(safeId, type);
+
+            message.success("✅ Deleted successfully");
+            removeDeletedTaskFromState(safeId, type);
             reload();
           } catch (e) {
-            message.error("Xoá thất bại, vui lòng thử lại");
+            console.error("[TaskManagement] delete task failed", e);
+            message.error("Delete failed, please try again");
           }
         },
       });
     },
-    [reload],
+    [destroyTaskRecord, reload, removeDeletedTaskFromState, tasks],
   );
 
   // ── handleDetailUpdate ────────────────────────────────────
@@ -13230,6 +16944,117 @@ const ProjectTasksTab = () => {
     );
     setDetail((d) => (d ? { ...d, item: { ...d.item, ...updated } } : null));
   }, []);
+
+  // ── handleReorderTask ──────────────────────────────
+  const handleReorderTask = useCallback(
+    async (draggedTaskId, targetTaskId, targetServiceKey, dropPosition) => {
+      const draggedId = extractId(draggedTaskId);
+      const targetId = extractId(targetTaskId);
+      if (!draggedId || draggedId === targetId) return;
+
+      const draggedTask = tasks.find((t) => extractId(t.id) === draggedId);
+      if (!draggedTask) return;
+
+      const groupKeyOf = (t) => (t.serviceId ? String(extractId(t.serviceId)) : "__none__");
+      const sourceServiceKey = groupKeyOf(draggedTask);
+      const isCrossService = sourceServiceKey !== targetServiceKey;
+
+      // Build the target group's current order (excluding the dragged task if it
+      // was already in this group), backfilling any missing taskIndex by current
+      // display order (already taskIndex/id-sorted from the fetch layer) before
+      // inserting the dragged task at the drop position.
+      const targetGroupTasks = tasks
+        .filter((t) => groupKeyOf(t) === targetServiceKey && extractId(t.id) !== draggedId)
+        .slice();
+
+      const targetIndex = targetGroupTasks.findIndex(
+        (t) => extractId(t.id) === targetId,
+      );
+      const insertAt =
+        targetIndex === -1
+          ? targetGroupTasks.length
+          : dropPosition === "before"
+            ? targetIndex
+            : targetIndex + 1;
+      targetGroupTasks.splice(insertAt, 0, draggedTask);
+
+      // Reindex the target group sequentially (1-based).
+      const targetUpdates = targetGroupTasks
+        .map((t, i) => ({ task: t, newIndex: i + 1 }))
+        .filter(({ task, newIndex }) => Number(task.taskIndex) !== newIndex);
+
+      // If moving across services, also reindex the source group (with the
+      // dragged task removed) so it stays sequential.
+      let sourceUpdates = [];
+      if (isCrossService) {
+        const sourceGroupTasks = tasks
+          .filter((t) => groupKeyOf(t) === sourceServiceKey && extractId(t.id) !== draggedId)
+          .slice();
+        sourceUpdates = sourceGroupTasks
+          .map((t, i) => ({ task: t, newIndex: i + 1 }))
+          .filter(({ task, newIndex }) => Number(task.taskIndex) !== newIndex);
+      }
+
+      const newServiceIdForDragged = isCrossService
+        ? targetServiceKey === "__none__"
+          ? null
+          : Number(targetServiceKey)
+        : draggedTask.serviceId;
+
+      // Optimistic UI update.
+      const updatesById = new Map();
+      targetUpdates.forEach(({ task, newIndex }) => updatesById.set(extractId(task.id), newIndex));
+      sourceUpdates.forEach(({ task, newIndex }) => updatesById.set(extractId(task.id), newIndex));
+      setTasks((prev) =>
+        prev.map((t) => {
+          const tid = extractId(t.id);
+          if (tid === draggedId) {
+            return {
+              ...t,
+              serviceId: newServiceIdForDragged,
+              taskIndex: updatesById.has(tid) ? updatesById.get(tid) : t.taskIndex,
+            };
+          }
+          if (updatesById.has(tid)) {
+            return { ...t, taskIndex: updatesById.get(tid) };
+          }
+          return t;
+        }),
+      );
+
+      // Persist. Fire the dragged task's own update (taskIndex + possibly
+      // serviceId) plus every other task whose taskIndex actually changed.
+      const draggedNewIndex = updatesById.has(draggedId) ? updatesById.get(draggedId) : draggedTask.taskIndex;
+      const draggedPayload = { taskIndex: draggedNewIndex };
+      if (isCrossService) draggedPayload.serviceId = newServiceIdForDragged;
+
+      const requests = [
+        apiReq(`tasks:update?filterByTk=${draggedId}`, "POST", draggedPayload),
+        ...targetUpdates
+          .filter(({ task }) => extractId(task.id) !== draggedId)
+          .map(({ task, newIndex }) =>
+            apiReq(`tasks:update?filterByTk=${extractId(task.id)}`, "POST", { taskIndex: newIndex }),
+          ),
+        ...sourceUpdates.map(({ task, newIndex }) =>
+          apiReq(`tasks:update?filterByTk=${extractId(task.id)}`, "POST", { taskIndex: newIndex }),
+        ),
+      ];
+
+      try {
+        await Promise.all(requests);
+      } catch (e) {
+        console.error("[TaskManagement] reorder persist failed", e);
+        message.error("Failed to save the new task order.");
+      } finally {
+        // Resync with the server regardless of outcome: on success this
+        // picks up the sorted order via the Task 1 fetch/sort change; on
+        // failure it discards the optimistic update above and restores
+        // the last-persisted order.
+        reload();
+      }
+    },
+    [tasks, reload],
+  );
 
   // ── handleDetailStatusChange ──────────────────────────────
   const handleDetailStatusChange = useCallback(
@@ -13260,13 +17085,23 @@ const ProjectTasksTab = () => {
 
   // ── handleOpenAddSubModal ─────────────────────────────────
   const handleOpenAddSubModal = useCallback((taskId) => {
+    const targetTask = tasks.find((t) => extractId(t.id) === extractId(taskId));
+    if (isTaskServiceDeleted(targetTask)) {
+      message.warning("This service has been deleted; a subtask cannot be created.");
+      return;
+    }
     setAddSubForTaskId(taskId);
     setShowAddSub(true);
-  }, []);
+  }, [tasks]);
 
   // ── handleOpen (mở DetailModal từ row) ───────────────────
   const handleOpen = useCallback(
     (item, type, tasksInService) => {
+      if (isTaskServiceDeleted(item)) {
+        message.warning("This service has been deleted and locked; task details cannot be opened.");
+        return;
+      }
+
       // 🌟 Quét cả 2 trường hợp tên field của NocoBase
       const itemLawyerId = extractId(item.lawyerId) || extractId(item.lawyer);
       const isAssignedToThis = myLawyer
@@ -13309,7 +17144,7 @@ const ProjectTasksTab = () => {
     return React.createElement(
       "div",
       { style: { padding: 20, color: "#ff4d4f", fontFamily: FONT } },
-      "⚠️ Không tìm thấy Project ID",
+      "⚠️ Project ID not found",
     );
   // ── Render ────────────────────────────────────────────────
   return React.createElement(
@@ -13356,7 +17191,7 @@ const ProjectTasksTab = () => {
             strong: true,
             style: { fontSize: 12, fontFamily: FONT, color: "#1a1a1a" },
           },
-          "📋 Công việc",
+          "📋 Tasks",
         ),
         React.createElement(
           "span",
@@ -13370,40 +17205,40 @@ const ProjectTasksTab = () => {
               padding: "2px 8px",
             },
           },
-          `${done}/${total} hoàn thành`,
+          `${done}/${total} done`,
         ),
         blocked > 0 &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#722ed1",
-                background: "#f9f0ff",
-                borderRadius: 8,
-                padding: "2px 8px",
-                border: "1px solid #d3adf7",
-              },
+        React.createElement(
+          "span",
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#722ed1",
+              background: "#f9f0ff",
+              borderRadius: 8,
+              padding: "2px 8px",
+              border: "1px solid #d3adf7",
             },
-            `⏸ ${blocked} đang chờ`,
-          ),
+          },
+          `⏸ ${blocked} waiting`,
+        ),
         overdue > 0 &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#cf1322",
-                background: "#fff1f0",
-                borderRadius: 8,
-                padding: "2px 8px",
-                border: "1px solid #ffa39e",
-              },
+        React.createElement(
+          "span",
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#cf1322",
+              background: "#fff1f0",
+              borderRadius: 8,
+              padding: "2px 8px",
+              border: "1px solid #ffa39e",
             },
-            `⚠ ${overdue} quá hạn`,
-          ),
+          },
+          `⚠ ${overdue} overdue`,
+        ),
         React.createElement(
           "div",
           { style: { display: "flex", alignItems: "center", gap: 6 } },
@@ -13459,12 +17294,12 @@ const ProjectTasksTab = () => {
               fontWeight: 600,
             },
           },
-          "＋ Tạo công việc",
+          "＋ New Task",
         ),
         React.createElement(ReloadButton, {
           onReload: reload,
           loading: loading,
-          text: "Làm mới",
+          text: "Refresh",
         }),
       ),
     ),
@@ -13482,42 +17317,43 @@ const ProjectTasksTab = () => {
       },
       loading
         ? React.createElement(
-            "div",
-            { style: { textAlign: "center", padding: 60 } },
-            React.createElement(Spin, { size: "large" }),
-          )
+          "div",
+          { style: { textAlign: "center", padding: 60 } },
+          React.createElement(Spin, { size: "large" }),
+        )
         : tasks.length === 0
           ? React.createElement(
-              "div",
-              {
-                style: {
-                  textAlign: "center",
-                  padding: "60px 0",
-                  color: "#bfbfbf",
-                  fontSize: 12,
-                  fontFamily: FONT,
-                },
+            "div",
+            {
+              style: {
+                textAlign: "center",
+                padding: "60px 0",
+                color: "#bfbfbf",
+                fontSize: 12,
+                fontFamily: FONT,
               },
-              "📭 Chưa có công việc nào",
-            )
+            },
+            "📭 No tasks yet",
+          )
           : React.createElement(ListView, {
-              tasks,
-              services,
-              lawyers: assignableLawyers,
-              expanded,
-              toggleExpand,
-              handleStatus,
-              handleOpen,
-              handleAssign,
-              handleDetailUpdate,
-              isManager,
-              handleOpenAddSubModal,
-              isAssigneeOnly,
-              myLawyerId,
-              showAddTask,
-              setShowAddTask,
-              onDeleteTask: handleDeleteTask,
-            }),
+            tasks,
+            services,
+            lawyers: assignableLawyers,
+            expanded,
+            toggleExpand,
+            handleStatus,
+            handleOpen,
+            handleAssign,
+            handleDetailUpdate,
+            isManager,
+            handleOpenAddSubModal,
+            isAssigneeOnly,
+            myLawyerId,
+            showAddTask,
+            setShowAddTask,
+            onDeleteTask: handleDeleteTask,
+            onReorderTask: handleReorderTask,
+          }),
     ),
 
     /* ── Add Task Modal ── */
@@ -13534,42 +17370,42 @@ const ProjectTasksTab = () => {
 
     /* ── Add SubTask Modal (placeholder) ── */
     showAddSub &&
-      addSubForTaskId != null &&
-      React.createElement(AddSubtaskModal, {
-        key: `submodal-${addSubForTaskId}`,
-        open: showAddSub,
-        parentTaskId: addSubForTaskId,
-        lawyers: assignableLawyers,
-        currentUser: currentUser,
-        onSave: () => {
-          reload();
-        },
-        onClose: () => {
-          setShowAddSub(false);
-          setAddSubForTaskId(null);
-        },
-      }),
+    addSubForTaskId != null &&
+    React.createElement(AddSubtaskModal, {
+      key: `submodal-${addSubForTaskId}`,
+      open: showAddSub,
+      parentTaskId: addSubForTaskId,
+      lawyers: assignableLawyers,
+      currentUser: currentUser,
+      onSave: () => {
+        reload();
+      },
+      onClose: () => {
+        setShowAddSub(false);
+        setAddSubForTaskId(null);
+      },
+    }),
 
     /* ── Detail Modal ── */
     detail &&
-      React.createElement(DetailModal, {
-        item: detail.item,
-        type: detail.type,
-        lawyers: assignableLawyers,
-        allTasksInProject: tasks,
-        tasksInService: detail.tasksInService || tasks,
-        services,
-        projectManagerId,
-        onClose: () => setDetail(null),
-        onUpdate: handleDetailUpdate,
-        currentUser,
-        isManager,
-        onStatusChange: handleDetailStatusChange,
-        isAssigneeOnly: detail.isAssigneeOnly || false,
-        isAssignedToThis: detail.isAssignedToThis || false,
-        projectFolderId: resolveUploadFolderId(detail),
-        onOpenAddSubModal: handleOpenAddSubModal,
-      }),
+    React.createElement(DetailModal, {
+      item: detail.item,
+      type: detail.type,
+      lawyers: assignableLawyers,
+      allTasksInProject: tasks,
+      tasksInService: detail.tasksInService || tasks,
+      services,
+      projectManagerId,
+      onClose: () => setDetail(null),
+      onUpdate: handleDetailUpdate,
+      currentUser,
+      isManager,
+      onStatusChange: handleDetailStatusChange,
+      isAssigneeOnly: detail.isAssigneeOnly || false,
+      isAssignedToThis: detail.isAssignedToThis || false,
+      projectFolderId: resolveUploadFolderId(detail),
+      onOpenAddSubModal: handleOpenAddSubModal,
+    }),
   );
 };
 
