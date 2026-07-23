@@ -15365,13 +15365,11 @@ const TaskRow = ({
           display: "flex",
           alignItems: "center",
           minHeight: 44,
-          borderBottom: expanded ? "none" : "1px solid #f0f0f0",
           background: serviceDeleted ? "#fafafa" : isBlocked ? "#fdf6ff" : hov ? "#f0f7ff" : "#fff",
           transition: "background 0.1s",
           borderLeft: serviceDeleted ? "3px solid #bfbfbf" : isBlocked ? "3px solid #722ed1" : "3px solid transparent",
-          borderTop: dragOverPos === "before" ? "2px solid #1677ff" : "2px solid transparent",
-          borderBottomWidth: dragOverPos === "after" ? 2 : undefined,
-          borderBottomColor: dragOverPos === "after" ? "#1677ff" : undefined,
+          borderTop: dragOverPos === "before" ? "2px dashed #1677ff" : "2px solid transparent",
+          borderBottom: dragOverPos === "after" ? "2px dashed #1677ff" : "none",
           minWidth: 1420,
           width: "100%",
           cursor: canDrag ? "grab" : undefined,
@@ -16296,7 +16294,8 @@ const ListView = ({
   });
   const grouped = {};
   tasks.forEach((t) => {
-    const key = t.serviceId ? String(t.serviceId) : "__none__";
+    const svcId = extractId(t.serviceId);
+    const key = svcId ? String(svcId) : "__none__";
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(t);
   });
@@ -16494,8 +16493,10 @@ const ProjectTasksTab = () => {
       allServices.forEach((ps) => {
         serviceDeletedLookup[getProjectServiceTaskKey(ps)] = isDeletedServiceRecord(ps);
       });
-      const getTaskServiceDeleted = (taskLike) =>
-        !!taskLike?.serviceId && !!serviceDeletedLookup[String(taskLike.serviceId)];
+      const getTaskServiceDeleted = (taskLike) => {
+        const svcId = extractId(taskLike?.serviceId);
+        return !!svcId && !!serviceDeletedLookup[String(svcId)];
+      };
 
       const enriched = allTasks.map((t) => ({
         ...t,
