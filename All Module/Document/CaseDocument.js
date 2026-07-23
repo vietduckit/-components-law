@@ -5758,6 +5758,13 @@ const InternalTemplates = () => {
     return false;
   };
 
+  const requireCaseRootFolderForUpload = (targetFolderId) => {
+    if (activeSpace !== "cases") return true;
+    if (getEffectiveFolderId(targetFolderId)) return true;
+    message.warning("Vui lòng tạo folder Case trước khi tải tài liệu lên");
+    return false;
+  };
+
   const getNextFileIndex = useCallback(
     async (folderId) => {
       const parentId = normalizeParentId(folderId);
@@ -6045,6 +6052,7 @@ const InternalTemplates = () => {
 
   const handleUploadSubmit = async () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
+    if (!requireCaseRootFolderForUpload(selectedFolderId)) return;
     try {
       await uploadForm.validateFields();
     } catch {
@@ -6112,6 +6120,7 @@ const InternalTemplates = () => {
 
   const executeFolderUpload = async () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
+    if (!requireCaseRootFolderForUpload(bulkTargetId)) return;
     setBulkUploading(true);
     setBulkProgress("Đang phân tích cấu trúc thư mục...");
     setBulkPercent(5);
@@ -8991,6 +9000,23 @@ const InternalTemplates = () => {
                       >
                         {getCaseDisplayName(activeCaseRecord || activeCase)}
                       </span>
+                      {!activeCaseRootFolderId && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: "#B45309",
+                            background: "#FFFBEB",
+                            border: "1px solid #FEF3C7",
+                            borderRadius: 999,
+                            padding: "1px 6px",
+                            flexShrink: 0,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Chưa có folder
+                        </span>
+                      )}
                     </button>
 
                     {activeSpace === "cases" && (
@@ -10755,14 +10781,18 @@ const InternalTemplates = () => {
                             fontFamily: FONT,
                           }}
                         >
-                          {activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId
-                            ? "Chưa có Case Tham Chiếu nào"
-                            : activeSpace === "trash"
-                              ? "Thùng rác trống"
-                              : query
-                                ? "Không tìm thấy kết quả"
-                                : "Thư mục trống"}
+                          {activeSpace === "cases" &&
+                          selectedFolderId === "root" &&
+                          !activeCaseRootFolderId
+                            ? "Case chưa có folder gốc"
+                            : activeSpace === "legal_reference" &&
+                              !activeLegalReferenceId
+                              ? "Chưa có Case Tham Chiếu nào"
+                              : activeSpace === "trash"
+                                ? "Thùng rác trống"
+                                : query
+                                  ? "Không tìm thấy kết quả"
+                                  : "Thư mục trống"}
                         </div>
                         <div
                           style={{
@@ -10771,14 +10801,18 @@ const InternalTemplates = () => {
                             fontFamily: FONT,
                           }}
                         >
-                          {activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId
-                            ? "Nhấn + Tạo Case Tham Chiếu bên dưới để bắt đầu"
-                            : activeSpace === "trash"
-                              ? "Không có file hay thư mục nào bị xóa"
-                              : query
-                                ? "Thử tìm với từ khóa khác"
-                                : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"}
+                          {activeSpace === "cases" &&
+                          selectedFolderId === "root" &&
+                          !activeCaseRootFolderId
+                            ? "Hãy tạo folder gốc cho case trước khi tải tài liệu lên"
+                            : activeSpace === "legal_reference" &&
+                              !activeLegalReferenceId
+                              ? "Nhấn + Tạo Case Tham Chiếu bên dưới để bắt đầu"
+                              : activeSpace === "trash"
+                                ? "Không có file hay thư mục nào bị xóa"
+                                : query
+                                  ? "Thử tìm với từ khóa khác"
+                                  : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"}
                         </div>
                         {activeSpace === "legal_reference" &&
                         !activeLegalReferenceId ? (
