@@ -30,35 +30,32 @@ const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
 
-const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const FONT =
+  "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const GRID_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 4, xxl: 4 };
 const REFERENCE_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
-
-// ============================================================
-// ⚙️  DASHBOARD CONFIG — Chỉnh tại đây để tái sử dụng cho module khác
-// ============================================================
 const DASHBOARD_CONFIG = {
   // ── Collection chính (document / folder sẽ lưu relation về đây) ──────────
-  collection: "projects",                    // current case collection
+  collection: "projects", // current case collection
 
   // ── Scope lọc folder & document ──────────────────────────────────────────
-  moduleScope: "case_document",              // scope chính ghi vào DB
-  moduleScopes: ["case_document", "case_documents", "case", "cases"],  // danh sách scope được chấp nhận (filter $in)
+  moduleScope: "case_document", // scope chính ghi vào DB
+  moduleScopes: ["case_document", "case_documents", "case", "cases"], // danh sách scope được chấp nhận (filter $in)
 
   // ── API endpoints để fetch danh sách "parent" (Legal Reference / Customer…) ──
-  parentListCandidates: [                    // thử lần lượt đến khi thành công
+  parentListCandidates: [
+    // thử lần lượt đến khi thành công
     "projects:list",
   ],
-  parentCreateCandidates: [
-  ],
+  parentCreateCandidates: [],
 
   // ── Tên field relation trong document/folder trỏ về "parent" ─────────────
   // Thứ tự: field chính → các alias fallback (dùng khi thử tạo record)
   relationFieldCandidates: [
-    "caseId",                  // scalar FK in documents
-    "cases",                   // belongsTo relation field
-    "projectId",               // legacy folder FK for case folders
-    "project",                 // legacy relation alias
+    "caseId", // scalar FK in documents
+    "cases", // belongsTo relation field
+    "projectId", // legacy folder FK for case folders
+    "project", // legacy relation alias
   ],
 
   // ── Hàm lấy ID của parent từ 1 record folder/document ───────────────────
@@ -158,318 +155,1175 @@ const stripDocumentLegacyPayload = (payload = {}) => {
 const FILE_TYPE_SVG = {
   // ── Documents ──────────────────────────────────────────
   pdf: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fee2e2" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#fca5a5" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#fca5a5"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#ef4444" />
-      <text x="24" y="34" textAnchor="middle" fill="#dc2626" fontSize="10" fontWeight="800" fontFamily="Arial,sans-serif">PDF</text>
+      <text
+        x="24"
+        y="34"
+        textAnchor="middle"
+        fill="#dc2626"
+        fontSize="10"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        PDF
+      </text>
     </svg>
   ),
   doc: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#dbeafe" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#bfdbfe" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#bfdbfe"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#3b82f6" />
-      <path d="M16 24h16M16 28h16M16 32h10" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" />
-      <text x="24" y="20" textAnchor="middle" fill="#1d4ed8" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">WORD</text>
+      <path
+        d="M16 24h16M16 28h16M16 32h10"
+        stroke="#2563eb"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#1d4ed8"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        WORD
+      </text>
     </svg>
   ),
   docx: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#dbeafe" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#bfdbfe" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#bfdbfe"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#3b82f6" />
-      <path d="M16 24h16M16 28h16M16 32h10" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" />
-      <text x="24" y="20" textAnchor="middle" fill="#1d4ed8" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">WORD</text>
+      <path
+        d="M16 24h16M16 28h16M16 32h10"
+        stroke="#2563eb"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#1d4ed8"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        WORD
+      </text>
     </svg>
   ),
   xls: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#d1fae5" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#a7f3d0" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#a7f3d0"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#10b981" />
       <path d="M16 22h16v14H16z" stroke="#059669" strokeWidth="1.5" />
-      <path d="M16 26h16M16 30h16M24 22v14" stroke="#059669" strokeWidth="1.5" />
-      <text x="24" y="20" textAnchor="middle" fill="#065f46" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">EXCEL</text>
+      <path
+        d="M16 26h16M16 30h16M24 22v14"
+        stroke="#059669"
+        strokeWidth="1.5"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#065f46"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        EXCEL
+      </text>
     </svg>
   ),
   xlsx: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#d1fae5" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#a7f3d0" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#a7f3d0"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#10b981" />
       <path d="M16 22h16v14H16z" stroke="#059669" strokeWidth="1.5" />
-      <path d="M16 26h16M16 30h16M24 22v14" stroke="#059669" strokeWidth="1.5" />
-      <text x="24" y="20" textAnchor="middle" fill="#065f46" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">EXCEL</text>
+      <path
+        d="M16 26h16M16 30h16M24 22v14"
+        stroke="#059669"
+        strokeWidth="1.5"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#065f46"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        EXCEL
+      </text>
     </svg>
   ),
   ppt: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ffedd5" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#fed7aa" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#fed7aa"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#f97316" />
-      <rect x="15" y="21" width="18" height="12" rx="1" stroke="#ea580c" strokeWidth="1.5" />
-      <path d="M22 33v4M18 37h8" stroke="#ea580c" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="24" y="20" textAnchor="middle" fill="#c2410c" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">PPT</text>
+      <rect
+        x="15"
+        y="21"
+        width="18"
+        height="12"
+        rx="1"
+        stroke="#ea580c"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M22 33v4M18 37h8"
+        stroke="#ea580c"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#c2410c"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        PPT
+      </text>
     </svg>
   ),
   pptx: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ffedd5" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#fed7aa" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#fed7aa"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#f97316" />
-      <rect x="15" y="21" width="18" height="12" rx="1" stroke="#ea580c" strokeWidth="1.5" />
-      <path d="M22 33v4M18 37h8" stroke="#ea580c" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="24" y="20" textAnchor="middle" fill="#c2410c" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">PPT</text>
+      <rect
+        x="15"
+        y="21"
+        width="18"
+        height="12"
+        rx="1"
+        stroke="#ea580c"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M22 33v4M18 37h8"
+        stroke="#ea580c"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="20"
+        textAnchor="middle"
+        fill="#c2410c"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        PPT
+      </text>
     </svg>
   ),
   odt: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#dbeafe" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#bfdbfe" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#bfdbfe"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#3b82f6" />
-      <path d="M16 24h16M16 28h16M16 32h10" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M16 24h16M16 28h16M16 32h10"
+        stroke="#2563eb"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   ),
   // ── Images ─────────────────────────────────────────────
   png: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f0fdf4" />
-      <rect x="8" y="12" width="32" height="24" rx="3" fill="#bbf7d0" stroke="#4ade80" strokeWidth="1.5" />
+      <rect
+        x="8"
+        y="12"
+        width="32"
+        height="24"
+        rx="3"
+        fill="#bbf7d0"
+        stroke="#4ade80"
+        strokeWidth="1.5"
+      />
       <circle cx="17" cy="20" r="3" fill="#fbbf24" />
       <path d="M8 30l8-7 6 6 5-4 11 9" fill="#4ade80" opacity=".7" />
-      <text x="24" y="44" textAnchor="middle" fill="#15803d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">PNG</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#15803d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        PNG
+      </text>
     </svg>
   ),
   jpg: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f0fdf4" />
-      <rect x="8" y="12" width="32" height="24" rx="3" fill="#bbf7d0" stroke="#4ade80" strokeWidth="1.5" />
+      <rect
+        x="8"
+        y="12"
+        width="32"
+        height="24"
+        rx="3"
+        fill="#bbf7d0"
+        stroke="#4ade80"
+        strokeWidth="1.5"
+      />
       <circle cx="17" cy="20" r="3" fill="#fbbf24" />
       <path d="M8 30l8-7 6 6 5-4 11 9" fill="#4ade80" opacity=".7" />
-      <text x="24" y="44" textAnchor="middle" fill="#15803d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">JPG</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#15803d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        JPG
+      </text>
     </svg>
   ),
   jpeg: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f0fdf4" />
-      <rect x="8" y="12" width="32" height="24" rx="3" fill="#bbf7d0" stroke="#4ade80" strokeWidth="1.5" />
+      <rect
+        x="8"
+        y="12"
+        width="32"
+        height="24"
+        rx="3"
+        fill="#bbf7d0"
+        stroke="#4ade80"
+        strokeWidth="1.5"
+      />
       <circle cx="17" cy="20" r="3" fill="#fbbf24" />
       <path d="M8 30l8-7 6 6 5-4 11 9" fill="#4ade80" opacity=".7" />
-      <text x="24" y="44" textAnchor="middle" fill="#15803d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">JPEG</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#15803d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        JPEG
+      </text>
     </svg>
   ),
   gif: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fef9c3" />
-      <rect x="8" y="12" width="32" height="24" rx="3" fill="#fef08a" stroke="#facc15" strokeWidth="1.5" />
-      <path d="M18 24c0-3.3 2.7-6 6-6 1.7 0 3.2.7 4.2 1.8" stroke="#eab308" strokeWidth="2" strokeLinecap="round" />
-      <path d="M30 28c0 3.3-2.7 6-6 6-1.7 0-3.2-.7-4.2-1.8" stroke="#eab308" strokeWidth="2" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#a16207" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">GIF</text>
+      <rect
+        x="8"
+        y="12"
+        width="32"
+        height="24"
+        rx="3"
+        fill="#fef08a"
+        stroke="#facc15"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M18 24c0-3.3 2.7-6 6-6 1.7 0 3.2.7 4.2 1.8"
+        stroke="#eab308"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M30 28c0 3.3-2.7 6-6 6-1.7 0-3.2-.7-4.2-1.8"
+        stroke="#eab308"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#a16207"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        GIF
+      </text>
     </svg>
   ),
   webp: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f0fdf4" />
-      <rect x="8" y="12" width="32" height="24" rx="3" fill="#bbf7d0" stroke="#4ade80" strokeWidth="1.5" />
+      <rect
+        x="8"
+        y="12"
+        width="32"
+        height="24"
+        rx="3"
+        fill="#bbf7d0"
+        stroke="#4ade80"
+        strokeWidth="1.5"
+      />
       <circle cx="17" cy="20" r="3" fill="#fbbf24" />
       <path d="M8 30l8-7 6 6 5-4 11 9" fill="#4ade80" opacity=".7" />
-      <text x="24" y="44" textAnchor="middle" fill="#15803d" fontSize="6" fontWeight="800" fontFamily="Arial,sans-serif">WEBP</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#15803d"
+        fontSize="6"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        WEBP
+      </text>
     </svg>
   ),
   svg: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fef9c3" />
       <circle cx="24" cy="24" r="10" stroke="#eab308" strokeWidth="2" />
-      <path d="M18 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6" stroke="#ca8a04" strokeWidth="2" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#a16207" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">SVG</text>
+      <path
+        d="M18 24c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6"
+        stroke="#ca8a04"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#a16207"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        SVG
+      </text>
     </svg>
   ),
   // ── Video ───────────────────────────────────────────────
   mp4: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ede9fe" />
-      <rect x="6" y="13" width="36" height="22" rx="3" fill="#ddd6fe" stroke="#8b5cf6" strokeWidth="1.5" />
+      <rect
+        x="6"
+        y="13"
+        width="36"
+        height="22"
+        rx="3"
+        fill="#ddd6fe"
+        stroke="#8b5cf6"
+        strokeWidth="1.5"
+      />
       <polygon points="20,18 20,30 32,24" fill="#7c3aed" />
-      <text x="24" y="44" textAnchor="middle" fill="#6d28d9" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">MP4</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#6d28d9"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        MP4
+      </text>
     </svg>
   ),
   webm: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ede9fe" />
-      <rect x="6" y="13" width="36" height="22" rx="3" fill="#ddd6fe" stroke="#8b5cf6" strokeWidth="1.5" />
+      <rect
+        x="6"
+        y="13"
+        width="36"
+        height="22"
+        rx="3"
+        fill="#ddd6fe"
+        stroke="#8b5cf6"
+        strokeWidth="1.5"
+      />
       <polygon points="20,18 20,30 32,24" fill="#7c3aed" />
-      <text x="24" y="44" textAnchor="middle" fill="#6d28d9" fontSize="6" fontWeight="800" fontFamily="Arial,sans-serif">WEBM</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#6d28d9"
+        fontSize="6"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        WEBM
+      </text>
     </svg>
   ),
   mov: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ede9fe" />
-      <rect x="6" y="13" width="36" height="22" rx="3" fill="#ddd6fe" stroke="#8b5cf6" strokeWidth="1.5" />
+      <rect
+        x="6"
+        y="13"
+        width="36"
+        height="22"
+        rx="3"
+        fill="#ddd6fe"
+        stroke="#8b5cf6"
+        strokeWidth="1.5"
+      />
       <polygon points="20,18 20,30 32,24" fill="#7c3aed" />
-      <text x="24" y="44" textAnchor="middle" fill="#6d28d9" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">MOV</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#6d28d9"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        MOV
+      </text>
     </svg>
   ),
   mkv: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ede9fe" />
-      <rect x="6" y="13" width="36" height="22" rx="3" fill="#ddd6fe" stroke="#8b5cf6" strokeWidth="1.5" />
+      <rect
+        x="6"
+        y="13"
+        width="36"
+        height="22"
+        rx="3"
+        fill="#ddd6fe"
+        stroke="#8b5cf6"
+        strokeWidth="1.5"
+      />
       <polygon points="20,18 20,30 32,24" fill="#7c3aed" />
-      <text x="24" y="44" textAnchor="middle" fill="#6d28d9" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">MKV</text>
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#6d28d9"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        MKV
+      </text>
     </svg>
   ),
   // ── Audio ───────────────────────────────────────────────
   mp3: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fce7f3" />
-      <circle cx="24" cy="26" r="7" fill="#fbcfe8" stroke="#ec4899" strokeWidth="1.5" />
+      <circle
+        cx="24"
+        cy="26"
+        r="7"
+        fill="#fbcfe8"
+        stroke="#ec4899"
+        strokeWidth="1.5"
+      />
       <circle cx="24" cy="26" r="2.5" fill="#ec4899" />
-      <path d="M24 19V13l8-2v6" stroke="#ec4899" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#be185d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">MP3</text>
+      <path
+        d="M24 19V13l8-2v6"
+        stroke="#ec4899"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#be185d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        MP3
+      </text>
     </svg>
   ),
   wav: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fce7f3" />
-      <path d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24" stroke="#ec4899" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#be185d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">WAV</text>
+      <path
+        d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24"
+        stroke="#ec4899"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#be185d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        WAV
+      </text>
     </svg>
   ),
   aac: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fce7f3" />
-      <path d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24" stroke="#ec4899" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#be185d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">AAC</text>
+      <path
+        d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24"
+        stroke="#ec4899"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#be185d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        AAC
+      </text>
     </svg>
   ),
   m4a: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fce7f3" />
-      <path d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24" stroke="#ec4899" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#be185d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">M4A</text>
+      <path
+        d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24"
+        stroke="#ec4899"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#be185d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        M4A
+      </text>
     </svg>
   ),
   flac: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fce7f3" />
-      <path d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24" stroke="#ec4899" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#be185d" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">FLAC</text>
+      <path
+        d="M8 24 Q12 16 16 24 Q20 32 24 24 Q28 16 32 24 Q36 32 40 24"
+        stroke="#ec4899"
+        strokeWidth="2"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#be185d"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        FLAC
+      </text>
     </svg>
   ),
   // ── Text / Code ─────────────────────────────────────────
   txt: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f9fafb" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#f3f4f6" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#f3f4f6"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#9ca3af" />
-      <path d="M16 22h16M16 26h16M16 30h12" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="24" y="42" textAnchor="middle" fill="#374151" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">TXT</text>
+      <path
+        d="M16 22h16M16 26h16M16 30h12"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="42"
+        textAnchor="middle"
+        fill="#374151"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        TXT
+      </text>
     </svg>
   ),
   csv: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ecfdf5" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#d1fae5" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#d1fae5"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#10b981" />
       <path d="M14 22h20v14H14z" stroke="#059669" strokeWidth="1.2" />
-      <path d="M14 26h20M14 30h20M22 22v14" stroke="#059669" strokeWidth="1.2" />
-      <text x="24" y="42" textAnchor="middle" fill="#065f46" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">CSV</text>
+      <path
+        d="M14 26h20M14 30h20M22 22v14"
+        stroke="#059669"
+        strokeWidth="1.2"
+      />
+      <text
+        x="24"
+        y="42"
+        textAnchor="middle"
+        fill="#065f46"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        CSV
+      </text>
     </svg>
   ),
   json: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fefce8" />
-      <path d="M18 14c-2 0-4 1-4 4v3c0 2-1 3-3 3 2 0 3 1 3 3v3c0 3 2 4 4 4" stroke="#ca8a04" strokeWidth="2" strokeLinecap="round" />
-      <path d="M30 14c2 0 4 1 4 4v3c0 2 1 3 3 3-2 0-3 1-3 3v3c0 3-2 4-4 4" stroke="#ca8a04" strokeWidth="2" strokeLinecap="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#a16207" fontSize="6" fontWeight="800" fontFamily="Arial,sans-serif">JSON</text>
+      <path
+        d="M18 14c-2 0-4 1-4 4v3c0 2-1 3-3 3 2 0 3 1 3 3v3c0 3 2 4 4 4"
+        stroke="#ca8a04"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M30 14c2 0 4 1 4 4v3c0 2 1 3 3 3-2 0-3 1-3 3v3c0 3-2 4-4 4"
+        stroke="#ca8a04"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#a16207"
+        fontSize="6"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        JSON
+      </text>
     </svg>
   ),
   xml: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fff7ed" />
-      <path d="M16 20l-6 4 6 4M32 20l6 4-6 4M27 16l-6 16" stroke="#c2410c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#c2410c" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">XML</text>
+      <path
+        d="M16 20l-6 4 6 4M32 20l6 4-6 4M27 16l-6 16"
+        stroke="#c2410c"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#c2410c"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        XML
+      </text>
     </svg>
   ),
   html: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fff7ed" />
-      <path d="M16 20l-6 4 6 4M32 20l6 4-6 4M27 16l-6 16" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#c2410c" fontSize="6" fontWeight="800" fontFamily="Arial,sans-serif">HTML</text>
+      <path
+        d="M16 20l-6 4 6 4M32 20l6 4-6 4M27 16l-6 16"
+        stroke="#ea580c"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#c2410c"
+        fontSize="6"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        HTML
+      </text>
     </svg>
   ),
   md: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f8fafc" />
-      <path d="M8 14h32v20H8z" rx="2" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.2" />
-      <path d="M13 29v-10l4 5 4-5v10M25 29v-10M25 29h6" stroke="#475569" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <text x="24" y="44" textAnchor="middle" fill="#334155" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">MD</text>
+      <path
+        d="M8 14h32v20H8z"
+        rx="2"
+        fill="#e2e8f0"
+        stroke="#94a3b8"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M13 29v-10l4 5 4-5v10M25 29v-10M25 29h6"
+        stroke="#475569"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <text
+        x="24"
+        y="44"
+        textAnchor="middle"
+        fill="#334155"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        MD
+      </text>
     </svg>
   ),
   // ── Code ────────────────────────────────────────────────
   js: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#fefce8" />
-      <rect x="6" y="6" width="36" height="36" rx="4" fill="#fde047" stroke="#ca8a04" strokeWidth="1.5" />
-      <text x="24" y="30" textAnchor="middle" fill="#713f12" fontSize="16" fontWeight="900" fontFamily="Arial,sans-serif">JS</text>
+      <rect
+        x="6"
+        y="6"
+        width="36"
+        height="36"
+        rx="4"
+        fill="#fde047"
+        stroke="#ca8a04"
+        strokeWidth="1.5"
+      />
+      <text
+        x="24"
+        y="30"
+        textAnchor="middle"
+        fill="#713f12"
+        fontSize="16"
+        fontWeight="900"
+        fontFamily="Arial,sans-serif"
+      >
+        JS
+      </text>
     </svg>
   ),
   ts: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#dbeafe" />
-      <rect x="6" y="6" width="36" height="36" rx="4" fill="#3b82f6" stroke="#1d4ed8" strokeWidth="1.5" />
-      <text x="24" y="30" textAnchor="middle" fill="#fff" fontSize="16" fontWeight="900" fontFamily="Arial,sans-serif">TS</text>
+      <rect
+        x="6"
+        y="6"
+        width="36"
+        height="36"
+        rx="4"
+        fill="#3b82f6"
+        stroke="#1d4ed8"
+        strokeWidth="1.5"
+      />
+      <text
+        x="24"
+        y="30"
+        textAnchor="middle"
+        fill="#fff"
+        fontSize="16"
+        fontWeight="900"
+        fontFamily="Arial,sans-serif"
+      >
+        TS
+      </text>
     </svg>
   ),
   py: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#dbeafe" />
-      <path d="M24 8c-7 0-10 3-10 7v4h10v2H10s-6 0-6 10 4 10 8 10h4v-5s0-5 8-5h8s8 1 8-8V18c0-7-6-10-16-10z" fill="#3b82f6" />
-      <path d="M24 40c7 0 10-3 10-7v-4H24v-2h14s6 0 6-10-4-10-8-10h-4v5s0 5-8 5H16s-8-1-8 8v6c0 7 6 10 16 10z" fill="#fbbf24" />
+      <path
+        d="M24 8c-7 0-10 3-10 7v4h10v2H10s-6 0-6 10 4 10 8 10h4v-5s0-5 8-5h8s8 1 8-8V18c0-7-6-10-16-10z"
+        fill="#3b82f6"
+      />
+      <path
+        d="M24 40c7 0 10-3 10-7v-4H24v-2h14s6 0 6-10-4-10-8-10h-4v5s0 5-8 5H16s-8-1-8 8v6c0 7 6 10 16 10z"
+        fill="#fbbf24"
+      />
       <circle cx="19" cy="14" r="2" fill="#fff" />
       <circle cx="29" cy="34" r="2" fill="#1d4ed8" />
     </svg>
   ),
   sql: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#ede9fe" />
-      <ellipse cx="24" cy="16" rx="14" ry="5" fill="#c4b5fd" stroke="#7c3aed" strokeWidth="1.5" />
-      <path d="M10 16v8c0 2.8 6.3 5 14 5s14-2.2 14-5v-8" stroke="#7c3aed" strokeWidth="1.5" />
-      <path d="M10 24v8c0 2.8 6.3 5 14 5s14-2.2 14-5v-8" stroke="#7c3aed" strokeWidth="1.5" />
+      <ellipse
+        cx="24"
+        cy="16"
+        rx="14"
+        ry="5"
+        fill="#c4b5fd"
+        stroke="#7c3aed"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M10 16v8c0 2.8 6.3 5 14 5s14-2.2 14-5v-8"
+        stroke="#7c3aed"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M10 24v8c0 2.8 6.3 5 14 5s14-2.2 14-5v-8"
+        stroke="#7c3aed"
+        strokeWidth="1.5"
+      />
     </svg>
   ),
   // ── Archive ─────────────────────────────────────────────
   zip: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f3f4f6" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#e5e7eb" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#e5e7eb"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#9ca3af" />
-      <path d="M22 10v4M26 10v4M22 14v4M26 14v4M22 18v4M26 18v4M22 22v2a2 2 0 0 0 4 0v-2" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="24" y="42" textAnchor="middle" fill="#374151" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">ZIP</text>
+      <path
+        d="M22 10v4M26 10v4M22 14v4M26 14v4M22 18v4M26 18v4M22 22v2a2 2 0 0 0 4 0v-2"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="42"
+        textAnchor="middle"
+        fill="#374151"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        ZIP
+      </text>
     </svg>
   ),
   rar: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f3f4f6" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#e5e7eb" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#e5e7eb"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#9ca3af" />
-      <path d="M22 10v4M26 10v4M22 14v4M26 14v4M22 18v4M26 18v4M22 22v2a2 2 0 0 0 4 0v-2" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
-      <text x="24" y="42" textAnchor="middle" fill="#374151" fontSize="7" fontWeight="800" fontFamily="Arial,sans-serif">RAR</text>
+      <path
+        d="M22 10v4M26 10v4M22 14v4M26 14v4M22 18v4M26 18v4M22 22v2a2 2 0 0 0 4 0v-2"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <text
+        x="24"
+        y="42"
+        textAnchor="middle"
+        fill="#374151"
+        fontSize="7"
+        fontWeight="800"
+        fontFamily="Arial,sans-serif"
+      >
+        RAR
+      </text>
     </svg>
   ),
   // ── Default ─────────────────────────────────────────────
   default: (
-    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="44" height="44">
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width="44"
+      height="44"
+    >
       <rect width="48" height="48" rx="8" fill="#f3f4f6" />
-      <path d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z" fill="#e5e7eb" />
+      <path
+        d="M12 8h18l8 8v26a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"
+        fill="#e5e7eb"
+      />
       <path d="M30 8l8 8h-6a2 2 0 0 1-2-2V8z" fill="#9ca3af" />
-      <path d="M16 22h16M16 26h16M16 30h10" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M16 22h16M16 26h16M16 30h10"
+        stroke="#6b7280"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   ),
 };
 
 const getFileSvgIcon = (ext) => {
-  const key = String(ext || "").replace(".", "").toLowerCase();
+  const key = String(ext || "")
+    .replace(".", "")
+    .toLowerCase();
   return FILE_TYPE_SVG[key] || FILE_TYPE_SVG.default;
 };
 
@@ -694,13 +1548,33 @@ const RESTORE_ICON = (
 );
 
 const ChevronDown = (
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ flexShrink: 0 }}
+  >
     <polyline points="6 9 12 15 18 9"></polyline>
   </svg>
 );
 
 const ChevronRight = (
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+  <svg
+    width="10"
+    height="10"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ flexShrink: 0 }}
+  >
     <polyline points="9 18 15 12 9 6"></polyline>
   </svg>
 );
@@ -728,24 +1602,49 @@ const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
   { value: "template", label: "Template" },
 ];
 
-const ALLOWED_DOCUMENT_TYPE_VALUES = new Set(DEFAULT_DOCUMENT_TYPE_OPTIONS.map((option) => option.value));
+const ALLOWED_DOCUMENT_TYPE_VALUES = new Set(
+  DEFAULT_DOCUMENT_TYPE_OPTIONS.map((option) => option.value),
+);
 
-const extractId = (val) => (typeof val === "object" && val !== null ? val.id : val);
-const extractRelationId = (val) => (Array.isArray(val) ? extractId(val[0]) : extractId(val));
-const normalizeKey = (val) => String(val || "").trim().toLowerCase();
-const getCompanyName = (company) => company?.shortName || company?.name || company?.legalName || "Company";
-const getDocTitle = (doc) => doc?.name || doc?.title || doc?.templateName || getAttachment(doc)?.filename || "Untitled";
+const extractId = (val) =>
+  typeof val === "object" && val !== null ? val.id : val;
+const extractRelationId = (val) =>
+  Array.isArray(val) ? extractId(val[0]) : extractId(val);
+const normalizeKey = (val) =>
+  String(val || "")
+    .trim()
+    .toLowerCase();
+const getCompanyName = (company) =>
+  company?.shortName || company?.name || company?.legalName || "Company";
+const getDocTitle = (doc) =>
+  doc?.name ||
+  doc?.title ||
+  doc?.templateName ||
+  getAttachment(doc)?.filename ||
+  "Untitled";
 const getDocCode = (doc) => doc?.documentCode || doc?.templateCode || "";
 const getDocDate = (doc) => doc?.updatedAt || doc?.createdAt;
-const getAttachment = (doc) => (Array.isArray(doc?.fileAttachment) ? doc.fileAttachment[0] : doc?.fileAttachment);
+const getAttachment = (doc) =>
+  Array.isArray(doc?.fileAttachment)
+    ? doc.fileAttachment[0]
+    : doc?.fileAttachment;
 const getInternalTemplateRelationId = (record) =>
   // Lấy ID parent từ record theo DASHBOARD_CONFIG.getParentIdFromRecord
   DASHBOARD_CONFIG.getParentIdFromRecord(record);
-const getCurrentUserId = () => extractId(ctx?.currentUser) || extractId(ctx?.user) || extractId(ctx?.state?.currentUser) || null;
+const getCurrentUserId = () =>
+  extractId(ctx?.currentUser) ||
+  extractId(ctx?.user) ||
+  extractId(ctx?.state?.currentUser) ||
+  null;
 
 const getCurrentUser = () => {
   try {
-    return ctx.currentUser || ctx.app?.currentUser || ctx.store?.getState()?.currentUser || null;
+    return (
+      ctx.currentUser ||
+      ctx.app?.currentUser ||
+      ctx.store?.getState()?.currentUser ||
+      null
+    );
   } catch {
     return null;
   }
@@ -766,10 +1665,17 @@ const getCaseCustomerId = (record) =>
 
 const getCaseDisplayName = (record) => {
   if (!record) return "Cases";
-  const code = record.caseCode || record.caseNumber || record.projectCode || record.code;
-  const title = record.projectName || record.title || record.name || record.description;
-  if (code && title && String(code) !== String(title)) return `${code} - ${title}`;
-  return title || code || (extractId(record) ? `Case #${extractId(record)}` : "Cases");
+  const code =
+    record.caseCode || record.caseNumber || record.projectCode || record.code;
+  const title =
+    record.projectName || record.title || record.name || record.description;
+  if (code && title && String(code) !== String(title))
+    return `${code} - ${title}`;
+  return (
+    title ||
+    code ||
+    (extractId(record) ? `Case #${extractId(record)}` : "Cases")
+  );
 };
 
 const getUrlFilterId = () => {
@@ -779,9 +1685,81 @@ const getUrlFilterId = () => {
     if (pathMatch?.[1]) return pathMatch[1];
     const queryMatch = href.match(/[?&]filterByTk=(\d+)/i);
     if (queryMatch?.[1]) return queryMatch[1];
-  } catch { }
+  } catch {}
   return null;
 };
+
+const DELETE_TIMESTAMP_FIELDS = new Set([
+  "deletedAt",
+  "deleted_at",
+  "deteledAt",
+]);
+const SYSTEM_ACTIVITY_FIELDS = new Set([
+  "id",
+  "createdAt",
+  "updatedAt",
+  "createdById",
+  "updatedById",
+  "uploadedAt",
+  "uploaded_at",
+  "uploadedById",
+  "fileAttachment",
+  "batchId",
+  "collectionName",
+  "recordId",
+  "fileIndex",
+  "folderIndex",
+  "moduleScope",
+  "storageType",
+  "originScope",
+  "originFolderId",
+  "legalStudyLinkedAt",
+  "legalStudySource",
+  "sourceCollectionName",
+  "sourceRecordId",
+  "sourceTaskId",
+  "sourceSubTaskId",
+  "sourceProjectId",
+  "sourceFolderId",
+  "sourceLegalReferenceId",
+]);
+const LEGAL_STUDY_ACTIVITY_ACTIONS = new Set([
+  "linked_legal_study",
+  "unlinked_legal_study",
+]);
+const FILE_AUDIT_ACTIVITY_ACTIONS = new Set([
+  "uploaded",
+  "previewed",
+  "downloaded",
+]);
+const isEmptyActivityValue = (value) =>
+  value === null ||
+  value === undefined ||
+  value === "" ||
+  value === "null" ||
+  value === "undefined";
+const isTruthyActivityValue = (value) =>
+  value === true || value === "true" || value === 1 || value === "1";
+const getActivityTime = (log) =>
+  new Date(log?.changedAt || log?.createdAt || 0).getTime();
+const isSameActivityRecord = (a, b) =>
+  a?.collectionName === b?.collectionName &&
+  String(a?.recordId) === String(b?.recordId);
+const isSystemActivityLog = (log) =>
+  !!log &&
+  !LEGAL_STUDY_ACTIVITY_ACTIONS.has(log.action) &&
+  !FILE_AUDIT_ACTIVITY_ACTIONS.has(log.action) &&
+  SYSTEM_ACTIVITY_FIELDS.has(log.fieldName);
+const isTrashDeleteActivity = (log) =>
+  log?.action === "updated" &&
+  ((log.fieldName === "isDeleted" && isTruthyActivityValue(log.newValue)) ||
+    (DELETE_TIMESTAMP_FIELDS.has(log.fieldName) &&
+      !isEmptyActivityValue(log.newValue)));
+const isTrashRestoreActivity = (log) =>
+  log?.action === "updated" &&
+  ((log.fieldName === "isDeleted" && !isTruthyActivityValue(log.newValue)) ||
+    (DELETE_TIMESTAMP_FIELDS.has(log.fieldName) &&
+      isEmptyActivityValue(log.newValue)));
 
 const getInitialCaseContext = () => {
   const record =
@@ -827,14 +1805,22 @@ const getUserDisplayName = (user) =>
 const getUploadUserName = (record) =>
   getUserDisplayName(record?.uploadedBy) ||
   getUserDisplayName(record?.createdBy) ||
-  (extractId(record?.uploadedById) ? `User #${extractId(record.uploadedById)}` : "") ||
-  (extractId(record?.createdById) ? `User #${extractId(record.createdById)}` : "—");
+  (extractId(record?.uploadedById)
+    ? `User #${extractId(record.uploadedById)}`
+    : "") ||
+  (extractId(record?.createdById)
+    ? `User #${extractId(record.createdById)}`
+    : "—");
 
 const getDeletedUserName = (record) =>
   getUserDisplayName(record?.updatedBy) ||
   getUserDisplayName(record?.deletedBy) ||
-  (extractId(record?.updatedById) ? `User #${extractId(record.updatedById)}` : "") ||
-  (extractId(record?.deletedById) ? `User #${extractId(record.deletedById)}` : "—");
+  (extractId(record?.updatedById)
+    ? `User #${extractId(record.updatedById)}`
+    : "") ||
+  (extractId(record?.deletedById)
+    ? `User #${extractId(record.deletedById)}`
+    : "—");
 
 const formatBytes = (bytes) => {
   if (!bytes || isNaN(bytes) || bytes === 0) return "--";
@@ -901,51 +1887,60 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
   );
 };
 
+const ROLE_LABEL = {
+  admin:   "Quản trị viên",
+  owner:   "Chủ sở hữu",
+  manager: "Quản lý",
+  editor:  "Chỉnh sửa",
+  viewer:  "Chỉ xem",
+  shared:  "Được chia sẻ",
+};
+
+const roleToPerms = (role) => ({
+  role,
+  canView:              role !== null,
+  canCreate:            ["admin","owner","manager","editor"].includes(role),
+  canRename:            ["admin","owner","manager","editor"].includes(role),
+  canMove:              ["admin","owner","manager"].includes(role),
+  canDelete:            ["admin","owner","manager"].includes(role),
+  canShare:             ["admin","owner","manager"].includes(role),
+  canManagePermissions: ["admin","owner","manager"].includes(role),
+  isManager: ["admin","owner","manager"].includes(role),
+  isMember:  role !== null,
+  canEdit:   ["admin","owner","manager","editor"].includes(role),
+});
+
 const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
-  if (isAdminUser(user))
-    return { isManager: true, isMember: true, canEdit: true };
-  if (!folder) return { isManager: true, isMember: true, canEdit: true };
-  if (!user) return { isManager: false, isMember: false, canEdit: false };
+  if (isAdminUser(user)) return roleToPerms("admin");
+  if (!folder) return roleToPerms("admin");
+  if (!user) return roleToPerms(null);
 
   const uid = extractId(user.id);
   const lwId = extractId(currentLawyerId);
 
-  // Owner check (Nocobase user ID)
-  if (extractId(folder.createdById) === uid) {
-    return { isManager: true, isMember: true, canEdit: true };
-  }
+  if (uid && String(extractId(folder.createdById)) === String(uid)) return roleToPerms("owner");
 
   const managers = getFolderManagerRows(folder);
   const members = getFolderMemberRows(folder);
 
-  // Check explicit permissions using Lawyer ID
   if (lwId) {
-    const isExplicitManager = managers.some(
-      (m) => getPermissionLawyerId(m) === lwId,
-    );
-    if (isExplicitManager)
-      return { isManager: true, isMember: true, canEdit: true };
+    const isExplicitManager = managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId));
+    if (isExplicitManager) return roleToPerms("manager");
 
-    const explicitMember = members.find(
-      (m) => getPermissionLawyerId(m) === lwId,
-    );
+    const explicitMember = members.find((m) => String(getPermissionLawyerId(m)) === String(lwId));
     if (explicitMember) {
-      const role = getPermissionRole(explicitMember);
-      const canEdit = role === "editor";
-      return { isManager: false, isMember: true, canEdit };
+      const r = getPermissionRole(explicitMember, "viewer");
+      if (r === "manager") return roleToPerms("manager");
+      if (r === "editor")  return roleToPerms("editor");
+      return roleToPerms("viewer");
     }
   }
 
-  // Inherit from parent
   const pId = extractId(folder.parentId);
-  if (!pId || pId === "root")
-    return { isManager: false, isMember: false, canEdit: false };
+  if (!pId || pId === "root") return roleToPerms(null);
 
-  const parentFolder = allFolders.find(
-    (f) => String(extractId(f.id)) === String(pId),
-  );
-  if (!parentFolder)
-    return { isManager: false, isMember: false, canEdit: false };
+  const parentFolder = allFolders.find((f) => String(extractId(f.id)) === String(pId));
+  if (!parentFolder) return roleToPerms(null);
 
   return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
 };
@@ -1033,25 +2028,43 @@ const USER_ICON = (
   </IconSvg>
 );
 
-const getFullUrl = (url) => (!url ? null : String(url).startsWith("http") ? url : `${window.location.origin}${url}`);
+const getFullUrl = (url) =>
+  !url
+    ? null
+    : String(url).startsWith("http")
+      ? url
+      : `${window.location.origin}${url}`;
 const getRecordFileUrl = (record) => {
   const attachment = getAttachment(record);
-  return getFullUrl(attachment?.url || attachment?.preview || record?.googleDriveUrl);
+  return getFullUrl(
+    attachment?.url || attachment?.preview || record?.googleDriveUrl,
+  );
 };
 const getFileExtension = (record) => {
   const attachment = getAttachment(record);
   let ext = attachment?.extname || "";
-  const rawName = attachment?.title || attachment?.filename || getDocTitle(record) || "";
+  const rawName =
+    attachment?.title || attachment?.filename || getDocTitle(record) || "";
   if (!ext && rawName.includes(".")) ext = rawName.split(".").pop();
   if (!ext) return "";
-  return String(ext).startsWith(".") ? String(ext).toLowerCase() : `.${String(ext).toLowerCase()}`;
+  return String(ext).startsWith(".")
+    ? String(ext).toLowerCase()
+    : `.${String(ext).toLowerCase()}`;
 };
 
 const getPreviewUrl = (record) => {
   const fullUrl = getRecordFileUrl(record);
   if (!fullUrl) return null;
   const ext = getFileExtension(record);
-  const isOffice = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt"].includes(ext);
+  const isOffice = [
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".odt",
+  ].includes(ext);
   const attachment = getAttachment(record);
   const isExternalPreview = !!record.googleDriveUrl && !attachment;
 
@@ -1076,11 +2089,9 @@ const buildInternalTemplateRelationPayload = (templateRecordOrId) => {
 const buildInternalTemplateRelationVariants = (templateId) => {
   const id = extractId(templateId);
   if (!id) return [{}];
-  const [primary, primaryId, singular, singularId] = DASHBOARD_CONFIG.relationFieldCandidates;
-  const variants = [
-    { [primary]: id },
-    { [primary]: [{ id }] },
-  ];
+  const [primary, primaryId, singular, singularId] =
+    DASHBOARD_CONFIG.relationFieldCandidates;
+  const variants = [{ [primary]: id }, { [primary]: [{ id }] }];
   if (primaryId) variants.push({ [primaryId]: id });
   if (singular) variants.push({ [singular]: id });
   if (singularId) variants.push({ [singularId]: id });
@@ -1129,7 +2140,7 @@ const buildDocumentTypeOptions = (internalTemplateRecords = []) => {
     }
   });
   return Array.from(uniqueTypes.values()).map((option) =>
-    decorateDocumentTypeOption(option)
+    decorateDocumentTypeOption(option),
   );
 };
 
@@ -1137,11 +2148,14 @@ const FALLBACK_DOCUMENT_TYPES = [];
 
 const buildScopePayload = (internalCompanyId) => ({
   moduleScope: INTERNAL_TEMPLATE_MODULE_SCOPE,
-  ...(internalCompanyId ? { internalCompanyId: extractId(internalCompanyId) } : {}),
+  ...(internalCompanyId
+    ? { internalCompanyId: extractId(internalCompanyId) }
+    : {}),
 });
 
 const getFolderParentId = (folder) => extractId(folder?.parentId);
-const normalizeParentId = (parentId) => (parentId === "root" || !parentId ? null : extractId(parentId));
+const normalizeParentId = (parentId) =>
+  parentId === "root" || !parentId ? null : extractId(parentId);
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -1203,11 +2217,11 @@ const formatDateTime = (value) => {
   }
   const date = new Date(dateVal);
   if (isNaN(date.getTime())) return "—";
-  const d = String(date.getDate()).padStart(2, '0');
-  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, "0");
+  const m = String(date.getMonth() + 1).padStart(2, "0");
   const y = date.getFullYear();
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
   return `${d}/${m}/${y} ${hh}:${mm}`;
 };
 
@@ -1215,7 +2229,10 @@ const sortByCreatedAt = (a, b) => {
   const at = new Date(a?.createdAt || 0).getTime() || 0;
   const bt = new Date(b?.createdAt || 0).getTime() || 0;
   if (at !== bt) return at - bt;
-  return String(a?.name || a?.title || "").localeCompare(String(b?.name || b?.title || ""), "vi");
+  return String(a?.name || a?.title || "").localeCompare(
+    String(b?.name || b?.title || ""),
+    "vi",
+  );
 };
 
 // ============================================================
@@ -1225,28 +2242,31 @@ const fetchAllList = async (url, params = {}) => {
   let all = [];
   let page = 1;
   const pageSize = 200;
-  const safeParams = url === "documents:list" ? withDocumentSafeFields(params) : params;
+  const safeParams =
+    url === "documents:list" ? withDocumentSafeFields(params) : params;
   while (true) {
-    const res = await ctx.api.request({ url, params: { ...safeParams, page, pageSize } });
+    const res = await ctx.api.request({
+      url,
+      params: { ...safeParams, page, pageSize },
+    });
     const data = res?.data?.data || [];
     all = all.concat(data);
     const meta = res?.data?.meta || {};
-    if (!meta.count || all.length >= meta.count || data.length < pageSize) break;
+    if (!meta.count || all.length >= meta.count || data.length < pageSize)
+      break;
     page++;
   }
   return all;
 };
 
 // Các URL candidates cho parent list/create được lấy từ DASHBOARD_CONFIG
-const LEGAL_REFERENCE_RESOURCE_CANDIDATES = DASHBOARD_CONFIG.parentListCandidates;
+const LEGAL_REFERENCE_RESOURCE_CANDIDATES =
+  DASHBOARD_CONFIG.parentListCandidates;
 
 const getLegalReferenceDisplayName = (record) => {
   if (!record) return "";
   const code =
-    record.referenceCode ||
-    record.code ||
-    record.referenceNo ||
-    record.id;
+    record.referenceCode || record.code || record.referenceNo || record.id;
   const title =
     record.title ||
     record.name ||
@@ -1297,14 +2317,46 @@ const createLegalReferenceRecord = async (payload) => {
   throw lastError || new Error("Failed to create parent record");
 };
 
+const fetchLinkedRelationRows = async (caseId, relationName) => {
+  const safeCaseId = extractId(caseId);
+  if (!safeCaseId) return [];
+
+  const candidates = [
+    `projects/${encodeURIComponent(safeCaseId)}/${relationName}:list`,
+    `cases/${encodeURIComponent(safeCaseId)}/${relationName}:list`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const rows = await fetchAllList(url, { appends: ["createdBy"] });
+      console.log(`[OK] ${url} → ${rows.length} rows`);
+      return rows.filter((r) => !r.isDeleted);
+    } catch (error) {
+      console.warn(
+        `[FAIL] ${url} → ${error?.response?.status || error?.message}`,
+      );
+    }
+  }
+  return [];
+};
+
 const fetchFoldersForInternalTemplates = async () => {
   const scopeFilter = JSON.stringify({
-    moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes }
+    moduleScope: {
+      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+    },
   });
   const params = {
     sort: ["createdAt"],
     filter: scopeFilter,
-    appends: ["createdBy", "updatedBy", "folderManager", "folderManagers", "folderMember", "folderMembers"],
+    appends: [
+      "createdBy",
+      "updatedBy",
+      "folderManager",
+      "folderManagers",
+      "folderMember",
+      "folderMembers",
+    ],
   };
   try {
     return await fetchAllList("folders:list", params);
@@ -1321,7 +2373,9 @@ const fetchFoldersForInternalTemplates = async () => {
 
 const fetchDocumentsForInternalTemplates = async () => {
   const scopeFilter = JSON.stringify({
-    moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes }
+    moduleScope: {
+      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+    },
   });
   const params = {
     sort: ["fileIndex", "-createdAt"],
@@ -1339,7 +2393,6 @@ const fetchDocumentsForInternalTemplates = async () => {
     }).catch(() => []);
   }
 };
-
 
 const requestCreateWithInternalTemplateRelation = async (url, payload) => {
   const templateId = getInternalTemplateRelationId(payload);
@@ -1372,7 +2425,11 @@ const requestDocumentApi = async ({ params, data, ...options }) =>
   });
 
 const createDocumentRecord = async (payload) =>
-  requestDocumentApi({ url: "documents:create", method: "POST", data: payload });
+  requestDocumentApi({
+    url: "documents:create",
+    method: "POST",
+    data: payload,
+  });
 
 const uploadAttachment = async (file, fileName = null) => {
   const formData = new window.FormData();
@@ -1391,11 +2448,20 @@ const uploadAttachment = async (file, fileName = null) => {
 
 const createFolderRecord = async (payload) => {
   try {
-    return await ctx.api.request({ url: "folders:create", method: "POST", data: payload });
+    return await ctx.api.request({
+      url: "folders:create",
+      method: "POST",
+      data: payload,
+    });
   } catch (e) {
-    if (!Object.prototype.hasOwnProperty.call(payload || {}, "documentType")) throw e;
+    if (!Object.prototype.hasOwnProperty.call(payload || {}, "documentType"))
+      throw e;
     const { documentType, ...fallbackPayload } = payload;
-    return ctx.api.request({ url: "folders:create", method: "POST", data: fallbackPayload });
+    return ctx.api.request({
+      url: "folders:create",
+      method: "POST",
+      data: fallbackPayload,
+    });
   }
 };
 
@@ -1405,7 +2471,9 @@ const createFolderRecord = async (payload) => {
 const PreviewModal = ({ doc, onClose }) => {
   if (!doc) return null;
   const attachment = getAttachment(doc);
-  const fileUrl = attachment ? (attachment.url || attachment.preview) : (doc.googleDriveUrl || "");
+  const fileUrl = attachment
+    ? attachment.url || attachment.preview
+    : doc.googleDriveUrl || "";
 
   let fileExt = "";
   if (attachment) {
@@ -1416,7 +2484,12 @@ const PreviewModal = ({ doc, onClose }) => {
       : "";
   }
 
-  const rawName = attachment?.title || attachment?.filename || doc?.name || doc?.title || "File";
+  const rawName =
+    attachment?.title ||
+    attachment?.filename ||
+    doc?.name ||
+    doc?.title ||
+    "File";
   if (!fileExt && rawName.includes(".")) {
     fileExt = "." + rawName.split(".").pop().toLowerCase();
   }
@@ -1429,11 +2502,55 @@ const PreviewModal = ({ doc, onClose }) => {
 
   const isPdf = fileExt === ".pdf";
   const isHtml = fileExt === ".html" || fileExt === ".htm";
-  const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"].includes(fileExt);
+  const isImage = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".ico",
+  ].includes(fileExt);
   const isVideo = [".mp4", ".webm", ".ogg", ".mov", ".mkv"].includes(fileExt);
-  const isAudio = [".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a"].includes(fileExt);
-  const isText = [".txt", ".csv", ".json", ".xml", ".md", ".log", ".yaml", ".yml", ".ini", ".env", ".js", ".ts", ".jsx", ".tsx", ".css", ".html", ".htm", ".py", ".java", ".c", ".cpp", ".h", ".sh", ".sql"].includes(fileExt);
-  const isOffice = [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt"].includes(fileExt);
+  const isAudio = [".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a"].includes(
+    fileExt,
+  );
+  const isText = [
+    ".txt",
+    ".csv",
+    ".json",
+    ".xml",
+    ".md",
+    ".log",
+    ".yaml",
+    ".yml",
+    ".ini",
+    ".env",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".css",
+    ".html",
+    ".htm",
+    ".py",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".sh",
+    ".sql",
+  ].includes(fileExt);
+  const isOffice = [
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".odt",
+  ].includes(fileExt);
   const isExternalPreview = !!doc.googleDriveUrl && !attachment;
 
   const officeViewerUrl =
@@ -1461,43 +2578,83 @@ const PreviewModal = ({ doc, onClose }) => {
         const res = await ctx.api.request({
           url: fullUrl,
           method: "GET",
-          transformResponse: [data => data],
+          transformResponse: [(data) => data],
         });
         return res?.data || "";
       }
     };
 
     doFetch()
-      .then((text) => { setTextContent(text); setTextLoading(false); })
-      .catch(() => { setTextError(true); setTextLoading(false); });
+      .then((text) => {
+        setTextContent(text);
+        setTextLoading(false);
+      })
+      .catch(() => {
+        setTextError(true);
+        setTextLoading(false);
+      });
   }, [fullUrl, isText]);
 
   // Syntax highlight color helper (very lightweight, no lib needed)
   const getMonoBackground = () => "#1e1e1e";
 
-  const modalWidth = (isPdf || isHtml || isOffice || isExternalPreview || isVideo || isText) ? "85%" : 760;
+  const modalWidth =
+    isPdf || isHtml || isOffice || isExternalPreview || isVideo || isText
+      ? "85%"
+      : 760;
 
   return (
     <Modal
-      title={<div style={{ fontFamily: FONT, paddingRight: 28, wordBreak: "break-word" }}>{finalFileName}</div>}
+      title={
+        <div
+          style={{
+            fontFamily: FONT,
+            paddingRight: 28,
+            wordBreak: "break-word",
+          }}
+        >
+          {finalFileName}
+        </div>
+      }
       open={!!doc}
       onCancel={onClose}
       destroyOnClose
       centered
       width={modalWidth}
-      bodyStyle={{ padding: 0, height: "78vh", background: "#f5f5f5", position: "relative", overflow: "hidden" }}
+      bodyStyle={{
+        padding: 0,
+        height: "78vh",
+        background: "#f5f5f5",
+        position: "relative",
+        overflow: "hidden",
+      }}
       footer={[
         fullUrl && (
-          <Button key="download" type="primary" icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")}>
+          <Button
+            key="download"
+            type="primary"
+            icon={DOWNLOAD_ICON}
+            onClick={() => window.open(fullUrl, "_blank")}
+          >
             Tải về
           </Button>
         ),
-        <Button key="close" onClick={onClose}>Đóng</Button>,
+        <Button key="close" onClick={onClose}>
+          Đóng
+        </Button>,
       ].filter(Boolean)}
     >
       {/* Spinner nền */}
       {!isText && (
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 0 }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 0,
+          }}
+        >
           <Spin tip="Đang tải bản xem trước..." />
         </div>
       )}
@@ -1507,14 +2664,41 @@ const PreviewModal = ({ doc, onClose }) => {
         <iframe
           src={fullUrl}
           title={finalFileName}
-          style={{ width: "100%", height: "100%", border: "none", position: "relative", zIndex: 1, background: "#fff" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            border: "none",
+            position: "relative",
+            zIndex: 1,
+            background: "#fff",
+          }}
         />
       )}
 
       {/* ── IMAGE ── */}
       {isImage && fullUrl && (
-        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1 }}>
-          <img src={fullUrl} alt={finalFileName} style={{ maxWidth: "100%", maxHeight: "100%", padding: 24, display: "block", objectFit: "contain" }} />
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <img
+            src={fullUrl}
+            alt={finalFileName}
+            style={{
+              maxWidth: "100%",
+              maxHeight: "100%",
+              padding: 24,
+              display: "block",
+              objectFit: "contain",
+            }}
+          />
         </div>
       )}
 
@@ -1523,13 +2707,31 @@ const PreviewModal = ({ doc, onClose }) => {
         <iframe
           src={officeViewerUrl}
           title={finalFileName}
-          style={{ width: "100%", height: "100%", border: "none", position: "relative", zIndex: 1, background: "#fff" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            border: "none",
+            position: "relative",
+            zIndex: 1,
+            background: "#fff",
+          }}
         />
       )}
 
       {/* ── VIDEO ── */}
       {isVideo && fullUrl && (
-        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#000", position: "relative", zIndex: 1 }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#000",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           <video
             controls
             autoPlay={false}
@@ -1537,12 +2739,20 @@ const PreviewModal = ({ doc, onClose }) => {
             style={{ maxWidth: "100%", maxHeight: "100%", outline: "none" }}
             src={fullUrl}
           >
-            <source src={fullUrl} type={
-              fileExt === ".mp4" ? "video/mp4" :
-                fileExt === ".webm" ? "video/webm" :
-                  fileExt === ".ogg" ? "video/ogg" :
-                    fileExt === ".mov" ? "video/quicktime" : "video/mp4"
-            } />
+            <source
+              src={fullUrl}
+              type={
+                fileExt === ".mp4"
+                  ? "video/mp4"
+                  : fileExt === ".webm"
+                    ? "video/webm"
+                    : fileExt === ".ogg"
+                      ? "video/ogg"
+                      : fileExt === ".mov"
+                        ? "video/quicktime"
+                        : "video/mp4"
+              }
+            />
             Trình duyệt của bạn không hỗ trợ phát video.
           </video>
         </div>
@@ -1550,9 +2760,32 @@ const PreviewModal = ({ doc, onClose }) => {
 
       {/* ── AUDIO ── */}
       {isAudio && fullUrl && (
-        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1, gap: 24 }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#fff",
+            position: "relative",
+            zIndex: 1,
+            gap: 24,
+          }}
+        >
           <div style={{ fontSize: 64 }}>🎵</div>
-          <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 16, color: "#111827", maxWidth: 400, textAlign: "center", wordBreak: "break-word" }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontWeight: 600,
+              fontSize: 16,
+              color: "#111827",
+              maxWidth: 400,
+              textAlign: "center",
+              wordBreak: "break-word",
+            }}
+          >
             {finalFileName}
           </div>
           <audio
@@ -1562,14 +2795,24 @@ const PreviewModal = ({ doc, onClose }) => {
             style={{ width: "min(480px, 90%)", outline: "none" }}
             src={fullUrl}
           >
-            <source src={fullUrl} type={
-              fileExt === ".mp3" ? "audio/mpeg" :
-                fileExt === ".wav" ? "audio/wav" :
-                  fileExt === ".ogg" ? "audio/ogg" :
-                    fileExt === ".aac" ? "audio/aac" :
-                      fileExt === ".flac" ? "audio/flac" :
-                        fileExt === ".m4a" ? "audio/mp4" : "audio/mpeg"
-            } />
+            <source
+              src={fullUrl}
+              type={
+                fileExt === ".mp3"
+                  ? "audio/mpeg"
+                  : fileExt === ".wav"
+                    ? "audio/wav"
+                    : fileExt === ".ogg"
+                      ? "audio/ogg"
+                      : fileExt === ".aac"
+                        ? "audio/aac"
+                        : fileExt === ".flac"
+                          ? "audio/flac"
+                          : fileExt === ".m4a"
+                            ? "audio/mp4"
+                            : "audio/mpeg"
+              }
+            />
             Trình duyệt của bạn không hỗ trợ phát audio.
           </audio>
         </div>
@@ -1577,59 +2820,122 @@ const PreviewModal = ({ doc, onClose }) => {
 
       {/* ── TEXT / CODE ── */}
       {isText && (
-        <div style={{ width: "100%", height: "100%", position: "relative", zIndex: 1, display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            position: "relative",
+            zIndex: 1,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Toolbar */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "8px 16px", background: "#2d2d2d", borderBottom: "1px solid #444",
-            flexShrink: 0,
-          }}>
-            <span style={{ fontFamily: "monospace", fontSize: 12, color: "#ccc" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "8px 16px",
+              background: "#2d2d2d",
+              borderBottom: "1px solid #444",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{ fontFamily: "monospace", fontSize: 12, color: "#ccc" }}
+            >
               {fileExt.replace(".", "").toUpperCase()} · {finalFileName}
             </span>
-            <span style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}>
-              {textContent != null ? `${textContent.split("\n").length} dòng · ${textContent.length} ký tự` : ""}
+            <span
+              style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}
+            >
+              {textContent != null
+                ? `${textContent.split("\n").length} dòng · ${textContent.length} ký tự`
+                : ""}
             </span>
           </div>
           {/* Content */}
-          <div style={{ flex: 1, overflow: "auto", background: getMonoBackground() }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: "auto",
+              background: getMonoBackground(),
+            }}
+          >
             {textLoading && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#ccc" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  color: "#ccc",
+                }}
+              >
                 <Spin tip="Đang tải nội dung..." />
               </div>
             )}
             {textError && (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16 }}>
-                <Empty description={<span style={{ color: "#aaa" }}>Không thể tải nội dung file</span>} />
-                <Button icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")} style={{ borderColor: "#555", color: "#ccc", background: "transparent" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "100%",
+                  gap: 16,
+                }}
+              >
+                <Empty
+                  description={
+                    <span style={{ color: "#aaa" }}>
+                      Không thể tải nội dung file
+                    </span>
+                  }
+                />
+                <Button
+                  icon={DOWNLOAD_ICON}
+                  onClick={() => window.open(fullUrl, "_blank")}
+                  style={{
+                    borderColor: "#555",
+                    color: "#ccc",
+                    background: "transparent",
+                  }}
+                >
                   Tải xuống để xem
                 </Button>
               </div>
             )}
             {textContent != null && !textLoading && (
-              <pre style={{
-                margin: 0,
-                padding: "16px 20px",
-                fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace",
-                fontSize: 13,
-                lineHeight: 1.7,
-                color: "#d4d4d4",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                counterReset: "line",
-              }}>
+              <pre
+                style={{
+                  margin: 0,
+                  padding: "16px 20px",
+                  fontFamily:
+                    "'Fira Code', 'Cascadia Code', 'Consolas', 'Monaco', monospace",
+                  fontSize: 13,
+                  lineHeight: 1.7,
+                  color: "#d4d4d4",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  counterReset: "line",
+                }}
+              >
                 {textContent.split("\n").map((line, i) => (
                   <div key={i} style={{ display: "flex", gap: 0 }}>
-                    <span style={{
-                      userSelect: "none",
-                      minWidth: 42,
-                      paddingRight: 16,
-                      textAlign: "right",
-                      color: "#555",
-                      fontSize: 12,
-                      lineHeight: 1.7,
-                      flexShrink: 0,
-                    }}>
+                    <span
+                      style={{
+                        userSelect: "none",
+                        minWidth: 42,
+                        paddingRight: 16,
+                        textAlign: "right",
+                        color: "#555",
+                        fontSize: 12,
+                        lineHeight: 1.7,
+                        flexShrink: 0,
+                      }}
+                    >
                       {i + 1}
                     </span>
                     <span style={{ flex: 1 }}>{line || " "}</span>
@@ -1643,24 +2949,77 @@ const PreviewModal = ({ doc, onClose }) => {
 
       {/* ── NO URL ── */}
       {!fullUrl && (
-        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1 }}>
+        <div
+          style={{
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#fff",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           <Empty description="Tài liệu chưa có file hoặc URL để xem trước" />
         </div>
       )}
 
       {/* ── UNSUPPORTED FORMAT ── */}
-      {fullUrl && !isPdf && !isHtml && !isImage && !isOffice && !isExternalPreview && !isVideo && !isAudio && !isText && (
-        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1, gap: 12 }}>
-          <div style={{ fontSize: 48 }}>📎</div>
-          <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 15, color: "#374151" }}>
-            Không thể xem trước định dạng <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>{fileExt || "này"}</code>
+      {fullUrl &&
+        !isPdf &&
+        !isHtml &&
+        !isImage &&
+        !isOffice &&
+        !isExternalPreview &&
+        !isVideo &&
+        !isAudio &&
+        !isText && (
+          <div
+            style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#fff",
+              position: "relative",
+              zIndex: 1,
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: 48 }}>📎</div>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontWeight: 600,
+                fontSize: 15,
+                color: "#374151",
+              }}
+            >
+              Không thể xem trước định dạng{" "}
+              <code
+                style={{
+                  background: "#f3f4f6",
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                }}
+              >
+                {fileExt || "này"}
+              </code>
+            </div>
+            <div style={{ color: "#6b7280", fontSize: 13 }}>
+              Tải xuống để mở bằng ứng dụng phù hợp
+            </div>
+            <Button
+              type="primary"
+              icon={DOWNLOAD_ICON}
+              style={{ marginTop: 8 }}
+              onClick={() => window.open(fullUrl, "_blank")}
+            >
+              Tải xuống để xem
+            </Button>
           </div>
-          <div style={{ color: "#6b7280", fontSize: 13 }}>Tải xuống để mở bằng ứng dụng phù hợp</div>
-          <Button type="primary" icon={DOWNLOAD_ICON} style={{ marginTop: 8 }} onClick={() => window.open(fullUrl, "_blank")}>
-            Tải xuống để xem
-          </Button>
-        </div>
-      )}
+        )}
     </Modal>
   );
 };
@@ -1682,15 +3041,24 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
 
     const folderId = extractId(folder.id || folder);
     Promise.all([
-      ctx.api.request({ url: "lawyers:list", params: { pageSize: 1000 } }).catch(() => ({ data: { data: [] } })),
-      ctx.api.request({
-        url: `folders/${folderId}/folderManager:list`,
-        params: { pageSize: 1000 },
-      }).catch(() => ({ data: { data: [] } })),
-      ctx.api.request({
-        url: "folderMembers:list",
-        params: { pageSize: 1000, filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-      }).catch(() => ({ data: { data: [] } })),
+      ctx.api
+        .request({ url: "lawyers:list", params: { pageSize: 1000 } })
+        .catch(() => ({ data: { data: [] } })),
+      ctx.api
+        .request({
+          url: `folders/${folderId}/folderManager:list`,
+          params: { pageSize: 1000 },
+        })
+        .catch(() => ({ data: { data: [] } })),
+      ctx.api
+        .request({
+          url: "folderMembers:list",
+          params: {
+            pageSize: 1000,
+            filter: JSON.stringify({ folderId: { $eq: folderId } }),
+          },
+        })
+        .catch(() => ({ data: { data: [] } })),
     ]).then(([lwRes, mgRes, mbRes]) => {
       setAvailableLawyers(lwRes?.data?.data || []);
       const initialShares = [];
@@ -1699,12 +3067,20 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       managerRows.forEach((row) => {
         const lawyerId = getPermissionLawyerId(row);
         if (!lawyerId) return;
-        initialShares.push({ id: String(lawyerId), role: "manager", lawyerData: getRelationLawyerRecord(row) });
+        initialShares.push({
+          id: String(lawyerId),
+          role: "manager",
+          lawyerData: getRelationLawyerRecord(row),
+        });
       });
       memberRows.forEach((row) => {
         const lawyerId = getPermissionLawyerId(row);
         if (!lawyerId) return;
-        initialShares.push({ id: String(lawyerId), role: getPermissionRole(row), lawyerData: getRelationLawyerRecord(row) });
+        initialShares.push({
+          id: String(lawyerId),
+          role: getPermissionRole(row),
+          lawyerData: getRelationLawyerRecord(row),
+        });
       });
       setShares(initialShares);
     });
@@ -1718,27 +3094,39 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       const members = shares.filter((s) => s.role !== "manager");
 
       await Promise.all([
-        ctx.api.request({
-          url: "folderManagers:destroy",
-          method: "POST",
-          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-        }).catch(() => { }),
-        ctx.api.request({
-          url: "folderMembers:destroy",
-          method: "POST",
-          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-        }).catch(() => { }),
+        ctx.api
+          .request({
+            url: "folderManagers:destroy",
+            method: "POST",
+            params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+          })
+          .catch(() => {}),
+        ctx.api
+          .request({
+            url: "folderMembers:destroy",
+            method: "POST",
+            params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+          })
+          .catch(() => {}),
       ]);
 
       const createPromises = [];
       managers.forEach((s) => {
         createPromises.push(
-          ctx.api.request({ url: "folderManagers:create", method: "POST", data: { folderId, lawyerId: Number(s.id), role: "manager" } }),
+          ctx.api.request({
+            url: "folderManagers:create",
+            method: "POST",
+            data: { folderId, lawyerId: Number(s.id), role: "manager" },
+          }),
         );
       });
       members.forEach((s) => {
         createPromises.push(
-          ctx.api.request({ url: "folderMembers:create", method: "POST", data: { folderId, lawyerId: Number(s.id), role: s.role } }),
+          ctx.api.request({
+            url: "folderMembers:create",
+            method: "POST",
+            data: { folderId, lawyerId: Number(s.id), role: s.role },
+          }),
         );
       });
 
@@ -1754,12 +3142,17 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
   const handleAddLawyer = (lawyerId) => {
     if (!lawyerId) return;
     const safeLawyerId = String(extractId(lawyerId));
-    if (!safeLawyerId || shares.some((s) => String(s.id) === safeLawyerId)) return;
+    if (!safeLawyerId || shares.some((s) => String(s.id) === safeLawyerId))
+      return;
     setShares([...shares, { id: safeLawyerId, role: "viewer" }]);
   };
 
   const handleChangeRole = (lawyerId, newRole) => {
-    setShares(shares.map((s) => String(s.id) === String(lawyerId) ? { ...s, role: newRole } : s));
+    setShares(
+      shares.map((s) =>
+        String(s.id) === String(lawyerId) ? { ...s, role: newRole } : s,
+      ),
+    );
   };
 
   const handleRemoveShare = (lawyerId) => {
@@ -1767,19 +3160,38 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
   };
 
   const lawyerOptions = availableLawyers
-    .filter((l) => !shares.some((s) => String(s.id) === String(extractId(l.id))))
-    .map((l) => ({ value: String(extractId(l.id)), label: getLawyerDisplayName(l) }));
+    .filter(
+      (l) => !shares.some((s) => String(s.id) === String(extractId(l.id))),
+    )
+    .map((l) => ({
+      value: String(extractId(l.id)),
+      label: getLawyerDisplayName(l),
+    }));
 
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      title={<span style={{ fontFamily: FONT }}>Phân quyền thư mục: {folder?.name || ""}</span>}
+      title={
+        <span style={{ fontFamily: FONT }}>
+          Phân quyền thư mục: {folder?.name || ""}
+        </span>
+      }
       width={520}
       destroyOnClose
       footer={[
-        <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>Hủy</Button>,
-        <Button key="save" type="primary" loading={saving} onClick={handleSave} style={{ fontFamily: FONT }}>Lưu</Button>,
+        <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>
+          Hủy
+        </Button>,
+        <Button
+          key="save"
+          type="primary"
+          loading={saving}
+          onClick={handleSave}
+          style={{ fontFamily: FONT }}
+        >
+          Lưu
+        </Button>,
       ]}
     >
       <div style={{ marginBottom: 16, fontFamily: FONT }}>
@@ -1791,31 +3203,70 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
           options={lawyerOptions}
           value={null}
           onChange={handleAddLawyer}
-          filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+          filterOption={(input, option) =>
+            (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+          }
         />
       </div>
       <div style={{ fontFamily: FONT }}>
-        <div style={{ marginBottom: 12, fontWeight: 600 }}>Những người có quyền truy cập</div>
+        <div style={{ marginBottom: 12, fontWeight: 600 }}>
+          Những người có quyền truy cập
+        </div>
         {shares.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa chia sẻ cho ai" />
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Chưa chia sẻ cho ai"
+          />
         ) : (
           shares.map((s) => {
-            const lw = availableLawyers.find((l) => String(extractId(l.id)) === String(s.id)) || s.lawyerData || {};
-            const displayName = getLawyerDisplayName(lw.id ? lw : (s.lawyerData || s));
+            const lw =
+              availableLawyers.find(
+                (l) => String(extractId(l.id)) === String(s.id),
+              ) ||
+              s.lawyerData ||
+              {};
+            const displayName = getLawyerDisplayName(
+              lw.id ? lw : s.lawyerData || s,
+            );
             const initials = displayName.charAt(0).toUpperCase();
             return (
               <div
                 key={s.id}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 0",
+                  borderBottom: "1px solid #f0f0f0",
+                }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#1890ff", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: 16 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: "#1890ff",
+                      color: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: "bold",
+                      fontSize: 16,
+                    }}
+                  >
                     {initials}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{displayName}</div>
+                    <div style={{ fontWeight: 500, lineHeight: 1.2 }}>
+                      {displayName}
+                    </div>
                     <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                      {s.role === "manager" ? "Quản lý" : s.role === "editor" ? "Người chỉnh sửa" : "Người xem"}
+                      {s.role === "manager"
+                        ? "Quản lý"
+                        : s.role === "editor"
+                          ? "Người chỉnh sửa"
+                          : "Người xem"}
                     </div>
                   </div>
                 </div>
@@ -1831,7 +3282,14 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
                       { value: "manager", label: "Quản lý" },
                     ]}
                   />
-                  <Button type="text" danger onClick={() => handleRemoveShare(s.id)} style={{ padding: "4px 8px" }}>✕</Button>
+                  <Button
+                    type="text"
+                    danger
+                    onClick={() => handleRemoveShare(s.id)}
+                    style={{ padding: "4px 8px" }}
+                  >
+                    ✕
+                  </Button>
                 </div>
               </div>
             );
@@ -1849,12 +3307,23 @@ const InternalTemplates = () => {
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
   const [legalReferences, setLegalReferences] = useState([]);
+  const [caseReferences, setCaseReferences] = useState([]);
+  const [legalStudies, setLegalStudies] = useState([]);
+  const [activeCaseReferenceId, setActiveCaseReferenceId] = useState(null);
+  const [activeLegalStudyId, setActiveLegalStudyId] = useState(null);
+  const [legalReferenceExpanded, setLegalReferenceExpanded] = useState(true);
+  const [caseReferenceExpanded, setCaseReferenceExpanded] = useState(true);
+  const [legalStudyExpanded, setLegalStudyExpanded] = useState(true);
   const [selectedExt, setSelectedExt] = useState(null);
   const [activeCompanyId, setActiveCompanyId] = useState(null);
   const [activeLegalReferenceId, setActiveLegalReferenceId] = useState(null);
-  const [activeCaseId, setActiveCaseId] = useState(() => initialCaseContext.caseId);
-  const [activeCaseRecord, setActiveCaseRecord] = useState(() => initialCaseContext.record);
-  const [activeSpace, setActiveSpace] = useState(() => initialCaseContext.caseId ? "cases" : "personal");
+  const [activeCaseId, setActiveCaseId] = useState(
+    () => initialCaseContext.caseId,
+  );
+  const [activeCaseRecord, setActiveCaseRecord] = useState(
+    () => initialCaseContext.record,
+  );
+  const [activeSpace, setActiveSpace] = useState("cases");
   const [projects, setProjects] = useState([]);
   const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
   const [linkCaseRecord, setLinkCaseRecord] = useState(null);
@@ -1873,13 +3342,17 @@ const InternalTemplates = () => {
 
   const filteredLegalReferences = useMemo(() => {
     return legalReferences.filter((record) =>
-      matchesInternalCompany(record, activeCompanyId)
+      matchesInternalCompany(record, activeCompanyId),
     );
   }, [legalReferences, activeCompanyId]);
 
   const activeLegalReference = useMemo(() => {
     if (!activeLegalReferenceId) return null;
-    return legalReferences.find((r) => String(extractId(r)) === String(activeLegalReferenceId)) || null;
+    return (
+      legalReferences.find(
+        (r) => String(extractId(r)) === String(activeLegalReferenceId),
+      ) || null
+    );
   }, [legalReferences, activeLegalReferenceId]);
 
   // Keep ref in sync with state (allows reading current value in effects without adding to deps)
@@ -1908,12 +3381,13 @@ const InternalTemplates = () => {
   const activeLinkedIds = useMemo(() => {
     const sourceRecord = linkCaseRecord || activeLegalReference;
     if (!sourceRecord) return new Set();
-    return new Set((sourceRecord.cases || []).map(item => String(extractId(item))));
+    return new Set(
+      (sourceRecord.cases || []).map((item) => String(extractId(item))),
+    );
   }, [activeLegalReference, linkCaseRecord]);
 
-  const isLegalReferenceRoot = activeSpace === "legal_reference" && !activeLegalReferenceId;
-
-
+  const isLegalReferenceRoot =
+    activeSpace === "legal_reference" && !activeLegalReferenceId;
 
   const [viewMode, setViewMode] = useState("grid");
   const [sortMode, setSortMode] = useState("manual");
@@ -1957,8 +3431,14 @@ const InternalTemplates = () => {
   const [renameForm] = Form.useForm();
 
   // Context Menu State
-  const [contextMenuState, setContextMenuState] = useState({ open: false, x: 0, y: 0, record: null });
-  const closeContextMenu = () => setContextMenuState((prev) => ({ ...prev, open: false }));
+  const [contextMenuState, setContextMenuState] = useState({
+    open: false,
+    x: 0,
+    y: 0,
+    record: null,
+  });
+  const closeContextMenu = () =>
+    setContextMenuState((prev) => ({ ...prev, open: false }));
 
   const [spacesExpanded, setSpacesExpanded] = useState(true);
   const [libraryExpanded, setLibraryExpanded] = useState(true);
@@ -1969,13 +3449,17 @@ const InternalTemplates = () => {
   const [showAllPersonalFolders, setShowAllPersonalFolders] = useState(false);
 
   const activeCompany = useMemo(
-    () => companies.find((c) => String(extractId(c)) === String(activeCompanyId)) || null,
+    () =>
+      companies.find((c) => String(extractId(c)) === String(activeCompanyId)) ||
+      null,
     [companies, activeCompanyId],
   );
   const activeCase = useMemo(
     () =>
       activeCaseRecord ||
-      projects.find((item) => String(extractId(item)) === String(activeCaseId)) ||
+      projects.find(
+        (item) => String(extractId(item)) === String(activeCaseId),
+      ) ||
       null,
     [activeCaseRecord, projects, activeCaseId],
   );
@@ -1984,19 +3468,24 @@ const InternalTemplates = () => {
     [activeCaseId, activeCase],
   );
   const activeCaseCustomerId = useMemo(
-    () => getCaseCustomerId(activeCase) || getCaseCustomerId(initialCaseContext.record),
+    () =>
+      getCaseCustomerId(activeCase) ||
+      getCaseCustomerId(initialCaseContext.record),
     [activeCase, initialCaseContext.record],
   );
   // Lấy danh sách các định dạng file có trong dữ liệu hiện tại để hiển thị tùy chọn lọc
   const fileExtOptions = useMemo(() => {
     const exts = new Set();
-    documents.forEach(rec => {
+    documents.forEach((rec) => {
       const ext = getFileExtension(rec);
-      if (ext) exts.add(ext.toUpperCase().replace('.', ''));
+      if (ext) exts.add(ext.toUpperCase().replace(".", ""));
     });
     return [
       { value: "all", label: "Tất cả" },
-      ...Array.from(exts).map(ext => ({ value: ext.toLowerCase(), label: ext }))
+      ...Array.from(exts).map((ext) => ({
+        value: ext.toLowerCase(),
+        label: ext,
+      })),
     ];
   }, [documents]);
   const documentTypes = useMemo(() => {
@@ -2004,12 +3493,9 @@ const InternalTemplates = () => {
   }, []);
   const activeTypeId = "";
 
-  const getRecordDocumentType = useCallback(
-    (record) => {
-      return String(record?.documentType || "");
-    },
-    [],
-  );
+  const getRecordDocumentType = useCallback((record) => {
+    return String(record?.documentType || "");
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -2019,7 +3505,7 @@ const InternalTemplates = () => {
       try {
         const authRes = await ctx.api.request({ url: "auth:check" });
         resolvedUser = authRes?.data?.data || authRes?.data || null;
-      } catch { }
+      } catch {}
       if (!resolvedUser) resolvedUser = getCurrentUser();
 
       // 2. Resolve matching lawyer record for permission checks
@@ -2044,11 +3530,16 @@ const InternalTemplates = () => {
             // Fallback: scan full list
             const allLwRes = await ctx.api.request({
               url: "lawyers:list",
-              params: { pageSize: 1000, fields: "id,lawyerName,email,userId,createdById" },
+              params: {
+                pageSize: 1000,
+                fields: "id,lawyerName,email,userId,createdById",
+              },
             });
             lawyer = (allLwRes?.data?.data || []).find((item) => {
               const linkedId = extractId(item.userId) || extractId(item.user);
-              return linkedId === userId || extractId(item.createdById) === userId;
+              return (
+                linkedId === userId || extractId(item.createdById) === userId
+              );
             });
           }
           resolvedLawyerId = lawyer ? extractId(lawyer.id) : null;
@@ -2057,32 +3548,72 @@ const InternalTemplates = () => {
         }
       }
 
-      const [fetchedCompanies, fetchedFolders, fetchedDocs, fetchedProjects] = await Promise.all([
-        Promise.resolve([]),
-        fetchFoldersForInternalTemplates(),
-        fetchDocumentsForInternalTemplates(),
-        fetchAllList("projects:list", { fields: ["id", "caseCode", "projectName", "description", "customerId"], sort: ["-createdAt"] }).catch(() => []),
-      ]);
+      const [fetchedCompanies, fetchedFolders, fetchedDocs, fetchedProjects] =
+        await Promise.all([
+          Promise.resolve([]),
+          fetchFoldersForInternalTemplates(),
+          fetchDocumentsForInternalTemplates(),
+          fetchAllList("projects:list", {
+            fields: [
+              "id",
+              "caseCode",
+              "projectName",
+              "description",
+              "customerId",
+            ],
+            sort: ["-createdAt"],
+          }).catch(() => []),
+        ]);
 
       setCompanies(fetchedCompanies);
       const isAllowedScope = (record) => {
         const scope = normalizeKey(record?.moduleScope);
-        return !scope || DASHBOARD_CONFIG.moduleScopes.includes(scope);
+        return (
+          !scope ||
+          [
+            ...DASHBOARD_CONFIG.moduleScopes,
+            "legal_reference",
+            "legal_study",
+          ].includes(scope)
+        );
       };
       setFolders(fetchedFolders.filter(isAllowedScope));
       setDocuments(fetchedDocs.filter(isAllowedScope));
-      setLegalReferences([]);
       setProjects(fetchedProjects);
       setActiveCompanyId(null);
       const nextCaseId = activeCaseId || initialCaseContext.caseId;
       const matchedCase =
         (nextCaseId
-          ? fetchedProjects.find((item) => String(extractId(item)) === String(nextCaseId))
+          ? fetchedProjects.find(
+              (item) => String(extractId(item)) === String(nextCaseId),
+            )
           : null) ||
         initialCaseContext.record ||
         null;
       if (nextCaseId && !activeCaseId) setActiveCaseId(String(nextCaseId));
       if (matchedCase) setActiveCaseRecord(matchedCase);
+
+      // Fetch relation rows for current case context
+      let fetchedLegalRefs = [];
+      let fetchedCaseRefs = [];
+      let fetchedLegalStds = [];
+      if (nextCaseId) {
+        try {
+          const [lRefs, cRefs, lStds] = await Promise.all([
+            fetchLinkedRelationRows(nextCaseId, "legalReference"),
+            fetchLinkedRelationRows(nextCaseId, "caseReferences"),
+            fetchLinkedRelationRows(nextCaseId, "legalStudy"),
+          ]);
+          fetchedLegalRefs = lRefs;
+          fetchedCaseRefs = cRefs;
+          fetchedLegalStds = lStds;
+        } catch (err) {
+          console.warn("Error fetching relation rows:", err);
+        }
+      }
+      setLegalReferences(fetchedLegalRefs);
+      setCaseReferences(fetchedCaseRefs);
+      setLegalStudies(fetchedLegalStds);
 
       // Set current user & lawyer after data is ready
       if (resolvedUser) {
@@ -2109,7 +3640,7 @@ const InternalTemplates = () => {
           pageSize: 500,
           sort: ["-changedAt"],
           filter: JSON.stringify({
-            collectionName: { $in: ["Document", "Folder"] }
+            collectionName: { $in: ["Document", "Folder"] },
           }),
         },
       });
@@ -2123,33 +3654,165 @@ const InternalTemplates = () => {
         }
       }
 
-      const scopedCaseFolders = activeCaseIdValue
-        ? folders.filter((f) => matchesCaseFolder(f, activeCaseIdValue))
-        : [];
-      const scopedCaseFolderIds = new Set(
-        scopedCaseFolders.map((f) => String(extractId(f.id))).filter(Boolean),
+      // Collect IDs of the linked relations for the active case
+      const legalRefIds = new Set(
+        legalReferences.map((ref) => String(extractId(ref))),
       );
-      const scopedFolders = activeCaseIdValue
-        ? scopedCaseFolders
-        : folders.filter((f) => matchesInternalCompany(f, activeCompanyId));
-      const scopedDocs = activeCaseIdValue
-        ? documents.filter((d) => matchesCaseDocument(d, activeCaseIdValue, scopedCaseFolderIds))
-        : documents.filter((d) => matchesInternalCompany(d, activeCompanyId));
-      const scopedFolderIds = new Set(
-        scopedFolders.map((f) => String(extractId(f.id))).filter(Boolean),
+      const caseRefIds = new Set(
+        caseReferences.map((ref) => String(extractId(ref))),
       );
-      const scopedDocIds = new Set(
-        scopedDocs.map((d) => String(extractId(d.id))).filter(Boolean),
+      const legalStdIds = new Set(
+        legalStudies.map((ref) => String(extractId(ref))),
       );
 
+      // Filter folders belonging to one of the 4 linked spaces
+      const scopedFolders = folders.filter((f) => {
+        if (f.isDeleted) return false;
+        // 1. Current Case
+        if (activeCaseIdValue && matchesCaseFolder(f, activeCaseIdValue))
+          return true;
+        // 2. Legal Reference
+        if (
+          f.storageType === "legal_reference" &&
+          f.legalReferenceId &&
+          legalRefIds.has(String(f.legalReferenceId))
+        )
+          return true;
+        // 3. Case Reference
+        if (
+          f.storageType === "cases" &&
+          getLinkedCaseId(f) &&
+          caseRefIds.has(String(getLinkedCaseId(f)))
+        )
+          return true;
+        // 4. Legal Study
+        if (
+          f.storageType === "legal_study" &&
+          f.legalStudyId &&
+          legalStdIds.has(String(f.legalStudyId))
+        )
+          return true;
+        return false;
+      });
+
+      const scopedFolderIds = new Set(
+        scopedFolders.map((f) => String(extractId(f.id))),
+      );
+
+      // Filter documents belonging to one of the 4 linked spaces
+      const scopedDocs = documents.filter((d) => {
+        if (d.isDeleted) return false;
+        // 1. Current Case
+        if (
+          activeCaseIdValue &&
+          matchesCaseDocument(d, activeCaseIdValue, scopedFolderIds)
+        )
+          return true;
+        // 2. Legal Reference
+        if (
+          d.storageType === "legal_reference" &&
+          d.legalReferenceId &&
+          legalRefIds.has(String(d.legalReferenceId))
+        )
+          return true;
+        // 3. Case Reference
+        if (
+          d.storageType === "cases" &&
+          getLinkedCaseId(d) &&
+          caseRefIds.has(String(getLinkedCaseId(d)))
+        )
+          return true;
+        // 4. Legal Study
+        if (
+          d.storageType === "legal_study" &&
+          d.legalStudyId &&
+          legalStdIds.has(String(d.legalStudyId))
+        )
+          return true;
+        return false;
+      });
+
+      const scopedDocIds = new Set(
+        scopedDocs.map((d) => String(extractId(d.id))),
+      );
+
+      const manualTrashLogs = raw.filter((log) =>
+        ["trash_deleted", "restored"].includes(log.action),
+      );
+      const legalStudyActionLogs = raw.filter((log) =>
+        LEGAL_STUDY_ACTIVITY_ACTIONS.has(log.action),
+      );
+      const hasNearbyManualTrashLog = (log, actionName) => {
+        const logTime = getActivityTime(log);
+        return manualTrashLogs.some((manualLog) => {
+          if (manualLog.action !== actionName) return false;
+          if (manualLog.collectionName !== log.collectionName) return false;
+          if (String(manualLog.recordId) !== String(log.recordId)) return false;
+          const manualTime = getActivityTime(manualLog);
+          if (!logTime || !manualTime) return true;
+          return Math.abs(manualTime - logTime) <= 60 * 1000;
+        });
+      };
+      const hasNearbyLegalStudyAction = (log) => {
+        const logTime = getActivityTime(log);
+        const logBatchId = String(log.batchId || "");
+        return legalStudyActionLogs.some((legalStudyLog) => {
+          if (!isSameActivityRecord(log, legalStudyLog)) return false;
+          if (
+            log.id &&
+            legalStudyLog.id &&
+            String(log.id) === String(legalStudyLog.id)
+          )
+            return false;
+          const legalStudyBatchId = String(legalStudyLog.batchId || "");
+          if (
+            logBatchId &&
+            legalStudyBatchId &&
+            logBatchId === legalStudyBatchId
+          )
+            return true;
+          const legalStudyTime = getActivityTime(legalStudyLog);
+          if (!logTime || !legalStudyTime) return true;
+          return Math.abs(legalStudyTime - logTime) <= 2 * 60 * 1000;
+        });
+      };
+
       const filtered = raw
-        .filter((log) => !["fileIndex", "folderIndex", "deletedAt"].includes(log.fieldName))
+        .filter((log) => {
+          if (isSystemActivityLog(log)) return false;
+          if (
+            hasNearbyLegalStudyAction(log) &&
+            (log.action === "moved" ||
+              (log.action === "updated" &&
+                ["folderId", "parentId"].includes(log.fieldName)))
+          ) {
+            return false;
+          }
+          if (
+            isTrashDeleteActivity(log) &&
+            hasNearbyManualTrashLog(log, "trash_deleted")
+          )
+            return false;
+          if (
+            isTrashRestoreActivity(log) &&
+            hasNearbyManualTrashLog(log, "restored")
+          )
+            return false;
+          return true;
+        })
         .map((log) => ({
           ...log,
           resolvedTitle: titleMap[log.recordId] || null,
         }))
         .filter((log) => {
           const rId = String(log.recordId);
+          if (
+            ["deleted", "trash_deleted", "restored"].includes(log.action) &&
+            activeCaseIdValue &&
+            String(extractId(log.dataId)) === String(activeCaseIdValue)
+          ) {
+            return true;
+          }
           if (log.collectionName === "Folder") {
             return scopedFolderIds.has(rId);
           } else if (log.collectionName === "Document") {
@@ -2165,7 +3828,14 @@ const InternalTemplates = () => {
     } finally {
       setActivityLoading(false);
     }
-  }, [folders, documents, activeCompanyId, activeCaseIdValue]);
+  }, [
+    folders,
+    documents,
+    activeCaseIdValue,
+    legalReferences,
+    caseReferences,
+    legalStudies,
+  ]);
 
   const resolveActivityActionInfo = useCallback((log) => {
     const { action, fieldName: field, newValue: newV } = log;
@@ -2178,12 +3848,21 @@ const InternalTemplates = () => {
         bg: "#E6F1FB",
         border: "#B5D4F4",
         icon: (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-        )
+        ),
       };
     }
 
@@ -2195,11 +3874,20 @@ const InternalTemplates = () => {
         bg: "#F0F9FF",
         border: "#BAE6FD",
         icon: (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-        )
+        ),
       };
     }
 
@@ -2211,7 +3899,16 @@ const InternalTemplates = () => {
         bg: "#FFFBEB",
         border: "#FEF3C7",
         icon: (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="5 9 2 12 5 15" />
             <polyline points="9 5 12 2 15 5" />
             <polyline points="15 19 12 22 9 19" />
@@ -2219,13 +3916,213 @@ const InternalTemplates = () => {
             <line x1="2" y1="12" x2="22" y2="12" />
             <line x1="12" y1="2" x2="12" y2="22" />
           </svg>
-        )
+        ),
+      };
+    }
+
+    if (action === "previewed") {
+      return {
+        key: "previewed",
+        label: "Xem trước",
+        color: "#4338CA",
+        bg: "#EEF2FF",
+        border: "#C7D2FE",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "downloaded") {
+      return {
+        key: "downloaded",
+        label: "Tải về",
+        color: "#075985",
+        bg: "#E0F2FE",
+        border: "#BAE6FD",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "linked_legal_study") {
+      return {
+        key: "linked_legal_study",
+        label: "Đưa vào Legal Study",
+        color: "#0369A1",
+        bg: "#F0F9FF",
+        border: "#BAE6FD",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 3v12" />
+            <polyline points="7 10 12 15 17 10" />
+            <path d="M5 21h14" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "unlinked_legal_study") {
+      return {
+        key: "unlinked_legal_study",
+        label: "Gỡ khỏi Legal Study",
+        color: "#7C2D12",
+        bg: "#FFF7ED",
+        border: "#FED7AA",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 21V9" />
+            <polyline points="7 14 12 9 17 14" />
+            <path d="M5 3h14" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "shared_file") {
+      return {
+        key: "shared_file",
+        label: "Chia sẻ",
+        color: "#6D28D9",
+        bg: "#F5F3FF",
+        border: "#DDD6FE",
+        icon: USER_ICON,
+      };
+    }
+
+    if (action === "unshared_file") {
+      return {
+        key: "unshared_file",
+        label: "Hủy chia sẻ",
+        color: "#991B1B",
+        bg: "#FEF2F2",
+        border: "#FECACA",
+        icon: USER_ICON,
+      };
+    }
+
+    if (action === "permission_updated") {
+      return {
+        key: "permission_updated",
+        label: "Cập nhật phân quyền",
+        color: "#7C2D12",
+        bg: "#FFF7ED",
+        border: "#FED7AA",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "trash_deleted") {
+      return {
+        key: "trash_deleted",
+        label: "Xóa vào Thùng rác",
+        color: "#B91C1C",
+        bg: "#FEF2F2",
+        border: "#FEE2E2",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        ),
+      };
+    }
+
+    if (action === "restored") {
+      return {
+        key: "restored",
+        label: "Khôi phục",
+        color: "#15803D",
+        bg: "#F0FDF4",
+        border: "#DCFCE7",
+        icon: (
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        ),
       };
     }
 
     if (action === "updated") {
-      if (field === "isDeleted") {
-        if (newV === true || newV === "true" || newV === 1) {
+      if (field === "isDeleted" || DELETE_TIMESTAMP_FIELDS.has(field)) {
+        if (isTrashDeleteActivity(log)) {
           return {
             key: "trash_deleted",
             label: "Xóa vào Thùng rác",
@@ -2233,11 +4130,20 @@ const InternalTemplates = () => {
             bg: "#FEF2F2",
             border: "#FEE2E2",
             icon: (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="3 6 5 6 21 6" />
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
-            )
+            ),
           };
         } else {
           return {
@@ -2247,11 +4153,20 @@ const InternalTemplates = () => {
             bg: "#F0FDF4",
             border: "#DCFCE7",
             icon: (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="23 4 23 10 17 10" />
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
               </svg>
-            )
+            ),
           };
         }
       }
@@ -2263,7 +4178,16 @@ const InternalTemplates = () => {
           bg: "#FFFBEB",
           border: "#FEF3C7",
           icon: (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <polyline points="5 9 2 12 5 15" />
               <polyline points="9 5 12 2 15 5" />
               <polyline points="15 19 12 22 9 19" />
@@ -2271,7 +4195,7 @@ const InternalTemplates = () => {
               <line x1="2" y1="12" x2="22" y2="12" />
               <line x1="12" y1="2" x2="12" y2="22" />
             </svg>
-          )
+          ),
         };
       }
       return {
@@ -2281,29 +4205,47 @@ const InternalTemplates = () => {
         bg: "#F7FEE7",
         border: "#ECFCCB",
         icon: (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 20h9" />
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
           </svg>
-        )
+        ),
       };
     }
 
     if (action === "deleted") {
       return {
         key: "deleted",
-        label: "Xóa",
+        label: "Xóa vĩnh viễn",
         color: "#451A03",
         bg: "#FFF7ED",
         border: "#FFEDD5",
         icon: (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             <line x1="10" y1="11" x2="10" y2="17" />
             <line x1="14" y1="11" x2="14" y2="17" />
           </svg>
-        )
+        ),
       };
     }
 
@@ -2314,17 +4256,32 @@ const InternalTemplates = () => {
       bg: "#F3F4F6",
       border: "#E5E7EB",
       icon: (
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <circle cx="12" cy="12" r="10" />
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-      )
+      ),
     };
   }, []);
 
   const resolveActivityDesc = useCallback((log, foldersList, docsList) => {
-    const { action, fieldName: field, oldValue: oldV, newValue: newV, collectionName } = log;
+    const {
+      action,
+      fieldName: field,
+      oldValue: oldV,
+      newValue: newV,
+      collectionName,
+    } = log;
     const isFolder = collectionName === "Folder";
     const entityName = isFolder ? "thư mục" : "tài liệu";
 
@@ -2351,8 +4308,14 @@ const InternalTemplates = () => {
       fileIndex: "vị trí sắp xếp",
       documentType: "phân loại tài liệu",
       storageType: "không gian lưu trữ",
+      userId: "người được chia sẻ",
+      users: "người được chia sẻ",
+      documentId: "tài liệu được chia sẻ",
+      documents: "tài liệu được chia sẻ",
       status: "trạng thái",
       isDeleted: "trạng thái xóa",
+      deletedAt: "ngày xoá",
+      deleted_at: "ngày xoá",
       updatedAt: "thời gian cập nhật",
       createdAt: "thời gian tạo",
       documentCode: "mã tài liệu",
@@ -2372,21 +4335,81 @@ const InternalTemplates = () => {
       created: "tạo mới",
       updated: "cập nhật",
       moved: "di chuyển",
-      deleted: "xóa",
+      deleted: "xóa vĩnh viễn",
+      trash_deleted: "xóa vào thùng rác",
+      restored: "khôi phục",
+      previewed: "xem trước",
+      downloaded: "tải về",
+      shared_file: "chia sẻ tài liệu",
+      unshared_file: "hủy chia sẻ tài liệu",
+      permission_updated: "cập nhật phân quyền",
+      linked_legal_study: "đưa vào Legal Study",
+      unlinked_legal_study: "gỡ khỏi Legal Study",
     };
+
+    if (action === "linked_legal_study") {
+      const parts = String(newV || "").split(" - ");
+      const targetLabel = parts.length > 1 ? parts[0].trim() : "";
+      return targetLabel
+        ? `Đã đưa tài liệu vào Legal Study tại "${targetLabel}"`
+        : "Đã đưa tài liệu vào Legal Study";
+    }
+
+    if (action === "unlinked_legal_study") {
+      return "Đã gỡ tài liệu khỏi Legal Study";
+    }
+
+    if (action === "previewed") {
+      return `Đã xem trước ${entityName}`;
+    }
+
+    if (action === "downloaded") {
+      return `Đã tải về ${entityName}`;
+    }
+
+    if (action === "shared_file") {
+      if (!newV) return "Đã chia sẻ tài liệu cho người dùng";
+      return String(newV).includes(";")
+        ? `Đã chia sẻ tài liệu cho các người dùng: ${newV}`
+        : `Đã chia sẻ tài liệu cho người dùng tên ${newV}`;
+    }
+
+    if (action === "unshared_file") {
+      if (!newV) return "Đã hủy chia sẻ tài liệu cho người dùng";
+      return String(newV).includes(";")
+        ? `Đã hủy chia sẻ tài liệu cho các người dùng: ${newV}`
+        : `Đã hủy chia sẻ tài liệu cho người dùng tên ${newV}`;
+    }
+
+    if (action === "permission_updated") {
+      return newV
+        ? `Đã cập nhật phân quyền ${entityName}: ${newV}`
+        : `Đã cập nhật phân quyền ${entityName}`;
+    }
 
     if (action === "uploaded" || action === "created") {
       return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
     }
 
     if (action === "deleted") {
-      return `Đã xóa ${entityName}`;
+      return `Đã xóa vĩnh viễn ${entityName}`;
+    }
+
+    if (action === "trash_deleted") {
+      return `Đã di chuyển ${entityName} vào Thùng rác`;
+    }
+
+    if (action === "restored") {
+      return `Đã khôi phục ${entityName} từ Thùng rác`;
     }
 
     if (action === "moved") {
       const getFolderName = (id) => {
-        if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
-        const f = foldersList.find(item => String(extractId(item.id)) === String(id));
+        if (!id || id === "root" || id === "0" || id === 0)
+          return "Thư mục gốc";
+        const f = foldersList.find(
+          (item) => String(extractId(item.id)) === String(id),
+        );
         return f ? f.name : `Thư mục #${id}`;
       };
       if (oldV || newV) {
@@ -2398,8 +4421,8 @@ const InternalTemplates = () => {
     }
 
     if (action === "updated") {
-      if (field === "isDeleted") {
-        if (newV === true || newV === "true" || newV === 1) {
+      if (field === "isDeleted" || DELETE_TIMESTAMP_FIELDS.has(field)) {
+        if (isTrashDeleteActivity(log)) {
           return `Đã di chuyển ${entityName} vào Thùng rác`;
         } else {
           return `Đã khôi phục ${entityName} từ Thùng rác`;
@@ -2413,8 +4436,11 @@ const InternalTemplates = () => {
       }
       if (field === "folderId" || field === "parentId") {
         const getFolderName = (id) => {
-          if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
-          const f = foldersList.find(item => String(extractId(item.id)) === String(id));
+          if (!id || id === "root" || id === "0" || id === 0)
+            return "Thư mục gốc";
+          const f = foldersList.find(
+            (item) => String(extractId(item.id)) === String(id),
+          );
           return f ? f.name : `Thư mục #${id}`;
         };
         const oldFolder = getFolderName(oldV);
@@ -2442,7 +4468,13 @@ const InternalTemplates = () => {
       if (activitySearchQuery.trim()) {
         const q = activitySearchQuery.toLowerCase();
         const userName = (log.changedByName || "Hệ thống").toLowerCase();
-        const name = (log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "").toLowerCase();
+        const name = (
+          log.resolvedTitle ||
+          log.recordTitle ||
+          log.newValue ||
+          log.oldValue ||
+          ""
+        ).toLowerCase();
         const desc = resolveActivityDesc(log, folders, documents).toLowerCase();
 
         return userName.includes(q) || name.includes(q) || desc.includes(q);
@@ -2450,9 +4482,15 @@ const InternalTemplates = () => {
 
       return true;
     });
-  }, [activityLogs, activityActionFilter, activitySearchQuery, folders, documents, resolveActivityActionInfo, resolveActivityDesc]);
-
-
+  }, [
+    activityLogs,
+    activityActionFilter,
+    activitySearchQuery,
+    folders,
+    documents,
+    resolveActivityActionInfo,
+    resolveActivityDesc,
+  ]);
 
   useEffect(() => {
     loadData();
@@ -2468,7 +4506,12 @@ const InternalTemplates = () => {
     if (activeSpace === "legal_reference") {
       // Only reset if the currently selected reference is no longer in the filtered list
       const currentRefId = activeLegalReferenceIdRef.current;
-      if (currentRefId && !filteredLegalReferences.some((r) => String(extractId(r)) === String(currentRefId))) {
+      if (
+        currentRefId &&
+        !filteredLegalReferences.some(
+          (r) => String(extractId(r)) === String(currentRefId),
+        )
+      ) {
         setActiveLegalReferenceId(null);
       }
       // Do NOT auto-select: let user explicitly choose a reference via sidebar or list click
@@ -2482,28 +4525,184 @@ const InternalTemplates = () => {
   }, [activeSpace, activeCompanyId, activeLegalReferenceId, selectedFolderId]);
 
   const companyFolders = useMemo(
-    () => folders.filter((folder) => matchesInternalCompany(folder, activeCompanyId)),
+    () =>
+      folders.filter((folder) =>
+        matchesInternalCompany(folder, activeCompanyId),
+      ),
     [folders, activeCompanyId],
   );
 
   const companyDocs = useMemo(
-    () => documents.filter((doc) => matchesInternalCompany(doc, activeCompanyId)),
+    () =>
+      documents.filter((doc) => matchesInternalCompany(doc, activeCompanyId)),
     [documents, activeCompanyId],
   );
 
   const caseFolders = useMemo(
-    () => folders.filter((folder) => matchesCaseFolder(folder, activeCaseIdValue)),
+    () =>
+      folders.filter((folder) => matchesCaseFolder(folder, activeCaseIdValue)),
     [folders, activeCaseIdValue],
   );
 
   const caseFolderIdSet = useMemo(
-    () => new Set(caseFolders.map((folder) => String(extractId(folder))).filter(Boolean)),
+    () =>
+      new Set(
+        caseFolders.map((folder) => String(extractId(folder))).filter(Boolean),
+      ),
     [caseFolders],
   );
 
   const activeCaseRootFolder = useMemo(() => {
     if (!caseFolders.length || !activeCaseIdValue) return null;
-    const caseRecord = activeCase || initialCaseContext.record || {};
+    const rootCandidates = caseFolders.filter(
+      (folder) => !folder.isDeleted && !getFolderParentId(folder),
+    );
+    if (!rootCandidates.length) return null;
+    return [...rootCandidates].sort(sortByCreatedAt)[0];
+  }, [caseFolders, activeCaseIdValue]);
+
+  const activeCaseRootFolderId = useMemo(
+    () => extractId(activeCaseRootFolder),
+    [activeCaseRootFolder],
+  );
+
+  const folderById = useMemo(() => {
+    const map = new Map();
+    folders.forEach((folder) => {
+      const id = String(extractId(folder) || "");
+      if (id) map.set(id, folder);
+    });
+    return map;
+  }, [folders]);
+
+  const findNearestDeletedAncestor = useCallback(
+    (folder) => {
+      let current = folder;
+      const seen = new Set();
+      while (current) {
+        const parentId = getFolderParentId(current);
+        if (!parentId) return null;
+        const parentKey = String(parentId);
+        if (seen.has(parentKey)) return null;
+        seen.add(parentKey);
+        const parent = folderById.get(parentKey);
+        if (!parent) return null;
+        if (parent.isDeleted) return parent;
+        current = parent;
+      }
+      return null;
+    },
+    [folderById],
+  );
+
+  const orphanRepairAttemptedRef = useRef(new Set());
+  const orphanRepairRunningRef = useRef(false);
+
+  useEffect(() => {
+    if (orphanRepairRunningRef.current) return;
+    if (!activeCaseIdValue || caseFolders.length === 0) return;
+
+    const groups = new Map();
+    caseFolders.forEach((folder) => {
+      if (folder.isDeleted) return;
+      const folderId = extractId(folder);
+      const folderKey = String(folderId || "");
+      if (!folderId || orphanRepairAttemptedRef.current.has(folderKey)) return;
+      const ancestor = findNearestDeletedAncestor(folder);
+      if (!ancestor) return;
+      const ancestorKey = String(extractId(ancestor));
+      if (!groups.has(ancestorKey)) {
+        groups.set(ancestorKey, { ancestor, folderIds: [] });
+      }
+      groups.get(ancestorKey).folderIds.push(folderId);
+      orphanRepairAttemptedRef.current.add(folderKey);
+    });
+
+    if (groups.size === 0) return;
+
+    orphanRepairRunningRef.current = true;
+    const run = async () => {
+      try {
+        for (const { ancestor, folderIds } of groups.values()) {
+          const payload = {
+            isDeleted: true,
+            deletedAt:
+              ancestor.deletedAt || ancestor.updatedAt || new Date().toISOString(),
+            ...(extractId(ancestor.updatedById)
+              ? { updatedById: extractId(ancestor.updatedById) }
+              : {}),
+          };
+          await ctx.api
+            .request({
+              url: "folders:update",
+              method: "POST",
+              params: {
+                filter: JSON.stringify({ id: { $in: folderIds.map(Number) } }),
+              },
+              data: payload,
+            })
+            .catch(() => {});
+          await requestDocumentApi({
+            url: "documents:update",
+            method: "POST",
+            params: {
+              filter: JSON.stringify({
+                folderId: { $in: folderIds.map(Number) },
+              }),
+            },
+            data: payload,
+          }).catch(() => {});
+        }
+      } finally {
+        orphanRepairRunningRef.current = false;
+        loadData();
+      }
+    };
+    run();
+  }, [caseFolders, activeCaseIdValue, findNearestDeletedAncestor, loadData]);
+
+  const caseReferenceFolders = useMemo(
+    () =>
+      folders.filter((folder) =>
+        matchesCaseFolder(folder, activeCaseReferenceId),
+      ),
+    [folders, activeCaseReferenceId],
+  );
+
+  const caseReferenceFolderIdSet = useMemo(
+    () =>
+      new Set(
+        caseReferenceFolders
+          .map((folder) => String(extractId(folder)))
+          .filter(Boolean),
+      ),
+    [caseReferenceFolders],
+  );
+
+  const caseReferenceDocs = useMemo(
+    () =>
+      documents.filter((doc) =>
+        matchesCaseDocument(
+          doc,
+          activeCaseReferenceId,
+          caseReferenceFolderIdSet,
+        ),
+      ),
+    [documents, activeCaseReferenceId, caseReferenceFolderIdSet],
+  );
+
+  const activeCaseReferenceRecord = useMemo(() => {
+    if (!activeCaseReferenceId) return null;
+    return (
+      caseReferences.find(
+        (r) => String(extractId(r)) === String(activeCaseReferenceId),
+      ) || null
+    );
+  }, [caseReferences, activeCaseReferenceId]);
+
+  const activeCaseReferenceRootFolder = useMemo(() => {
+    if (!caseReferenceFolders.length || !activeCaseReferenceId) return null;
+    const caseRecord = activeCaseReferenceRecord || {};
     const caseNames = [
       getCaseDisplayName(caseRecord),
       caseRecord.caseCode,
@@ -2513,36 +4712,61 @@ const InternalTemplates = () => {
       caseRecord.projectName,
       caseRecord.title,
       caseRecord.name,
-    ].map(normalizeKey).filter(Boolean);
+    ]
+      .map(normalizeKey)
+      .filter(Boolean);
     if (!caseNames.length) return null;
     const outsideParent = (folder) => {
       const parentId = getFolderParentId(folder);
-      return !parentId || !caseFolderIdSet.has(String(parentId));
+      return !parentId || !caseReferenceFolderIdSet.has(String(parentId));
     };
     const hasCaseChild = (folder) =>
-      caseFolders.some(
-        (child) => String(getFolderParentId(child) || "") === String(extractId(folder)),
+      caseReferenceFolders.some(
+        (child) =>
+          String(getFolderParentId(child) || "") === String(extractId(folder)),
       ) ||
       documents.some(
         (doc) =>
           String(extractId(doc.folderId) || "") === String(extractId(folder)) &&
-          matchesCaseDocument(doc, activeCaseIdValue, caseFolderIdSet),
+          matchesCaseDocument(
+            doc,
+            activeCaseReferenceId,
+            caseReferenceFolderIdSet,
+          ),
       );
     return (
-      caseFolders.find((folder) => {
+      caseReferenceFolders.find((folder) => {
         if (!outsideParent(folder)) return false;
         const folderName = normalizeKey(folder?.name);
-        return folderName && caseNames.includes(folderName) && hasCaseChild(folder);
+        return (
+          folderName && caseNames.includes(folderName) && hasCaseChild(folder)
+        );
       }) ||
-      caseFolders.find((folder) => outsideParent(folder) && hasCaseChild(folder)) ||
+      caseReferenceFolders.find(
+        (folder) => outsideParent(folder) && hasCaseChild(folder),
+      ) ||
       null
     );
-  }, [caseFolders, caseFolderIdSet, activeCase, initialCaseContext.record, documents, activeCaseIdValue]);
+  }, [
+    caseReferenceFolders,
+    caseReferenceFolderIdSet,
+    activeCaseReferenceRecord,
+    documents,
+    activeCaseReferenceId,
+  ]);
 
-  const activeCaseRootFolderId = useMemo(
-    () => extractId(activeCaseRootFolder),
-    [activeCaseRootFolder],
+  const activeCaseReferenceRootFolderId = useMemo(
+    () => extractId(activeCaseReferenceRootFolder),
+    [activeCaseReferenceRootFolder],
   );
+
+  const caseReferenceVisibleFolders = useMemo(() => {
+    if (!activeCaseReferenceRootFolderId) return caseReferenceFolders;
+    return caseReferenceFolders.filter(
+      (folder) =>
+        String(extractId(folder)) !== String(activeCaseReferenceRootFolderId),
+    );
+  }, [caseReferenceFolders, activeCaseReferenceRootFolderId]);
 
   const caseVisibleFolders = useMemo(() => {
     if (!activeCaseRootFolderId) return caseFolders;
@@ -2560,18 +4784,12 @@ const InternalTemplates = () => {
   );
 
   const quickScopeFolders = useMemo(
-    () =>
-      activeCaseIdValue
-        ? caseVisibleFolders
-        : companyFolders,
+    () => (activeCaseIdValue ? caseVisibleFolders : companyFolders),
     [activeCaseIdValue, caseVisibleFolders, companyFolders],
   );
 
   const quickScopeDocs = useMemo(
-    () =>
-      activeCaseIdValue
-        ? caseDocs
-        : companyDocs,
+    () => (activeCaseIdValue ? caseDocs : companyDocs),
     [activeCaseIdValue, caseDocs, companyDocs],
   );
 
@@ -2592,12 +4810,38 @@ const InternalTemplates = () => {
     if (activeSpace === "cases") {
       return caseDocs.filter((doc) => !doc.isDeleted);
     }
+    if (activeSpace === "legal_reference") {
+      return documents.filter((doc) => {
+        if (doc.isDeleted) return false;
+        return (
+          doc.storageType === "legal_reference" &&
+          String(doc.legalReferenceId) === String(activeLegalReferenceId)
+        );
+      });
+    }
+    if (activeSpace === "case_reference") {
+      return caseReferenceDocs.filter((doc) => !doc.isDeleted);
+    }
+    if (activeSpace === "legal_study") {
+      return documents.filter((doc) => {
+        if (doc.isDeleted) return false;
+        return (
+          doc.storageType === "legal_study" &&
+          String(doc.legalStudyId) === String(activeLegalStudyId)
+        );
+      });
+    }
 
     const activeDocs = companyDocs.filter((doc) => !doc.isDeleted);
 
     if (activeSpace === "company_shared") {
       return activeDocs.filter((doc) => {
-        const isShared = doc.storageType === "company_shared" || (!doc.storageType && !getRecordDocumentType(doc) && !getInternalTemplateRelationId(doc) && !getRecordLegalReferenceId(doc));
+        const isShared =
+          doc.storageType === "company_shared" ||
+          (!doc.storageType &&
+            !getRecordDocumentType(doc) &&
+            !getInternalTemplateRelationId(doc) &&
+            !getRecordLegalReferenceId(doc));
         return isShared && doc.storageType !== "legal_reference";
       });
     }
@@ -2605,17 +4849,25 @@ const InternalTemplates = () => {
       return documents.filter((doc) => {
         if (doc.isDeleted) return false;
         const isPersonal = doc.storageType === "personal";
-        const isCreatedByMe = extractId(doc.createdById) === currentLawyerId || extractId(doc.uploadedById) === currentLawyerId;
+        const isCreatedByMe =
+          extractId(doc.createdById) === currentLawyerId ||
+          extractId(doc.uploadedById) === currentLawyerId;
         return isPersonal && isCreatedByMe;
       });
     }
-    if (activeSpace === "legal_reference") {
-      return activeDocs.filter((doc) => {
-        return String(getRecordLegalReferenceId(doc)) === String(activeLegalReferenceId);
-      });
-    }
     return activeDocs;
-  }, [companyDocs, documents, activeSpace, activeLegalReferenceId, currentLawyerId, caseDocs, quickScopeDocs]);
+  }, [
+    companyDocs,
+    documents,
+    activeSpace,
+    activeLegalReferenceId,
+    currentLawyerId,
+    caseDocs,
+    quickScopeDocs,
+    activeCaseReferenceId,
+    caseReferenceDocs,
+    activeLegalStudyId,
+  ]);
 
   const visibleFolders = useMemo(() => {
     if (activeSpace === "trash") {
@@ -2627,33 +4879,69 @@ const InternalTemplates = () => {
     if (activeSpace === "cases") {
       return caseVisibleFolders.filter((f) => !f.isDeleted);
     }
+    if (activeSpace === "legal_reference") {
+      return folders.filter((f) => {
+        if (f.isDeleted) return false;
+        return (
+          f.storageType === "legal_reference" &&
+          String(f.legalReferenceId) === String(activeLegalReferenceId)
+        );
+      });
+    }
+    if (activeSpace === "case_reference") {
+      return caseReferenceVisibleFolders.filter((f) => !f.isDeleted);
+    }
+    if (activeSpace === "legal_study") {
+      return folders.filter((f) => {
+        if (f.isDeleted) return false;
+        return (
+          f.storageType === "legal_study" &&
+          String(f.legalStudyId) === String(activeLegalStudyId)
+        );
+      });
+    }
 
     const activeFolders = companyFolders.filter((f) => !f.isDeleted);
 
     if (activeSpace === "company_shared") {
       return activeFolders.filter((f) => {
-        const isShared = f.storageType === "company_shared" || (!f.storageType && !getRecordDocumentType(f) && !getInternalTemplateRelationId(f) && !getRecordLegalReferenceId(f));
+        const isShared =
+          f.storageType === "company_shared" ||
+          (!f.storageType &&
+            !getRecordDocumentType(f) &&
+            !getInternalTemplateRelationId(f) &&
+            !getRecordLegalReferenceId(f));
         return isShared && f.storageType !== "legal_reference";
       });
     }
     if (activeSpace === "personal") {
-      return folders.filter((f) => f.storageType === "personal" && !f.isDeleted);
-    }
-    if (activeSpace === "legal_reference") {
-      return activeFolders.filter((f) => {
-        return String(getRecordLegalReferenceId(f)) === String(activeLegalReferenceId);
-      });
+      return folders.filter(
+        (f) => f.storageType === "personal" && !f.isDeleted,
+      );
     }
     return activeFolders;
-  }, [companyFolders, folders, activeSpace, activeLegalReferenceId, caseVisibleFolders, quickScopeFolders]);
-
+  }, [
+    companyFolders,
+    folders,
+    activeSpace,
+    activeLegalReferenceId,
+    caseVisibleFolders,
+    quickScopeFolders,
+    activeCaseReferenceId,
+    caseReferenceVisibleFolders,
+    activeLegalStudyId,
+  ]);
 
   // Permission-filtered: hide folders the current user has no access to
   const permissionFilteredFolders = useMemo(() => {
     const currentUser = currentUserState;
     if (!currentUser) return visibleFolders; // not yet loaded → show all (will re-filter after loadData)
     if (isAdminUser(currentUser)) return visibleFolders;
-    const { accessible } = getVisibleFolderIds(visibleFolders, currentUser, currentLawyerId);
+    const { accessible } = getVisibleFolderIds(
+      visibleFolders,
+      currentUser,
+      currentLawyerId,
+    );
     return visibleFolders.filter((f) => accessible.has(extractId(f.id)));
   }, [visibleFolders, currentUserState, currentLawyerId]);
 
@@ -2662,7 +4950,9 @@ const InternalTemplates = () => {
     const currentUser = currentUserState;
     if (!currentUser) return visibleDocs;
     if (isAdminUser(currentUser)) return visibleDocs;
-    const accessibleFolderIds = new Set(permissionFilteredFolders.map((f) => String(extractId(f.id))));
+    const accessibleFolderIds = new Set(
+      permissionFilteredFolders.map((f) => String(extractId(f.id))),
+    );
     return visibleDocs.filter((doc) => {
       const fId = String(extractId(doc.folderId) || "");
       // Root-level docs (no folder) are visible to all company members
@@ -2674,26 +4964,32 @@ const InternalTemplates = () => {
   // Current folder permissions for the selected folder
   const currentFolderPerms = useMemo(() => {
     const currentUser = currentUserState;
-    if (!currentUser) return { isManager: true, isMember: true, canEdit: true };
+    if (!currentUser) return roleToPerms("admin");
     if (selectedFolderId === "root") {
       if (activeSpace === "cases") {
-        return { isManager: true, isMember: true, canEdit: !!activeCaseIdValue };
+        return activeCaseIdValue ? roleToPerms("owner") : roleToPerms("viewer");
       }
-      if (activeSpace === "personal") {
-        return { isManager: true, isMember: true, canEdit: true };
-      }
-      // At root: admin can do anything; others can view but can't create unless they're manager of some folder
-      return isAdminUser(currentUser)
-        ? { isManager: true, isMember: true, canEdit: true }
-        : { isManager: isAdminUser(currentUser), isMember: true, canEdit: isAdminUser(currentUser) };
+      if (activeSpace === "personal") return roleToPerms("owner");
+      return isAdminUser(currentUser) ? roleToPerms("admin") : roleToPerms("viewer");
     }
-    const folder = visibleFolders.find((f) => String(extractId(f.id)) === String(selectedFolderId));
+    const folder = visibleFolders.find(
+      (f) => String(extractId(f.id)) === String(selectedFolderId),
+    );
     return getFolderPermissions(folder || null, currentUser, visibleFolders, currentLawyerId);
-  }, [selectedFolderId, visibleFolders, currentUserState, currentLawyerId, activeSpace, activeCaseIdValue]);
+  }, [
+    selectedFolderId,
+    visibleFolders,
+    currentUserState,
+    currentLawyerId,
+    activeSpace,
+    activeCaseIdValue,
+  ]);
 
   const folderMap = useMemo(() => {
     const map = new Map();
-    permissionFilteredFolders.forEach((folder) => map.set(String(extractId(folder)), folder));
+    permissionFilteredFolders.forEach((folder) =>
+      map.set(String(extractId(folder)), folder),
+    );
     return map;
   }, [permissionFilteredFolders]);
 
@@ -2734,19 +5030,27 @@ const InternalTemplates = () => {
     } else if (activeSpace === "personal") {
       rootName = "My Workspace";
     } else if (activeSpace === "company_shared") {
-      rootName = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+      rootName = activeCompany
+        ? getCompanyName(activeCompany)
+        : "Thư mục chung";
     } else if (activeSpace === "legal_reference") {
       const items = activeLegalReference
         ? [
-          { id: "legal_reference_root", name: "Tham chiếu" },
-          { id: "root", name: getLegalReferenceDisplayName(activeLegalReference) },
-        ]
+            { id: "legal_reference_root", name: "Tham chiếu" },
+            {
+              id: "root",
+              name: getLegalReferenceDisplayName(activeLegalReference),
+            },
+          ]
         : [{ id: "root", name: "Tham chiếu" }];
       if (selectedFolderId === "root") return items;
       const path = [];
       let current = folderMap.get(String(selectedFolderId));
       while (current) {
-        path.unshift({ id: String(extractId(current)), name: current.name || "Folder" });
+        path.unshift({
+          id: String(extractId(current)),
+          name: current.name || "Folder",
+        });
         current = folderMap.get(String(getFolderParentId(current)));
       }
       return items.concat(path);
@@ -2776,7 +5080,14 @@ const InternalTemplates = () => {
       current = folderMap.get(String(getFolderParentId(current)));
     }
     return items.concat(path);
-  }, [folderMap, selectedFolderId, activeSpace, activeCompany, activeLegalReference, activeCaseRootFolderId]);
+  }, [
+    folderMap,
+    selectedFolderId,
+    activeSpace,
+    activeCompany,
+    activeLegalReference,
+    activeCaseRootFolderId,
+  ]);
 
   const handleBreadcrumbClick = useCallback((item) => {
     if (item.id === "legal_reference_root") {
@@ -2791,9 +5102,18 @@ const InternalTemplates = () => {
   const sortDocs = useCallback(
     (items) => {
       const list = [...items];
-      if (sortMode === "newest") return list.sort((a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0));
-      if (sortMode === "oldest") return list.sort((a, b) => new Date(getDocDate(a) || 0) - new Date(getDocDate(b) || 0));
-      if (sortMode === "name") return list.sort((a, b) => getDocTitle(a).localeCompare(getDocTitle(b), "vi"));
+      if (sortMode === "newest")
+        return list.sort(
+          (a, b) => new Date(getDocDate(b) || 0) - new Date(getDocDate(a) || 0),
+        );
+      if (sortMode === "oldest")
+        return list.sort(
+          (a, b) => new Date(getDocDate(a) || 0) - new Date(getDocDate(b) || 0),
+        );
+      if (sortMode === "name")
+        return list.sort((a, b) =>
+          getDocTitle(a).localeCompare(getDocTitle(b), "vi"),
+        );
       return list.sort((a, b) => {
         const ai = Number(a.fileIndex) || 0;
         const bi = Number(b.fileIndex) || 0;
@@ -2809,9 +5129,14 @@ const InternalTemplates = () => {
   const tableData = useMemo(() => {
     const q = query.trim().toLowerCase();
     const logicalRootFolderId =
-      activeSpace === "cases" && activeCaseRootFolderId ? String(activeCaseRootFolderId) : null;
+      activeSpace === "cases" && activeCaseRootFolderId
+        ? String(activeCaseRootFolderId)
+        : activeSpace === "case_reference" && activeCaseReferenceRootFolderId
+          ? String(activeCaseReferenceRootFolderId)
+          : null;
     const currentFolderKey =
-      selectedFolderId === "root" || (logicalRootFolderId && String(selectedFolderId) === logicalRootFolderId)
+      selectedFolderId === "root" ||
+      (logicalRootFolderId && String(selectedFolderId) === logicalRootFolderId)
         ? "root"
         : String(selectedFolderId);
     const isSearching = !!q;
@@ -2829,29 +5154,69 @@ const InternalTemplates = () => {
       }));
       let rows = [...folderItems, ...docItems];
       if (isSearching) {
-        rows = rows.filter(r => {
+        rows = rows.filter((r) => {
           if (r._type === "folder") {
             return (r.name || "").toLowerCase().includes(q);
           } else {
             const title = getDocTitle(r);
-            return `${title} ${r.description || ""} ${getDocCode(r)} ${getRecordDocumentType(r) || r.documentType || ""}`.toLowerCase().includes(q);
+            return `${title} ${r.description || ""} ${getDocCode(r)} ${getRecordDocumentType(r) || r.documentType || ""}`
+              .toLowerCase()
+              .includes(q);
           }
         });
       }
-      return rows.sort((a, b) => new Date(b.deletedAt || b.updatedAt || 0) - new Date(a.deletedAt || a.updatedAt || 0));
+      return rows.sort(
+        (a, b) =>
+          new Date(b.deletedAt || b.updatedAt || 0) -
+          new Date(a.deletedAt || a.updatedAt || 0),
+      );
     }
 
     if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
       let rows = filteredLegalReferences;
       if (isSearching) {
-        rows = rows.filter(r =>
-          `${r.referenceCode || ""} ${r.title || ""} ${r.description || ""}`.toLowerCase().includes(q)
+        rows = rows.filter((r) =>
+          `${r.referenceCode || ""} ${r.title || ""} ${r.description || ""}`
+            .toLowerCase()
+            .includes(q),
         );
       }
-      return rows.map(r => ({
+      return rows.map((r) => ({
         ...r,
         _type: "legal_reference_record",
         _key: `ref_${extractId(r)}`,
+      }));
+    }
+
+    if (activeSpace === "case_reference" && !activeCaseReferenceId) {
+      let rows = caseReferences;
+      if (isSearching) {
+        rows = rows.filter((r) =>
+          `${r.caseCode || r.projectCode || ""} ${r.projectName || r.title || ""} ${r.description || ""}`
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      return rows.map((r) => ({
+        ...r,
+        _type: "case_reference_record",
+        _key: `case_ref_${extractId(r)}`,
+      }));
+    }
+
+    if (activeSpace === "legal_study" && !activeLegalStudyId) {
+      let rows = legalStudies;
+      if (isSearching) {
+        rows = rows.filter((r) =>
+          `${r.title || r.name || ""} ${r.description || ""}`
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      return rows.map((r) => ({
+        ...r,
+        _type: "legal_study_record",
+        _key: `study_ref_${extractId(r)}`,
       }));
     }
 
@@ -2859,26 +5224,34 @@ const InternalTemplates = () => {
     let docRows = [];
 
     if (isSearching) {
-      const allowedFolderIds = currentFolderKey === "root"
-        ? (logicalRootFolderId ? new Set(getDescendantIds(logicalRootFolderId)) : null)
-        : new Set(getDescendantIds(selectedFolderId));
+      const allowedFolderIds =
+        currentFolderKey === "root"
+          ? logicalRootFolderId
+            ? new Set(getDescendantIds(logicalRootFolderId))
+            : null
+          : new Set(getDescendantIds(selectedFolderId));
       folderRows = permissionFilteredFolders.filter((folder) => {
         const folderId = String(extractId(folder));
-        if (logicalRootFolderId && folderId === logicalRootFolderId) return false;
+        if (logicalRootFolderId && folderId === logicalRootFolderId)
+          return false;
         if (allowedFolderIds && !allowedFolderIds.has(folderId)) return false;
-        return String(folder.name || "").toLowerCase().includes(q);
+        return String(folder.name || "")
+          .toLowerCase()
+          .includes(q);
       });
       docRows = permissionFilteredDocs.filter((doc) => {
         const folderId = String(extractId(doc.folderId) || "");
         if (allowedFolderIds && !allowedFolderIds.has(folderId)) return false;
-        const text = `${getDocTitle(doc)} ${doc.description || ""} ${getDocCode(doc)} ${getRecordDocumentType(doc) || doc.documentType || ""}`.toLowerCase();
+        const text =
+          `${getDocTitle(doc)} ${doc.description || ""} ${getDocCode(doc)} ${getRecordDocumentType(doc) || doc.documentType || ""}`.toLowerCase();
         return text.includes(q);
       });
     } else {
       folderRows = permissionFilteredFolders.filter((folder) => {
         const parentId = getFolderParentId(folder);
         if (currentFolderKey === "root") {
-          if (logicalRootFolderId) return String(parentId || "") === logicalRootFolderId;
+          if (logicalRootFolderId)
+            return String(parentId || "") === logicalRootFolderId;
           return !parentId || !folderMap.has(String(parentId));
         }
         return String(parentId || "") === currentFolderKey;
@@ -2886,7 +5259,8 @@ const InternalTemplates = () => {
       docRows = permissionFilteredDocs.filter((doc) => {
         const folderId = extractId(doc.folderId);
         if (currentFolderKey === "root") {
-          if (logicalRootFolderId) return String(folderId || "") === logicalRootFolderId;
+          if (logicalRootFolderId)
+            return String(folderId || "") === logicalRootFolderId;
           return !folderId || !folderMap.has(String(folderId));
         }
         return String(folderId || "") === currentFolderKey;
@@ -2895,7 +5269,7 @@ const InternalTemplates = () => {
 
     if (selectedExt && selectedExt !== "all") {
       docRows = docRows.filter((doc) => {
-        const ext = getFileExtension(doc).replace('.', '').toLowerCase();
+        const ext = getFileExtension(doc).replace(".", "").toLowerCase();
         return ext === selectedExt;
       });
     }
@@ -2914,15 +5288,50 @@ const InternalTemplates = () => {
     }));
 
     return [...folderItems, ...docItems];
-  }, [query, selectedFolderId, activeSpace, activeCaseRootFolderId, permissionFilteredFolders, permissionFilteredDocs, folderMap, getDescendantIds, sortDocs, getRecordDocumentType, selectedExt]);
+  }, [
+    query,
+    selectedFolderId,
+    activeSpace,
+    activeCaseRootFolderId,
+    activeCaseReferenceRootFolderId,
+    permissionFilteredFolders,
+    permissionFilteredDocs,
+    folderMap,
+    getDescendantIds,
+    sortDocs,
+    getRecordDocumentType,
+    selectedExt,
+    filteredLegalReferences,
+    activeLegalReferenceId,
+    caseReferences,
+    activeCaseReferenceId,
+    legalStudies,
+    activeLegalStudyId,
+  ]);
 
   const companySharedCounts = useMemo(() => {
     const fCount = folders.filter((f) => {
-      return !f.isDeleted && matchesInternalCompany(f, activeCompanyId) && (f.storageType === "company_shared" || (!f.storageType && !getRecordDocumentType(f) && !getInternalTemplateRelationId(f) && !getRecordLegalReferenceId(f)));
+      return (
+        !f.isDeleted &&
+        matchesInternalCompany(f, activeCompanyId) &&
+        (f.storageType === "company_shared" ||
+          (!f.storageType &&
+            !getRecordDocumentType(f) &&
+            !getInternalTemplateRelationId(f) &&
+            !getRecordLegalReferenceId(f)))
+      );
     }).length;
 
     const dCount = documents.filter((doc) => {
-      return !doc.isDeleted && matchesInternalCompany(doc, activeCompanyId) && (doc.storageType === "company_shared" || (!doc.storageType && !getRecordDocumentType(doc) && !getInternalTemplateRelationId(doc) && !getRecordLegalReferenceId(doc)));
+      return (
+        !doc.isDeleted &&
+        matchesInternalCompany(doc, activeCompanyId) &&
+        (doc.storageType === "company_shared" ||
+          (!doc.storageType &&
+            !getRecordDocumentType(doc) &&
+            !getInternalTemplateRelationId(doc) &&
+            !getRecordLegalReferenceId(doc)))
+      );
     }).length;
 
     return { folders: fCount, files: dCount };
@@ -2936,14 +5345,20 @@ const InternalTemplates = () => {
       const currentUser = currentUserState;
       if (!currentUser) return true;
       if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
       return accessible.has(extractId(f.id));
     }).length;
 
     const dCount = documents.filter((doc) => {
       if (doc.isDeleted) return false;
       const isPersonal = doc.storageType === "personal";
-      const isCreatedByMe = extractId(doc.createdById) === currentLawyerId || extractId(doc.uploadedById) === currentLawyerId;
+      const isCreatedByMe =
+        extractId(doc.createdById) === currentLawyerId ||
+        extractId(doc.uploadedById) === currentLawyerId;
       return isPersonal && isCreatedByMe;
     }).length;
 
@@ -2959,7 +5374,11 @@ const InternalTemplates = () => {
       const currentUser = currentUserState;
       if (!currentUser) return true;
       if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
       return accessible.has(extractId(f.id));
     });
   }, [folders, currentUserState, currentLawyerId]);
@@ -2975,7 +5394,11 @@ const InternalTemplates = () => {
       const currentUser = currentUserState;
       if (!currentUser) return true;
       if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(caseVisibleFolders, currentUser, currentLawyerId);
+      const { accessible } = getVisibleFolderIds(
+        caseVisibleFolders,
+        currentUser,
+        currentLawyerId,
+      );
       return accessible.has(extractId(folder.id));
     });
   }, [
@@ -2990,14 +5413,23 @@ const InternalTemplates = () => {
     return folders.filter((f) => {
       if (f.isDeleted) return false;
       if (!matchesInternalCompany(f, activeCompanyId)) return false;
-      const isShared = f.storageType === "company_shared" || (!f.storageType && !getRecordDocumentType(f) && !getInternalTemplateRelationId(f) && !getRecordLegalReferenceId(f));
+      const isShared =
+        f.storageType === "company_shared" ||
+        (!f.storageType &&
+          !getRecordDocumentType(f) &&
+          !getInternalTemplateRelationId(f) &&
+          !getRecordLegalReferenceId(f));
       if (!isShared) return false;
       const pId = getFolderParentId(f);
       if (pId && pId !== "root") return false;
       const currentUser = currentUserState;
       if (!currentUser) return true;
       if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
       return accessible.has(extractId(f.id));
     });
   }, [folders, activeCompanyId, currentUserState, currentLawyerId]);
@@ -3005,23 +5437,80 @@ const InternalTemplates = () => {
   const legalReferenceRootFolders = useMemo(() => {
     return folders.filter((f) => {
       if (f.isDeleted) return false;
-      if (String(getRecordLegalReferenceId(f)) !== String(activeLegalReferenceId)) return false;
+      if (
+        String(getRecordLegalReferenceId(f)) !== String(activeLegalReferenceId)
+      )
+        return false;
       const pId = getFolderParentId(f);
       if (pId && pId !== "root") return false;
       const currentUser = currentUserState;
       if (!currentUser) return true;
       if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
       return accessible.has(extractId(f.id));
     });
   }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId]);
+
+  const caseReferenceRootFolders = useMemo(() => {
+    return folders.filter((f) => {
+      if (f.isDeleted) return false;
+      if (String(getLinkedCaseId(f)) !== String(activeCaseReferenceId))
+        return false;
+      const pId = getFolderParentId(f);
+      if (pId && pId !== "root" && caseReferenceFolderIdSet.has(String(pId)))
+        return false;
+      const currentUser = currentUserState;
+      if (!currentUser) return true;
+      if (isAdminUser(currentUser)) return true;
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
+      return accessible.has(extractId(f.id));
+    });
+  }, [
+    folders,
+    activeCaseReferenceId,
+    currentUserState,
+    currentLawyerId,
+    caseReferenceFolderIdSet,
+  ]);
+
+  const legalStudyRootFolders = useMemo(() => {
+    return folders.filter((f) => {
+      if (f.isDeleted) return false;
+      if (
+        f.storageType !== "legal_study" ||
+        String(f.legalStudyId) !== String(activeLegalStudyId)
+      )
+        return false;
+      const pId = getFolderParentId(f);
+      if (pId && pId !== "root") return false;
+      const currentUser = currentUserState;
+      if (!currentUser) return true;
+      if (isAdminUser(currentUser)) return true;
+      const { accessible } = getVisibleFolderIds(
+        folders,
+        currentUser,
+        currentLawyerId,
+      );
+      return accessible.has(extractId(f.id));
+    });
+  }, [folders, activeLegalStudyId, currentUserState, currentLawyerId]);
 
   const treeData = useMemo(() => {
     const build = (parentId) =>
       permissionFilteredFolders
         .filter((folder) => {
           const pId = getFolderParentId(folder);
-          return parentId === "root" ? !pId || !folderMap.has(String(pId)) : String(pId || "") === String(parentId);
+          return parentId === "root"
+            ? !pId || !folderMap.has(String(pId))
+            : String(pId || "") === String(parentId);
         })
         .sort(sortByCreatedAt)
         .map((folder) => ({
@@ -3037,15 +5526,35 @@ const InternalTemplates = () => {
     } else if (activeSpace === "personal") {
       dynamicRootTitle = "My Workspace";
     } else if (activeSpace === "company_shared") {
-      dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+      dynamicRootTitle = activeCompany
+        ? getCompanyName(activeCompany)
+        : "Thư mục chung";
     } else if (activeSpace === "legal_reference") {
-      dynamicRootTitle = activeLegalReference ? getLegalReferenceDisplayName(activeLegalReference) : (DASHBOARD_CONFIG.label?.sidebar || "Tham chiếu");
+      dynamicRootTitle = activeLegalReference
+        ? getLegalReferenceDisplayName(activeLegalReference)
+        : DASHBOARD_CONFIG.label?.sidebar || "Tham chiếu";
     }
 
     const buildRootId =
-      activeSpace === "cases" && activeCaseRootFolderId ? String(activeCaseRootFolderId) : "root";
-    return [{ title: dynamicRootTitle, value: "root", key: "root", children: build(buildRootId) }];
-  }, [permissionFilteredFolders, folderMap, activeSpace, activeCompany, activeLegalReference, activeCaseRootFolderId]);
+      activeSpace === "cases" && activeCaseRootFolderId
+        ? String(activeCaseRootFolderId)
+        : "root";
+    return [
+      {
+        title: dynamicRootTitle,
+        value: "root",
+        key: "root",
+        children: build(buildRootId),
+      },
+    ];
+  }, [
+    permissionFilteredFolders,
+    folderMap,
+    activeSpace,
+    activeCompany,
+    activeLegalReference,
+    activeCaseRootFolderId,
+  ]);
 
   const moveTreeData = useMemo(() => {
     if (!moveRecord || moveRecord._type !== "folder") return treeData;
@@ -3054,7 +5563,10 @@ const InternalTemplates = () => {
     const filterNodes = (nodes) =>
       nodes
         .filter((node) => !excluded.has(String(node.value)))
-        .map((node) => ({ ...node, children: filterNodes(node.children || []) }));
+        .map((node) => ({
+          ...node,
+          children: filterNodes(node.children || []),
+        }));
     return filterNodes(treeData);
   }, [moveRecord, treeData, getDescendantIds]);
 
@@ -3064,9 +5576,12 @@ const InternalTemplates = () => {
       if (activeSpace === "cases" && !normalized) {
         return activeCaseRootFolderId || null;
       }
+      if (activeSpace === "case_reference" && !normalized) {
+        return activeCaseReferenceRootFolderId || null;
+      }
       return normalized;
     },
-    [activeSpace, activeCaseRootFolderId],
+    [activeSpace, activeCaseRootFolderId, activeCaseReferenceRootFolderId],
   );
 
   const applyCaseFolderPayload = useCallback(
@@ -3100,10 +5615,141 @@ const InternalTemplates = () => {
     [activeCaseIdValue, activeCaseCustomerId],
   );
 
+  const applySpaceFolderPayload = useCallback(
+    (payload) => {
+      if (activeSpace === "cases") {
+        return applyCaseFolderPayload(payload);
+      }
+      if (activeSpace === "case_reference") {
+        const caseId = extractId(activeCaseReferenceId);
+        payload.type = "cases";
+        payload.storageType = "cases";
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        payload.projectId = caseId;
+        const custId = extractId(activeCaseReferenceRecord?.customerId);
+        if (custId) {
+          payload.customerId = custId;
+        }
+        return payload;
+      }
+      if (activeSpace === "legal_study") {
+        payload.storageType = "legal_study";
+        payload.legalStudyId = extractId(activeLegalStudyId);
+        payload.moduleScope = "legal_study";
+        if (activeCaseIdValue) {
+          payload.projectId = extractId(activeCaseIdValue);
+        }
+        return payload;
+      }
+      if (activeSpace === "company_shared") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        return payload;
+      }
+      if (activeSpace === "personal") {
+        if (activeCompanyId) {
+          payload.internalCompanyId = extractId(activeCompanyId);
+        }
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        return payload;
+      }
+      if (activeSpace === "legal_reference") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.legalReferenceId = extractId(activeLegalReferenceId);
+        payload.moduleScope = "legal_reference";
+        if (activeCaseIdValue) {
+          payload.projectId = extractId(activeCaseIdValue);
+        }
+        return payload;
+      }
+      return payload;
+    },
+    [
+      activeSpace,
+      activeCaseIdValue,
+      activeCaseReferenceId,
+      activeCaseReferenceRecord,
+      activeLegalStudyId,
+      activeCompanyId,
+      activeLegalReferenceId,
+      applyCaseFolderPayload,
+    ],
+  );
+
+  const applySpaceDocumentPayload = useCallback(
+    (payload) => {
+      if (activeSpace === "cases") {
+        return applyCaseDocumentPayload(payload);
+      }
+      if (activeSpace === "case_reference") {
+        const caseId = extractId(activeCaseReferenceId);
+        payload.storageType = "cases";
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        payload.caseId = caseId;
+        const custId = extractId(activeCaseReferenceRecord?.customerId);
+        if (custId) {
+          payload.customerId = custId;
+        }
+        return payload;
+      }
+      if (activeSpace === "legal_study") {
+        payload.storageType = "legal_study";
+        payload.legalStudyId = extractId(activeLegalStudyId);
+        payload.moduleScope = "legal_study";
+        if (activeCaseIdValue) {
+          payload.caseId = extractId(activeCaseIdValue);
+        }
+        return payload;
+      }
+      if (activeSpace === "company_shared") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        return payload;
+      }
+      if (activeSpace === "personal") {
+        if (activeCompanyId) {
+          payload.internalCompanyId = extractId(activeCompanyId);
+        }
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        return payload;
+      }
+      if (activeSpace === "legal_reference") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.legalReferenceId = extractId(activeLegalReferenceId);
+        payload.moduleScope = "legal_reference";
+        if (activeCaseIdValue) {
+          payload.caseId = extractId(activeCaseIdValue);
+        }
+        return payload;
+      }
+      return payload;
+    },
+    [
+      activeSpace,
+      activeCaseIdValue,
+      activeCaseReferenceId,
+      activeCaseReferenceRecord,
+      activeLegalStudyId,
+      activeCompanyId,
+      activeLegalReferenceId,
+      applyCaseDocumentPayload,
+    ],
+  );
+
   const requireCompany = () => {
     if (activeSpace === "cases") {
       if (activeCaseIdValue) return true;
-      message.warning("Khong tim thay case hien tai");
+      message.warning("Không tìm thấy case hiện tại");
+      return false;
+    }
+    if (activeSpace === "case_reference") {
+      if (activeCaseReferenceId) return true;
+      message.warning("Vui lòng chọn case tham chiếu trước");
+      return false;
+    }
+    if (activeSpace === "legal_study") {
+      if (activeLegalStudyId) return true;
+      message.warning("Vui lòng chọn nghiên cứu pháp lý trước");
       return false;
     }
     if (activeSpace === "personal") return true;
@@ -3117,11 +5763,35 @@ const InternalTemplates = () => {
       const parentId = normalizeParentId(folderId);
       try {
         const filter = {
-          moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes },
+          moduleScope: {
+            $in: [
+              ...DASHBOARD_CONFIG.moduleScopes,
+              "legal_reference",
+              "legal_study",
+            ],
+          },
           ...(parentId ? { folderId: { $eq: parentId } } : {}),
         };
         if (activeSpace === "cases" && activeCaseIdValue && !parentId) {
           filter.caseId = { $eq: extractId(activeCaseIdValue) };
+        } else if (
+          activeSpace === "case_reference" &&
+          activeCaseReferenceId &&
+          !parentId
+        ) {
+          filter.caseId = { $eq: extractId(activeCaseReferenceId) };
+        } else if (
+          activeSpace === "legal_reference" &&
+          activeLegalReferenceId &&
+          !parentId
+        ) {
+          filter.legalReferenceId = { $eq: extractId(activeLegalReferenceId) };
+        } else if (
+          activeSpace === "legal_study" &&
+          activeLegalStudyId &&
+          !parentId
+        ) {
+          filter.legalStudyId = { $eq: extractId(activeLegalStudyId) };
         } else if (activeSpace === "personal") {
           filter.storageType = { $eq: "personal" };
         } else if (activeCompanyId) {
@@ -3135,14 +5805,27 @@ const InternalTemplates = () => {
             sort: ["-fileIndex", "-createdAt"],
           }),
         });
-        const sameFolderDocs = (res?.data?.data || []).filter((doc) => String(extractId(doc.folderId) || "") === String(parentId || ""));
-        const maxIndex = sameFolderDocs.reduce((max, doc) => Math.max(max, Number(doc.fileIndex) || 0), 0);
+        const sameFolderDocs = (res?.data?.data || []).filter(
+          (doc) =>
+            String(extractId(doc.folderId) || "") === String(parentId || ""),
+        );
+        const maxIndex = sameFolderDocs.reduce(
+          (max, doc) => Math.max(max, Number(doc.fileIndex) || 0),
+          0,
+        );
         return maxIndex + 1;
       } catch (e) {
         return 1;
       }
     },
-    [activeCompanyId, activeSpace, activeCaseIdValue],
+    [
+      activeCompanyId,
+      activeSpace,
+      activeCaseIdValue,
+      activeCaseReferenceId,
+      activeLegalReferenceId,
+      activeLegalStudyId,
+    ],
   );
 
   const reindexFolderFiles = useCallback(
@@ -3162,15 +5845,17 @@ const InternalTemplates = () => {
           return sortByCreatedAt(a, b);
         });
       await Promise.all(
-        items.map((doc, index) =>
-          Number(doc.fileIndex) === index + 1
-            ? null
-            : requestDocumentApi({
-              url: `documents:update?filterByTk=${extractId(doc)}`,
-              method: "POST",
-              data: { fileIndex: index + 1 },
-            }),
-        ).filter(Boolean),
+        items
+          .map((doc, index) =>
+            Number(doc.fileIndex) === index + 1
+              ? null
+              : requestDocumentApi({
+                  url: `documents:update?filterByTk=${extractId(doc)}`,
+                  method: "POST",
+                  data: { fileIndex: index + 1 },
+                }),
+          )
+          .filter(Boolean),
       );
     },
     [documents, activeCompanyId, activeSpace, caseDocs],
@@ -3195,7 +5880,9 @@ const InternalTemplates = () => {
         description: values.description?.trim() || "",
         internalCompanyId: extractId(activeCompanyId),
         cases: mergedCaseIds,
-        ...(values.sourceCaseId ? { sourceCaseId: Number(values.sourceCaseId) } : {}),
+        ...(values.sourceCaseId
+          ? { sourceCaseId: Number(values.sourceCaseId) }
+          : {}),
         ...(userId ? { createdById: userId, updatedById: userId } : {}),
       };
       await createLegalReferenceRecord(payload);
@@ -3220,7 +5907,7 @@ const InternalTemplates = () => {
       const candidates = [
         `legalReference:update?filterByTk=${rId}`,
         `legalReferences:update?filterByTk=${rId}`,
-        `LegalReference:update?filterByTk=${rId}`
+        `LegalReference:update?filterByTk=${rId}`,
       ];
       let success = false;
       let lastError = null;
@@ -3259,30 +5946,37 @@ const InternalTemplates = () => {
     setSelectedFolderId("root");
   }, []);
 
-  const openLinkCaseModal = useCallback((record) => {
-    if (!record) return;
-    const linkedIds = (record.cases || []).map(item => String(extractId(item)));
-    setLinkCaseRecord(record);
-    linkCaseForm.resetFields();
-    linkCaseForm.setFieldsValue({ caseIds: linkedIds });
-    setIsLinkCaseOpen(true);
-  }, [linkCaseForm]);
+  const openLinkCaseModal = useCallback(
+    (record) => {
+      if (!record) return;
+      const linkedIds = (record.cases || []).map((item) =>
+        String(extractId(item)),
+      );
+      setLinkCaseRecord(record);
+      linkCaseForm.resetFields();
+      linkCaseForm.setFieldsValue({ caseIds: linkedIds });
+      setIsLinkCaseOpen(true);
+    },
+    [linkCaseForm],
+  );
 
   const handleLinkCaseSubmit = async (values) => {
     setLinkCaseLoading(true);
     try {
-      const targetLegalReferenceId = String(extractId(linkCaseRecord) || activeLegalReferenceId || "");
+      const targetLegalReferenceId = String(
+        extractId(linkCaseRecord) || activeLegalReferenceId || "",
+      );
       if (!targetLegalReferenceId) {
         message.warning("Vui lòng chọn Case Tham Chiếu cần liên kết");
         return;
       }
       const payload = {
-        cases: (values.caseIds || []).map(caseId => Number(caseId))
+        cases: (values.caseIds || []).map((caseId) => Number(caseId)),
       };
       const candidates = [
         `legalReference:update?filterByTk=${targetLegalReferenceId}`,
         `legalReferences:update?filterByTk=${targetLegalReferenceId}`,
-        `LegalReference:update?filterByTk=${targetLegalReferenceId}`
+        `LegalReference:update?filterByTk=${targetLegalReferenceId}`,
       ];
       let success = false;
       let lastError = null;
@@ -3291,7 +5985,7 @@ const InternalTemplates = () => {
           await ctx.api.request({
             url,
             method: "POST",
-            data: payload
+            data: payload,
           });
           success = true;
           break;
@@ -3335,21 +6029,7 @@ const InternalTemplates = () => {
         ...(userId ? { createdById: userId, updatedById: userId } : {}),
       };
 
-      if (activeSpace === "cases") {
-        applyCaseFolderPayload(payload);
-      } else if (activeSpace === "company_shared") {
-        payload.internalCompanyId = extractId(activeCompanyId);
-        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-      } else if (activeSpace === "personal") {
-        if (activeCompanyId) {
-          payload.internalCompanyId = extractId(activeCompanyId);
-        }
-        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-      } else if (activeSpace === "legal_reference") {
-        payload.internalCompanyId = extractId(activeCompanyId);
-        payload.legalReferenceId = extractId(activeLegalReferenceId);
-        payload.moduleScope = "legal_reference";
-      }
+      applySpaceFolderPayload(payload);
 
       await createFolderRecord(payload);
       message.success("Tạo thư mục thành công!");
@@ -3381,7 +6061,9 @@ const InternalTemplates = () => {
     setUploadLoading(true);
     try {
       const folderId = getEffectiveFolderId(selectedFolderId);
-      const attachment = hasFile ? await uploadAttachment(uploadFileList[0].originFileObj) : null;
+      const attachment = hasFile
+        ? await uploadAttachment(uploadFileList[0].originFileObj)
+        : null;
       const title = hasFile ? uploadFileList[0].name : "Google Drive Link";
       const userId = getCurrentUserId();
       const nowIso = new Date().toISOString();
@@ -3399,24 +6081,12 @@ const InternalTemplates = () => {
         storageType: activeSpace,
         ...(folderId ? { folderId } : {}),
         ...(attachment ? { fileAttachment: [{ id: attachment.id }] } : {}),
-        ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+        ...(userId
+          ? { uploadedById: userId, createdById: userId, updatedById: userId }
+          : {}),
       };
 
-      if (activeSpace === "cases") {
-        applyCaseDocumentPayload(payload);
-      } else if (activeSpace === "company_shared") {
-        payload.internalCompanyId = extractId(activeCompanyId);
-        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-      } else if (activeSpace === "personal") {
-        if (activeCompanyId) {
-          payload.internalCompanyId = extractId(activeCompanyId);
-        }
-        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-      } else if (activeSpace === "legal_reference") {
-        payload.internalCompanyId = extractId(activeCompanyId);
-        payload.legalReferenceId = extractId(activeLegalReferenceId);
-        payload.moduleScope = "legal_reference";
-      }
+      applySpaceDocumentPayload(payload);
 
       await createDocumentRecord(payload);
       message.success("Upload thành công!");
@@ -3460,14 +6130,25 @@ const InternalTemplates = () => {
         });
       });
 
-      const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
+      const sortedPaths = Array.from(folderPaths).sort(
+        (a, b) => a.split("/").length - b.split("/").length,
+      );
       const userId = getCurrentUserId();
       setBulkProgress(`Đang tạo ${sortedPaths.length} thư mục...`);
 
       const nowIso = new Date().toISOString();
-      for (let folderIndex = 0; folderIndex < sortedPaths.length; folderIndex++) {
+      for (
+        let folderIndex = 0;
+        folderIndex < sortedPaths.length;
+        folderIndex++
+      ) {
         const path = sortedPaths[folderIndex];
-        setBulkPercent(5 + Math.round(((folderIndex + 1) / Math.max(sortedPaths.length, 1)) * 25));
+        setBulkPercent(
+          5 +
+            Math.round(
+              ((folderIndex + 1) / Math.max(sortedPaths.length, 1)) * 25,
+            ),
+        );
         const parts = path.split("/");
         const folderName = parts.pop();
         const parentPath = parts.join("/");
@@ -3483,25 +6164,7 @@ const InternalTemplates = () => {
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
 
-        if (activeSpace === "cases") {
-          applyCaseFolderPayload(folderPayload);
-        } else if (activeSpace === "company_shared") {
-          folderPayload.internalCompanyId = extractId(activeCompanyId);
-          folderPayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === "personal") {
-          if (activeCompanyId) {
-            folderPayload.internalCompanyId = extractId(activeCompanyId);
-          }
-          folderPayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === "legal_reference") {
-          folderPayload.internalCompanyId = extractId(activeCompanyId);
-          folderPayload.legalReferenceId = extractId(activeLegalReferenceId);
-          folderPayload.moduleScope = "legal_reference";
-        } else {
-          Object.assign(folderPayload, {
-            ...buildScopePayload(activeCompanyId),
-          });
-        }
+        applySpaceFolderPayload(folderPayload);
 
         const res = await createFolderRecord(folderPayload);
         folderIdMap[path] = extractId(res?.data?.data);
@@ -3520,8 +6183,15 @@ const InternalTemplates = () => {
 
       for (let index = 0; index < pendingFolderFiles.length; index++) {
         const file = pendingFolderFiles[index];
-        setBulkProgress(`Đang tải file ${index + 1}/${pendingFolderFiles.length}...`);
-        setBulkPercent(30 + Math.round(((index + 1) / Math.max(pendingFolderFiles.length, 1)) * 65));
+        setBulkProgress(
+          `Đang tải file ${index + 1}/${pendingFolderFiles.length}...`,
+        );
+        setBulkPercent(
+          30 +
+            Math.round(
+              ((index + 1) / Math.max(pendingFolderFiles.length, 1)) * 65,
+            ),
+        );
         const relativePath = file.webkitRelativePath || file.name;
         const parts = relativePath.split("/");
         const fileName = parts.pop();
@@ -3541,28 +6211,12 @@ const InternalTemplates = () => {
           uploaded_at: fileNowIso,
           storageType: activeSpace,
           ...(targetFolderId ? { folderId: targetFolderId } : {}),
-          ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+          ...(userId
+            ? { uploadedById: userId, createdById: userId, updatedById: userId }
+            : {}),
         };
 
-        if (activeSpace === "cases") {
-          applyCaseDocumentPayload(filePayload);
-        } else if (activeSpace === "company_shared") {
-          filePayload.internalCompanyId = extractId(activeCompanyId);
-          filePayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === "personal") {
-          if (activeCompanyId) {
-            filePayload.internalCompanyId = extractId(activeCompanyId);
-          }
-          filePayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === "legal_reference") {
-          filePayload.internalCompanyId = extractId(activeCompanyId);
-          filePayload.legalReferenceId = extractId(activeLegalReferenceId);
-          filePayload.moduleScope = "legal_reference";
-        } else {
-          Object.assign(filePayload, {
-            ...buildScopePayload(activeCompanyId),
-          });
-        }
+        applySpaceDocumentPayload(filePayload);
 
         await createDocumentRecord(filePayload);
       }
@@ -3611,7 +6265,10 @@ const InternalTemplates = () => {
             fileIndex: await getNextFileIndex(targetId),
           },
         });
-        await Promise.all([reindexFolderFiles(oldFolderId), reindexFolderFiles(targetId)]);
+        await Promise.all([
+          reindexFolderFiles(oldFolderId),
+          reindexFolderFiles(targetId),
+        ]);
         message.success("Đã di chuyển tài liệu");
       }
       setMoveRecord(null);
@@ -3625,29 +6282,40 @@ const InternalTemplates = () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
       title: `Khôi phục ${selectedRowKeys.length} mục đã chọn?`,
-      content: "Các thư mục và tài liệu sẽ được đưa trở lại không gian ban đầu.",
+      content:
+        "Các thư mục và tài liệu sẽ được đưa trở lại không gian ban đầu.",
       okText: "Khôi phục",
       cancelText: "Hủy",
       onOk: async () => {
         try {
-          await Promise.all(selectedRowKeys.map(async (key) => {
-            const isFolder = key.startsWith("folder_");
-            const rId = Number(key.replace("folder_", "").replace("file_", ""));
-            const url = isFolder ? `folders:update?filterByTk=${rId}` : `documents:update?filterByTk=${rId}`;
-            const requestOptions = {
-              url,
-              method: "POST",
-              data: { isDeleted: false, deletedAt: null },
-            };
-            await (isFolder ? ctx.api.request(requestOptions) : requestDocumentApi(requestOptions));
-          }));
-          message.success(`Đã khôi phục ${selectedRowKeys.length} mục thành công!`);
+          await Promise.all(
+            selectedRowKeys.map(async (key) => {
+              const isFolder = key.startsWith("folder_");
+              const rId = Number(
+                key.replace("folder_", "").replace("file_", ""),
+              );
+              const url = isFolder
+                ? `folders:update?filterByTk=${rId}`
+                : `documents:update?filterByTk=${rId}`;
+              const requestOptions = {
+                url,
+                method: "POST",
+                data: { isDeleted: false, deletedAt: null },
+              };
+              await (isFolder
+                ? ctx.api.request(requestOptions)
+                : requestDocumentApi(requestOptions));
+            }),
+          );
+          message.success(
+            `Đã khôi phục ${selectedRowKeys.length} mục thành công!`,
+          );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
           message.error("Khôi phục thất bại");
         }
-      }
+      },
     });
   };
 
@@ -3655,28 +6323,35 @@ const InternalTemplates = () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
       title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
-      content: "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa khỏi hệ thống.",
+      content:
+        "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa khỏi hệ thống.",
       okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
       onOk: async () => {
         try {
-          await Promise.all(selectedRowKeys.map(async (key) => {
-            const isFolder = key.startsWith("folder_");
-            const rId = Number(key.replace("folder_", "").replace("file_", ""));
-            const url = isFolder ? `folders:destroy?filterByTk=${rId}` : `documents:destroy?filterByTk=${rId}`;
-            await ctx.api.request({
-              url,
-              method: "POST",
-            });
-          }));
+          await Promise.all(
+            selectedRowKeys.map(async (key) => {
+              const isFolder = key.startsWith("folder_");
+              const rId = Number(
+                key.replace("folder_", "").replace("file_", ""),
+              );
+              const url = isFolder
+                ? `folders:destroy?filterByTk=${rId}`
+                : `documents:destroy?filterByTk=${rId}`;
+              await ctx.api.request({
+                url,
+                method: "POST",
+              });
+            }),
+          );
           message.success(`Đã xóa ${selectedRowKeys.length} mục thành công!`);
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
           message.error("Xóa thất bại");
         }
-      }
+      },
     });
   };
 
@@ -3692,24 +6367,38 @@ const InternalTemplates = () => {
         try {
           const nowIso = new Date().toISOString();
           const userId = extractId(currentUserState) || getCurrentUserId();
-          await Promise.all(selectedRowKeys.map(async (key) => {
-            const isFolder = key.startsWith("folder_");
-            const rId = Number(key.replace("folder_", "").replace("file_", ""));
-            const url = isFolder ? `folders:update?filterByTk=${rId}` : `documents:update?filterByTk=${rId}`;
-            const requestOptions = {
-              url,
-              method: "POST",
-              data: { isDeleted: true, deletedAt: nowIso, ...(userId ? { updatedById: userId } : {}) },
-            };
-            await (isFolder ? ctx.api.request(requestOptions) : requestDocumentApi(requestOptions));
-          }));
-          message.success(`Đã di chuyển ${selectedRowKeys.length} mục vào Thùng rác!`);
+          await Promise.all(
+            selectedRowKeys.map(async (key) => {
+              const isFolder = key.startsWith("folder_");
+              const rId = Number(
+                key.replace("folder_", "").replace("file_", ""),
+              );
+              const url = isFolder
+                ? `folders:update?filterByTk=${rId}`
+                : `documents:update?filterByTk=${rId}`;
+              const requestOptions = {
+                url,
+                method: "POST",
+                data: {
+                  isDeleted: true,
+                  deletedAt: nowIso,
+                  ...(userId ? { updatedById: userId } : {}),
+                },
+              };
+              await (isFolder
+                ? ctx.api.request(requestOptions)
+                : requestDocumentApi(requestOptions));
+            }),
+          );
+          message.success(
+            `Đã di chuyển ${selectedRowKeys.length} mục vào Thùng rác!`,
+          );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
           message.error("Xóa thất bại");
         }
-      }
+      },
     });
   };
 
@@ -3722,37 +6411,41 @@ const InternalTemplates = () => {
   const handleBulkMoveSubmit = async () => {
     try {
       const targetId = getEffectiveFolderId(bulkMoveTargetId);
-      await Promise.all(selectedRowKeys.map(async (key) => {
-        const isFolder = key.startsWith("folder_");
-        const rId = Number(key.replace("folder_", "").replace("file_", ""));
-        if (isFolder) {
-          if (targetId && String(targetId) === String(rId)) {
-            return;
+      await Promise.all(
+        selectedRowKeys.map(async (key) => {
+          const isFolder = key.startsWith("folder_");
+          const rId = Number(key.replace("folder_", "").replace("file_", ""));
+          if (isFolder) {
+            if (targetId && String(targetId) === String(rId)) {
+              return;
+            }
+            if (targetId && getDescendantIds(rId).includes(String(targetId))) {
+              return;
+            }
+            await ctx.api.request({
+              url: `folders:update?filterByTk=${rId}`,
+              method: "POST",
+              data: { parentId: targetId },
+            });
+          } else {
+            const doc = documents.find(
+              (d) => String(extractId(d)) === String(rId),
+            );
+            const oldFolderId = doc ? normalizeParentId(doc.folderId) : null;
+            await requestDocumentApi({
+              url: `documents:update?filterByTk=${rId}`,
+              method: "POST",
+              data: {
+                folderId: targetId,
+                fileIndex: await getNextFileIndex(targetId),
+              },
+            });
+            if (oldFolderId) {
+              await reindexFolderFiles(oldFolderId);
+            }
           }
-          if (targetId && getDescendantIds(rId).includes(String(targetId))) {
-            return;
-          }
-          await ctx.api.request({
-            url: `folders:update?filterByTk=${rId}`,
-            method: "POST",
-            data: { parentId: targetId },
-          });
-        } else {
-          const doc = documents.find(d => String(extractId(d)) === String(rId));
-          const oldFolderId = doc ? normalizeParentId(doc.folderId) : null;
-          await requestDocumentApi({
-            url: `documents:update?filterByTk=${rId}`,
-            method: "POST",
-            data: {
-              folderId: targetId,
-              fileIndex: await getNextFileIndex(targetId),
-            },
-          });
-          if (oldFolderId) {
-            await reindexFolderFiles(oldFolderId);
-          }
-        }
-      }));
+        }),
+      );
       if (targetId) {
         await reindexFolderFiles(targetId);
       }
@@ -3767,7 +6460,9 @@ const InternalTemplates = () => {
 
   const reorderFileAroundTarget = async (sourceId, targetRecord, position) => {
     if (!targetRecord || targetRecord._type !== "file") return false;
-    const sourceDoc = documents.find((doc) => String(extractId(doc)) === String(sourceId));
+    const sourceDoc = documents.find(
+      (doc) => String(extractId(doc)) === String(sourceId),
+    );
     if (!sourceDoc) return false;
     const targetFolderId = normalizeParentId(targetRecord.folderId);
     const oldFolderId = normalizeParentId(sourceDoc.folderId);
@@ -3775,7 +6470,8 @@ const InternalTemplates = () => {
       .filter(
         (doc) =>
           matchesInternalCompany(doc, activeCompanyId) &&
-          String(extractId(doc.folderId) || "") === String(targetFolderId || ""),
+          String(extractId(doc.folderId) || "") ===
+            String(targetFolderId || ""),
       )
       .sort((a, b) => {
         const ai = Number(a.fileIndex) || 0;
@@ -3784,9 +6480,14 @@ const InternalTemplates = () => {
         return sortByCreatedAt(a, b);
       })
       .filter((doc) => String(extractId(doc)) !== String(sourceId));
-    const targetIndex = siblings.findIndex((doc) => String(extractId(doc)) === String(extractId(targetRecord)));
+    const targetIndex = siblings.findIndex(
+      (doc) => String(extractId(doc)) === String(extractId(targetRecord)),
+    );
     const insertIndex = position === "top" ? targetIndex : targetIndex + 1;
-    siblings.splice(Math.max(0, insertIndex), 0, { ...sourceDoc, folderId: targetFolderId });
+    siblings.splice(Math.max(0, insertIndex), 0, {
+      ...sourceDoc,
+      folderId: targetFolderId,
+    });
     await requestDocumentApi({
       url: `documents:update?filterByTk=${extractId(sourceDoc)}`,
       method: "POST",
@@ -3806,7 +6507,8 @@ const InternalTemplates = () => {
         .filter(
           (doc) =>
             matchesInternalCompany(doc, activeCompanyId) &&
-            String(extractId(doc.folderId) || "") === String(oldFolderId || "") &&
+            String(extractId(doc.folderId) || "") ===
+              String(oldFolderId || "") &&
             String(extractId(doc)) !== String(sourceId),
         )
         .sort((a, b) => {
@@ -3841,21 +6543,39 @@ const InternalTemplates = () => {
     } catch {
       return;
     }
-    if (!payload || String(payload.id) === String(extractId(targetRecord))) return;
+    if (!payload || String(payload.id) === String(extractId(targetRecord)))
+      return;
 
     const rect = event.currentTarget.getBoundingClientRect();
     const y = event.clientY - rect.top;
-    const position = y < rect.height * 0.25 ? "top" : y > rect.height * 0.75 ? "bottom" : "inside";
+    const position =
+      y < rect.height * 0.25
+        ? "top"
+        : y > rect.height * 0.75
+          ? "bottom"
+          : "inside";
 
     if (position === "inside" && targetRecord._type === "folder") {
-      const source = payload.type === "folder"
-        ? folders.find((folder) => String(extractId(folder)) === String(payload.id))
-        : documents.find((doc) => String(extractId(doc)) === String(payload.id));
-      if (source) await handleMoveRecord({ ...source, _type: payload.type }, extractId(targetRecord));
+      const source =
+        payload.type === "folder"
+          ? folders.find(
+              (folder) => String(extractId(folder)) === String(payload.id),
+            )
+          : documents.find(
+              (doc) => String(extractId(doc)) === String(payload.id),
+            );
+      if (source)
+        await handleMoveRecord(
+          { ...source, _type: payload.type },
+          extractId(targetRecord),
+        );
       return;
     }
 
-    if (payload.type === "file" && (position === "top" || position === "bottom")) {
+    if (
+      payload.type === "file" &&
+      (position === "top" || position === "bottom")
+    ) {
       await reorderFileAroundTarget(payload.id, targetRecord, position);
     }
   };
@@ -3871,17 +6591,28 @@ const InternalTemplates = () => {
     } catch {
       return;
     }
-    const source = payload.type === "folder"
-      ? folders.find((folder) => String(extractId(folder)) === String(payload.id))
-      : documents.find((doc) => String(extractId(doc)) === String(payload.id));
+    const source =
+      payload.type === "folder"
+        ? folders.find(
+            (folder) => String(extractId(folder)) === String(payload.id),
+          )
+        : documents.find(
+            (doc) => String(extractId(doc)) === String(payload.id),
+          );
     if (!source) return;
-    await handleMoveRecord({ ...source, _type: payload.type }, selectedFolderId);
+    await handleMoveRecord(
+      { ...source, _type: payload.type },
+      selectedFolderId,
+    );
   };
 
   const getTypeConfig = useCallback(
     (value) =>
       documentTypes.find((type) => type.id === String(value || "")) ||
-      decorateDocumentTypeOption({ value: value || "document", label: value || "Document" }),
+      decorateDocumentTypeOption({
+        value: value || "document",
+        label: value || "Document",
+      }),
     [documentTypes],
   );
 
@@ -3901,8 +6632,18 @@ const InternalTemplates = () => {
         maxWidth: compact ? 150 : "100%",
       }}
     >
-      <span style={{ display: "inline-flex", alignItems: "center" }}>{type.svgIcon}</span>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{type.label}</span>
+      <span style={{ display: "inline-flex", alignItems: "center" }}>
+        {type.svgIcon}
+      </span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {type.label}
+      </span>
     </Tag>
   );
 
@@ -3912,7 +6653,9 @@ const InternalTemplates = () => {
       setEditingTitleValue(record.name || "Folder");
     } else {
       const attachment = getAttachment(record);
-      setEditingTitleValue(attachment?.title || attachment?.filename || getDocTitle(record));
+      setEditingTitleValue(
+        attachment?.title || attachment?.filename || getDocTitle(record),
+      );
     }
   };
 
@@ -3945,7 +6688,6 @@ const InternalTemplates = () => {
           url: `documents:update?filterByTk=${extractId(record)}`,
           method: "POST",
           data: {
-            name: safeTitle,
             title: safeTitle,
             updatedAt: new Date().toISOString(),
             ...(userId ? { updatedById: userId } : {}),
@@ -3959,14 +6701,18 @@ const InternalTemplates = () => {
               method: "POST",
               data: { title: safeTitle },
             })
-            .catch(() => { });
+            .catch(() => {});
         }
         message.success("Đã cập nhật tên tài liệu và file");
       }
       cancelEditTitle();
       loadData();
     } catch (e) {
-      message.error(record._type === "folder" ? "Cập nhật tên thư mục thất bại" : "Cập nhật tên tài liệu thất bại");
+      message.error(
+        record._type === "folder"
+          ? "Cập nhật tên thư mục thất bại"
+          : "Cập nhật tên tài liệu thất bại",
+      );
     }
   };
 
@@ -3975,16 +6721,23 @@ const InternalTemplates = () => {
     const folderIdsToDelete = getDescendantIds(fId);
     // Include the folder itself
     folderIdsToDelete.push(String(fId));
-    const filesCount = documents.filter((d) => folderIdsToDelete.includes(String(extractId(d.folderId) || ""))).length;
+    const filesCount = documents.filter((d) =>
+      folderIdsToDelete.includes(String(extractId(d.folderId) || "")),
+    ).length;
     const subFoldersCount = folderIdsToDelete.length - 1;
 
     let contentElements = [];
-    if (subFoldersCount > 0) contentElements.push(`- ${subFoldersCount} thư mục con`);
+    if (subFoldersCount > 0)
+      contentElements.push(`- ${subFoldersCount} thư mục con`);
     if (filesCount > 0) contentElements.push(`- ${filesCount} tệp tin`);
 
     Modal.confirm({
       title: `Xác nhận xóa thư mục "${folder.name}"?`,
-      icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
+      icon: React.createElement(
+        "span",
+        { style: { color: "#faad14", marginRight: 16 } },
+        WarningIcon,
+      ),
       content: (
         <div style={{ fontFamily: FONT, marginTop: 8 }}>
           <p>Bạn sắp xóa thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:</p>
@@ -4006,7 +6759,9 @@ const InternalTemplates = () => {
               ))}
             </div>
           ) : (
-            <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>(Thư mục đang trống)</p>
+            <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>
+              (Thư mục đang trống)
+            </p>
           )}
           <p>Bạn có chắc chắn muốn xóa?</p>
         </div>
@@ -4019,22 +6774,39 @@ const InternalTemplates = () => {
           if (folderIdsToDelete.length > 0) {
             const nowIso = new Date().toISOString();
             const userId = extractId(currentUserState) || getCurrentUserId();
-            const deletePayload = { isDeleted: true, deletedAt: nowIso, ...(userId ? { updatedById: userId } : {}) };
+            const deletePayload = {
+              isDeleted: true,
+              deletedAt: nowIso,
+              ...(userId ? { updatedById: userId } : {}),
+            };
             await requestDocumentApi({
               url: "documents:update",
               method: "POST",
-              params: { filter: JSON.stringify({ folderId: { $in: folderIdsToDelete.map(id => Number(id)) } }) },
-              data: deletePayload
-            }).catch(() => { });
-            await ctx.api.request({
-              url: "folders:update",
-              method: "POST",
-              params: { filter: JSON.stringify({ id: { $in: folderIdsToDelete.map(id => Number(id)) } }) },
-              data: deletePayload
-            }).catch(() => { });
+              params: {
+                filter: JSON.stringify({
+                  folderId: { $in: folderIdsToDelete.map((id) => Number(id)) },
+                }),
+              },
+              data: deletePayload,
+            }).catch(() => {});
+            await ctx.api
+              .request({
+                url: "folders:update",
+                method: "POST",
+                params: {
+                  filter: JSON.stringify({
+                    id: { $in: folderIdsToDelete.map((id) => Number(id)) },
+                  }),
+                },
+                data: deletePayload,
+              })
+              .catch(() => {});
           }
           message.success("Đã xóa thư mục và dữ liệu bên trong");
-          if (selectedFolderId !== "root" && folderIdsToDelete.includes(String(selectedFolderId))) {
+          if (
+            selectedFolderId !== "root" &&
+            folderIdsToDelete.includes(String(selectedFolderId))
+          ) {
             setSelectedFolderId("root");
           }
           loadData();
@@ -4048,7 +6820,11 @@ const InternalTemplates = () => {
   const handleDeleteFile = (record) => {
     Modal.confirm({
       title: "Xóa file này?",
-      icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
+      icon: React.createElement(
+        "span",
+        { style: { color: "#faad14", marginRight: 16 } },
+        WarningIcon,
+      ),
       content: "Hành động này sẽ xóa file khỏi hệ thống.",
       okText: "Xóa",
       okType: "danger",
@@ -4059,7 +6835,11 @@ const InternalTemplates = () => {
           await requestDocumentApi({
             url: `documents:update?filterByTk=${extractId(record)}`,
             method: "POST",
-            data: { isDeleted: true, deletedAt: new Date().toISOString(), ...(userId ? { updatedById: userId } : {}) }
+            data: {
+              isDeleted: true,
+              deletedAt: new Date().toISOString(),
+              ...(userId ? { updatedById: userId } : {}),
+            },
           });
           message.success("Đã xóa file");
           loadData();
@@ -4076,13 +6856,13 @@ const InternalTemplates = () => {
         await ctx.api.request({
           url: `folders:update?filterByTk=${extractId(record)}`,
           method: "POST",
-          data: { isDeleted: false, deletedAt: null }
+          data: { isDeleted: false, deletedAt: null },
         });
       } else {
         await requestDocumentApi({
           url: `documents:update?filterByTk=${extractId(record)}`,
           method: "POST",
-          data: { isDeleted: false, deletedAt: null }
+          data: { isDeleted: false, deletedAt: null },
         });
       }
       message.success("Đã khôi phục thành công");
@@ -4095,8 +6875,13 @@ const InternalTemplates = () => {
   const handlePermanentDelete = (record) => {
     Modal.confirm({
       title: record._type === "folder" ? "Xóa thư mục này?" : "Xóa file này?",
-      icon: React.createElement("span", { style: { color: "#ff4d4f", marginRight: 16 } }, WarningIcon),
-      content: "Cảnh báo: Hành động này không thể hoàn tác, dữ liệu sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.",
+      icon: React.createElement(
+        "span",
+        { style: { color: "#ff4d4f", marginRight: 16 } },
+        WarningIcon,
+      ),
+      content:
+        "Cảnh báo: Hành động này không thể hoàn tác, dữ liệu sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.",
       okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
@@ -4105,12 +6890,12 @@ const InternalTemplates = () => {
           if (record._type === "folder") {
             await ctx.api.request({
               url: `folders:destroy?filterByTk=${extractId(record)}`,
-              method: "POST"
+              method: "POST",
             });
           } else {
             await ctx.api.request({
               url: `documents:destroy?filterByTk=${extractId(record)}`,
-              method: "POST"
+              method: "POST",
             });
           }
           message.success("Đã xóa");
@@ -4142,11 +6927,23 @@ const InternalTemplates = () => {
   };
 
   const handleDeleteTemplate = async (templateRecord) => {
-    const isLegalRef = !!(templateRecord.referenceCode || templateRecord._type === "legal_reference_record" || activeSpace === "legal_reference");
+    const isLegalRef = !!(
+      templateRecord.referenceCode ||
+      templateRecord._type === "legal_reference_record" ||
+      activeSpace === "legal_reference"
+    );
     Modal.confirm({
-      title: isLegalRef ? `Xác nhận xóa Case Tham Chiếu "${templateRecord.title || templateRecord.name}"?` : `Xác nhận xóa loại tài liệu "${templateRecord.title || templateRecord.name}"?`,
-      icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
-      content: isLegalRef ? "Bạn có chắc chắn muốn xóa Case Tham Chiếu này? Các tài liệu và thư mục thuộc Case này vẫn sẽ được lưu trữ trong Thùng rác hoặc không còn liên kết." : "Bạn có chắc chắn muốn xóa mục phân loại tài liệu này? Các tài liệu thuộc phân loại này vẫn được lưu trữ nhưng sẽ không còn liên kết.",
+      title: isLegalRef
+        ? `Xác nhận xóa Case Tham Chiếu "${templateRecord.title || templateRecord.name}"?`
+        : `Xác nhận xóa loại tài liệu "${templateRecord.title || templateRecord.name}"?`,
+      icon: React.createElement(
+        "span",
+        { style: { color: "#faad14", marginRight: 16 } },
+        WarningIcon,
+      ),
+      content: isLegalRef
+        ? "Bạn có chắc chắn muốn xóa Case Tham Chiếu này? Các tài liệu và thư mục thuộc Case này vẫn sẽ được lưu trữ trong Thùng rác hoặc không còn liên kết."
+        : "Bạn có chắc chắn muốn xóa mục phân loại tài liệu này? Các tài liệu thuộc phân loại này vẫn được lưu trữ nhưng sẽ không còn liên kết.",
       okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
@@ -4156,7 +6953,7 @@ const InternalTemplates = () => {
             const candidates = [
               `legalReference:destroy?filterByTk=${extractId(templateRecord)}`,
               `legalReferences:destroy?filterByTk=${extractId(templateRecord)}`,
-              `LegalReference:destroy?filterByTk=${extractId(templateRecord)}`
+              `LegalReference:destroy?filterByTk=${extractId(templateRecord)}`,
             ];
             let success = false;
             let lastError = null;
@@ -4165,7 +6962,9 @@ const InternalTemplates = () => {
                 await ctx.api.request({ url, method: "POST" });
                 success = true;
                 break;
-              } catch (e) { lastError = e; }
+              } catch (e) {
+                lastError = e;
+              }
             }
             if (!success) throw lastError || new Error("Failed to delete");
           } else {
@@ -4174,8 +6973,13 @@ const InternalTemplates = () => {
               method: "POST",
             });
           }
-          message.success(isLegalRef ? "Đã xóa Case Tham Chiếu" : "Đã xóa loại tài liệu");
-          if (isLegalRef && activeLegalReferenceId === String(extractId(templateRecord))) {
+          message.success(
+            isLegalRef ? "Đã xóa Case Tham Chiếu" : "Đã xóa loại tài liệu",
+          );
+          if (
+            isLegalRef &&
+            activeLegalReferenceId === String(extractId(templateRecord))
+          ) {
             setActiveLegalReferenceId(null);
           }
           loadData();
@@ -4193,13 +6997,16 @@ const InternalTemplates = () => {
       const rType = renameRecord._type;
       const rId = extractId(renameRecord);
 
-      const isLegalRef = !!(renameRecord.referenceCode || renameRecord._type === "legal_reference_record");
+      const isLegalRef = !!(
+        renameRecord.referenceCode ||
+        renameRecord._type === "legal_reference_record"
+      );
 
       if (isLegalRef) {
         const candidates = [
           `legalReference:update?filterByTk=${rId}`,
           `legalReferences:update?filterByTk=${rId}`,
-          `LegalReference:update?filterByTk=${rId}`
+          `LegalReference:update?filterByTk=${rId}`,
         ];
         let success = false;
         let lastError = null;
@@ -4239,15 +7046,17 @@ const InternalTemplates = () => {
           await requestDocumentApi({
             url: `documents:update?filterByTk=${rId}`,
             method: "POST",
-            data: { name: newName, title: newName },
+            data: { title: newName },
           });
           const attachment = getAttachment(renameRecord);
           if (attachment?.id) {
-            await ctx.api.request({
-              url: `attachments:update?filterByTk=${attachment.id}`,
-              method: "POST",
-              data: { title: newName },
-            }).catch(() => { });
+            await ctx.api
+              .request({
+                url: `attachments:update?filterByTk=${attachment.id}`,
+                method: "POST",
+                data: { title: newName },
+              })
+              .catch(() => {});
           }
           message.success("Đã đổi tên tài liệu");
         }
@@ -4284,16 +7093,35 @@ const InternalTemplates = () => {
     if (record._type === "folder") {
       if (activeSpace === "trash") {
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <span style={{ color: "#8c6d1f", display: "inline-flex" }}>{TYPE_ICONS.folder}</span>
-            <Text strong style={{ fontFamily: FONT, fontSize: 13, color: "#111827" }}>{record.name || "Folder"}</Text>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 0,
+            }}
+          >
+            <span style={{ color: "#8c6d1f", display: "inline-flex" }}>
+              {TYPE_ICONS.folder}
+            </span>
+            <Text
+              strong
+              style={{ fontFamily: FONT, fontSize: 13, color: "#111827" }}
+            >
+              {record.name || "Folder"}
+            </Text>
           </div>
         );
       }
       if (isEditing) {
         return (
           <div
-            style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              minWidth: 0,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <Input
@@ -4304,19 +7132,27 @@ const InternalTemplates = () => {
               onPressEnter={() => handleSaveFileTitle(record)}
               style={{ flex: 1, minWidth: 120 }}
             />
-            <Button size="small" type="primary" icon={CHECK_ICON} onClick={() => handleSaveFileTitle(record)} />
+            <Button
+              size="small"
+              type="primary"
+              icon={CHECK_ICON}
+              onClick={() => handleSaveFileTitle(record)}
+            />
             <Button size="small" icon={CLOSE_ICON} onClick={cancelEditTitle} />
           </div>
         );
       }
       const folderFileCount = permissionFilteredDocs.filter(
-        (d) => String(extractId(d.folderId) || "") === String(extractId(record))
+        (d) =>
+          String(extractId(d.folderId) || "") === String(extractId(record)),
       ).length;
       const folderSubFolderCount = permissionFilteredFolders.filter(
-        (f) => String(getFolderParentId(f) || "") === String(extractId(record))
+        (f) => String(getFolderParentId(f) || "") === String(extractId(record)),
       ).length;
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
+        >
           <button
             type="button"
             onClick={() => setSelectedFolderId(String(extractId(record)))}
@@ -4333,10 +7169,19 @@ const InternalTemplates = () => {
               color: "#111827",
             }}
           >
-            <span style={{ color: "#2563eb", display: "inline-flex" }}>{TYPE_ICONS.folder}</span>
+            <span style={{ color: "#2563eb", display: "inline-flex" }}>
+              {TYPE_ICONS.folder}
+            </span>
             {record.name || "Folder"}
           </button>
-          <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginLeft: 8 }}>
+          <span
+            style={{
+              fontSize: 11,
+              color: "#9ca3af",
+              fontWeight: 400,
+              marginLeft: 8,
+            }}
+          >
             ({folderSubFolderCount} Thư mục - {folderFileCount} file)
           </span>
         </div>
@@ -4346,7 +7191,12 @@ const InternalTemplates = () => {
     // File
     const attachment = getAttachment(record);
     const hasPrefix = !!(isAllFiles && record._displayFileIndex);
-    const displayName = attachment?.title || attachment?.filename || record.googleDriveUrl || record.description || "Chưa có file đính kèm";
+    const displayName =
+      attachment?.title ||
+      attachment?.filename ||
+      record.googleDriveUrl ||
+      record.description ||
+      "Chưa có file đính kèm";
     const hasFile = !!getRecordFileUrl(record);
 
     if (isEditing) {
@@ -4363,18 +7213,28 @@ const InternalTemplates = () => {
             onPressEnter={() => handleSaveFileTitle(record)}
             style={{ flex: 1, minWidth: 120 }}
           />
-          <Button size="small" type="primary" icon={CHECK_ICON} onClick={() => handleSaveFileTitle(record)} />
+          <Button
+            size="small"
+            type="primary"
+            icon={CHECK_ICON}
+            onClick={() => handleSaveFileTitle(record)}
+          />
           <Button size="small" icon={CLOSE_ICON} onClick={cancelEditTitle} />
         </div>
       );
     }
 
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
+      >
         {hasFile ? (
           <Tooltip title="Nhấn để xem trước" placement="topLeft">
             <span
-              onClick={(e) => { e.stopPropagation(); previewRecordFile(record); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                previewRecordFile(record);
+              }}
               style={{
                 fontWeight: 600,
                 color: "#111827",
@@ -4388,23 +7248,48 @@ const InternalTemplates = () => {
                 textUnderlineOffset: 3,
                 transition: "color 0.15s",
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = "#2563eb"; e.currentTarget.style.textDecorationColor = "#2563eb"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = "#111827"; e.currentTarget.style.textDecorationColor = "#d1d5db"; }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#2563eb";
+                e.currentTarget.style.textDecorationColor = "#2563eb";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#111827";
+                e.currentTarget.style.textDecorationColor = "#d1d5db";
+              }}
             >
-              {hasPrefix && <span style={{ color: "#10b981", marginRight: 6, fontWeight: 700 }}>{record._displayFileIndex}.</span>}
+              {hasPrefix && (
+                <span
+                  style={{ color: "#10b981", marginRight: 6, fontWeight: 700 }}
+                >
+                  {record._displayFileIndex}.
+                </span>
+              )}
               {displayName}
             </span>
           </Tooltip>
         ) : (
-          <Text strong style={{ color: "#6b7280", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {hasPrefix && <span style={{ color: "#10b981", marginRight: 6, fontWeight: 700 }}>{record._displayFileIndex}.</span>}
+          <Text
+            strong
+            style={{
+              color: "#6b7280",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {hasPrefix && (
+              <span
+                style={{ color: "#10b981", marginRight: 6, fontWeight: 700 }}
+              >
+                {record._displayFileIndex}.
+              </span>
+            )}
             {displayName}
           </Text>
         )}
       </div>
     );
   };
-
 
   const renderNewMenuLabel = (icon, label) => (
     <span
@@ -4417,10 +7302,21 @@ const InternalTemplates = () => {
         fontFamily: FONT,
       }}
     >
-      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 18 }}>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 18,
+        }}
+      >
         {icon}
       </span>
-      <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>{label}</span>
+      <span
+        style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}
+      >
+        {label}
+      </span>
     </span>
   );
 
@@ -4435,502 +7331,640 @@ const InternalTemplates = () => {
         color: color || "inherit",
       }}
     >
-      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 16, color: color || "inherit" }}>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 16,
+          color: color || "inherit",
+        }}
+      >
         {icon}
       </span>
-      <span style={{ display: "inline-flex", alignItems: "center", color: color || "inherit" }}>{label}</span>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          color: color || "inherit",
+        }}
+      >
+        {label}
+      </span>
     </span>
   );
 
   // Helper: compute per-row write/manage permissions
-  const getRecordPerms = useCallback((record) => {
-    const currentUser = currentUserState;
-    if (!currentUser) return { canWrite: true, isManager: true };
-    if (isAdminUser(currentUser)) return { canWrite: true, isManager: true };
-    if (record._type === "folder") {
-      const perms = getFolderPermissions(record, currentUser, visibleFolders, currentLawyerId);
-      return { canWrite: perms.canEdit || perms.isManager, isManager: perms.isManager };
-    }
-    // For files: check parent folder permissions
-    const parentFolder = visibleFolders.find((f) => String(extractId(f.id)) === String(extractId(record.folderId) || ""));
-    const canWrite = canManageFile(record, parentFolder || null, currentUser, visibleFolders, currentLawyerId);
-    return { canWrite, isManager: false };
-  }, [currentUserState, currentLawyerId, visibleFolders]);
-
-  const renderContextMenuItems = useCallback((record) => {
-    if (!record) return [];
-    const items = [];
-    const isFolder = record._type === "folder";
-    const isTemplate = record._type === "template" || record._type === "document_type";
-    const isLegalReferenceRecord = record._type === "legal_reference_record";
-
-    if (isLegalReferenceRecord) {
-      items.push({
-        key: "open_detail",
-        label: renderContextMenuItemLabel(EYE_ICON, "Mở chi tiết"),
-        onClick: () => {
-          closeContextMenu();
-          openLegalReferenceDetail(record);
-        },
-      });
-      items.push({
-        key: "link_case",
-        label: renderContextMenuItemLabel(LINK_CASE_ICON, "Liên kết Case"),
-        onClick: () => {
-          closeContextMenu();
-          openLinkCaseModal(record);
-        },
-      });
-      items.push({
-        key: "rename",
-        label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
-        onClick: () => {
-          closeContextMenu();
-          setRenameRecord(record);
-          renameForm.setFieldsValue({ name: record.title || record.name || "" });
-        },
-      });
-      items.push({
-        key: "delete",
-        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
-        onClick: () => {
-          closeContextMenu();
-          handleDeleteTemplate(record);
-        },
-      });
-      return items;
-    }
-
-    if (isTemplate) {
-      items.push({
-        key: "rename",
-        label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
-        onClick: () => {
-          closeContextMenu();
-          setRenameRecord(record);
-          renameForm.setFieldsValue({ name: record.title || record.name || "" });
-        }
-      });
-      items.push({
-        key: "delete",
-        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
-        onClick: () => {
-          closeContextMenu();
-          handleDeleteTemplate(record);
-        }
-      });
-      return items;
-    }
-
-    if (activeSpace === "trash") {
-      items.push({
-        key: "restore",
-        label: renderContextMenuItemLabel(RESTORE_ICON, "Khôi phục"),
-        onClick: () => { closeContextMenu(); handleRestoreRecord(record); },
-      });
-      items.push({
-        key: "permanent_delete",
-        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
-        onClick: () => { closeContextMenu(); handlePermanentDelete(record); },
-      });
-      return items;
-    }
-
-    const { canWrite, isManager } = getRecordPerms(record);
-
-    if (!isFolder) {
-      items.push({
-        key: "preview",
-        label: renderContextMenuItemLabel(EYE_ICON, "Xem trước"),
-        onClick: () => { closeContextMenu(); previewRecordFile(record); },
-      });
-      items.push({
-        key: "download",
-        label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Tải về"),
-        onClick: () => { closeContextMenu(); openRecordFile(record); },
-      });
-    }
-
-    if (canWrite) {
-      items.push({
-        key: "rename",
-        label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
-        onClick: () => {
-          closeContextMenu();
-          setRenameRecord(record);
-          renameForm.setFieldsValue({ name: record.name || record.title || "" });
-        },
-      });
-      items.push({
-        key: "move",
-        label: renderContextMenuItemLabel(MOVE_ICON, "Di chuyển"),
-        onClick: () => { closeContextMenu(); setMoveRecord(record); setMoveTargetId("root"); },
-      });
-    }
-
-    if (isFolder && (isManager || isAdminUser(currentUserState))) {
-      items.push({
-        key: "permission",
-        label: renderContextMenuItemLabel(LOCK_ICON, "Phân quyền"),
-        onClick: () => { closeContextMenu(); setPermissionFolder(record); },
-      });
-    }
-
-    const canDelete = isFolder ? (isManager || isAdminUser(currentUserState)) : canWrite;
-    if (canDelete) {
-      items.push({
-        key: "delete",
-        label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
-        onClick: () => {
-          closeContextMenu();
-          if (isFolder) showDeleteConfirm(record);
-          else handleDeleteFile(record);
-        },
-      });
-    }
-
-    return items;
-  }, [getRecordPerms, currentUserState, activeSpace, openLegalReferenceDetail, openLinkCaseModal]);
-
-  const getRecordPathString = useCallback((record) => {
-    if (!record) return "—";
-    const pathItems = [];
-
-    let parentFolderId = record.folderId;
-    if (record._type === "folder") {
-      parentFolderId = getFolderParentId(record);
-    }
-
-    let currentId = parentFolderId;
-    while (currentId && currentId !== "root" && folderMap.has(String(currentId))) {
-      const folder = folderMap.get(String(currentId));
-      if (!activeCaseRootFolderId || String(currentId) !== String(activeCaseRootFolderId)) {
-        pathItems.unshift(folder.name || "Folder");
-      }
-      currentId = getFolderParentId(folder);
-    }
-
-    let rootName = "Home";
-    const storage = record.storageType || (parentFolderId && folderMap.get(String(parentFolderId))?.storageType);
-
-    if (storage === "cases" || matchesCaseDocument(record, activeCaseIdValue, caseFolderIdSet)) {
-      rootName = "Cases";
-    } else if (storage === "personal") {
-      rootName = "Workspace cá nhân";
-    } else if (storage === "company_shared") {
-      rootName = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
-    } else {
-      const typeId = getRecordDocumentType(record) || (parentFolderId && getRecordDocumentType(folderMap.get(String(parentFolderId))));
-      if (typeId) {
-        const type = documentTypes.find(t => t.id === String(typeId));
-        rootName = type ? `Thư viện / ${type.label}` : "Thư viện";
-      } else {
-        rootName = "Thư mục chung";
-      }
-    }
-
-    pathItems.unshift(rootName);
-    return pathItems.join(" / ");
-  }, [folderMap, activeCompany, documentTypes, getRecordDocumentType, activeCaseIdValue, caseFolderIdSet, activeCaseRootFolderId]);
-
-  const tableColumns = useMemo(
-    () => {
-      const hasFolders = tableData.some((r) => r._type === "folder");
-      const hasFiles = tableData.some((r) => r._type === "file");
-      const isAllFolders = tableData.length > 0 && hasFolders && !hasFiles;
-      const isAllFiles = tableData.length > 0 && hasFiles && !hasFolders;
+  const getRecordPerms = useCallback(
+    (record) => {
       const currentUser = currentUserState;
+      if (!currentUser) return roleToPerms("admin");
+      if (isAdminUser(currentUser)) return roleToPerms("admin");
+      if (record._type === "folder") {
+        return getFolderPermissions(record, currentUser, visibleFolders, currentLawyerId);
+      }
+      const parentFolder = visibleFolders.find(
+        (f) => String(extractId(f.id)) === String(extractId(record.folderId) || ""),
+      );
+      const fp = parentFolder
+        ? getFolderPermissions(parentFolder, currentUser, visibleFolders, currentLawyerId)
+        : roleToPerms(null);
+      return fp;
+    },
+    [currentUserState, currentLawyerId, visibleFolders],
+  );
 
-      // Shared action cell renderer for folder rows
-      const renderFolderActions = (record) => {
-        if (activeSpace === "trash") {
-          return (
-            <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Khôi phục">
-                <Button
-                  size="small"
-                  icon={RESTORE_ICON}
-                  onClick={(event) => { event.stopPropagation(); handleRestoreRecord(record); }}
-                  style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
-                />
-              </Tooltip>
-              <Tooltip title="Xóa">
-                <Button
-                  size="small"
-                  danger
-                  icon={DELETE_ICON}
-                  onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
-                />
-              </Tooltip>
-            </div>
-          );
-        }
-        const { canWrite, isManager } = getRecordPerms(record);
-        const showEdit = canWrite;
-        const showMove = canWrite;
-        const showLock = isManager || isAdminUser(currentUser);
-        if (showLock) {
-          return (
-            <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Phân quyền">
-                <Button
-                  size="small"
-                  icon={LOCK_ICON}
-                  onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
-                />
-              </Tooltip>
-              <Tooltip title="Xóa">
-                <Button
-                  size="small"
-                  danger
-                  icon={DELETE_ICON}
-                  onClick={(event) => { event.stopPropagation(); showDeleteConfirm(record); }}
-                />
-              </Tooltip>
-            </div>
-          );
-        }
-        if (showEdit || showMove) {
-          return (
-            <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Sửa tên">
-                <Button
-                  size="small"
-                  icon={EDIT_ICON}
-                  onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
-                />
-              </Tooltip>
-              <Tooltip title="Di chuyển">
-                <Button
-                  size="small"
-                  icon={MOVE_ICON}
-                  onClick={(event) => { event.stopPropagation(); setMoveRecord(record); setMoveTargetId("root"); }}
-                />
-              </Tooltip>
-            </div>
-          );
-        }
-        return null;
-      };
+  const renderContextMenuItems = useCallback(
+    (record) => {
+      if (!record) return [];
+      const items = [];
+      const isFolder = record._type === "folder";
+      const isTemplate =
+        record._type === "template" || record._type === "document_type";
+      const isLegalReferenceRecord = record._type === "legal_reference_record";
 
-      // Shared action cell renderer for file rows
-      const renderFileActions = (record) => {
-        if (activeSpace === "trash") {
-          return (
-            <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Khôi phục">
-                <Button
-                  size="small"
-                  icon={RESTORE_ICON}
-                  onClick={(event) => { event.stopPropagation(); handleRestoreRecord(record); }}
-                  style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
-                />
-              </Tooltip>
-              <Tooltip title="Xóa">
-                <Button
-                  size="small"
-                  danger
-                  icon={DELETE_ICON}
-                  onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
-                />
-              </Tooltip>
-            </div>
-          );
+      if (isLegalReferenceRecord) {
+        items.push({
+          key: "open_detail",
+          label: renderContextMenuItemLabel(EYE_ICON, "Mở chi tiết"),
+          onClick: () => {
+            closeContextMenu();
+            openLegalReferenceDetail(record);
+          },
+        });
+        items.push({
+          key: "link_case",
+          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Liên kết Case"),
+          onClick: () => {
+            closeContextMenu();
+            openLinkCaseModal(record);
+          },
+        });
+        items.push({
+          key: "rename",
+          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          onClick: () => {
+            closeContextMenu();
+            setRenameRecord(record);
+            renameForm.setFieldsValue({
+              name: record.title || record.name || "",
+            });
+          },
+        });
+        items.push({
+          key: "delete",
+          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          onClick: () => {
+            closeContextMenu();
+            handleDeleteTemplate(record);
+          },
+        });
+        return items;
+      }
+
+      if (isTemplate) {
+        items.push({
+          key: "rename",
+          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          onClick: () => {
+            closeContextMenu();
+            setRenameRecord(record);
+            renameForm.setFieldsValue({
+              name: record.title || record.name || "",
+            });
+          },
+        });
+        items.push({
+          key: "delete",
+          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          onClick: () => {
+            closeContextMenu();
+            handleDeleteTemplate(record);
+          },
+        });
+        return items;
+      }
+
+      if (activeSpace === "trash") {
+        items.push({
+          key: "restore",
+          label: renderContextMenuItemLabel(RESTORE_ICON, "Khôi phục"),
+          onClick: () => {
+            closeContextMenu();
+            handleRestoreRecord(record);
+          },
+        });
+        items.push({
+          key: "permanent_delete",
+          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          onClick: () => {
+            closeContextMenu();
+            handlePermanentDelete(record);
+          },
+        });
+        return items;
+      }
+
+      const { canRename, canMove, canDelete, canManagePermissions } = getRecordPerms(record);
+
+      if (!isFolder) {
+        items.push({
+          key: "preview",
+          label: renderContextMenuItemLabel(EYE_ICON, "Xem trước"),
+          onClick: () => {
+            closeContextMenu();
+            previewRecordFile(record);
+          },
+        });
+        items.push({
+          key: "download",
+          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Tải về"),
+          onClick: () => {
+            closeContextMenu();
+            openRecordFile(record);
+          },
+        });
+      }
+
+      if (canRename) {
+        items.push({
+          key: "rename",
+          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          onClick: () => {
+            closeContextMenu();
+            setRenameRecord(record);
+            renameForm.setFieldsValue({
+              name: record.name || record.title || "",
+            });
+          },
+        });
+      }
+
+      if (canMove) {
+        items.push({
+          key: "move",
+          label: renderContextMenuItemLabel(MOVE_ICON, "Di chuyển"),
+          onClick: () => {
+            closeContextMenu();
+            setMoveRecord(record);
+            setMoveTargetId("root");
+          },
+        });
+      }
+
+      if (isFolder && canManagePermissions) {
+        items.push({
+          key: "permission",
+          label: renderContextMenuItemLabel(LOCK_ICON, "Phân quyền"),
+          onClick: () => {
+            closeContextMenu();
+            setPermissionFolder(record);
+          },
+        });
+      }
+
+      if (canDelete) {
+        items.push({
+          key: "delete",
+          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          onClick: () => {
+            closeContextMenu();
+            if (isFolder) showDeleteConfirm(record);
+            else handleDeleteFile(record);
+          },
+        });
+      }
+
+      return items;
+    },
+    [
+      getRecordPerms,
+      currentUserState,
+      activeSpace,
+      openLegalReferenceDetail,
+      openLinkCaseModal,
+    ],
+  );
+
+  const getRecordPathString = useCallback(
+    (record) => {
+      if (!record) return "—";
+      const pathItems = [];
+
+      let parentFolderId = record.folderId;
+      if (record._type === "folder") {
+        parentFolderId = getFolderParentId(record);
+      }
+
+      let currentId = parentFolderId;
+      while (
+        currentId &&
+        currentId !== "root" &&
+        folderMap.has(String(currentId))
+      ) {
+        const folder = folderMap.get(String(currentId));
+        if (
+          !activeCaseRootFolderId ||
+          String(currentId) !== String(activeCaseRootFolderId)
+        ) {
+          pathItems.unshift(folder.name || "Folder");
         }
+        currentId = getFolderParentId(folder);
+      }
+
+      let rootName = "Home";
+      const storage =
+        record.storageType ||
+        (parentFolderId && folderMap.get(String(parentFolderId))?.storageType);
+
+      if (
+        storage === "cases" ||
+        matchesCaseDocument(record, activeCaseIdValue, caseFolderIdSet)
+      ) {
+        rootName = "Cases";
+      } else if (storage === "personal") {
+        rootName = "Workspace cá nhân";
+      } else if (storage === "company_shared") {
+        rootName = activeCompany
+          ? getCompanyName(activeCompany)
+          : "Thư mục chung";
+      } else {
+        const typeId =
+          getRecordDocumentType(record) ||
+          (parentFolderId &&
+            getRecordDocumentType(folderMap.get(String(parentFolderId))));
+        if (typeId) {
+          const type = documentTypes.find((t) => t.id === String(typeId));
+          rootName = type ? `Thư viện / ${type.label}` : "Thư viện";
+        } else {
+          rootName = "Thư mục chung";
+        }
+      }
+
+      pathItems.unshift(rootName);
+      return pathItems.join(" / ");
+    },
+    [
+      folderMap,
+      activeCompany,
+      documentTypes,
+      getRecordDocumentType,
+      activeCaseIdValue,
+      caseFolderIdSet,
+      activeCaseRootFolderId,
+    ],
+  );
+
+  const tableColumns = useMemo(() => {
+    const hasFolders = tableData.some((r) => r._type === "folder");
+    const hasFiles = tableData.some((r) => r._type === "file");
+    const isAllFolders = tableData.length > 0 && hasFolders && !hasFiles;
+    const isAllFiles = tableData.length > 0 && hasFiles && !hasFolders;
+    const currentUser = currentUserState;
+
+    // Shared action cell renderer for folder rows
+    const renderFolderActions = (record) => {
+      if (activeSpace === "trash") {
         return (
-          <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-            <Tooltip title="Xem trước">
+          <div
+            style={{
+              display: "inline-flex",
+              justifyContent: "flex-end",
+              gap: 6,
+            }}
+          >
+            <Tooltip title="Khôi phục">
               <Button
                 size="small"
-                icon={EYE_ICON}
-                onClick={(event) => { event.stopPropagation(); previewRecordFile(record); }}
+                icon={RESTORE_ICON}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleRestoreRecord(record);
+                }}
+                style={{
+                  color: "#3B6D11",
+                  borderColor: "#c3e6cb",
+                  background: "#e2f0d9",
+                }}
               />
             </Tooltip>
-            <Tooltip title="Tải về">
+            <Tooltip title="Xóa">
               <Button
                 size="small"
-                icon={DOWNLOAD_ICON}
-                onClick={(event) => { event.stopPropagation(); openRecordFile(record); }}
+                danger
+                icon={DELETE_ICON}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handlePermanentDelete(record);
+                }}
               />
             </Tooltip>
           </div>
         );
-      };
+      }
+      const { canRename, canMove, canDelete, canManagePermissions } = getRecordPerms(record);
+      if (!canRename && !canMove && !canDelete && !canManagePermissions) return null;
+      return (
+        <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
+          {canManagePermissions && (
+            <Tooltip title="Phân quyền">
+              <Button
+                size="small"
+                icon={LOCK_ICON}
+                onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
+              />
+            </Tooltip>
+          )}
+          {canRename && (
+            <Tooltip title="Sửa tên">
+              <Button
+                size="small"
+                icon={EDIT_ICON}
+                onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
+              />
+            </Tooltip>
+          )}
+          {canMove && (
+            <Tooltip title="Di chuyển">
+              <Button
+                size="small"
+                icon={MOVE_ICON}
+                onClick={(event) => { event.stopPropagation(); setMoveRecord(record); setMoveTargetId("root"); }}
+              />
+            </Tooltip>
+          )}
+          {canDelete && (
+            <Tooltip title="Xóa vào Thùng rác">
+              <Button
+                size="small"
+                danger
+                icon={DELETE_ICON}
+                onClick={(event) => { event.stopPropagation(); showDeleteConfirm(record); }}
+              />
+            </Tooltip>
+          )}
+        </div>
+      );
+    };
 
-      if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
-        return [
-          {
-            title: "STT",
-            key: "stt",
-            width: 60,
-            align: "center",
-            render: (_, __, index) => index + 1,
-          },
-          {
-            title: "Mã tham chiếu",
-            key: "referenceCode",
-            width: 150,
-            sorter: (a, b) => (a.referenceCode || "").localeCompare(b.referenceCode || "", "vi"),
-            render: (_, record) => <Text style={{ fontWeight: 600, color: "#111827" }}>{record.referenceCode || "—"}</Text>,
-          },
-          {
-            title: "Tên tham chiếu",
-            key: "title",
-            minWidth: 250,
-            sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
-            render: (_, record) => (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openLegalReferenceDetail(record);
+    // Shared action cell renderer for file rows
+    const renderFileActions = (record) => {
+      if (activeSpace === "trash") {
+        return (
+          <div
+            style={{
+              display: "inline-flex",
+              justifyContent: "flex-end",
+              gap: 6,
+            }}
+          >
+            <Tooltip title="Khôi phục">
+              <Button
+                size="small"
+                icon={RESTORE_ICON}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleRestoreRecord(record);
                 }}
-                style={{ border: 0, background: "transparent", padding: 0, cursor: "pointer", fontFamily: FONT, fontWeight: 700, color: "#185FA5", textAlign: "left" }}
-              >
-                {record.title || "—"}
-              </button>
-            ),
-          },
-          {
-            title: "Case Summary",
-            key: "description",
-            minWidth: 200,
-            render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
-          },
-          {
-            title: "Cases liên kết",
-            key: "linkedCases",
-            minWidth: 200,
-            render: (_, record) => (
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-                {(record.cases || []).length === 0 ? (
-                  <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>Chưa liên kết</span>
-                ) : (() => {
+                style={{
+                  color: "#3B6D11",
+                  borderColor: "#c3e6cb",
+                  background: "#e2f0d9",
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="Xóa">
+              <Button
+                size="small"
+                danger
+                icon={DELETE_ICON}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handlePermanentDelete(record);
+                }}
+              />
+            </Tooltip>
+          </div>
+        );
+      }
+      return (
+        <div
+          style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}
+        >
+          <Tooltip title="Xem trước">
+            <Button
+              size="small"
+              icon={EYE_ICON}
+              onClick={(event) => {
+                event.stopPropagation();
+                previewRecordFile(record);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Tải về">
+            <Button
+              size="small"
+              icon={DOWNLOAD_ICON}
+              onClick={(event) => {
+                event.stopPropagation();
+                openRecordFile(record);
+              }}
+            />
+          </Tooltip>
+        </div>
+      );
+    };
+
+    if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
+      return [
+        {
+          title: "STT",
+          key: "stt",
+          width: 60,
+          align: "center",
+          render: (_, __, index) => index + 1,
+        },
+        {
+          title: "Mã tham chiếu",
+          key: "referenceCode",
+          width: 150,
+          sorter: (a, b) =>
+            (a.referenceCode || "").localeCompare(b.referenceCode || "", "vi"),
+          render: (_, record) => (
+            <Text style={{ fontWeight: 600, color: "#111827" }}>
+              {record.referenceCode || "—"}
+            </Text>
+          ),
+        },
+        {
+          title: "Tên tham chiếu",
+          key: "title",
+          minWidth: 250,
+          sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
+          render: (_, record) => (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openLegalReferenceDetail(record);
+              }}
+              style={{
+                border: 0,
+                background: "transparent",
+                padding: 0,
+                cursor: "pointer",
+                fontFamily: FONT,
+                fontWeight: 700,
+                color: "#185FA5",
+                textAlign: "left",
+              }}
+            >
+              {record.title || "—"}
+            </button>
+          ),
+        },
+        {
+          title: "Case Summary",
+          key: "description",
+          minWidth: 200,
+          render: (_, record) => (
+            <Text type="secondary">{record.description || "—"}</Text>
+          ),
+        },
+        {
+          title: "Cases liên kết",
+          key: "linkedCases",
+          minWidth: 200,
+          render: (_, record) => (
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              {(record.cases || []).length === 0 ? (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "#9CA3AF",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Chưa liên kết
+                </span>
+              ) : (
+                (() => {
                   const list = record.cases || [];
                   const visibleCount = 2;
                   const visibleItems = list.slice(0, visibleCount);
                   const extraItems = list.slice(visibleCount);
                   const getDisplayName = (project) => {
-                    return project.projectName ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}` : `Case #${extractId(project)}`;
+                    return project.projectName
+                      ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}`
+                      : `Case #${extractId(project)}`;
                   };
                   return (
                     <React.Fragment>
                       {visibleItems.map((project, idx) => (
-                        <Tag key={idx} color="default" style={{ borderRadius: 4, margin: 0, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getDisplayName(project)}>
+                        <Tag
+                          key={idx}
+                          color="default"
+                          style={{
+                            borderRadius: 4,
+                            margin: 0,
+                            maxWidth: 150,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={getDisplayName(project)}
+                        >
                           {getDisplayName(project)}
                         </Tag>
                       ))}
                       {extraItems.length > 0 && (
                         <Tooltip
                           title={
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 250, overflowY: "auto" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4,
+                                maxHeight: 250,
+                                overflowY: "auto",
+                              }}
+                            >
                               {extraItems.map((project, idx) => (
                                 <div key={idx}>{getDisplayName(project)}</div>
                               ))}
                             </div>
                           }
                         >
-                          <Tag color="default" style={{ borderRadius: 4, margin: 0, cursor: "pointer", fontWeight: 600 }}>
+                          <Tag
+                            color="default"
+                            style={{
+                              borderRadius: 4,
+                              margin: 0,
+                              cursor: "pointer",
+                              fontWeight: 600,
+                            }}
+                          >
                             +{extraItems.length} khác
                           </Tag>
                         </Tooltip>
                       )}
                     </React.Fragment>
                   );
-                })()}
-              </div>
-            ),
-          },
-          {
-            title: "Thao tác",
-            key: "actions",
-            width: 100,
-            align: "right",
-            render: (_, record) => (
-              <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                <Tooltip title="Liên kết Case">
-                  <Button
-                    size="small"
-                    icon={LINK_CASE_ICON}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openLinkCaseModal(record);
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip title="Xóa">
-                  <Button
-                    size="small"
-                    danger
-                    icon={DELETE_ICON}
-                    onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(record); }}
-                  />
-                </Tooltip>
-              </div>
-            ),
-          }
-        ];
-      }
+                })()
+              )}
+            </div>
+          ),
+        },
+        {
+          title: "Thao tác",
+          key: "actions",
+          width: 100,
+          align: "right",
+          render: (_, record) => (
+            <div
+              style={{
+                display: "inline-flex",
+                justifyContent: "flex-end",
+                gap: 6,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Tooltip title="Liên kết Case">
+                <Button
+                  size="small"
+                  icon={LINK_CASE_ICON}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openLinkCaseModal(record);
+                  }}
+                />
+              </Tooltip>
+              <Tooltip title="Xóa">
+                <Button
+                  size="small"
+                  danger
+                  icon={DELETE_ICON}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteTemplate(record);
+                  }}
+                />
+              </Tooltip>
+            </div>
+          ),
+        },
+      ];
+    }
 
-      if (isAllFolders) {
-        if (activeSpace === "trash") {
-          return [
-            {
-              title: "Tên folder",
-              key: "name",
-              minWidth: 250,
-              render: (_, record) => renderNameCell(record, false),
-              sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
-            },
-            {
-              title: "Mô tả",
-              key: "description",
-              minWidth: 200,
-              render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
-            },
-            {
-              title: "Size",
-              key: "size",
-              width: 100,
-              sorter: (a, b) => getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
-              render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
-            },
-            {
-              title: "Người upload",
-              key: "createdBy",
-              width: 180,
-              render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
-            },
-            {
-              title: "Ngày upload",
-              key: "createdAt",
-              width: 150,
-              sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-              render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
-            },
-            {
-              title: "Người xoá",
-              key: "deletedBy",
-              width: 180,
-              render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
-            },
-            {
-              title: "Ngày xoá",
-              key: "deletedAt",
-              width: 160,
-              sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
-              render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
-            },
-            {
-              title: "Thao tác",
-              key: "actions",
-              width: 120,
-              align: "right",
-              render: (_, record) => renderFolderActions(record),
-            }
-          ];
-        }
-
+    if (isAllFolders) {
+      if (activeSpace === "trash") {
         return [
           {
             title: "Tên folder",
@@ -4943,27 +7977,62 @@ const InternalTemplates = () => {
             title: "Mô tả",
             key: "description",
             minWidth: 200,
-            render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+            render: (_, record) => (
+              <Text type="secondary">{record.description || "—"}</Text>
+            ),
           },
           {
             title: "Size",
             key: "size",
             width: 100,
-            sorter: (a, b) => getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
-            render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
+            sorter: (a, b) =>
+              getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
+            render: (_, record) => (
+              <Text type="secondary">
+                {formatBytes(getFolderSize(extractId(record)))}
+              </Text>
+            ),
           },
           {
-            title: "Ngày tạo",
-            key: "createdAt",
-            width: 150,
-            sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-            render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
-          },
-          {
-            title: "Người tạo",
+            title: "Người upload",
             key: "createdBy",
             width: 180,
-            render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
+            render: (_, record) => (
+              <Text type="secondary">{getUploadUserName(record)}</Text>
+            ),
+          },
+          {
+            title: "Ngày upload",
+            key: "createdAt",
+            width: 150,
+            sorter: (a, b) =>
+              new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+            render: (_, record) => (
+              <Text type="secondary">{formatDate(getValidDate(record))}</Text>
+            ),
+          },
+          {
+            title: "Người xoá",
+            key: "deletedBy",
+            width: 180,
+            render: (_, record) => (
+              <Text type="secondary">{getDeletedUserName(record)}</Text>
+            ),
+          },
+          {
+            title: "Ngày xoá",
+            key: "deletedAt",
+            width: 160,
+            sorter: (a, b) =>
+              new Date(a.deletedAt || a.updatedAt || 0) -
+              new Date(b.deletedAt || b.updatedAt || 0),
+            render: (_, record) => (
+              <Text type="secondary">
+                {formatDateTime(
+                  record.deletedAt || record.updatedAt || record.deleted_at,
+                )}
+              </Text>
+            ),
           },
           {
             title: "Thao tác",
@@ -4971,102 +8040,142 @@ const InternalTemplates = () => {
             width: 120,
             align: "right",
             render: (_, record) => renderFolderActions(record),
-          }
+          },
         ];
       }
 
-      if (isAllFiles) {
-        if (activeSpace === "trash") {
-          return [
-            {
-              title: "Tên file",
-              key: "name",
-              minWidth: 250,
-              render: (_, record) => renderNameCell(record, true),
-              sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
-            },
-            {
-              title: "Mô tả",
-              key: "description",
-              minWidth: 200,
-              render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
-            },
-            {
-              title: "Size",
-              key: "size",
-              width: 100,
-              sorter: (a, b) => (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
-              render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
-            },
-            {
-              title: "Người upload",
-              key: "uploadedBy",
-              width: 180,
-              render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
-            },
-            {
-              title: "Ngày upload",
-              key: "uploadedAt",
-              width: 160,
-              sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-              render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
-            },
-            {
-              title: "Người xoá",
-              key: "deletedBy",
-              width: 180,
-              render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
-            },
-            {
-              title: "Ngày xoá",
-              key: "deletedAt",
-              width: 160,
-              sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
-              render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
-            },
-            {
-              title: "Thao tác",
-              key: "actions",
-              width: 120,
-              align: "right",
-              render: (_, record) => renderFileActions(record),
-            }
-          ];
-        }
+      return [
+        {
+          title: "Tên folder",
+          key: "name",
+          minWidth: 250,
+          render: (_, record) => renderNameCell(record, false),
+          sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
+        },
+        {
+          title: "Mô tả",
+          key: "description",
+          minWidth: 200,
+          render: (_, record) => (
+            <Text type="secondary">{record.description || "—"}</Text>
+          ),
+        },
+        {
+          title: "Size",
+          key: "size",
+          width: 100,
+          sorter: (a, b) =>
+            getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
+          render: (_, record) => (
+            <Text type="secondary">
+              {formatBytes(getFolderSize(extractId(record)))}
+            </Text>
+          ),
+        },
+        {
+          title: "Ngày tạo",
+          key: "createdAt",
+          width: 150,
+          sorter: (a, b) =>
+            new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+          render: (_, record) => (
+            <Text type="secondary">{formatDate(getValidDate(record))}</Text>
+          ),
+        },
+        {
+          title: "Người tạo",
+          key: "createdBy",
+          width: 180,
+          render: (_, record) => (
+            <Text type="secondary">{getUploadUserName(record)}</Text>
+          ),
+        },
+        {
+          title: "Thao tác",
+          key: "actions",
+          width: 120,
+          align: "right",
+          render: (_, record) => renderFolderActions(record),
+        },
+      ];
+    }
 
+    if (isAllFiles) {
+      if (activeSpace === "trash") {
         return [
           {
             title: "Tên file",
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, true),
-            sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
+            sorter: (a, b) =>
+              (a.name || a.title || "").localeCompare(
+                b.name || b.title || "",
+                "vi",
+              ),
           },
           {
             title: "Mô tả",
             key: "description",
             minWidth: 200,
-            render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+            render: (_, record) => (
+              <Text type="secondary">{record.description || "—"}</Text>
+            ),
           },
           {
             title: "Size",
             key: "size",
             width: 100,
-            sorter: (a, b) => (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
-            render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
-          },
-          {
-            title: "Ngày upload",
-            key: "uploadedAt",
-            width: 160,
-            sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-            render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
+            sorter: (a, b) =>
+              (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
+            render: (_, record) => (
+              <Text type="secondary">
+                {formatBytes(getAttachment(record)?.size)}
+              </Text>
+            ),
           },
           {
             title: "Người upload",
             key: "uploadedBy",
             width: 180,
-            render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
+            render: (_, record) => (
+              <Text type="secondary">{getUploadUserName(record)}</Text>
+            ),
+          },
+          {
+            title: "Ngày upload",
+            key: "uploadedAt",
+            width: 160,
+            sorter: (a, b) =>
+              new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+            render: (_, record) => (
+              <Text type="secondary">
+                {formatDateTime(getValidDate(record))}
+              </Text>
+            ),
+          },
+          {
+            title: "Người xoá",
+            key: "deletedBy",
+            width: 180,
+            render: (_, record) => (
+              <Text type="secondary">{getDeletedUserName(record)}</Text>
+            ),
+          },
+          {
+            title: "Ngày xoá",
+            key: "deletedAt",
+            width: 160,
+            sorter: (a, b) =>
+              new Date(a.deletedAt || a.updatedAt || 0) -
+              new Date(b.deletedAt || b.updatedAt || 0),
+            render: (_, record) => (
+              <Text type="secondary">
+                {formatDateTime(
+                  record.deletedAt || record.updatedAt || record.deleted_at,
+                )}
+              </Text>
+            ),
           },
           {
             title: "Thao tác",
@@ -5074,108 +8183,112 @@ const InternalTemplates = () => {
             width: 120,
             align: "right",
             render: (_, record) => renderFileActions(record),
-          }
+          },
         ];
       }
 
-      // Default mixed columns
-      if (activeSpace === "trash") {
-        return [
-          {
-            title: "Tên",
-            key: "name",
-            minWidth: 250,
-            render: (_, record) => renderNameCell(record, true),
-            sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
-          },
-          {
-            title: "Mô tả",
-            key: "description",
-            minWidth: 200,
-            render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
-          },
-          {
-            title: "Size",
-            key: "size",
-            width: 100,
-            sorter: (a, b) => {
-              const sizeA = a._type === "folder" ? getFolderSize(extractId(a)) : (getAttachment(a)?.size || 0);
-              const sizeB = b._type === "folder" ? getFolderSize(extractId(b)) : (getAttachment(b)?.size || 0);
-              return sizeA - sizeB;
-            },
-            render: (_, record) => {
-              const size = record._type === "folder" ? getFolderSize(extractId(record)) : (getAttachment(record)?.size || 0);
-              return <Text type="secondary">{formatBytes(size)}</Text>;
-            },
-          },
-          {
-            title: "Ngày tạo",
-            key: "createdAt",
-            width: 120,
-            sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-            render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
-          },
-          {
-            title: "Người upload",
-            key: "uploadedBy",
-            width: 150,
-            render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
-          },
-          {
-            title: "Ngày upload",
-            key: "uploadedAt",
-            width: 150,
-            sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-            render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
-          },
-          {
-            title: "Người xoá",
-            key: "deletedBy",
-            width: 150,
-            render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
-          },
-          {
-            title: "Ngày xoá",
-            key: "deletedAt",
-            width: 150,
-            sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
-            render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
-          },
-          {
-            title: "Thao tác",
-            key: "actions",
-            width: 120,
-            align: "right",
-            render: (_, record) => (record._type === "folder" ? renderFolderActions(record) : renderFileActions(record)),
-          }
-        ];
-      }
+      return [
+        {
+          title: "Tên file",
+          key: "name",
+          minWidth: 250,
+          render: (_, record) => renderNameCell(record, true),
+          sorter: (a, b) =>
+            (a.name || a.title || "").localeCompare(
+              b.name || b.title || "",
+              "vi",
+            ),
+        },
+        {
+          title: "Mô tả",
+          key: "description",
+          minWidth: 200,
+          render: (_, record) => (
+            <Text type="secondary">{record.description || "—"}</Text>
+          ),
+        },
+        {
+          title: "Size",
+          key: "size",
+          width: 100,
+          sorter: (a, b) =>
+            (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
+          render: (_, record) => (
+            <Text type="secondary">
+              {formatBytes(getAttachment(record)?.size)}
+            </Text>
+          ),
+        },
+        {
+          title: "Ngày upload",
+          key: "uploadedAt",
+          width: 160,
+          sorter: (a, b) =>
+            new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+          render: (_, record) => (
+            <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>
+          ),
+        },
+        {
+          title: "Người upload",
+          key: "uploadedBy",
+          width: 180,
+          render: (_, record) => (
+            <Text type="secondary">{getUploadUserName(record)}</Text>
+          ),
+        },
+        {
+          title: "Thao tác",
+          key: "actions",
+          width: 120,
+          align: "right",
+          render: (_, record) => renderFileActions(record),
+        },
+      ];
+    }
 
+    // Default mixed columns
+    if (activeSpace === "trash") {
       return [
         {
           title: "Tên",
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, true),
-          sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
+          sorter: (a, b) =>
+            (a.name || a.title || "").localeCompare(
+              b.name || b.title || "",
+              "vi",
+            ),
         },
         {
           title: "Mô tả",
           key: "description",
           minWidth: 200,
-          render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+          render: (_, record) => (
+            <Text type="secondary">{record.description || "—"}</Text>
+          ),
         },
         {
           title: "Size",
           key: "size",
           width: 100,
           sorter: (a, b) => {
-            const sizeA = a._type === "folder" ? getFolderSize(extractId(a)) : (getAttachment(a)?.size || 0);
-            const sizeB = b._type === "folder" ? getFolderSize(extractId(b)) : (getAttachment(b)?.size || 0);
+            const sizeA =
+              a._type === "folder"
+                ? getFolderSize(extractId(a))
+                : getAttachment(a)?.size || 0;
+            const sizeB =
+              b._type === "folder"
+                ? getFolderSize(extractId(b))
+                : getAttachment(b)?.size || 0;
             return sizeA - sizeB;
           },
           render: (_, record) => {
-            const size = record._type === "folder" ? getFolderSize(extractId(record)) : (getAttachment(record)?.size || 0);
+            const size =
+              record._type === "folder"
+                ? getFolderSize(extractId(record))
+                : getAttachment(record)?.size || 0;
             return <Text type="secondary">{formatBytes(size)}</Text>;
           },
         },
@@ -5183,39 +8296,193 @@ const InternalTemplates = () => {
           title: "Ngày tạo",
           key: "createdAt",
           width: 120,
-          sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-          render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
-        },
-        {
-          title: "Ngày upload",
-          key: "uploadedAt",
-          width: 150,
-          sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
-          render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
+          sorter: (a, b) =>
+            new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+          render: (_, record) =>
+            record._type === "folder" ? (
+              <Text type="secondary">{formatDate(getValidDate(record))}</Text>
+            ) : (
+              <Text type="secondary">—</Text>
+            ),
         },
         {
           title: "Người upload",
           key: "uploadedBy",
           width: 150,
-          render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
+          render: (_, record) =>
+            record._type === "file" ? (
+              <Text type="secondary">{getUploadUserName(record)}</Text>
+            ) : (
+              <Text type="secondary">—</Text>
+            ),
+        },
+        {
+          title: "Ngày upload",
+          key: "uploadedAt",
+          width: 150,
+          sorter: (a, b) =>
+            new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+          render: (_, record) =>
+            record._type === "file" ? (
+              <Text type="secondary">
+                {formatDateTime(getValidDate(record))}
+              </Text>
+            ) : (
+              <Text type="secondary">—</Text>
+            ),
+        },
+        {
+          title: "Người xoá",
+          key: "deletedBy",
+          width: 150,
+          render: (_, record) => (
+            <Text type="secondary">{getDeletedUserName(record)}</Text>
+          ),
+        },
+        {
+          title: "Ngày xoá",
+          key: "deletedAt",
+          width: 150,
+          sorter: (a, b) =>
+            new Date(a.deletedAt || a.updatedAt || 0) -
+            new Date(b.deletedAt || b.updatedAt || 0),
+          render: (_, record) => (
+            <Text type="secondary">
+              {formatDateTime(
+                record.deletedAt || record.updatedAt || record.deleted_at,
+              )}
+            </Text>
+          ),
         },
         {
           title: "Thao tác",
           key: "actions",
           width: 120,
           align: "right",
-          render: (_, record) => (record._type === "folder" ? renderFolderActions(record) : renderFileActions(record)),
-        }
+          render: (_, record) =>
+            record._type === "folder"
+              ? renderFolderActions(record)
+              : renderFileActions(record),
+        },
       ];
-    },
-    [tableData, documentTypes, getTypeConfig, getRecordDocumentType, editingTitleId, editingTitleValue, currentUserState, currentLawyerId, visibleFolders, getRecordPathString, activeSpace, getFolderSize, openLegalReferenceDetail, openLinkCaseModal],
-  );
+    }
+
+    return [
+      {
+        title: "Tên",
+        key: "name",
+        minWidth: 250,
+        render: (_, record) => renderNameCell(record, true),
+        sorter: (a, b) =>
+          (a.name || a.title || "").localeCompare(
+            b.name || b.title || "",
+            "vi",
+          ),
+      },
+      {
+        title: "Mô tả",
+        key: "description",
+        minWidth: 200,
+        render: (_, record) => (
+          <Text type="secondary">{record.description || "—"}</Text>
+        ),
+      },
+      {
+        title: "Size",
+        key: "size",
+        width: 100,
+        sorter: (a, b) => {
+          const sizeA =
+            a._type === "folder"
+              ? getFolderSize(extractId(a))
+              : getAttachment(a)?.size || 0;
+          const sizeB =
+            b._type === "folder"
+              ? getFolderSize(extractId(b))
+              : getAttachment(b)?.size || 0;
+          return sizeA - sizeB;
+        },
+        render: (_, record) => {
+          const size =
+            record._type === "folder"
+              ? getFolderSize(extractId(record))
+              : getAttachment(record)?.size || 0;
+          return <Text type="secondary">{formatBytes(size)}</Text>;
+        },
+      },
+      {
+        title: "Ngày tạo",
+        key: "createdAt",
+        width: 120,
+        sorter: (a, b) =>
+          new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+        render: (_, record) =>
+          record._type === "folder" ? (
+            <Text type="secondary">{formatDate(getValidDate(record))}</Text>
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Ngày upload",
+        key: "uploadedAt",
+        width: 150,
+        sorter: (a, b) =>
+          new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
+        render: (_, record) =>
+          record._type === "file" ? (
+            <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Người upload",
+        key: "uploadedBy",
+        width: 150,
+        render: (_, record) =>
+          record._type === "file" ? (
+            <Text type="secondary">{getUploadUserName(record)}</Text>
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Thao tác",
+        key: "actions",
+        width: 120,
+        align: "right",
+        render: (_, record) =>
+          record._type === "folder"
+            ? renderFolderActions(record)
+            : renderFileActions(record),
+      },
+    ];
+  }, [
+    tableData,
+    documentTypes,
+    getTypeConfig,
+    getRecordDocumentType,
+    editingTitleId,
+    editingTitleValue,
+    currentUserState,
+    currentLawyerId,
+    visibleFolders,
+    getRecordPathString,
+    activeSpace,
+    getFolderSize,
+    openLegalReferenceDetail,
+    openLinkCaseModal,
+  ]);
 
   const rowDragProps = (record) => ({
     draggable: record._type !== "legal_reference_record",
     onDragStart: (event) => {
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("application/json", JSON.stringify({ type: record._type, id: extractId(record) }));
+      event.dataTransfer.setData(
+        "application/json",
+        JSON.stringify({ type: record._type, id: extractId(record) }),
+      );
     },
     onDragOver: (event) => {
       event.preventDefault();
@@ -5233,7 +8500,7 @@ const InternalTemplates = () => {
       if (record._type === "legal_reference_record") {
         openLegalReferenceDetail(record);
       }
-    }
+    },
   });
 
   const handleNewActionClick = ({ key }) => {
@@ -5257,163 +8524,229 @@ const InternalTemplates = () => {
 
   const newMenu = {
     items: [
-      { key: "folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo thư mục") },
+      {
+        key: "folder",
+        label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo thư mục"),
+      },
       { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload") },
-      { key: "upload_folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload thư mục") },
+      {
+        key: "upload_folder",
+        label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload thư mục"),
+      },
     ],
     onClick: handleNewActionClick,
   };
 
-  const activityColumns = useMemo(() => [
-    {
-      title: "Loại hoạt động",
-      dataIndex: "action",
-      key: "action",
-      width: 170,
-      render: (text, log) => {
-        const info = resolveActivityActionInfo(log);
-        return (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 10px",
-              borderRadius: 16,
-              background: info.bg,
-              border: `1px solid ${info.border}`,
-              fontSize: 12,
-              fontWeight: 500,
-              color: info.color,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {info.icon}
-            {info.label}
-          </span>
-        );
-      }
-    },
-    {
-      title: "Người thực hiện",
-      dataIndex: "changedByName",
-      key: "changedByName",
-      width: 200,
-      render: (name) => {
-        const displayName = name || "Hệ thống";
-        const initials = displayName
-          .split(" ")
-          .map((w) => w[0])
-          .filter(Boolean)
-          .slice(-2)
-          .join("")
-          .toUpperCase() || "?";
-        const palettes = [
-          ["#EEEDFE", "#3C3489"],
-          ["#E1F5EE", "#085041"],
-          ["#FAEEDA", "#633806"],
-          ["#FAECE7", "#712B13"],
-          ["#EAF3DE", "#27500A"],
-        ];
-        const [bg, fg] = palettes[(displayName.charCodeAt(0) || 0) % palettes.length];
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
+  const activityColumns = useMemo(
+    () => [
+      {
+        title: "Loại hoạt động",
+        dataIndex: "action",
+        key: "action",
+        width: 170,
+        render: (text, log) => {
+          const info = resolveActivityActionInfo(log);
+          return (
+            <span
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: bg,
-                color: fg,
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: 11,
-                fontWeight: 600,
-                flexShrink: 0,
+                gap: 6,
+                padding: "4px 10px",
+                borderRadius: 16,
+                background: info.bg,
+                border: `1px solid ${info.border}`,
+                fontSize: 12,
+                fontWeight: 500,
+                color: info.color,
+                whiteSpace: "nowrap",
               }}
             >
-              {initials}
-            </div>
-            <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{displayName}</span>
-          </div>
-        );
-      }
-    },
-    {
-      title: "Tài liệu",
-      key: "file",
-      width: 320,
-      render: (text, log) => {
-        const isFolder = log.collectionName === "Folder";
-        const name = log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "—";
-        const docRecord = !isFolder ? documents.find(d => String(extractId(d.id)) === String(log.recordId)) : null;
-
-        let icon = isFolder ? TYPE_ICONS.folder : TYPE_ICONS.default;
-        if (!isFolder && docRecord) {
-          const ext = getFileExtension(docRecord);
-          icon = getFileSvgIcon(ext);
-        }
-
-        const canPreview = docRecord && getRecordFileUrl(docRecord);
-
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 240 }}>
-            <span style={{ flexShrink: 0, display: "inline-flex" }}>{icon}</span>
-            {canPreview ? (
-              <span
-                onClick={() => previewRecordFile(docRecord)}
+              {info.icon}
+              {info.label}
+            </span>
+          );
+        },
+      },
+      {
+        title: "Người thực hiện",
+        dataIndex: "changedByName",
+        key: "changedByName",
+        width: 200,
+        render: (name) => {
+          const displayName = name || "Hệ thống";
+          const initials =
+            displayName
+              .split(" ")
+              .map((w) => w[0])
+              .filter(Boolean)
+              .slice(-2)
+              .join("")
+              .toUpperCase() || "?";
+          const palettes = [
+            ["#EEEDFE", "#3C3489"],
+            ["#E1F5EE", "#085041"],
+            ["#FAEEDA", "#633806"],
+            ["#FAECE7", "#712B13"],
+            ["#EAF3DE", "#27500A"],
+          ];
+          const [bg, fg] =
+            palettes[(displayName.charCodeAt(0) || 0) % palettes.length];
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
                 style={{
-                  fontSize: 13,
-                  color: "#185FA5",
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: bg,
+                  color: fg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 11,
                   fontWeight: 600,
-                  cursor: "pointer",
-                  textDecoration: "none",
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
+                  flexShrink: 0,
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
               >
-                {name}
+                {initials}
+              </div>
+              <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>
+                {displayName}
               </span>
-            ) : (
-              <span style={{ fontSize: 13, color: "#374151", fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}>{name}</span>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      title: "Mô tả thay đổi",
-      key: "desc",
-      width: 420,
-      render: (text, log) => {
-        const desc = resolveActivityDesc(log, folders, documents);
-        return (
-          <div style={{ minWidth: 320, maxWidth: 560, fontSize: 13, color: "#4B5563", lineHeight: 1.6, whiteSpace: "normal", wordBreak: "normal", overflowWrap: "break-word" }}>{desc}</div>
-        );
-      }
-    },
-    {
-      title: "Thời gian",
-      dataIndex: "changedAt",
-      key: "changedAt",
-      width: 160,
-      render: (iso) => {
-        if (!iso) return <span style={{ color: "#9CA3AF" }}>—</span>;
-        const d = new Date(iso);
-        const formatted = d.toLocaleString("vi-VN", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        return <span style={{ fontSize: 13, color: "#4B5563" }}>{formatted}</span>;
-      }
-    }
-  ], [documents, folders, resolveActivityActionInfo, resolveActivityDesc, previewRecordFile]);
+            </div>
+          );
+        },
+      },
+      {
+        title: "Tài liệu",
+        key: "file",
+        width: 320,
+        render: (text, log) => {
+          const isFolder = log.collectionName === "Folder";
+          const name =
+            log.resolvedTitle ||
+            log.recordTitle ||
+            log.newValue ||
+            log.oldValue ||
+            "—";
+          const docRecord = !isFolder
+            ? documents.find(
+                (d) => String(extractId(d.id)) === String(log.recordId),
+              )
+            : null;
+
+          let icon = isFolder ? TYPE_ICONS.folder : TYPE_ICONS.default;
+          if (!isFolder && docRecord) {
+            const ext = getFileExtension(docRecord);
+            icon = getFileSvgIcon(ext);
+          }
+
+          const canPreview = docRecord && getRecordFileUrl(docRecord);
+
+          return (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                minWidth: 240,
+              }}
+            >
+              <span style={{ flexShrink: 0, display: "inline-flex" }}>
+                {icon}
+              </span>
+              {canPreview ? (
+                <span
+                  onClick={() => previewRecordFile(docRecord)}
+                  style={{
+                    fontSize: 13,
+                    color: "#185FA5",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    textDecoration: "none",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.textDecoration = "underline";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.textDecoration = "none";
+                  }}
+                >
+                  {name}
+                </span>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: "#374151",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {name}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        title: "Mô tả thay đổi",
+        key: "desc",
+        width: 420,
+        render: (text, log) => {
+          const desc = resolveActivityDesc(log, folders, documents);
+          return (
+            <div
+              style={{
+                minWidth: 320,
+                maxWidth: 560,
+                fontSize: 13,
+                color: "#4B5563",
+                lineHeight: 1.6,
+                whiteSpace: "normal",
+                wordBreak: "normal",
+                overflowWrap: "break-word",
+              }}
+            >
+              {desc}
+            </div>
+          );
+        },
+      },
+      {
+        title: "Thời gian",
+        dataIndex: "changedAt",
+        key: "changedAt",
+        width: 160,
+        render: (iso) => {
+          if (!iso) return <span style={{ color: "#9CA3AF" }}>—</span>;
+          const d = new Date(iso);
+          const formatted = d.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return (
+            <span style={{ fontSize: 13, color: "#4B5563" }}>{formatted}</span>
+          );
+        },
+      },
+    ],
+    [
+      documents,
+      folders,
+      resolveActivityActionInfo,
+      resolveActivityDesc,
+      previewRecordFile,
+    ],
+  );
 
   if (loading && companies.length === 0 && documents.length === 0) {
     return (
@@ -5426,45 +8759,73 @@ const InternalTemplates = () => {
   return (
     <React.Fragment>
       <Dropdown
-        menu={{ items: contextMenuState.record ? renderContextMenuItems(contextMenuState.record) : [] }}
+        menu={{
+          items: contextMenuState.record
+            ? renderContextMenuItems(contextMenuState.record)
+            : [],
+        }}
         open={contextMenuState.open}
-        onOpenChange={(v) => { if (!v) closeContextMenu(); }}
+        onOpenChange={(v) => {
+          if (!v) closeContextMenu();
+        }}
         trigger={["contextMenu"]}
       >
-        <div style={{ position: "fixed", left: contextMenuState.x, top: contextMenuState.y, width: 1, height: 1, zIndex: 9999, pointerEvents: "none" }} />
+        <div
+          style={{
+            position: "fixed",
+            left: contextMenuState.x,
+            top: contextMenuState.y,
+            width: 1,
+            height: 1,
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+        />
       </Dropdown>
 
-      <Layout style={{ background: "#fff", minHeight: "720px", fontFamily: FONT, borderRadius: 8, border: "0.5px solid #e5e7eb", overflow: "hidden", minWidth: 0 }}>
+      <Layout
+        style={{
+          background: "#fff",
+          minHeight: "720px",
+          fontFamily: FONT,
+          borderRadius: 8,
+          border: "0.5px solid #e5e7eb",
+          overflow: "hidden",
+          minWidth: 0,
+        }}
+      >
         {!sidebarCollapsed && (
-          <Sider width={240} style={{ background: "#FFFFFF", borderRight: "0.5px solid #E5E7EB", padding: "16px 12px", overflowY: "auto" }}>
+          <Sider
+            width={240}
+            style={{
+              background: "#FFFFFF",
+              borderRight: "0.5px solid #E5E7EB",
+              padding: "16px 12px",
+              overflowY: "auto",
+            }}
+          >
             <div style={{ display: "flex", flexDirection: "column" }}>
-
-              {/* Workspace header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px 16px 2px", borderBottom: "0.5px solid #E5E7EB", marginBottom: 16 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8, background: "#185FA5",
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-                    <line x1="9" y1="22" x2="9" y2="16" />
-                    <line x1="15" y1="22" x2="15" y2="16" />
-                    <line x1="9" y1="16" x2="15" y2="16" />
-                    <path d="M8 6h2" />
-                    <path d="M14 6h2" />
-                    <path d="M8 10h2" />
-                    <path d="M14 10h2" />
-                  </svg>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    Document Workspace
-                  </span>
-                  <span style={{ fontSize: 11, color: "#6B7280" }}>Cases</span>
-                </div>
+              {/* ══ SIDEBAR CLOSE BUTTON ══ */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: 12,
+                }}
+              >
                 <Tooltip title="Đóng sidebar">
-                  <Button type="text" icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(true)}
-                    style={{ width: 22, height: 22, minWidth: 22, padding: 0, color: "#9CA3AF" }} />
+                  <Button
+                    type="text"
+                    icon={SIDEBAR_ICON}
+                    onClick={() => setSidebarCollapsed(true)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      minWidth: 28,
+                      padding: 0,
+                      color: "#9CA3AF",
+                    }}
+                  />
                 </Tooltip>
               </div>
 
@@ -5475,86 +8836,185 @@ const InternalTemplates = () => {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   allowClear
-                  prefix={<span style={{ color: "#9CA3AF", marginRight: 4, display: "flex" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </span>}
-                  style={{ borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB" }}
+                  prefix={
+                    <span
+                      style={{
+                        color: "#9CA3AF",
+                        marginRight: 4,
+                        display: "flex",
+                      }}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                      </svg>
+                    </span>
+                  }
+                  style={{
+                    borderRadius: 8,
+                    background: "#F9FAFB",
+                    border: "1px solid #E5E7EB",
+                  }}
                 />
               </div>
 
-              {/* Cases */}
+              {/* Case hiện tại */}
               <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 2px 6px 2px",
+                  }}
+                >
                   <div
                     onClick={() => {
                       setActiveSpace("cases");
                       setActiveLegalReferenceId(null);
                       setSelectedFolderId("root");
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", userSelect: "none" }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
                   >
                     <span
-                      onClick={(e) => { e.stopPropagation(); setSpacesExpanded(!spacesExpanded); }}
-                      style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSpacesExpanded(!spacesExpanded);
+                      }}
+                      style={{
+                        color: "#9CA3AF",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
                     >
                       {spacesExpanded ? ChevronDown : ChevronRight}
                     </span>
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: activeSpace === "cases" ? "#185FA5" : "#9CA3AF",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      fontFamily: FONT
-                    }}>Cases</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: activeSpace === "cases" ? "#185FA5" : "#9CA3AF",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        fontFamily: FONT,
+                      }}
+                    >
+                      Current Case
+                    </span>
                   </div>
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={() => handleCreateFolderFromSidebar("cases")}
-                    style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                  >+ Tạo</button>
+                    style={{
+                      fontSize: 11,
+                      color: "#185FA5",
+                      fontWeight: 500,
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      padding: "0 2px",
+                      fontFamily: FONT,
+                    }}
+                  >
+                    + Tạo
+                  </button>
                 </div>
                 {spacesExpanded && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <button type="button"
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
+                    <button
+                      type="button"
                       onClick={() => {
                         setActiveSpace("cases");
                         setActiveLegalReferenceId(null);
                         setSelectedFolderId("root");
                       }}
                       style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                        border: "0", borderRadius: 8, cursor: "pointer",
-                        borderLeft: activeSpace === "cases" && selectedFolderId === "root" ? "2px solid #185FA5" : "2px solid transparent",
-                        background: activeSpace === "cases" && selectedFolderId === "root" ? "#E6F1FB" : "transparent",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 10px",
+                        border: "0",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        borderLeft:
+                          activeSpace === "cases" && selectedFolderId === "root"
+                            ? "2px solid #185FA5"
+                            : "2px solid transparent",
+                        background:
+                          activeSpace === "cases" && selectedFolderId === "root"
+                            ? "#E6F1FB"
+                            : "transparent",
                         color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
-                        fontWeight: activeSpace === "cases" ? 600 : 400, fontFamily: FONT, fontSize: 13,
-                        transition: "background 0.15s", minWidth: 0, textAlign: "left"
+                        fontWeight: activeSpace === "cases" ? 600 : 400,
+                        fontFamily: FONT,
+                        fontSize: 13,
+                        transition: "background 0.15s",
+                        minWidth: 0,
+                        textAlign: "left",
                       }}
                     >
-                      <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          flexShrink: 0,
+                        }}
+                      >
                         {React.cloneElement(TYPE_ICONS.folder, { size: 15 })}
                       </span>
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {getCaseDisplayName(activeCase)}
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {getCaseDisplayName(activeCaseRecord || activeCase)}
                       </span>
-                      {(caseVisibleFolders.length + caseDocs.filter((doc) => !doc.isDeleted).length) > 0 && (
-                        <span style={{
-                          fontSize: 11,
-                          background: activeSpace === "cases" ? "#FFFFFF" : "#F3F4F6",
-                          color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
-                          padding: "1px 6px", borderRadius: 99, flexShrink: 0
-                        }}>
-                          {caseVisibleFolders.length + caseDocs.filter((doc) => !doc.isDeleted).length}
-                        </span>
-                      )}
                     </button>
 
                     {activeSpace === "cases" && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12, marginTop: 2 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 1,
+                          paddingLeft: 12,
+                          marginTop: 2,
+                        }}
+                      >
                         {caseSidebarRootFolders.length === 0 ? (
-                          <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#9CA3AF",
+                              padding: "4px 10px",
+                              display: "block",
+                              fontStyle: "italic",
+                            }}
+                          >
+                            Chưa có thư mục
+                          </Text>
                         ) : (
                           caseSidebarRootFolders.map((folder) => {
                             const fid = String(extractId(folder.id));
@@ -5574,22 +9034,50 @@ const InternalTemplates = () => {
                                     open: true,
                                     x: e.clientX,
                                     y: e.clientY,
-                                    record: { ...folder, _type: "folder" }
+                                    record: { ...folder, _type: "folder" },
                                   });
                                 }}
                                 style={{
-                                  width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                  border: "0", borderRadius: 8, cursor: "pointer",
-                                  background: isFolderActive ? "#E6F1FB" : "transparent",
+                                  width: "100%",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "5px 10px",
+                                  border: "0",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  background: isFolderActive
+                                    ? "#E6F1FB"
+                                    : "transparent",
                                   color: isFolderActive ? "#185FA5" : "#6B7280",
-                                  fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                  transition: "background 0.15s", minWidth: 0, textAlign: "left"
+                                  fontWeight: isFolderActive ? 600 : 400,
+                                  fontFamily: FONT,
+                                  fontSize: 12,
+                                  transition: "background 0.15s",
+                                  minWidth: 0,
+                                  textAlign: "left",
                                 }}
                               >
-                                <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                  {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {React.cloneElement(TYPE_ICONS.folder, {
+                                    size: 13,
+                                  })}
                                 </span>
-                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
                                   {folder.name}
                                 </span>
                               </button>
@@ -5602,202 +9090,137 @@ const InternalTemplates = () => {
                 )}
               </div>
 
-              {false && (
-                <React.Fragment>
-              {/* ══ SECTION 1: KHÔNG GIAN (Spaces) ══ */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
-                  <div
-                    onClick={() => {
-                      setActiveSpace("company_shared");
-                      setActiveCompanyId(null);
-                      setSelectedFolderId("root");
-                    }}
-                    style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", userSelect: "none" }}
-                  >
-                    <span
-                      onClick={(e) => { e.stopPropagation(); setSpacesExpanded(!spacesExpanded); }}
-                      style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}
-                    >
-                      {spacesExpanded ? ChevronDown : ChevronRight}
-                    </span>
-                    <span style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: activeSpace === "company_shared" && !activeCompanyId ? "#185FA5" : "#9CA3AF",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      fontFamily: FONT
-                    }}>Workspace</span>
-                  </div>
-                  <button type="button"
-                    onClick={() => handleCreateFolderFromSidebar("company_shared")}
-                    style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                  >+ Tạo</button>
-                </div>
-                {spacesExpanded && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {companies.length === 0 ? (
-                      <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>Chưa có</Text>
-                    ) : (
-                      (showAllCompanies ? companies : companies.slice(0, 5)).map((company) => {
-                        const cid = String(extractId(company));
-                        const isActive = cid === String(activeCompanyId) && activeSpace === "company_shared";
-                        const compDocsCount = documents.filter(doc => matchesInternalCompany(doc, cid) && !doc.isDeleted).length;
-                        const compFoldersCount = folders.filter(f => matchesInternalCompany(f, cid) && !f.isDeleted).length;
-                        const totalCount = compDocsCount + compFoldersCount;
-                        return (
-                          <div key={cid} style={{ display: "flex", flexDirection: "column" }}>
-                            <button type="button" onClick={() => { setActiveCompanyId(cid); setActiveSpace("company_shared"); setSelectedFolderId("root"); }}
-                              style={{
-                                width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                                border: "0", borderRadius: 8, cursor: "pointer",
-                                borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
-                                background: isActive ? "#E6F1FB" : "transparent",
-                                color: isActive ? "#185FA5" : "#6B7280",
-                                fontWeight: isActive ? 600 : 400, fontFamily: FONT, fontSize: 13,
-                                transition: "background 0.15s", minWidth: 0, textAlign: "left"
-                              }}
-                              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isActive ? "#185FA5" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                                <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-                                <line x1="9" y1="22" x2="9" y2="16" />
-                                <line x1="15" y1="22" x2="15" y2="16" />
-                              </svg>
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {getCompanyName(company)}
-                              </span>
-                              {totalCount > 0 && (
-                                <span style={{
-                                  fontSize: 11,
-                                  background: isActive ? "#FFFFFF" : "#F3F4F6",
-                                  color: isActive ? "#185FA5" : "#6B7280",
-                                  padding: "1px 6px", borderRadius: 99, flexShrink: 0
-                                }}>
-                                  {totalCount}
-                                </span>
-                              )}
-                            </button>
-
-                            {/* Render root folders of this company when active */}
-                            {isActive && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12, marginTop: 2 }}>
-                                {companyRootFolders.map((folder) => {
-                                  const fid = String(extractId(folder.id));
-                                  const isFolderActive = selectedFolderId === fid;
-                                  return (
-                                    <button
-                                      key={fid}
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveSpace("company_shared");
-                                        setSelectedFolderId(fid);
-                                      }}
-                                      onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setContextMenuState({
-                                          open: true,
-                                          x: e.clientX,
-                                          y: e.clientY,
-                                          record: { ...folder, _type: "folder" }
-                                        });
-                                      }}
-                                      style={{
-                                        width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                        border: "0", borderRadius: 8, cursor: "pointer",
-                                        background: isFolderActive ? "#E6F1FB" : "transparent",
-                                        color: isFolderActive ? "#185FA5" : "#6B7280",
-                                        fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                        transition: "background 0.15s", minWidth: 0, textAlign: "left"
-                                      }}
-                                      onMouseEnter={(e) => { if (!isFolderActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                                      onMouseLeave={(e) => { if (!isFolderActive) e.currentTarget.style.background = "transparent"; }}
-                                    >
-                                      <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                        {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
-                                      </span>
-                                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {folder.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                    {companies.length > 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllCompanies(!showAllCompanies)}
-                        style={{
-                          fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
-                          padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
-                        }}
-                      >
-                        {showAllCompanies ? "Thu gọn" : `Xem thêm (${companies.length - 5})`}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* ══ SECTION 2: THƯ VIỆN (Library) ══ */}
-              <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginBottom: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
+              {/* ══ SECTION 2: LEGAL REFERENCE ══ */}
+              <div
+                style={{
+                  borderTop: "0.5px solid #E5E7EB",
+                  paddingTop: 12,
+                  marginTop: 4,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 2px 6px 2px",
+                  }}
+                >
                   <div
                     onClick={() => {
                       setActiveSpace("legal_reference");
                       setActiveLegalReferenceId(null);
                       setSelectedFolderId("root");
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", userSelect: "none" }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
                   >
                     <span
-                      onClick={(e) => { e.stopPropagation(); setLibraryExpanded(!libraryExpanded); }}
-                      style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLegalReferenceExpanded(!legalReferenceExpanded);
+                      }}
+                      style={{
+                        color: "#9CA3AF",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
                     >
-                      {libraryExpanded ? ChevronDown : ChevronRight}
+                      {legalReferenceExpanded ? ChevronDown : ChevronRight}
                     </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "legal_reference" && !activeLegalReferenceId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Reference</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color:
+                          activeSpace === "legal_reference" &&
+                          !activeLegalReferenceId
+                            ? "#185FA5"
+                            : "#9CA3AF",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        fontFamily: FONT,
+                      }}
+                    >
+                      Legal Reference
+                    </span>
                   </div>
-                  <button type="button"
-                    onClick={() => { if (!requireCompany()) return; createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
-                    style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                  >+ Tạo</button>
                 </div>
-                {libraryExpanded && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {filteredLegalReferences.length === 0 ? (
+                {legalReferenceExpanded && (
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
+                    {legalReferences.length === 0 ? (
                       <div style={{ padding: "4px 10px" }}>
-                        <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Chưa có tham chiếu</Text>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "#9CA3AF",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Chưa có tham chiếu
+                        </span>
                       </div>
                     ) : (
-                      (showAllLegalReferences ? filteredLegalReferences : filteredLegalReferences.slice(0, 5)).map((ref) => {
+                      legalReferences.map((ref) => {
                         const refId = String(extractId(ref));
-                        const isActive = activeSpace === "legal_reference" && refId === activeLegalReferenceId;
-                        const filesCount = documents.filter(doc => String(getRecordLegalReferenceId(doc)) === refId && !doc.isDeleted).length;
-                        const foldersCount = folders.filter(f => String(getRecordLegalReferenceId(f)) === refId && !f.isDeleted).length;
-                        const totalRefCount = filesCount + foldersCount;
+                        const isActive =
+                          activeSpace === "legal_reference" &&
+                          refId === activeLegalReferenceId;
                         return (
-                          <div key={refId} style={{ display: "flex", flexDirection: "column", width: "100%" }}>
-                            <button type="button"
-                              onClick={() => openLegalReferenceDetail(refId)}
-                              style={{
-                                flex: 1, display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                                border: "0", borderRadius: 8, cursor: "pointer",
-                                borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
-                                background: isActive ? "#E6F1FB" : "transparent",
-                                color: isActive ? "#185FA5" : "#6B7280",
-                                fontFamily: FONT, minWidth: 0, transition: "background 0.15s", textAlign: "left"
+                          <div
+                            key={refId}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              width: "100%",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSpace("legal_reference");
+                                setActiveLegalReferenceId(refId);
+                                setSelectedFolderId("root");
                               }}
-                              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                              style={{
+                                flex: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "7px 10px",
+                                border: "0",
+                                borderRadius: 8,
+                                cursor: "pointer",
+                                borderLeft:
+                                  isActive && selectedFolderId === "root"
+                                    ? "2px solid #185FA5"
+                                    : "2px solid transparent",
+                                background:
+                                  isActive && selectedFolderId === "root"
+                                    ? "#E6F1FB"
+                                    : "transparent",
+                                color: isActive ? "#185FA5" : "#6B7280",
+                                fontFamily: FONT,
+                                minWidth: 0,
+                                transition: "background 0.15s",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background = "#F3F4F6";
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background =
+                                    "transparent";
+                              }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -5805,36 +9228,77 @@ const InternalTemplates = () => {
                                   open: true,
                                   x: e.clientX,
                                   y: e.clientY,
-                                  record: { ...ref, _type: "legal_reference_record" }
+                                  record: {
+                                    ...ref,
+                                    _type: "legal_reference_record",
+                                  },
                                 });
                               }}
                             >
-                              <span style={{ width: 15, height: 15, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", color: isActive ? "#185FA5" : "#6B7280" }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <span
+                                style={{
+                                  width: 15,
+                                  height: 15,
+                                  flexShrink: 0,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: isActive ? "#185FA5" : "#6B7280",
+                                }}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
                                   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V3.5A2.5 2.5 0 0 1 6.5 1H20v21H6.5" />
                                 </svg>
                               </span>
-                              <Tooltip title={ref.title || ref.name || getLegalReferenceDisplayName(ref)} placement="right" mouseEnterDelay={0.5}>
-                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ref.title || ref.name || getLegalReferenceDisplayName(ref)}</span>
-                              </Tooltip>
-                              {totalRefCount > 0 && (
-                                <span style={{
-                                  fontSize: 11,
-                                  background: isActive ? "#FFFFFF" : "#F3F4F6",
-                                  color: isActive ? "#185FA5" : "#6B7280",
-                                  padding: "1px 6px", borderRadius: 99, flexShrink: 0
-                                }}>
-                                  {totalRefCount}
+                              <Tooltip
+                                title={
+                                  ref.title ||
+                                  ref.name ||
+                                  getLegalReferenceDisplayName(ref)
+                                }
+                                placement="right"
+                                mouseEnterDelay={0.5}
+                              >
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {ref.title ||
+                                    ref.name ||
+                                    getLegalReferenceDisplayName(ref)}
                                 </span>
-                              )}
+                              </Tooltip>
                             </button>
 
                             {/* Render root folders of this legal reference when active */}
                             {isActive && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12, marginTop: 2 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 1,
+                                  paddingLeft: 12,
+                                  marginTop: 2,
+                                }}
+                              >
                                 {legalReferenceRootFolders.map((folder) => {
                                   const fid = String(extractId(folder.id));
-                                  const isFolderActive = selectedFolderId === fid;
+                                  const isFolderActive =
+                                    selectedFolderId === fid;
                                   return (
                                     <button
                                       key={fid}
@@ -5851,24 +9315,65 @@ const InternalTemplates = () => {
                                           open: true,
                                           x: e.clientX,
                                           y: e.clientY,
-                                          record: { ...folder, _type: "folder" }
+                                          record: {
+                                            ...folder,
+                                            _type: "folder",
+                                          },
                                         });
                                       }}
                                       style={{
-                                        width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                        border: "0", borderRadius: 8, cursor: "pointer",
-                                        background: isFolderActive ? "#E6F1FB" : "transparent",
-                                        color: isFolderActive ? "#185FA5" : "#6B7280",
-                                        fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                        transition: "background 0.15s", minWidth: 0, textAlign: "left"
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "5px 10px",
+                                        border: "0",
+                                        borderRadius: 8,
+                                        cursor: "pointer",
+                                        background: isFolderActive
+                                          ? "#E6F1FB"
+                                          : "transparent",
+                                        color: isFolderActive
+                                          ? "#185FA5"
+                                          : "#6B7280",
+                                        fontWeight: isFolderActive ? 600 : 400,
+                                        fontFamily: FONT,
+                                        fontSize: 12,
+                                        transition: "background 0.15s",
+                                        minWidth: 0,
+                                        textAlign: "left",
                                       }}
-                                      onMouseEnter={(e) => { if (!isFolderActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                                      onMouseLeave={(e) => { if (!isFolderActive) e.currentTarget.style.background = "transparent"; }}
+                                      onMouseEnter={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "#F3F4F6";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "transparent";
+                                      }}
                                     >
-                                      <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                        {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {React.cloneElement(TYPE_ICONS.folder, {
+                                          size: 13,
+                                        })}
                                       </span>
-                                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          minWidth: 0,
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
                                         {folder.name}
                                       </span>
                                     </button>
@@ -5880,69 +9385,140 @@ const InternalTemplates = () => {
                         );
                       })
                     )}
-                    {filteredLegalReferences.length > 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllLegalReferences(!showAllLegalReferences)}
-                        style={{
-                          fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
-                          padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
-                        }}
-                      >
-                        {showAllLegalReferences ? "Thu gọn" : `Xem thêm (${filteredLegalReferences.length - 5})`}
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
 
-                </React.Fragment>
-              )}
-
-              {/* ══ SECTION 3: MY WORKSPACE (Personal) ══ */}
-              <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {/* ══ SECTION 3: CASE REFERENCE ══ */}
+              <div
+                style={{
+                  borderTop: "0.5px solid #E5E7EB",
+                  paddingTop: 12,
+                  marginTop: 4,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 2px 6px 2px",
+                  }}
+                >
+                  <div
+                    onClick={() => {
+                      setActiveSpace("case_reference");
+                      setActiveCaseReferenceId(null);
+                      setSelectedFolderId("root");
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                  >
                     <span
-                      onClick={() => setWorkspaceExpanded(!workspaceExpanded)}
-                      style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCaseReferenceExpanded(!caseReferenceExpanded);
+                      }}
+                      style={{
+                        color: "#9CA3AF",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
                     >
-                      {workspaceExpanded ? ChevronDown : ChevronRight}
+                      {caseReferenceExpanded ? ChevronDown : ChevronRight}
                     </span>
                     <span
-                      onClick={() => {
-                        setActiveSpace("personal");
-                        setActiveLegalReferenceId(null);
-                        setSelectedFolderId("root");
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color:
+                          activeSpace === "case_reference" &&
+                          !activeCaseReferenceId
+                            ? "#185FA5"
+                            : "#9CA3AF",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        fontFamily: FONT,
                       }}
-                      style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "personal" ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, cursor: "pointer", userSelect: "none" }}
                     >
-                      My Workspace
+                      Case Reference
                     </span>
                   </div>
-                  <button type="button"
-                    onClick={() => handleCreateFolderFromSidebar("personal")}
-                    style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                  >+ Tạo</button>
                 </div>
-                {workspaceExpanded && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    {/* Render root folders of My Workspace (indented) */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12 }}>
-                      {personalRootFolders.length === 0 ? (
-                        <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
-                      ) : (
-                        (showAllPersonalFolders ? personalRootFolders : personalRootFolders.slice(0, 5)).map((folder) => {
-                          const fid = String(extractId(folder.id));
-                          const isFolderActive = activeSpace === "personal" && selectedFolderId === fid;
-                          return (
+                {caseReferenceExpanded && (
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
+                    {caseReferences.length === 0 ? (
+                      <div style={{ padding: "4px 10px" }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: "#9CA3AF",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Chưa có case liên kết
+                        </span>
+                      </div>
+                    ) : (
+                      caseReferences.map((ref) => {
+                        const refId = String(extractId(ref));
+                        const isActive =
+                          activeSpace === "case_reference" &&
+                          refId === activeCaseReferenceId;
+                        return (
+                          <div
+                            key={refId}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              width: "100%",
+                            }}
+                          >
                             <button
-                              key={fid}
                               type="button"
                               onClick={() => {
-                                setActiveSpace("personal");
-                                setActiveLegalReferenceId(null);
-                                setSelectedFolderId(fid);
+                                setActiveSpace("case_reference");
+                                setActiveCaseReferenceId(refId);
+                                setSelectedFolderId("root");
+                              }}
+                              style={{
+                                flex: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "7px 10px",
+                                border: "0",
+                                borderRadius: 8,
+                                cursor: "pointer",
+                                borderLeft:
+                                  isActive && selectedFolderId === "root"
+                                    ? "2px solid #185FA5"
+                                    : "2px solid transparent",
+                                background:
+                                  isActive && selectedFolderId === "root"
+                                    ? "#E6F1FB"
+                                    : "transparent",
+                                color: isActive ? "#185FA5" : "#6B7280",
+                                fontFamily: FONT,
+                                minWidth: 0,
+                                transition: "background 0.15s",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background = "#F3F4F6";
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background =
+                                    "transparent";
                               }}
                               onContextMenu={(e) => {
                                 e.preventDefault();
@@ -5951,74 +9527,555 @@ const InternalTemplates = () => {
                                   open: true,
                                   x: e.clientX,
                                   y: e.clientY,
-                                  record: { ...folder, _type: "folder" }
+                                  record: {
+                                    ...ref,
+                                    _type: "case_reference_record",
+                                  },
                                 });
                               }}
-                              style={{
-                                width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                border: "0", borderRadius: 8, cursor: "pointer",
-                                background: isFolderActive ? "#E6F1FB" : "transparent",
-                                color: isFolderActive ? "#185FA5" : "#6B7280",
-                                fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                transition: "background 0.15s", minWidth: 0, textAlign: "left"
-                              }}
-                              onMouseEnter={(e) => { if (!isFolderActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                              onMouseLeave={(e) => { if (!isFolderActive) e.currentTarget.style.background = "transparent"; }}
                             >
-                              <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
+                              <span
+                                style={{
+                                  width: 15,
+                                  height: 15,
+                                  flexShrink: 0,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: isActive ? "#185FA5" : "#6B7280",
+                                }}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                </svg>
                               </span>
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {folder.name}
-                              </span>
+                              <Tooltip
+                                title={
+                                  ref.projectName ||
+                                  ref.title ||
+                                  getCaseDisplayName(ref)
+                                }
+                                placement="right"
+                                mouseEnterDelay={0.5}
+                              >
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {ref.projectName ||
+                                    ref.title ||
+                                    getCaseDisplayName(ref)}
+                                </span>
+                              </Tooltip>
                             </button>
-                          );
-                        })
-                      )}
-                      {personalRootFolders.length > 5 && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAllPersonalFolders(!showAllPersonalFolders)}
+
+                            {/* Render root folders of this case reference when active */}
+                            {isActive && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 1,
+                                  paddingLeft: 12,
+                                  marginTop: 2,
+                                }}
+                              >
+                                {caseReferenceRootFolders.map((folder) => {
+                                  const fid = String(extractId(folder.id));
+                                  const isFolderActive =
+                                    selectedFolderId === fid;
+                                  return (
+                                    <button
+                                      key={fid}
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveSpace("case_reference");
+                                        setActiveCaseReferenceId(refId);
+                                        setSelectedFolderId(fid);
+                                      }}
+                                      onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setContextMenuState({
+                                          open: true,
+                                          x: e.clientX,
+                                          y: e.clientY,
+                                          record: {
+                                            ...folder,
+                                            _type: "folder",
+                                          },
+                                        });
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "5px 10px",
+                                        border: "0",
+                                        borderRadius: 8,
+                                        cursor: "pointer",
+                                        background: isFolderActive
+                                          ? "#E6F1FB"
+                                          : "transparent",
+                                        color: isFolderActive
+                                          ? "#185FA5"
+                                          : "#6B7280",
+                                        fontWeight: isFolderActive ? 600 : 400,
+                                        fontFamily: FONT,
+                                        fontSize: 12,
+                                        transition: "background 0.15s",
+                                        minWidth: 0,
+                                        textAlign: "left",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "#F3F4F6";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "transparent";
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {React.cloneElement(TYPE_ICONS.folder, {
+                                          size: 13,
+                                        })}
+                                      </span>
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          minWidth: 0,
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {folder.name}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ══ SECTION 4: LEGAL STUDY ══ */}
+              <div
+                style={{
+                  borderTop: "0.5px solid #E5E7EB",
+                  paddingTop: 12,
+                  marginTop: 4,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0 2px 6px 2px",
+                  }}
+                >
+                  <div
+                    onClick={() => {
+                      setActiveSpace("legal_study");
+                      setActiveLegalStudyId(null);
+                      setSelectedFolderId("root");
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                  >
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLegalStudyExpanded(!legalStudyExpanded);
+                      }}
+                      style={{
+                        color: "#9CA3AF",
+                        display: "inline-flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      {legalStudyExpanded ? ChevronDown : ChevronRight}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color:
+                          activeSpace === "legal_study" && !activeLegalStudyId
+                            ? "#185FA5"
+                            : "#9CA3AF",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        fontFamily: FONT,
+                      }}
+                    >
+                      Legal Study
+                    </span>
+                  </div>
+                </div>
+                {legalStudyExpanded && (
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
+                    {legalStudies.length === 0 ? (
+                      <div style={{ padding: "4px 10px" }}>
+                        <span
                           style={{
-                            fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
-                            padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
+                            fontSize: 11,
+                            color: "#9CA3AF",
+                            fontStyle: "italic",
                           }}
                         >
-                          {showAllPersonalFolders ? "Thu gọn" : `Xem thêm (${personalRootFolders.length - 5})`}
-                        </button>
-                      )}
-                    </div>
+                          Chưa có hồ sơ nghiên cứu
+                        </span>
+                      </div>
+                    ) : (
+                      legalStudies.map((ref) => {
+                        const refId = String(extractId(ref));
+                        const isActive =
+                          activeSpace === "legal_study" &&
+                          refId === activeLegalStudyId;
+                        return (
+                          <div
+                            key={refId}
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              width: "100%",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSpace("legal_study");
+                                setActiveLegalStudyId(refId);
+                                setSelectedFolderId("root");
+                              }}
+                              style={{
+                                flex: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "7px 10px",
+                                border: "0",
+                                borderRadius: 8,
+                                cursor: "pointer",
+                                borderLeft:
+                                  isActive && selectedFolderId === "root"
+                                    ? "2px solid #185FA5"
+                                    : "2px solid transparent",
+                                background:
+                                  isActive && selectedFolderId === "root"
+                                    ? "#E6F1FB"
+                                    : "transparent",
+                                color: isActive ? "#185FA5" : "#6B7280",
+                                fontFamily: FONT,
+                                minWidth: 0,
+                                transition: "background 0.15s",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background = "#F3F4F6";
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!(isActive && selectedFolderId === "root"))
+                                  e.currentTarget.style.background =
+                                    "transparent";
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setContextMenuState({
+                                  open: true,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  record: {
+                                    ...ref,
+                                    _type: "legal_study_record",
+                                  },
+                                });
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 15,
+                                  height: 15,
+                                  flexShrink: 0,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: isActive ? "#185FA5" : "#6B7280",
+                                }}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                </svg>
+                              </span>
+                              <Tooltip
+                                title={
+                                  ref.title ||
+                                  ref.name ||
+                                  ref.projectName ||
+                                  "Legal Study"
+                                }
+                                placement="right"
+                                mouseEnterDelay={0.5}
+                              >
+                                <span
+                                  style={{
+                                    flex: 1,
+                                    minWidth: 0,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {ref.title ||
+                                    ref.name ||
+                                    ref.projectName ||
+                                    "Legal Study"}
+                                </span>
+                              </Tooltip>
+                            </button>
+
+                            {/* Render root folders of this legal study when active */}
+                            {isActive && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 1,
+                                  paddingLeft: 12,
+                                  marginTop: 2,
+                                }}
+                              >
+                                {legalStudyRootFolders.map((folder) => {
+                                  const fid = String(extractId(folder.id));
+                                  const isFolderActive =
+                                    selectedFolderId === fid;
+                                  return (
+                                    <button
+                                      key={fid}
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveSpace("legal_study");
+                                        setActiveLegalStudyId(refId);
+                                        setSelectedFolderId(fid);
+                                      }}
+                                      onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setContextMenuState({
+                                          open: true,
+                                          x: e.clientX,
+                                          y: e.clientY,
+                                          record: {
+                                            ...folder,
+                                            _type: "folder",
+                                          },
+                                        });
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "5px 10px",
+                                        border: "0",
+                                        borderRadius: 8,
+                                        cursor: "pointer",
+                                        background: isFolderActive
+                                          ? "#E6F1FB"
+                                          : "transparent",
+                                        color: isFolderActive
+                                          ? "#185FA5"
+                                          : "#6B7280",
+                                        fontWeight: isFolderActive ? 600 : 400,
+                                        fontFamily: FONT,
+                                        fontSize: 12,
+                                        transition: "background 0.15s",
+                                        minWidth: 0,
+                                        textAlign: "left",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "#F3F4F6";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!isFolderActive)
+                                          e.currentTarget.style.background =
+                                            "transparent";
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {React.cloneElement(TYPE_ICONS.folder, {
+                                          size: 13,
+                                        })}
+                                      </span>
+                                      <span
+                                        style={{
+                                          flex: 1,
+                                          minWidth: 0,
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {folder.name}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </div>
 
               {/* ══ SECTION 4: NHANH (Quick/Recent/Trash) ══ */}
-              <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 12 }}>
+              <div
+                style={{
+                  borderTop: "0.5px solid #E5E7EB",
+                  paddingTop: 12,
+                  marginTop: 12,
+                }}
+              >
                 <div style={{ padding: "0 2px 6px 2px" }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Nhanh</span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "#9CA3AF",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      fontFamily: FONT,
+                    }}
+                  >
+                    Nhanh
+                  </span>
                 </div>
 
                 {/* ① Lịch sử hoạt động */}
                 {(() => {
                   const isActive = activeSpace === "recent";
                   return (
-                    <button type="button" onClick={() => { setActiveSpace("recent"); setActiveLegalReferenceId(null); setSelectedFolderId("root"); }}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSpace("recent");
+                        setActiveLegalReferenceId(null);
+                        setSelectedFolderId("root");
+                      }}
                       style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                        border: "0", borderRadius: 8, cursor: "pointer",
-                        borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 10px",
+                        border: "0",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        borderLeft: isActive
+                          ? "2px solid #185FA5"
+                          : "2px solid transparent",
                         background: isActive ? "#E6F1FB" : "transparent",
                         color: isActive ? "#185FA5" : "#6B7280",
-                        fontFamily: FONT, minWidth: 0, transition: "background 0.15s", textAlign: "left", marginBottom: 2
+                        fontFamily: FONT,
+                        minWidth: 0,
+                        transition: "background 0.15s",
+                        textAlign: "left",
+                        marginBottom: 2,
                       }}
-                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                      onMouseEnter={(e) => {
+                        if (!isActive)
+                          e.currentTarget.style.background = "#F3F4F6";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive)
+                          e.currentTarget.style.background = "transparent";
+                      }}
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isActive ? "#185FA5" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={isActive ? "#185FA5" : "#6B7280"}
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ flexShrink: 0 }}
+                      >
                         <circle cx="12" cy="12" r="10" />
                         <polyline points="12 6 12 12 16 14" />
                       </svg>
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Lịch sử hoạt động</span>
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Lịch sử hoạt động
+                      </span>
                     </button>
                   );
                 })()}
@@ -6028,33 +10085,66 @@ const InternalTemplates = () => {
                   const isActive = activeSpace === "trash";
                   const trashCount = quickTrashCount;
                   return (
-                    <button type="button" onClick={() => { setActiveSpace("trash"); setActiveLegalReferenceId(null); setSelectedFolderId("root"); }}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveSpace("trash");
+                        setActiveLegalReferenceId(null);
+                        setSelectedFolderId("root");
+                      }}
                       style={{
-                        width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                        border: "0", borderRadius: 8, cursor: "pointer",
-                        borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 10px",
+                        border: "0",
+                        borderRadius: 8,
+                        cursor: "pointer",
+                        borderLeft: isActive
+                          ? "2px solid #185FA5"
+                          : "2px solid transparent",
                         background: isActive ? "#E6F1FB" : "transparent",
                         color: isActive ? "#185FA5" : "#6B7280",
-                        fontFamily: FONT, minWidth: 0, transition: "background 0.15s", textAlign: "left"
+                        fontFamily: FONT,
+                        minWidth: 0,
+                        transition: "background 0.15s",
+                        textAlign: "left",
                       }}
-                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                      onMouseEnter={(e) => {
+                        if (!isActive)
+                          e.currentTarget.style.background = "#F3F4F6";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive)
+                          e.currentTarget.style.background = "transparent";
+                      }}
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isActive ? "#185FA5" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={isActive ? "#185FA5" : "#6B7280"}
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ flexShrink: 0 }}
+                      >
                         <polyline points="3 6 5 6 21 6" />
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
-                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Thùng rác</span>
-                      {trashCount > 0 && (
-                        <span style={{
-                          fontSize: 11,
-                          background: isActive ? "#FFFFFF" : "#F3F4F6",
-                          color: isActive ? "#185FA5" : "#6B7280",
-                          padding: "1px 6px", borderRadius: 99, flexShrink: 0
-                        }}>
-                          {trashCount}
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Thùng rác
+                      </span>
                     </button>
                   );
                 })()}
@@ -6065,11 +10155,36 @@ const InternalTemplates = () => {
 
         <Layout style={{ background: "#fff", minWidth: 0 }}>
           {/* ── TOPBAR ── */}
-          <div style={{ padding: "10px 20px", borderBottom: "0.5px solid #E5E7EB", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap", background: "#FFFFFF", minWidth: 0, overflowX: "auto" }}>
+          <div
+            style={{
+              padding: "10px 16px",
+              borderBottom: "0.5px solid #E5E7EB",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "nowrap",
+              background: "#FFFFFF",
+              minWidth: 0,
+              overflowX: "auto",
+            }}
+          >
             {sidebarCollapsed && (
               <Tooltip title="Mở sidebar">
-                <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label="Mở sidebar"
-                  style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "0.5px solid #E5E7EB", flex: "0 0 auto" }} />
+                <Button
+                  icon={SIDEBAR_ICON}
+                  onClick={() => setSidebarCollapsed(false)}
+                  aria-label="Mở sidebar"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 8,
+                    border: "0.5px solid #E5E7EB",
+                    flex: "0 0 auto",
+                  }}
+                />
               </Tooltip>
             )}
 
@@ -6077,7 +10192,16 @@ const InternalTemplates = () => {
 
             {/* Filters */}
             {activeSpace === "recent" ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flex: "0 0 auto",
+                  minWidth: "max-content",
+                  flexWrap: "nowrap",
+                }}
+              >
                 <Input.Search
                   placeholder="Tìm kiếm hoạt động..."
                   value={activitySearchQuery}
@@ -6085,7 +10209,7 @@ const InternalTemplates = () => {
                     setActivitySearchQuery(e.target.value);
                     setActivityPage(1);
                   }}
-                  style={{ width: 260, borderRadius: 8 }}
+                  style={{ width: 180, borderRadius: 8 }}
                   allowClear
                 />
                 <Select
@@ -6098,64 +10222,252 @@ const InternalTemplates = () => {
                   options={[
                     { value: "all", label: "Tất cả hoạt động" },
                     { value: "uploaded", label: "Tải lên tài liệu" },
+                    { value: "previewed", label: "Xem trước" },
+                    { value: "downloaded", label: "Tải về" },
+                    { value: "linked_legal_study", label: "Đưa vào Legal Study" },
+                    { value: "shared_file", label: "Chia sẻ tài liệu" },
+                    { value: "unshared_file", label: "Hủy chia sẻ" },
+                    { value: "permission_updated", label: "Cập nhật phân quyền" },
                     { value: "created", label: "Tạo mới thư mục" },
                     { value: "updated", label: "Cập nhật khác" },
                     { value: "moved", label: "Di chuyển" },
                     { value: "trash_deleted", label: "Xóa vào Thùng rác" },
                     { value: "restored", label: "Khôi phục" },
-                    { value: "deleted", label: "Xóa" },
+                    { value: "deleted", label: "Xóa vĩnh viễn" },
                   ]}
                 />
               </div>
             ) : (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
-                <Input.Search placeholder="Tìm kiếm..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 260, borderRadius: 8 }} allowClear />
-                <Select value={sortMode} onChange={setSortMode} style={{ width: 140, borderRadius: 8 }}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flex: "0 0 auto",
+                  minWidth: "max-content",
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Input.Search
+                  placeholder="Tìm kiếm..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  style={{ width: 180, borderRadius: 8 }}
+                  allowClear
+                />
+                <Select
+                  value={sortMode}
+                  onChange={setSortMode}
+                  style={{ width: 120, borderRadius: 8 }}
                   options={[
-                    { value: "manual", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>STT</span> },
-                    { value: "newest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Mới nhất</span> },
-                    { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Cũ nhất</span> },
-                    { value: "name", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Tên A-Z</span> },
+                    {
+                      value: "manual",
+                      label: (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            paddingTop: 1,
+                          }}
+                        >
+                          STT
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "newest",
+                      label: (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            paddingTop: 1,
+                          }}
+                        >
+                          Mới nhất
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "oldest",
+                      label: (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            paddingTop: 1,
+                          }}
+                        >
+                          Cũ nhất
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "name",
+                      label: (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            paddingTop: 1,
+                          }}
+                        >
+                          Tên A-Z
+                        </span>
+                      ),
+                    },
                   ]}
                 />
-                <Select allowClear placeholder="Định dạng" style={{ width: 140, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
-                <div style={{ display: "inline-flex", gap: 3, padding: 3, border: "0.5px solid #E5E7EB", borderRadius: 8, background: "#FAFAFA" }}>
+                <Select
+                  allowClear
+                  placeholder="Định dạng"
+                  style={{ width: 120, borderRadius: 8 }}
+                  value={selectedExt}
+                  onChange={setSelectedExt}
+                  options={fileExtOptions}
+                />
+                <div
+                  style={{
+                    display: "inline-flex",
+                    gap: 3,
+                    padding: 3,
+                    border: "0.5px solid #E5E7EB",
+                    borderRadius: 8,
+                    background: "#FAFAFA",
+                  }}
+                >
                   <Tooltip title="Lưới">
-                    <Button aria-label="Lưới" icon={GRID_ICON} onClick={() => setViewMode("grid")}
-                      style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "grid" ? "#185FA5" : "transparent", color: viewMode === "grid" ? "#fff" : "#6B7280" }} />
+                    <Button
+                      aria-label="Lưới"
+                      icon={GRID_ICON}
+                      onClick={() => setViewMode("grid")}
+                      style={{
+                        width: 32,
+                        height: 28,
+                        borderRadius: 6,
+                        border: "none",
+                        background:
+                          viewMode === "grid" ? "#185FA5" : "transparent",
+                        color: viewMode === "grid" ? "#fff" : "#6B7280",
+                      }}
+                    />
                   </Tooltip>
                   <Tooltip title="Bảng">
-                    <Button aria-label="Bảng" icon={TABLE_ICON} onClick={() => setViewMode("table")}
-                      style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "table" ? "#185FA5" : "transparent", color: viewMode === "table" ? "#fff" : "#6B7280" }} />
+                    <Button
+                      aria-label="Bảng"
+                      icon={TABLE_ICON}
+                      onClick={() => setViewMode("table")}
+                      style={{
+                        width: 32,
+                        height: 28,
+                        borderRadius: 6,
+                        border: "none",
+                        background:
+                          viewMode === "table" ? "#185FA5" : "transparent",
+                        color: viewMode === "table" ? "#fff" : "#6B7280",
+                      }}
+                    />
                   </Tooltip>
                 </div>
               </div>
             )}
 
-            <div style={{ width: 1, height: 20, background: "#E5E7EB", flexShrink: 0 }} />
+            <div
+              style={{
+                width: 1,
+                height: 20,
+                background: "#E5E7EB",
+                flexShrink: 0,
+              }}
+            />
 
             {/* Actions */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", flexWrap: "nowrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                flex: "0 0 auto",
+                flexWrap: "nowrap",
+              }}
+            >
               {activeSpace === "recent" ? (
-                <Button icon={REFRESH_ICON} onClick={fetchActivityLogs} loading={activityLoading}
-                  style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Button
+                  icon={REFRESH_ICON}
+                  onClick={fetchActivityLogs}
+                  loading={activityLoading}
+                  style={{
+                    borderRadius: 8,
+                    border: "0.5px solid #E5E7EB",
+                    color: "#185FA5",
+                    fontWeight: 500,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   Refresh
                 </Button>
               ) : (
                 <React.Fragment>
-                  {activeSpace !== "trash" && (currentFolderPerms.canEdit || currentFolderPerms.isManager || (activeSpace === "legal_reference" && !activeLegalReferenceId)) && (
-                    <Dropdown menu={activeSpace === "legal_reference" && !activeLegalReferenceId ? {
-                      items: [{ key: "create_reference", label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo Case Tham Chiếu") }],
-                      onClick: () => { if (requireCompany()) { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); } }
-                    } : newMenu} trigger={["click"]}>
-                      <Button type="primary" icon={PLUS_ICON}
-                        style={{ background: "#185FA5", borderColor: "#185FA5", borderRadius: 8, fontWeight: 600 }}>
-                        New
-                      </Button>
-                    </Dropdown>
-                  )}
-                  <Button icon={REFRESH_ICON} onClick={loadData} loading={loading}
-                    style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  {activeSpace !== "trash" &&
+                    (currentFolderPerms.canEdit ||
+                      currentFolderPerms.isManager ||
+                      (activeSpace === "legal_reference" &&
+                        !activeLegalReferenceId)) && (
+                      <Dropdown
+                        menu={
+                          activeSpace === "legal_reference" &&
+                          !activeLegalReferenceId
+                            ? {
+                                items: [
+                                  {
+                                    key: "create_reference",
+                                    label: renderNewMenuLabel(
+                                      TYPE_ICONS.folder,
+                                      "Tạo Case Tham Chiếu",
+                                    ),
+                                  },
+                                ],
+                                onClick: () => {
+                                  if (requireCompany()) {
+                                    createTemplateForm.resetFields();
+                                    setIsCreateTemplateOpen(true);
+                                  }
+                                },
+                              }
+                            : newMenu
+                        }
+                        trigger={["click"]}
+                      >
+                        <Button
+                          type="primary"
+                          icon={PLUS_ICON}
+                          style={{
+                            background: "#185FA5",
+                            borderColor: "#185FA5",
+                            borderRadius: 8,
+                            fontWeight: 600,
+                          }}
+                        >
+                          New
+                        </Button>
+                      </Dropdown>
+                    )}
+                  <Button
+                    icon={REFRESH_ICON}
+                    onClick={loadData}
+                    loading={loading}
+                    style={{
+                      borderRadius: 8,
+                      border: "0.5px solid #E5E7EB",
+                      color: "#185FA5",
+                      fontWeight: 500,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
                     Refresh
                   </Button>
                 </React.Fragment>
@@ -6164,7 +10476,13 @@ const InternalTemplates = () => {
           </div>
 
           <Content
-            style={{ padding: 20, overflowY: "auto", overflowX: "hidden", background: "#F9FAFB", minWidth: 0 }}
+            style={{
+              padding: 20,
+              overflowY: "auto",
+              overflowX: "hidden",
+              background: "#F9FAFB",
+              minWidth: 0,
+            }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDropToCurrentFolder}
           >
@@ -6193,7 +10511,8 @@ const InternalTemplates = () => {
                     onChange: (page) => setActivityPage(page),
                     showSizeChanger: false,
                     total: filteredActivityLogs.length,
-                    showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} hoạt động`,
+                    showTotal: (total, range) =>
+                      `${range[0]}–${range[1]} / ${total} hoạt động`,
                   }}
                   locale={{
                     emptyText: (
@@ -6202,72 +10521,126 @@ const InternalTemplates = () => {
                         description="Không tìm thấy lịch sử hoạt động nào"
                         style={{ padding: "40px 0" }}
                       />
-                    )
+                    ),
                   }}
                   style={{
                     background: "#fff",
                     borderRadius: 12,
                     border: "1px solid #E5E7EB",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                    overflow: "hidden"
+                    overflow: "hidden",
                   }}
                 />
               </div>
             ) : (
               <React.Fragment>
                 {/* ── BREADCRUMB ── */}
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 16 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    flexWrap: "wrap",
+                    marginBottom: 16,
+                  }}
+                >
                   {breadcrumbs.map((item, index) => {
                     const isCurrent = index === breadcrumbs.length - 1;
                     return (
                       <React.Fragment key={item.id}>
-                        {index > 0 && <span style={{ color: "#9CA3AF", fontSize: 13, userSelect: "none" }}>›</span>}
-                        <button type="button" onClick={() => handleBreadcrumbClick(item)}
+                        {index > 0 && (
+                          <span
+                            style={{
+                              color: "#9CA3AF",
+                              fontSize: 13,
+                              userSelect: "none",
+                            }}
+                          >
+                            ›
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleBreadcrumbClick(item)}
                           style={{
-                            border: 0, background: "transparent", borderRadius: 6,
-                            padding: "3px 6px", cursor: "pointer", fontFamily: FONT,
+                            border: 0,
+                            background: "transparent",
+                            borderRadius: 6,
+                            padding: "3px 6px",
+                            cursor: "pointer",
+                            fontFamily: FONT,
                             fontSize: 13,
                             fontWeight: isCurrent ? 600 : 400,
                             color: isCurrent ? "#111827" : "#6B7280",
                             textDecoration: "none",
                             transition: "color 0.15s",
                           }}
-                          onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.textDecoration = "underline"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
-                        >{item.name}</button>
+                          onMouseEnter={(e) => {
+                            if (!isCurrent)
+                              e.currentTarget.style.textDecoration =
+                                "underline";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.textDecoration = "none";
+                          }}
+                        >
+                          {item.name}
+                        </button>
                       </React.Fragment>
                     );
                   })}
                 </div>
 
                 {selectedRowKeys.length > 0 && !isLegalReferenceRoot && (
-                  <div style={{
-                    background: "#FFFFFF",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: 8,
-                    padding: "10px 16px",
-                    marginBottom: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-                    fontFamily: FONT,
-                  }}>
+                  <div
+                    style={{
+                      background: "#FFFFFF",
+                      border: "1px solid #E5E7EB",
+                      borderRadius: 8,
+                      padding: "10px 16px",
+                      marginBottom: 16,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+                      fontFamily: FONT,
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center" }}>
-                      <span style={{ fontWeight: 500, color: "#374151", fontSize: 13 }}>
-                        Đã chọn <strong style={{ color: "#111827", fontWeight: 600 }}>{selectedRowKeys.length}</strong> mục
+                      <span
+                        style={{
+                          fontWeight: 500,
+                          color: "#374151",
+                          fontSize: 13,
+                        }}
+                      >
+                        Đã chọn{" "}
+                        <strong style={{ color: "#111827", fontWeight: 600 }}>
+                          {selectedRowKeys.length}
+                        </strong>{" "}
+                        mục
                       </span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 12 }}
+                    >
                       <Button
                         size="small"
                         type="text"
                         onClick={() => setSelectedRowKeys([])}
-                        style={{ borderRadius: 6, fontSize: 12, color: "#6B7280", fontFamily: FONT, padding: "4px 8px" }}
+                        style={{
+                          borderRadius: 6,
+                          fontSize: 12,
+                          color: "#6B7280",
+                          fontFamily: FONT,
+                          padding: "4px 8px",
+                        }}
                       >
                         Bỏ chọn
                       </Button>
-                      <div style={{ width: 1, height: 16, background: "#E5E7EB" }} />
+                      <div
+                        style={{ width: 1, height: 16, background: "#E5E7EB" }}
+                      />
                       {activeSpace === "trash" ? (
                         <React.Fragment>
                           <Button
@@ -6350,322 +10723,950 @@ const InternalTemplates = () => {
                 {viewMode === "grid" ? (
                   <React.Fragment>
                     {tableData.length === 0 ? (
-                      <div style={{ padding: "80px 0", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                      <div
+                        style={{
+                          padding: "80px 0",
+                          textAlign: "center",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
+                      >
+                        <svg
+                          width="40"
+                          height="40"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#9CA3AF"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                          <line x1="12" y1="11" x2="12" y2="17" /><polyline points="9 14 12 17 15 14" />
+                          <line x1="12" y1="11" x2="12" y2="17" />
+                          <polyline points="9 14 12 17 15 14" />
                         </svg>
-                        <div style={{ fontSize: 15, fontWeight: 500, color: "#6B7280", fontFamily: FONT }}>
-                          {activeSpace === "legal_reference" && !activeLegalReferenceId ? "Chưa có Case Tham Chiếu nào" :
-                            (activeSpace === "trash" ? "Thùng rác trống" :
-                              (query ? "Không tìm thấy kết quả" : "Thư mục trống"))}
+                        <div
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 500,
+                            color: "#6B7280",
+                            fontFamily: FONT,
+                          }}
+                        >
+                          {activeSpace === "legal_reference" &&
+                          !activeLegalReferenceId
+                            ? "Chưa có Case Tham Chiếu nào"
+                            : activeSpace === "trash"
+                              ? "Thùng rác trống"
+                              : query
+                                ? "Không tìm thấy kết quả"
+                                : "Thư mục trống"}
                         </div>
-                        <div style={{ fontSize: 13, color: "#9CA3AF", fontFamily: FONT }}>
-                          {activeSpace === "legal_reference" && !activeLegalReferenceId ? "Nhấn + Tạo Case Tham Chiếu bên dưới để bắt đầu" :
-                            (activeSpace === "trash" ? "Không có file hay thư mục nào bị xóa" :
-                              (query ? "Thử tìm với từ khóa khác" : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"))}
+                        <div
+                          style={{
+                            fontSize: 13,
+                            color: "#9CA3AF",
+                            fontFamily: FONT,
+                          }}
+                        >
+                          {activeSpace === "legal_reference" &&
+                          !activeLegalReferenceId
+                            ? "Nhấn + Tạo Case Tham Chiếu bên dưới để bắt đầu"
+                            : activeSpace === "trash"
+                              ? "Không có file hay thư mục nào bị xóa"
+                              : query
+                                ? "Thử tìm với từ khóa khác"
+                                : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"}
                         </div>
-                        {activeSpace === "legal_reference" && !activeLegalReferenceId ? (
-                          <button type="button" onClick={() => { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
-                            style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
+                        {activeSpace === "legal_reference" &&
+                        !activeLegalReferenceId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              createTemplateForm.resetFields();
+                              setIsCreateTemplateOpen(true);
+                            }}
+                            style={{
+                              padding: "8px 18px",
+                              background: "#185FA5",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 8,
+                              fontFamily: FONT,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              marginTop: 4,
+                            }}
+                          >
                             + Tạo Case Tham Chiếu
                           </button>
-                        ) : (activeSpace !== "trash" && !query) && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                            <button type="button" onClick={() => setIsUploadOpen(true)}
-                              style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                              + Thêm tài liệu
-                            </button>
-                            <button type="button" onClick={() => { folderForm.resetFields(); setIsFolderOpen(true); }}
-                              style={{ padding: "8px 18px", background: "transparent", color: "#185FA5", border: "1px solid #185FA5", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                              + Thêm thư mục
-                            </button>
-                          </div>
+                        ) : (
+                          activeSpace !== "trash" &&
+                          !query && (
+                            <div
+                              style={{ display: "flex", gap: 8, marginTop: 4 }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setIsUploadOpen(true)}
+                                style={{
+                                  padding: "8px 18px",
+                                  background: "#185FA5",
+                                  color: "#fff",
+                                  border: "none",
+                                  borderRadius: 8,
+                                  fontFamily: FONT,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                + Thêm tài liệu
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => folderInputRef.current?.click()}
+                                style={{
+                                  padding: "8px 18px",
+                                  background: "transparent",
+                                  color: "#185FA5",
+                                  border: "1px solid #185FA5",
+                                  borderRadius: 8,
+                                  fontFamily: FONT,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                + Thêm thư mục
+                              </button>
+                            </div>
+                          )
                         )}
                       </div>
                     ) : (
                       <React.Fragment>
                         {/* ── Section: Case Tham Chiếu ── */}
-                        {tableData.some(r => r._type === "legal_reference_record") && (
+                        {tableData.some(
+                          (r) => r._type === "legal_reference_record",
+                        ) && (
                           <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-                            {tableData.filter(r => r._type === "legal_reference_record").map((record) => {
-                              const refId = String(extractId(record));
-                              const filesCount = documents.filter(doc => String(getRecordLegalReferenceId(doc)) === refId && !doc.isDeleted).length;
-                              const foldersCount = folders.filter(f => String(getRecordLegalReferenceId(f)) === refId && !f.isDeleted).length;
-                              return (
-                                <Col {...REFERENCE_COL_PROPS} key={record._key}>
-                                  <Card
-                                    hoverable
-                                    onClick={() => openLegalReferenceDetail(record)}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault(); e.stopPropagation();
-                                      setContextMenuState({
-                                        open: true,
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        record: { ...record, _type: "legal_reference_record" }
-                                      });
-                                    }}
-                                    style={{
-                                      borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer", height: "100%",
-                                      borderLeft: "3px solid #185FA5", background: "#FFFFFF"
-                                    }}
-                                    bodyStyle={{ padding: "16px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}
+                            {tableData
+                              .filter(
+                                (r) => r._type === "legal_reference_record",
+                              )
+                              .map((record) => {
+                                const refId = String(extractId(record));
+                                const filesCount = documents.filter(
+                                  (doc) =>
+                                    String(getRecordLegalReferenceId(doc)) ===
+                                      refId && !doc.isDeleted,
+                                ).length;
+                                const foldersCount = folders.filter(
+                                  (f) =>
+                                    String(getRecordLegalReferenceId(f)) ===
+                                      refId && !f.isDeleted,
+                                ).length;
+                                return (
+                                  <Col
+                                    {...REFERENCE_COL_PROPS}
+                                    key={record._key}
                                   >
-                                    <div style={{ fontWeight: 600, fontSize: 14, color: "#111827", whiteSpace: "normal", wordBreak: "normal", overflowWrap: "anywhere", lineHeight: 1.45 }}>
-                                      {record.title || record.name || getLegalReferenceDisplayName(record)}
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4, fontSize: 12, color: "#6B7280" }}>
-                                      <div>
-                                        <span style={{ color: "#9CA3AF" }}>Người tạo: </span>
-                                        <strong>{record.createdBy?.nickname || record.createdBy?.username || "Hệ thống"}</strong>
+                                    <Card
+                                      hoverable
+                                      onClick={() =>
+                                        openLegalReferenceDetail(record)
+                                      }
+                                      onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setContextMenuState({
+                                          open: true,
+                                          x: e.clientX,
+                                          y: e.clientY,
+                                          record: {
+                                            ...record,
+                                            _type: "legal_reference_record",
+                                          },
+                                        });
+                                      }}
+                                      style={{
+                                        borderRadius: 12,
+                                        border: "0.5px solid #E5E7EB",
+                                        cursor: "pointer",
+                                        height: "100%",
+                                        borderLeft: "3px solid #185FA5",
+                                        background: "#FFFFFF",
+                                      }}
+                                      bodyStyle={{
+                                        padding: "16px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        height: "100%",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          fontWeight: 600,
+                                          fontSize: 14,
+                                          color: "#111827",
+                                          whiteSpace: "normal",
+                                          wordBreak: "normal",
+                                          overflowWrap: "anywhere",
+                                          lineHeight: 1.45,
+                                        }}
+                                      >
+                                        {record.title ||
+                                          record.name ||
+                                          getLegalReferenceDisplayName(record)}
                                       </div>
-                                      <div>
-                                        <span style={{ color: "#9CA3AF" }}>Ngày tạo: </span>
-                                        <span>{record.createdAt ? new Date(record.createdAt).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</span>
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          gap: 4,
+                                          marginTop: 4,
+                                          fontSize: 12,
+                                          color: "#6B7280",
+                                        }}
+                                      >
+                                        <div>
+                                          <span style={{ color: "#9CA3AF" }}>
+                                            Người tạo:{" "}
+                                          </span>
+                                          <strong>
+                                            {record.createdBy?.nickname ||
+                                              record.createdBy?.username ||
+                                              "Hệ thống"}
+                                          </strong>
+                                        </div>
+                                        <div>
+                                          <span style={{ color: "#9CA3AF" }}>
+                                            Ngày tạo:{" "}
+                                          </span>
+                                          <span>
+                                            {record.createdAt
+                                              ? new Date(
+                                                  record.createdAt,
+                                                ).toLocaleString("vi-VN", {
+                                                  day: "2-digit",
+                                                  month: "2-digit",
+                                                  year: "numeric",
+                                                  hour: "2-digit",
+                                                  minute: "2-digit",
+                                                })
+                                              : "—"}
+                                          </span>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div style={{ marginTop: "auto", paddingTop: 8, borderTop: "0.5px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                      <span style={{ fontSize: 11, color: "#9CA3AF" }}>Tài nguyên:</span>
-                                      <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                        {foldersCount} Thư mục · {filesCount} file
-                                      </span>
-                                    </div>
-                                  </Card>
-                                </Col>
-                              );
-                            })}
+                                      <div
+                                        style={{
+                                          marginTop: "auto",
+                                          paddingTop: 8,
+                                          borderTop: "0.5px solid #F3F4F6",
+                                          display: "flex",
+                                          justifyContent: "space-between",
+                                          alignItems: "center",
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            fontSize: 11,
+                                            color: "#9CA3AF",
+                                          }}
+                                        >
+                                          Tài nguyên:
+                                        </span>
+                                        <span
+                                          style={{
+                                            fontSize: 11,
+                                            fontWeight: 600,
+                                            color: "#185FA5",
+                                          }}
+                                        >
+                                          {foldersCount} Thư mục · {filesCount}{" "}
+                                          file
+                                        </span>
+                                      </div>
+                                    </Card>
+                                  </Col>
+                                );
+                              })}
                           </Row>
                         )}
 
                         {/* ── Section: Thư mục ── */}
-                        {tableData.some(r => r._type === "folder") && (
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Thư mục</div>
+                        {tableData.some((r) => r._type === "folder") && (
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: "#6B7280",
+                              marginBottom: 10,
+                              fontFamily: FONT,
+                            }}
+                          >
+                            Thư mục
+                          </div>
                         )}
-                        <Row gutter={[10, 10]} style={{ marginBottom: tableData.some(r => r._type === "file") && tableData.some(r => r._type === "folder") ? 20 : 0 }}>
-                          {tableData.filter(r => r._type === "folder").map((record) => {
-                            const folderFileCount = permissionFilteredDocs.filter(
-                              (d) => String(extractId(d.folderId) || "") === String(extractId(record))
-                            ).length;
-                            const folderSubFolderCount = permissionFilteredFolders.filter(
-                              (f) => String(getFolderParentId(f) || "") === String(extractId(record))
-                            ).length;
-                            const folderIsEditing = editingTitleId === String(extractId(record));
-                            const isEmpty = folderFileCount === 0 && folderSubFolderCount === 0;
-                            return (
-                              <Col {...GRID_COL_PROPS} key={record._key}>
-                                <div style={{ position: "relative", height: "100%" }}>
-                                  <Checkbox
-                                    checked={selectedRowKeys.includes(record._key)}
-                                    onChange={(e) => {
-                                      const checked = e.target.checked;
-                                      setSelectedRowKeys(prev => checked ? [...prev, record._key] : prev.filter(k => k !== record._key));
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}
-                                  />
-                                  <Card
-                                    hoverable
-                                    draggable={activeSpace !== "trash"}
-                                    onDragStart={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragStart(event); }}
-                                    onDragOver={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragOver(event); }}
-                                    onDrop={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDrop(event); }}
-                                    onClick={() => { if (!folderIsEditing && activeSpace !== "trash") setSelectedFolderId(String(extractId(record))); }}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault(); e.stopPropagation();
-                                      const items = renderContextMenuItems(record);
-                                      if (items.length > 0) setContextMenuState({ open: true, x: e.clientX, y: e.clientY, record });
-                                    }}
-                                    style={{
-                                      borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer", height: "100%",
-                                      borderLeft: !isEmpty ? "2px solid #185FA5" : "0.5px solid #E5E7EB",
-                                    }}
-                                    bodyStyle={{ padding: "12px", display: "flex", flexDirection: "column", gap: 8, height: "100%" }}
-                                  >
-                                    {/* Icon */}
-                                    <div style={{
-                                      width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                                      background: isEmpty ? "#F3F4F6" : "#E6F1FB",
-                                      color: isEmpty ? "#9CA3AF" : "#185FA5",
-                                      display: "flex", alignItems: "center", justifyContent: "center",
-                                    }}>
-                                      {TYPE_ICONS.folder}
-                                    </div>
-
-                                    {/* Name */}
-                                    {folderIsEditing ? (
-                                      <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
-                                        <Input size="small" value={editingTitleValue} autoFocus onChange={(e) => setEditingTitleValue(e.target.value)} onPressEnter={() => handleSaveFileTitle(record)} style={{ flex: 1 }} />
-                                        <Button size="small" type="primary" icon={CHECK_ICON} onClick={(e) => { e.stopPropagation(); handleSaveFileTitle(record); }} />
-                                        <Button size="small" icon={CLOSE_ICON} onClick={(e) => { e.stopPropagation(); cancelEditTitle(); }} />
-                                      </div>
-                                    ) : (
-                                      <Tooltip title={record.name || "Folder"} placement="top">
-                                        <div style={{ fontWeight: 600, fontSize: 12, color: "#111827", whiteSpace: "normal", lineHeight: "1.45", wordBreak: "normal", overflowWrap: "anywhere" }}>
-                                          {record.name || "Folder"}
-                                        </div>
-                                      </Tooltip>
-                                    )}
-
-                                    {/* Empty state or count + meta */}
-                                    <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                                      {activeSpace === "trash" ? (
-                                        <React.Fragment>
-                                          <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>
-                                            Nguồn: {getRecordPathString(record)}
-                                          </span>
-                                          <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>
-                                            Người xoá: {getDeletedUserName(record)}
-                                          </span>
-                                          <span style={{ fontSize: 10, color: "#9CA3AF", fontFamily: FONT }}>
-                                            Ngày xoá: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}
-                                          </span>
-                                        </React.Fragment>
-                                      ) : (
-                                        <React.Fragment>
-                                          {isEmpty ? (
-                                            <div onClick={(e) => e.stopPropagation()}>
-                                              <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: FONT }}>Chưa có tài liệu</div>
-                                              <button type="button" onClick={(e) => { e.stopPropagation(); setIsUploadOpen(true); }}
-                                                style={{ fontSize: 11, color: "#185FA5", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT }}>
-                                                + Tải lên file đầu tiên
-                                              </button>
-                                            </div>
-                                          ) : (
-                                            <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                              {folderSubFolderCount} Thư mục · {folderFileCount} file
-                                            </span>
-                                          )}
-                                          <div style={{ display: "flex", flexDirection: "column", marginTop: 2 }}>
-                                            <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT }}>
-                                              Ngày tạo: {formatDate(record.createdAt || record.updatedAt)}
-                                            </span>
-                                            <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>
-                                              Người tạo: {getUploadUserName(record)}
-                                            </span>
-                                          </div>
-                                        </React.Fragment>
+                        <Row
+                          gutter={[10, 10]}
+                          style={{
+                            marginBottom:
+                              tableData.some((r) => r._type === "file") &&
+                              tableData.some((r) => r._type === "folder")
+                                ? 20
+                                : 0,
+                          }}
+                        >
+                          {tableData
+                            .filter((r) => r._type === "folder")
+                            .map((record) => {
+                              const folderFileCount =
+                                permissionFilteredDocs.filter(
+                                  (d) =>
+                                    String(extractId(d.folderId) || "") ===
+                                    String(extractId(record)),
+                                ).length;
+                              const folderSubFolderCount =
+                                permissionFilteredFolders.filter(
+                                  (f) =>
+                                    String(getFolderParentId(f) || "") ===
+                                    String(extractId(record)),
+                                ).length;
+                              const folderIsEditing =
+                                editingTitleId === String(extractId(record));
+                              const isEmpty =
+                                folderFileCount === 0 &&
+                                folderSubFolderCount === 0;
+                              return (
+                                <Col {...GRID_COL_PROPS} key={record._key}>
+                                  <div style={{ position: "relative", height: "100%" }}>
+                                    <Checkbox
+                                      checked={selectedRowKeys.includes(
+                                        record._key,
                                       )}
-                                    </div>
-                                  </Card>
-                                </div>
-                              </Col>
-                            );
-                          })}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        const checked = e.target.checked;
+                                        setSelectedRowKeys((prev) =>
+                                          checked
+                                            ? [...prev, record._key]
+                                            : prev.filter(
+                                                (k) => k !== record._key,
+                                              ),
+                                        );
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        position: "absolute",
+                                        top: 8,
+                                        right: 8,
+                                        zIndex: 10,
+                                      }}
+                                    />
+                                    <Card
+                                      hoverable
+                                      draggable={activeSpace !== "trash"}
+                                      onDragStart={(event) => {
+                                        if (activeSpace !== "trash")
+                                          rowDragProps(record).onDragStart(event);
+                                      }}
+                                      onDragOver={(event) => {
+                                        if (activeSpace !== "trash")
+                                          rowDragProps(record).onDragOver(event);
+                                      }}
+                                      onDrop={(event) => {
+                                        if (activeSpace !== "trash")
+                                          rowDragProps(record).onDrop(event);
+                                      }}
+                                      onClick={() => {
+                                        if (
+                                          !folderIsEditing &&
+                                          activeSpace !== "trash"
+                                        )
+                                          setSelectedFolderId(
+                                            String(extractId(record)),
+                                          );
+                                      }}
+                                      onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const items =
+                                          renderContextMenuItems(record);
+                                        if (items.length > 0)
+                                          setContextMenuState({
+                                            open: true,
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            record,
+                                          });
+                                      }}
+                                      style={{
+                                        borderRadius: 12,
+                                        border: "0.5px solid #E5E7EB",
+                                        cursor: "pointer",
+                                        height: "100%",
+                                        borderLeft: !isEmpty
+                                          ? "2px solid #185FA5"
+                                          : "0.5px solid #E5E7EB",
+                                      }}
+                                      bodyStyle={{
+                                        padding: "12px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        height: "100%",
+                                      }}
+                                    >
+                                      {/* Icon */}
+                                      <div
+                                        style={{
+                                          width: 34,
+                                          height: 34,
+                                          borderRadius: 8,
+                                          flexShrink: 0,
+                                          background: isEmpty
+                                            ? "#F3F4F6"
+                                            : "#E6F1FB",
+                                          color: isEmpty ? "#9CA3AF" : "#185FA5",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                      >
+                                        {TYPE_ICONS.folder}
+                                      </div>
+
+                                      {/* Name */}
+                                      {folderIsEditing ? (
+                                        <div
+                                          style={{ display: "flex", gap: 4 }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <Input
+                                            size="small"
+                                            value={editingTitleValue}
+                                            autoFocus
+                                            onChange={(e) =>
+                                              setEditingTitleValue(e.target.value)
+                                            }
+                                            onPressEnter={() =>
+                                              handleSaveFileTitle(record)
+                                            }
+                                            style={{ flex: 1 }}
+                                          />
+                                          <Button
+                                            size="small"
+                                            type="primary"
+                                            icon={CHECK_ICON}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSaveFileTitle(record);
+                                            }}
+                                          />
+                                          <Button
+                                            size="small"
+                                            icon={CLOSE_ICON}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              cancelEditTitle();
+                                            }}
+                                          />
+                                        </div>
+                                      ) : (
+                                        <Tooltip
+                                          title={record.name || "Folder"}
+                                          placement="top"
+                                        >
+                                          <div
+                                            style={{
+                                              fontWeight: 600,
+                                              fontSize: 12,
+                                              color: "#111827",
+                                              whiteSpace: "normal",
+                                              wordBreak: "normal",
+                                              overflowWrap: "anywhere",
+                                              lineHeight: "1.45",
+                                            }}
+                                          >
+                                            {record.name || "Folder"}
+                                          </div>
+                                        </Tooltip>
+                                      )}
+
+                                      {/* Empty state or count + meta */}
+                                      <div
+                                        style={{
+                                          marginTop: "auto",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          gap: 4,
+                                        }}
+                                      >
+                                        {activeSpace === "trash" ? (
+                                          <React.Fragment>
+                                            <span
+                                              style={{
+                                                fontSize: 10,
+                                                color: "#6B7280",
+                                                fontFamily: FONT,
+                                                whiteSpace: "normal",
+                                                overflowWrap: "anywhere",
+                                              }}
+                                              title={getRecordPathString(record)}
+                                            >
+                                              Nguồn: {getRecordPathString(record)}
+                                            </span>
+                                            <span
+                                              style={{
+                                                fontSize: 10,
+                                                color: "#6B7280",
+                                                fontFamily: FONT,
+                                                whiteSpace: "normal",
+                                                overflowWrap: "anywhere",
+                                              }}
+                                              title={getDeletedUserName(record)}
+                                            >
+                                              Người xoá: {getDeletedUserName(record)}
+                                            </span>
+                                            <span
+                                              style={{
+                                                fontSize: 10,
+                                                color: "#9CA3AF",
+                                                fontFamily: FONT,
+                                              }}
+                                            >
+                                              Ngày xoá:{" "}
+                                              {formatDate(
+                                                record.deletedAt ||
+                                                  record.updatedAt ||
+                                                  record.deleted_at,
+                                              )}
+                                            </span>
+                                          </React.Fragment>
+                                        ) : (
+                                          <React.Fragment>
+                                            {isEmpty ? (
+                                              <div
+                                                onClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                              >
+                                                <div
+                                                  style={{
+                                                    fontSize: 11,
+                                                    color: "#9CA3AF",
+                                                    fontFamily: FONT,
+                                                  }}
+                                                >
+                                                  Chưa có tài liệu
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsUploadOpen(true);
+                                                  }}
+                                                  style={{
+                                                    fontSize: 11,
+                                                    color: "#185FA5",
+                                                    background: "none",
+                                                    border: "none",
+                                                    padding: 0,
+                                                    cursor: "pointer",
+                                                    fontFamily: FONT,
+                                                  }}
+                                                >
+                                                  + Tải lên file đầu tiên
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <span
+                                                style={{
+                                                  fontSize: 11,
+                                                  fontWeight: 600,
+                                                  color: "#185FA5",
+                                                }}
+                                              >
+                                                {folderSubFolderCount} Thư mục ·{" "}
+                                                {folderFileCount} file
+                                              </span>
+                                            )}
+                                            <div
+                                              style={{
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                marginTop: 2,
+                                              }}
+                                            >
+                                              <span
+                                                style={{
+                                                  fontSize: 10,
+                                                  color: "#6B7280",
+                                                  fontFamily: FONT,
+                                                }}
+                                              >
+                                                Ngày tạo:{" "}
+                                                {formatDate(
+                                                  record.createdAt ||
+                                                    record.updatedAt,
+                                                )}
+                                              </span>
+                                              <span
+                                                style={{
+                                                  fontSize: 10,
+                                                  color: "#6B7280",
+                                                  fontFamily: FONT,
+                                                  overflow: "hidden",
+                                                  textOverflow: "ellipsis",
+                                                  whiteSpace: "nowrap",
+                                                }}
+                                                title={getUploadUserName(record)}
+                                              >
+                                                Người tạo:{" "}
+                                                {getUploadUserName(record)}
+                                              </span>
+                                            </div>
+                                          </React.Fragment>
+                                        )}
+                                      </div>
+                                    </Card>
+                                  </div>
+                                </Col>
+                              );
+                            })}
                         </Row>
 
                         {/* ── Section: Tài liệu ── */}
-                        {tableData.some(r => r._type === "file") && (
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Tài liệu</div>
+                        {tableData.some((r) => r._type === "file") && (
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: "#6B7280",
+                              marginBottom: 10,
+                              fontFamily: FONT,
+                            }}
+                          >
+                            Tài liệu
+                          </div>
                         )}
                         <Row gutter={[10, 10]}>
-                          {tableData.filter(r => r._type === "file").map((record) => {
-                            const fileIsEditing = editingTitleId === String(extractId(record));
-                            const cardFileName = (() => { const att = getAttachment(record); return att?.title || att?.filename || record.googleDriveUrl || "Chưa có file đính kèm"; })();
-                            const cardHasFile = !!getRecordFileUrl(record);
-                            const ext = getFileExtension(record);
+                          {tableData
+                            .filter((r) => r._type === "file")
+                            .map((record) => {
+                              const fileIsEditing =
+                                editingTitleId === String(extractId(record));
+                              const attachment = getAttachment(record);
+                              const cardFileName =
+                                attachment?.title ||
+                                attachment?.filename ||
+                                record.googleDriveUrl ||
+                                "Chưa có file đính kèm";
+                              const cardHasFile = !!getRecordFileUrl(record);
+                              const ext = getFileExtension(record);
 
-                            const EXT_BADGE = {
-                              ".pdf": { bg: "#FCEBEB", color: "#A32D2D", label: "PDF" },
-                              ".doc": { bg: "#E6F1FB", color: "#185FA5", label: "DOC" },
-                              ".docx": { bg: "#E6F1FB", color: "#185FA5", label: "DOCX" },
-                              ".xls": { bg: "#EAF3DE", color: "#3B6D11", label: "XLS" },
-                              ".xlsx": { bg: "#EAF3DE", color: "#3B6D11", label: "XLSX" },
-                              ".ppt": { bg: "#FAEEDA", color: "#854F0B", label: "PPT" },
-                              ".pptx": { bg: "#FAEEDA", color: "#854F0B", label: "PPTX" },
-                              ".png": { bg: "#F0FDF4", color: "#3B6D11", label: "PNG" },
-                              ".jpg": { bg: "#F0FDF4", color: "#3B6D11", label: "JPG" },
-                              ".jpeg": { bg: "#F0FDF4", color: "#3B6D11", label: "JPEG" },
-                              ".gif": { bg: "#F0FDF4", color: "#3B6D11", label: "GIF" },
-                              ".webp": { bg: "#F0FDF4", color: "#3B6D11", label: "WEBP" },
-                              ".svg": { bg: "#F0FDF4", color: "#3B6D11", label: "SVG" },
-                              ".mp4": { bg: "#F3F4F6", color: "#6B7280", label: "MP4" },
-                              ".zip": { bg: "#F3F4F6", color: "#6B7280", label: "ZIP" },
-                              ".rar": { bg: "#F3F4F6", color: "#6B7280", label: "RAR" },
-                              ".txt": { bg: "#F3F4F6", color: "#6B7280", label: "TXT" },
-                              ".csv": { bg: "#EAF3DE", color: "#3B6D11", label: "CSV" },
-                            };
-                            const extInfo = EXT_BADGE[ext] || { bg: "#F3F4F6", color: "#6B7280", label: (ext || "FILE").replace(".", "").toUpperCase() };
+                              const EXT_BADGE = {
+                                ".pdf":  { bg: "#FCEBEB", color: "#A32D2D", label: "PDF" },
+                                ".doc":  { bg: "#E6F1FB", color: "#185FA5", label: "DOC" },
+                                ".docx": { bg: "#E6F1FB", color: "#185FA5", label: "DOCX" },
+                                ".xls":  { bg: "#EAF3DE", color: "#3B6D11", label: "XLS" },
+                                ".xlsx": { bg: "#EAF3DE", color: "#3B6D11", label: "XLSX" },
+                                ".ppt":  { bg: "#FAEEDA", color: "#854F0B", label: "PPT" },
+                                ".pptx": { bg: "#FAEEDA", color: "#854F0B", label: "PPTX" },
+                                ".png":  { bg: "#F0FDF4", color: "#3B6D11", label: "PNG" },
+                                ".jpg":  { bg: "#F0FDF4", color: "#3B6D11", label: "JPG" },
+                                ".jpeg": { bg: "#F0FDF4", color: "#3B6D11", label: "JPEG" },
+                                ".gif":  { bg: "#F0FDF4", color: "#3B6D11", label: "GIF" },
+                                ".webp": { bg: "#F0FDF4", color: "#3B6D11", label: "WEBP" },
+                                ".svg":  { bg: "#F0FDF4", color: "#3B6D11", label: "SVG" },
+                                ".mp4":  { bg: "#F3F4F6", color: "#6B7280", label: "MP4" },
+                                ".zip":  { bg: "#F3F4F6", color: "#6B7280", label: "ZIP" },
+                                ".rar":  { bg: "#F3F4F6", color: "#6B7280", label: "RAR" },
+                                ".txt":  { bg: "#F3F4F6", color: "#6B7280", label: "TXT" },
+                                ".csv":  { bg: "#EAF3DE", color: "#3B6D11", label: "CSV" },
+                              };
+                              const extInfo = EXT_BADGE[ext] || {
+                                bg: "#F3F4F6", color: "#6B7280",
+                                label: (ext || "FILE").replace(".", "").toUpperCase(),
+                              };
 
-                            return (
-                              <Col {...GRID_COL_PROPS} key={record._key}>
-                                <div style={{ position: "relative", height: "100%" }}>
-                                  <Checkbox
-                                    checked={selectedRowKeys.includes(record._key)}
-                                    onChange={(e) => {
-                                      const checked = e.target.checked;
-                                      setSelectedRowKeys(prev => checked ? [...prev, record._key] : prev.filter(k => k !== record._key));
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}
-                                  />
+                              return (
+                                <Col {...GRID_COL_PROPS} key={record._key}>
                                   <div
                                     draggable={activeSpace !== "trash"}
-                                    onDragStart={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragStart(event); }}
-                                    onDragOver={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragOver(event); }}
-                                    onDrop={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDrop(event); }}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault(); e.stopPropagation();
-                                      const items = renderContextMenuItems(record);
-                                      if (items.length > 0) setContextMenuState({ open: true, x: e.clientX, y: e.clientY, record });
+                                    onDragStart={(event) => {
+                                      if (activeSpace !== "trash")
+                                        rowDragProps(record).onDragStart(event);
                                     }}
-                                    style={{ position: "relative", borderRadius: 12, border: "0.5px solid #E5E7EB", background: "#fff", cursor: "pointer", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", transition: "box-shadow 0.15s, border-color 0.15s", display: "flex", flexDirection: "column", minHeight: 190, height: "100%" }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; e.currentTarget.style.borderColor = "#D1D5DB"; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)"; e.currentTarget.style.borderColor = "#E5E7EB"; }}
-                                    onClick={() => { if (cardHasFile && !fileIsEditing) previewRecordFile(record); }}
+                                    onDragOver={(event) => {
+                                      if (activeSpace !== "trash")
+                                        rowDragProps(record).onDragOver(event);
+                                    }}
+                                    onDrop={(event) => {
+                                      if (activeSpace !== "trash")
+                                        rowDragProps(record).onDrop(event);
+                                    }}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const items =
+                                        renderContextMenuItems(record);
+                                      if (items.length > 0)
+                                        setContextMenuState({
+                                          open: true,
+                                          x: e.clientX,
+                                          y: e.clientY,
+                                          record,
+                                        });
+                                    }}
+                                    onClick={() => {
+                                      if (cardHasFile && !fileIsEditing)
+                                        previewRecordFile(record);
+                                    }}
+                                    style={{
+                                      position: "relative",
+                                      height: 172,
+                                      background: "#FFFFFF",
+                                      border: "0.5px solid #E5E7EB",
+                                      borderRadius: 12,
+                                      cursor: cardHasFile
+                                        ? "pointer"
+                                        : "default",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      overflow: "hidden",
+                                      boxSizing: "border-box",
+                                      transition:
+                                        "border-color .15s, box-shadow .15s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (cardHasFile) {
+                                        e.currentTarget.style.boxShadow =
+                                          "0 2px 8px rgba(24,95,165,.1)";
+                                        e.currentTarget.style.borderColor =
+                                          "#B5D4F4";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.boxShadow = "none";
+                                      e.currentTarget.style.borderColor =
+                                        "#E5E7EB";
+                                    }}
                                   >
-                                    {/* Thumbnail */}
-                                    <div style={{ flex: 1, background: "#FAFAFA", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden", borderBottom: "0.5px solid #F0F0F0" }}>
+                                    <Checkbox
+                                      checked={selectedRowKeys.includes(
+                                        record._key,
+                                      )}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        const checked = e.target.checked;
+                                        setSelectedRowKeys((prev) =>
+                                          checked
+                                            ? [...prev, record._key]
+                                            : prev.filter(
+                                                (k) => k !== record._key,
+                                              ),
+                                        );
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        position: "absolute",
+                                        top: 10,
+                                        right: 10,
+                                        zIndex: 10,
+                                      }}
+                                    />
+
+                                    <div
+                                      style={{
+                                        height: 92,
+                                        flexShrink: 0,
+                                        background: "#F9FAFB",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        borderBottom: "0.5px solid #F0F0F0",
+                                        position: "relative",
+                                      }}
+                                    >
                                       {getFileSvgIcon(ext)}
-                                      {/* Extension badge */}
-                                      <span style={{ position: "absolute", bottom: 6, right: 8, fontSize: 9, fontWeight: 700, letterSpacing: 0.5, color: extInfo.color, background: extInfo.bg, borderRadius: 4, padding: "2px 5px", textTransform: "uppercase" }}>
+                                      <span
+                                        style={{
+                                          position: "absolute",
+                                          bottom: 6,
+                                          right: 8,
+                                          fontSize: 9,
+                                          fontWeight: 700,
+                                          letterSpacing: 0.4,
+                                          textTransform: "uppercase",
+                                          padding: "2px 5px",
+                                          borderRadius: 4,
+                                          background: extInfo.bg,
+                                          color: extInfo.color,
+                                        }}
+                                      >
                                         {extInfo.label}
                                       </span>
                                     </div>
 
-                                    {/* Info */}
-                                    <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: 3, overflow: "hidden" }}>
+                                    <div
+                                      style={{
+                                        padding: "8px 10px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 3,
+                                        flex: 1,
+                                        overflow: "hidden",
+                                        minHeight: 0,
+                                      }}
+                                    >
                                       {fileIsEditing ? (
-                                        <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
-                                          <Input size="small" value={editingTitleValue} autoFocus onChange={(e) => setEditingTitleValue(e.target.value)} onPressEnter={() => handleSaveFileTitle(record)} style={{ flex: 1, fontSize: 10 }} />
-                                          <Button size="small" type="primary" icon={CHECK_ICON} onClick={(e) => { e.stopPropagation(); handleSaveFileTitle(record); }} />
-                                          <Button size="small" icon={CLOSE_ICON} onClick={(e) => { e.stopPropagation(); cancelEditTitle(); }} />
+                                        <div
+                                          style={{ display: "flex", gap: 4 }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <Input
+                                            size="small"
+                                            value={editingTitleValue}
+                                            autoFocus
+                                            onChange={(e) =>
+                                              setEditingTitleValue(
+                                                e.target.value,
+                                              )
+                                            }
+                                            onPressEnter={() =>
+                                              handleSaveFileTitle(record)
+                                            }
+                                            style={{ flex: 1, fontSize: 10 }}
+                                          />
+                                          <Button
+                                            size="small"
+                                            type="primary"
+                                            icon={CHECK_ICON}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleSaveFileTitle(record);
+                                            }}
+                                          />
+                                          <Button
+                                            size="small"
+                                            icon={CLOSE_ICON}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              cancelEditTitle();
+                                            }}
+                                          />
                                         </div>
                                       ) : (
-                                        <Tooltip title={cardFileName} placement="top">
-                                          <div style={{ fontWeight: 600, fontSize: 11, color: cardHasFile ? "#111827" : "#6B7280", whiteSpace: "normal", wordBreak: "normal", overflowWrap: "anywhere", lineHeight: "16px" }}>
-                                            {cardFileName}
-                                          </div>
-                                        </Tooltip>
+                                        <div
+                                          style={{
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            color: cardHasFile
+                                              ? "#111827"
+                                              : "#6B7280",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                            lineHeight: "16px",
+                                          }}
+                                        >
+                                          {cardFileName}
+                                        </div>
                                       )}
                                       {activeSpace === "trash" ? (
-                                        <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                          <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>Nguồn: {getRecordPathString(record)}</div>
-                                          <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>Người xoá: {getDeletedUserName(record)}</div>
-                                          <div style={{ whiteSpace: "normal", overflowWrap: "anywhere", color: "#9CA3AF" }}>Ngày xoá: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}</div>
+                                        <div
+                                          style={{
+                                            fontSize: 10,
+                                            color: "#9CA3AF",
+                                            lineHeight: 1.5,
+                                          }}
+                                        >
+                                          <div
+                                            style={{
+                                              overflow: "hidden",
+                                              textOverflow: "ellipsis",
+                                              whiteSpace: "nowrap",
+                                            }}
+                                            title={getDeletedUserName(record)}
+                                          >
+                                            Người xoá:{" "}
+                                            {getDeletedUserName(record)}
+                                          </div>
+                                          <div>
+                                            Ngày xoá:{" "}
+                                            {formatDate(
+                                              record.deletedAt ||
+                                                record.updatedAt,
+                                            )}
+                                          </div>
                                         </div>
                                       ) : (
-                                        <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Ngày tạo: {formatDate(record.uploadedAt || record.createdAt || getDocDate(record))}</div>
-                                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>Người tạo: {getUploadUserName(record)}</div>
-                                        </div>
+                                        <React.Fragment>
+                                          <div
+                                            style={{
+                                              fontSize: 10,
+                                              color: "#9CA3AF",
+                                              lineHeight: 1.5,
+                                            }}
+                                          >
+                                            <div>
+                                              {formatDate(
+                                                record.uploadedAt ||
+                                                  record.createdAt ||
+                                                  getDocDate(record),
+                                              )}
+                                            </div>
+                                            <div
+                                              style={{
+                                                overflow: "hidden",
+                                                textOverflow: "ellipsis",
+                                                whiteSpace: "nowrap",
+                                              }}
+                                              title={getUploadUserName(record)}
+                                            >
+                                              {getUploadUserName(record)}
+                                            </div>
+                                          </div>
+                                          {attachment?.size && (
+                                            <div
+                                              style={{
+                                                fontSize: 10,
+                                                fontWeight: 600,
+                                                color: "#185FA5",
+                                                marginTop: "auto",
+                                              }}
+                                            >
+                                              {formatBytes(attachment.size)}
+                                            </div>
+                                          )}
+                                        </React.Fragment>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                              </Col>
-                            );
-                          })}
+                                </Col>
+                              );
+                            })}
                         </Row>
                       </React.Fragment>
                     )}
                   </React.Fragment>
                 ) : (
                   <Table
-                    rowSelection={isLegalReferenceRoot ? undefined : {
-                      selectedRowKeys,
-                      onChange: setSelectedRowKeys,
-                    }}
+                    rowSelection={
+                      isLegalReferenceRoot
+                        ? undefined
+                        : {
+                            selectedRowKeys,
+                            onChange: setSelectedRowKeys,
+                          }
+                    }
                     rowKey={(record) => record._key}
                     columns={tableColumns}
                     dataSource={tableData}
@@ -6677,10 +11678,14 @@ const InternalTemplates = () => {
                       emptyText: (
                         <div style={{ padding: "40px 0", textAlign: "center" }}>
                           <div style={{ fontSize: 14, color: "#9CA3AF" }}>
-                            {query ? "Không tìm thấy kết quả" : (activeSpace === "trash" ? "Thùng rác trống" : "Thư mục trống")}
+                            {query
+                              ? "Không tìm thấy kết quả"
+                              : activeSpace === "trash"
+                                ? "Thùng rác trống"
+                                : "Thư mục trống"}
                           </div>
                         </div>
-                      )
+                      ),
                     }}
                     style={{ fontFamily: FONT }}
                   />
@@ -6692,47 +11697,165 @@ const InternalTemplates = () => {
       </Layout>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Tạo thư mục</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Tạo thư mục
+          </span>
+        }
         open={isFolderOpen}
-        onCancel={() => { setIsFolderOpen(false); folderForm.resetFields(); }}
+        onCancel={() => {
+          setIsFolderOpen(false);
+          folderForm.resetFields();
+        }}
         footer={null}
         destroyOnClose
       >
-        <Text type="secondary">Vị trí: {breadcrumbs.map((item) => item.name).join(" / ")}</Text>
-        <Form form={folderForm} layout="vertical" onFinish={handleCreateFolder} style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Tên thư mục" rules={[{ required: true, message: "Vui lòng nhập tên thư mục" }]}>
+        <Text type="secondary">
+          Vị trí: {breadcrumbs.map((item) => item.name).join(" / ")}
+        </Text>
+        <Form
+          form={folderForm}
+          layout="vertical"
+          onFinish={handleCreateFolder}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item
+            name="name"
+            label="Tên thư mục"
+            rules={[{ required: true, message: "Vui lòng nhập tên thư mục" }]}
+          >
             <Input placeholder="Nhập tên thư mục..." />
           </Form.Item>
           <Form.Item name="description" label="Mô tả">
             <Input.TextArea rows={3} placeholder="Mô tả ngắn..." />
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button onClick={() => setIsFolderOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-            <Button type="primary" htmlType="submit" loading={folderLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Tạo thư mục</Button>
+            <Button
+              onClick={() => setIsFolderOpen(false)}
+              style={{
+                borderRadius: 8,
+                border: "0.5px solid #E5E7EB",
+                color: "#6B7280",
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={folderLoading}
+              style={{
+                borderRadius: 8,
+                background: "#111827",
+                borderColor: "#111827",
+              }}
+            >
+              Tạo thư mục
+            </Button>
           </div>
         </Form>
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload tài liệu</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Upload tài liệu
+          </span>
+        }
         open={isUploadOpen}
-        onCancel={() => { setIsUploadOpen(false); uploadForm.resetFields(); setUploadFileList([]); }}
+        onCancel={() => {
+          setIsUploadOpen(false);
+          uploadForm.resetFields();
+          setUploadFileList([]);
+        }}
         width={760}
         footer={[
-          <Button key="cancel" onClick={() => setIsUploadOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-          <Button key="submit" type="primary" loading={uploadLoading} onClick={handleUploadSubmit} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Upload</Button>,
+          <Button
+            key="cancel"
+            onClick={() => setIsUploadOpen(false)}
+            style={{
+              borderRadius: 8,
+              border: "0.5px solid #E5E7EB",
+              color: "#6B7280",
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={uploadLoading}
+            onClick={handleUploadSubmit}
+            style={{
+              borderRadius: 8,
+              background: "#111827",
+              borderColor: "#111827",
+            }}
+          >
+            Upload
+          </Button>,
         ]}
         destroyOnClose
       >
-        <Form form={uploadForm} layout="vertical" initialValues={{ documentType: activeTypeId }}>
-          <div style={{ display: "grid", gridTemplateColumns: activeSpace === "document_type" ? "1fr 1fr" : "1fr", gap: 12 }}>
+        <Form
+          form={uploadForm}
+          layout="vertical"
+          initialValues={{ documentType: activeTypeId }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                activeSpace === "document_type" ? "1fr 1fr" : "1fr",
+              gap: 12,
+            }}
+          >
             {activeSpace === "document_type" && (
-              <Form.Item name="documentType" label="Loại tài liệu" rules={[{ required: true, message: "Vui lòng chọn loại tài liệu" }]}>
+              <Form.Item
+                name="documentType"
+                label="Loại tài liệu"
+                rules={[
+                  { required: true, message: "Vui lòng chọn loại tài liệu" },
+                ]}
+              >
                 <Select optionLabelProp="label">
                   {documentTypes.map((type) => (
-                    <Select.Option key={type.id} value={type.id} label={type.label}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, paddingTop: 1 }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", color: type.color }}>{type.svgIcon}</span>
+                    <Select.Option
+                      key={type.id}
+                      value={type.id}
+                      label={type.label}
+                    >
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          paddingTop: 1,
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            color: type.color,
+                          }}
+                        >
+                          {type.svgIcon}
+                        </span>
                         <span>{type.label}</span>
                       </div>
                     </Select.Option>
@@ -6740,7 +11863,11 @@ const InternalTemplates = () => {
                 </Select>
               </Form.Item>
             )}
-            <Form.Item name="googleDriveUrl" label="Google Drive URL" style={{ width: "100%" }}>
+            <Form.Item
+              name="googleDriveUrl"
+              label="Google Drive URL"
+              style={{ width: "100%" }}
+            >
               <Input placeholder="Dán URL nếu không upload file" />
             </Form.Item>
           </div>
@@ -6754,7 +11881,9 @@ const InternalTemplates = () => {
               onChange={({ fileList }) => setUploadFileList(fileList.slice(-1))}
               maxCount={1}
             >
-              <p style={{ fontSize: 22, margin: "4px 0", color: "#6b7280" }}>{TYPE_ICONS.upload}</p>
+              <p style={{ fontSize: 22, margin: "4px 0", color: "#6b7280" }}>
+                {TYPE_ICONS.upload}
+              </p>
               <p style={{ margin: 0 }}>Kéo thả hoặc click để chọn file</p>
             </Dragger>
           </Form.Item>
@@ -6762,15 +11891,55 @@ const InternalTemplates = () => {
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload thư mục</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Upload thư mục
+          </span>
+        }
         open={bulkConfirmOpen}
-        onCancel={() => { if (bulkUploading) return; setBulkConfirmOpen(false); setPendingFolderFiles([]); }}
+        onCancel={() => {
+          if (bulkUploading) return;
+          setBulkConfirmOpen(false);
+          setPendingFolderFiles([]);
+        }}
         footer={[
-          <Button key="cancel" disabled={bulkUploading} onClick={() => setBulkConfirmOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-          <Button key="submit" type="primary" loading={bulkUploading} onClick={executeFolderUpload} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Xác nhận Upload</Button>,
+          <Button
+            key="cancel"
+            disabled={bulkUploading}
+            onClick={() => setBulkConfirmOpen(false)}
+            style={{
+              borderRadius: 8,
+              border: "0.5px solid #E5E7EB",
+              color: "#6B7280",
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={bulkUploading}
+            onClick={executeFolderUpload}
+            style={{
+              borderRadius: 8,
+              background: "#111827",
+              borderColor: "#111827",
+            }}
+          >
+            Xác nhận Upload
+          </Button>,
         ]}
       >
-        <Text>Đã chọn {pendingFolderFiles.length} file từ thư mục bên ngoài.</Text>
+        <Text>
+          Đã chọn {pendingFolderFiles.length} file từ thư mục bên ngoài.
+        </Text>
         <div style={{ marginTop: 16 }}>
           <Text strong>Upload vào:</Text>
           <TreeSelect
@@ -6790,15 +11959,54 @@ const InternalTemplates = () => {
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Di chuyển</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Di chuyển
+          </span>
+        }
         open={!!moveRecord}
         onCancel={() => setMoveRecord(null)}
         footer={[
-          <Button key="cancel" onClick={() => setMoveRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-          <Button key="submit" type="primary" onClick={() => handleMoveRecord(moveRecord, moveTargetId)} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Di chuyển</Button>,
+          <Button
+            key="cancel"
+            onClick={() => setMoveRecord(null)}
+            style={{
+              borderRadius: 8,
+              border: "0.5px solid #E5E7EB",
+              color: "#6B7280",
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={() => handleMoveRecord(moveRecord, moveTargetId)}
+            style={{
+              borderRadius: 8,
+              background: "#111827",
+              borderColor: "#111827",
+            }}
+          >
+            Di chuyển
+          </Button>,
         ]}
       >
-        <Text>Chọn thư mục đích cho <b>{moveRecord?._type === "folder" ? moveRecord?.name : getDocTitle(moveRecord)}</b></Text>
+        <Text>
+          Chọn thư mục đích cho{" "}
+          <b>
+            {moveRecord?._type === "folder"
+              ? moveRecord?.name
+              : getDocTitle(moveRecord)}
+          </b>
+        </Text>
         <TreeSelect
           value={moveTargetId}
           onChange={setMoveTargetId}
@@ -6809,13 +12017,31 @@ const InternalTemplates = () => {
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Tạo Case Tham Chiếu</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Tạo Case Tham Chiếu
+          </span>
+        }
         open={isCreateTemplateOpen}
-        onCancel={() => { setIsCreateTemplateOpen(false); createTemplateForm.resetFields(); }}
+        onCancel={() => {
+          setIsCreateTemplateOpen(false);
+          createTemplateForm.resetFields();
+        }}
         footer={null}
         destroyOnClose
       >
-        <Form form={createTemplateForm} layout="vertical" onFinish={handleCreateLegalReference}>
+        <Form
+          form={createTemplateForm}
+          layout="vertical"
+          onFinish={handleCreateLegalReference}
+        >
           <Form.Item
             name="title"
             label="Tiêu đề"
@@ -6838,10 +12064,16 @@ const InternalTemplates = () => {
               style={{ width: "100%" }}
               onChange={(value) => {
                 if (value) {
-                  const selectedProj = projects.find(p => String(extractId(p)) === String(value));
+                  const selectedProj = projects.find(
+                    (p) => String(extractId(p)) === String(value),
+                  );
                   if (selectedProj) {
-                    const code = selectedProj.caseCode ? selectedProj.caseCode.trim() : "";
-                    const name = selectedProj.projectName ? selectedProj.projectName.trim() : "";
+                    const code = selectedProj.caseCode
+                      ? selectedProj.caseCode.trim()
+                      : "";
+                    const name = selectedProj.projectName
+                      ? selectedProj.projectName.trim()
+                      : "";
                     let formattedTitle = "";
                     if (code && name) {
                       formattedTitle = `${code} - ${name}`;
@@ -6852,23 +12084,30 @@ const InternalTemplates = () => {
                     }
                     createTemplateForm.setFieldsValue({
                       title: formattedTitle,
-                      description: selectedProj.description || ""
+                      description: selectedProj.description || "",
                     });
                   }
                 } else {
-                  createTemplateForm.setFieldsValue({ title: "", description: "" });
+                  createTemplateForm.setFieldsValue({
+                    title: "",
+                    description: "",
+                  });
                 }
               }}
             >
-              {projects.filter(p => !usedProjectIds.has(String(extractId(p)))).map((proj) => {
-                const pid = String(extractId(proj));
-                const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
-                return (
-                  <Select.Option key={pid} value={pid} label={label}>
-                    {label}
-                  </Select.Option>
-                );
-              })}
+              {projects
+                .filter((p) => !usedProjectIds.has(String(extractId(p))))
+                .map((proj) => {
+                  const pid = String(extractId(proj));
+                  const label = proj.projectName
+                    ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
+                    : `Case #${pid}`;
+                  return (
+                    <Select.Option key={pid} value={pid} label={label}>
+                      {label}
+                    </Select.Option>
+                  );
+                })}
             </Select>
           </Form.Item>
           <Form.Item
@@ -6883,28 +12122,66 @@ const InternalTemplates = () => {
               optionFilterProp="label"
               style={{ width: "100%" }}
             >
-              {projects.filter(p => !usedProjectIds.has(String(extractId(p)))).map((proj) => {
-                const pid = String(extractId(proj));
-                const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
-                return (
-                  <Select.Option key={pid} value={pid} label={label}>
-                    {label}
-                  </Select.Option>
-                );
-              })}
+              {projects
+                .filter((p) => !usedProjectIds.has(String(extractId(p))))
+                .map((proj) => {
+                  const pid = String(extractId(proj));
+                  const label = proj.projectName
+                    ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
+                    : `Case #${pid}`;
+                  return (
+                    <Select.Option key={pid} value={pid} label={label}>
+                      {label}
+                    </Select.Option>
+                  );
+                })}
             </Select>
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button onClick={() => setIsCreateTemplateOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-            <Button type="primary" htmlType="submit" loading={createTemplateLoading} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Tạo</Button>
+            <Button
+              onClick={() => setIsCreateTemplateOpen(false)}
+              style={{
+                borderRadius: 8,
+                border: "0.5px solid #E5E7EB",
+                color: "#6B7280",
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={createTemplateLoading}
+              style={{
+                borderRadius: 8,
+                background: "#185FA5",
+                borderColor: "#185FA5",
+              }}
+            >
+              Tạo
+            </Button>
           </div>
         </Form>
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Chỉnh sửa mục tài liệu</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Chỉnh sửa mục tài liệu
+          </span>
+        }
         open={!!editTemplateRecord}
-        onCancel={() => { setEditTemplateRecord(null); editTemplateForm.resetFields(); }}
+        onCancel={() => {
+          setEditTemplateRecord(null);
+          editTemplateForm.resetFields();
+        }}
         footer={null}
         destroyOnClose
       >
@@ -6921,39 +12198,122 @@ const InternalTemplates = () => {
             <Input placeholder="Nhập tiêu đề..." />
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <Button onClick={() => setEditTemplateRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-            <Button type="primary" htmlType="submit" loading={editTemplateLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Lưu</Button>
+            <Button
+              onClick={() => setEditTemplateRecord(null)}
+              style={{
+                borderRadius: 8,
+                border: "0.5px solid #E5E7EB",
+                color: "#6B7280",
+              }}
+            >
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={editTemplateLoading}
+              style={{
+                borderRadius: 8,
+                background: "#111827",
+                borderColor: "#111827",
+              }}
+            >
+              Lưu
+            </Button>
           </div>
         </Form>
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Đổi tên</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Đổi tên
+          </span>
+        }
         open={!!renameRecord}
-        onCancel={() => { setRenameRecord(null); renameForm.resetFields(); }}
+        onCancel={() => {
+          setRenameRecord(null);
+          renameForm.resetFields();
+        }}
         onOk={handleRenameSubmit}
         okText="Lưu"
         cancelText="Hủy"
         destroyOnClose
       >
         <Form form={renameForm} layout="vertical">
-          <Form.Item name="name" label="Tên mới" rules={[{ required: true, message: "Vui lòng nhập tên" }]}>
+          <Form.Item
+            name="name"
+            label="Tên mới"
+            rules={[{ required: true, message: "Vui lòng nhập tên" }]}
+          >
             <Input placeholder="Nhập tên mới..." />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Liên kết Case Tham Chiếu</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Liên kết Case Tham Chiếu
+          </span>
+        }
         open={isLinkCaseOpen}
-        onCancel={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }}
+        onCancel={() => {
+          setIsLinkCaseOpen(false);
+          setLinkCaseRecord(null);
+          linkCaseForm.resetFields();
+        }}
         footer={[
-          <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-          <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Lưu liên kết</Button>,
+          <Button
+            key="cancel"
+            onClick={() => {
+              setIsLinkCaseOpen(false);
+              setLinkCaseRecord(null);
+              linkCaseForm.resetFields();
+            }}
+            style={{
+              borderRadius: 8,
+              border: "0.5px solid #E5E7EB",
+              color: "#6B7280",
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={linkCaseLoading}
+            onClick={() => linkCaseForm.submit()}
+            style={{
+              borderRadius: 8,
+              background: "#185FA5",
+              borderColor: "#185FA5",
+            }}
+          >
+            Lưu liên kết
+          </Button>,
         ]}
         destroyOnClose
       >
-        <Form form={linkCaseForm} layout="vertical" onFinish={handleLinkCaseSubmit}>
+        <Form
+          form={linkCaseForm}
+          layout="vertical"
+          onFinish={handleLinkCaseSubmit}
+        >
           <Form.Item
             name="caseIds"
             label="Chọn các Case/Dự án đang chạy liên kết"
@@ -6966,30 +12326,72 @@ const InternalTemplates = () => {
               optionFilterProp="label"
               style={{ width: "100%" }}
             >
-              {projects.filter(p => !usedProjectIds.has(String(extractId(p))) || activeLinkedIds.has(String(extractId(p)))).map((proj) => {
-                const pid = String(extractId(proj));
-                const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
-                return (
-                  <Select.Option key={pid} value={pid} label={label}>
-                    {label}
-                  </Select.Option>
-                );
-              })}
+              {projects
+                .filter(
+                  (p) =>
+                    !usedProjectIds.has(String(extractId(p))) ||
+                    activeLinkedIds.has(String(extractId(p))),
+                )
+                .map((proj) => {
+                  const pid = String(extractId(proj));
+                  const label = proj.projectName
+                    ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
+                    : `Case #${pid}`;
+                  return (
+                    <Select.Option key={pid} value={pid} label={label}>
+                      {label}
+                    </Select.Option>
+                  );
+                })}
             </Select>
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Di chuyển nhiều mục</span>}
+        title={
+          <span
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: "#111827",
+              fontFamily: FONT,
+            }}
+          >
+            Di chuyển nhiều mục
+          </span>
+        }
         open={isBulkMoveOpen}
         onCancel={() => setIsBulkMoveOpen(false)}
         footer={[
-          <Button key="cancel" onClick={() => setIsBulkMoveOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-          <Button key="submit" type="primary" onClick={handleBulkMoveSubmit} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Di chuyển</Button>,
+          <Button
+            key="cancel"
+            onClick={() => setIsBulkMoveOpen(false)}
+            style={{
+              borderRadius: 8,
+              border: "0.5px solid #E5E7EB",
+              color: "#6B7280",
+            }}
+          >
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={handleBulkMoveSubmit}
+            style={{
+              borderRadius: 8,
+              background: "#185FA5",
+              borderColor: "#185FA5",
+            }}
+          >
+            Di chuyển
+          </Button>,
         ]}
       >
-        <Text>Chọn thư mục đích cho <b>{selectedRowKeys.length} mục đã chọn</b></Text>
+        <Text>
+          Chọn thư mục đích cho <b>{selectedRowKeys.length} mục đã chọn</b>
+        </Text>
         <TreeSelect
           value={bulkMoveTargetId}
           onChange={setBulkMoveTargetId}
@@ -6999,10 +12401,7 @@ const InternalTemplates = () => {
         />
       </Modal>
 
-      <PreviewModal
-        doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
-      />
+      <PreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
 
       <FolderPermissionsModal
         open={!!permissionFolder}
