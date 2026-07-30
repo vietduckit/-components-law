@@ -109,6 +109,16 @@
   // ghi xuống DB nữa.
   const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
   const LEGAL_STUDY_FOLDER_TEMPLATE_KEY = "legal_study";
+  const SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS = new Set([
+    LEGAL_STUDY_FOLDER_TEMPLATE_KEY,
+    "lsc_related",
+    "legal_docs",
+    "legal_dossiers",
+    "report_result",
+  ]);
+  const isRenameLockedFolder = (record) =>
+    record?._type === "folder" &&
+    SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey);
   const CASE_REFERENCE_CREATE_POPUP_UID = "sc3ohtxeu52";
   const CASE_REFERENCE_CREATE_VIEW_URL =
     "https://law.dev.samset.net/admin/5hu22zyhxgd/view/sc3ohtxeu52";
@@ -8391,6 +8401,11 @@
     };
 
     const handleSaveFileTitle = async (record) => {
+      if (isRenameLockedFolder(record)) {
+        message.error("Folder mẫu hệ thống không được đổi tên.");
+        cancelEditTitle();
+        return;
+      }
       const safeTitle = editingTitleValue.trim();
       if (!safeTitle) {
         cancelEditTitle();
@@ -8748,6 +8763,10 @@
 
     const handleRenameSubmit = async () => {
       try {
+        if (isRenameLockedFolder(renameRecord)) {
+          message.error("Folder mẫu hệ thống không được đổi tên.");
+          return;
+        }
         const values = await renameForm.validateFields();
         const newName = values.name.trim();
         const rType = renameRecord._type;
@@ -9240,8 +9259,9 @@
           return items;
         }
 
-        const { canRename, canMove, canDelete, canShare, canManagePermissions } =
+        const { canRename: rawCanRename, canMove, canDelete, canShare, canManagePermissions } =
           getRecordPerms(record);
+        const canRename = rawCanRename && !isRenameLockedFolder(record);
 
         if (!isFolder) {
           items.push({
@@ -9434,8 +9454,9 @@
             </div>
           );
         }
-        const { canRename, canMove, canDelete, canManagePermissions } =
+        const { canRename: rawCanRename, canMove, canDelete, canManagePermissions } =
           getRecordPerms(record);
+        const canRename = rawCanRename && !isRenameLockedFolder(record);
         if (!canRename && !canMove && !canDelete && !canManagePermissions)
           return null;
         return (
