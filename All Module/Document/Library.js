@@ -2205,6 +2205,20 @@
     extractId(folder?.caseId) ||
     extractRelationId(folder?.case) ||
     extractRelationId(folder?.cases);
+  // A folder is the root of a Case when it carries its own projectId but
+  // its parent doesn't — the parent is then the Customer root (or out of
+  // scope), not another folder that already belongs to the same Case. Case
+  // template children (Legal Study, ...) also have projectId, but their
+  // parent (the case folder itself) has it too, so they're excluded.
+  const isCaseRootFolder = (folder, allFolders) => {
+    const ownProjectId = getFolderCaseProjectId(folder);
+    if (!ownProjectId) return false;
+    const parentId = getFolderParentId(folder);
+    const parent = parentId
+      ? allFolders.find((f) => String(extractId(f)) === String(parentId))
+      : null;
+    return !parent || !getFolderCaseProjectId(parent);
+  };
   const normalizeParentId = (parentId) =>
     parentId === "root" || !parentId ? null : extractId(parentId);
   // Trả về tập id gồm rootId + toàn bộ folder con cháu của nó, dựa trên một
@@ -3202,7 +3216,7 @@
   // ============================================================
   // Folder Permissions Modal
   // ============================================================
-  const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
+  const FolderPermissionsModal = ({ open, folder, allFolders, onClose, onSuccess }) => {
     const [saving, setSaving] = useState(false);
     const [availableLawyers, setAvailableLawyers] = useState([]);
     const [shares, setShares] = useState([]);
@@ -3284,11 +3298,20 @@
     };
 
     const handleSave = async () => {
+      const managers = shares.filter((s) => s.role === "manager");
+      const members = shares.filter((s) => s.role !== "manager");
+      const isRootFolder = isCaseRootFolder(folder, allFolders || []);
+
+      if (isRootFolder && managers.length > 1) {
+        message.error(
+          "Case chỉ được phép có 1 Manager — vui lòng chỉ giữ lại 1 người.",
+        );
+        return;
+      }
+
       setSaving(true);
       try {
         const folderId = extractId(folder.id);
-        const managers = shares.filter((s) => s.role === "manager");
-        const members = shares.filter((s) => s.role !== "manager");
 
         await Promise.all([
           ctx.api
@@ -3328,6 +3351,30 @@
         });
 
         await Promise.all(createPromises);
+
+        if (isRootFolder) {
+          const projectId = getFolderCaseProjectId(folder);
+          try {
+            await ctx.api.request({
+              url: "projects:update",
+              method: "POST",
+              params: { filterByTk: parseInt(projectId) },
+              data: {
+                managerId: managers[0] ? parseInt(managers[0].id) : null,
+                assignees: members.map((m) => ({ id: parseInt(m.id) })),
+              },
+            });
+          } catch (syncError) {
+            console.warn(
+              "Could not sync case manager/assignees from folder permissions:",
+              syncError,
+            );
+            message.warning(
+              "Đã lưu quyền folder, nhưng không đồng bộ được Manager/Members lên Case.",
+            );
+          }
+        }
+
         message.success("Permissions updated successfully");
         onSuccess({ accessSummary: buildAccessSummary(shares), shares });
       } catch (e) {
@@ -15156,6 +15203,7 @@
         <FolderPermissionsModal
           open={!!permissionFolder}
           folder={permissionFolder}
+          allFolders={folders}
           onClose={() => setPermissionFolder(null)}
           onSuccess={(permissionResult = {}) => {
             createManualActivityLog(permissionFolder, "permission_updated", {
