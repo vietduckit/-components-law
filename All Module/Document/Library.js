@@ -1867,10 +1867,10 @@
 
     if (isAdminUser(currentUser)) {
       allFolders.forEach((f) => accessible.add(extractId(f.id)));
-      return { accessible };
+      return { accessible, entitled: new Set(accessible) };
     }
 
-    if (!uid) return { accessible };
+    if (!uid) return { accessible, entitled: new Set() };
 
     // 1. Find folders with direct access
     allFolders.forEach((f) => {
@@ -1913,6 +1913,14 @@
       descIds.forEach((id) => accessible.add(id));
     });
 
+    // Snapshot taken BEFORE the ancestor cascade below: `entitled` = folders
+    // the user genuinely has access to (direct grant, or descendant of a
+    // grant). Document/file visibility must be gated by this narrow set, not
+    // by the widened `accessible` set — an ancestor-only folder is shown
+    // purely so the user can click through it, and must not expose the files
+    // sitting directly inside it.
+    const entitled = new Set(accessible);
+
     // 3. Cascade up: ensure the whole ancestor chain of any accessible
     // folder is included too — otherwise a user with access only to a deep
     // subfolder (e.g. one Legal Study child) would never see the case root
@@ -1920,20 +1928,28 @@
     // widens the visibility set; getFolderPermissions() is untouched, so
     // these ancestor-only folders still resolve to no edit/rename/manage
     // rights unless the user has an explicit or inherited role there too.
+    // NOTE: what gets added to `accessible` must be the parent folder's own
+    // extractId(parent.id) — the exact same representation steps 1/2 use
+    // (typically a raw number) — never String(parentId). Set.has() is strict
+    // equality, so mixing 12 and "12" would make every downstream
+    // accessible.has(<numeric id>) lookup miss, turning this whole block
+    // into a no-op. String() is used only for folderById's Map keys.
     const folderById = new Map(allFolders.map((f) => [String(extractId(f.id)), f]));
     Array.from(accessible).forEach((id) => {
       let current = folderById.get(String(id));
       while (current) {
         const parentId = extractId(current.parentId);
         if (!parentId || parentId === "root") break;
-        const parentKey = String(parentId);
-        if (accessible.has(parentKey)) break;
-        accessible.add(parentKey);
-        current = folderById.get(parentKey);
+        const parent = folderById.get(String(parentId));
+        if (!parent) break;
+        const parentRawId = extractId(parent.id);
+        if (accessible.has(parentRawId)) break;
+        accessible.add(parentRawId);
+        current = parent;
       }
     });
 
-    return { accessible };
+    return { accessible, entitled };
   };
 
   const LOCK_ICON = (
@@ -2210,14 +2226,24 @@
   // scope), not another folder that already belongs to the same Case. Case
   // template children (Legal Study, ...) also have projectId, but their
   // parent (the case folder itself) has it too, so they're excluded.
+  // Fail-closed: a `true` result here drives a write onto the production
+  // Case record (projects:update of managerId/assignees), so "folder has a
+  // parentId but that parent isn't in the list we were given" must NOT be
+  // treated as root — it means the caller passed an out-of-scope folder list
+  // and we simply don't know. Only a folder with no parentId at all, or one
+  // whose located parent carries no case projectId, counts as a case root.
   const isCaseRootFolder = (folder, allFolders) => {
     const ownProjectId = getFolderCaseProjectId(folder);
     if (!ownProjectId) return false;
     const parentId = getFolderParentId(folder);
-    const parent = parentId
-      ? allFolders.find((f) => String(extractId(f)) === String(parentId))
-      : null;
-    return !parent || !getFolderCaseProjectId(parent);
+    // "root" is this file's no-parent sentinel (cf. normalizeParentId), so it
+    // counts as "no parentId at all", not as an unresolvable parent.
+    if (!parentId || parentId === "root") return true;
+    const parent = allFolders.find(
+      (f) => String(extractId(f)) === String(parentId),
+    );
+    if (!parent) return false;
+    return !getFolderCaseProjectId(parent);
   };
   const normalizeParentId = (parentId) =>
     parentId === "root" || !parentId ? null : extractId(parentId);
@@ -5874,29 +5900,49 @@
       currentUserState,
     ]);
 
-    // Permission-filtered: hide folders the current user has no access to
-    const permissionFilteredFolders = useMemo(() => {
-      if (activeSpace === "trash") return visibleFolders;
+    // Permission-filtered: hide folders the current user has no access to.
+    // Computes two things from a single getVisibleFolderIds() pass:
+    //  - `folders`: filtered with the widened `accessible` set, which includes
+    //    ancestor-only folders so the navigation tree isn't broken.
+    //  - `entitledFolderIds`: the pre-ancestor-cascade `entitled` set (direct
+    //    grant or descendant of one), stringified for id lookups. Document
+    //    visibility is gated by THIS set, never by the folder list above —
+    //    otherwise an ancestor-only folder (visible purely so the user can
+    //    click through it) would also leak the files placed directly in it.
+    //    `null` means "no restriction applies" (trash / user not loaded /
+    //    admin), matching the early-returns in permissionFilteredDocs.
+    const permissionScopedFolders = useMemo(() => {
+      const unrestricted = { folders: visibleFolders, entitledFolderIds: null };
+      if (activeSpace === "trash") return unrestricted;
       const currentUser = currentUserState;
-      if (!currentUser) return visibleFolders; // not yet loaded → show all (will re-filter after loadData)
-      if (isAdminUser(currentUser)) return visibleFolders;
-      const { accessible } = getVisibleFolderIds(
+      if (!currentUser) return unrestricted; // not yet loaded → show all (will re-filter after loadData)
+      if (isAdminUser(currentUser)) return unrestricted;
+      const { accessible, entitled } = getVisibleFolderIds(
         visibleFolders,
         currentUser,
         currentLawyerId,
       );
-      return visibleFolders.filter((f) => accessible.has(extractId(f.id)));
+      return {
+        folders: visibleFolders.filter((f) => accessible.has(extractId(f.id))),
+        entitledFolderIds: new Set(
+          Array.from(entitled)
+            .filter(Boolean)
+            .map((id) => String(id)),
+        ),
+      };
     }, [visibleFolders, currentUserState, currentLawyerId, activeSpace]);
 
-    // Permission-filtered docs: only show docs whose folder is accessible (or root-level docs)
+    const permissionFilteredFolders = permissionScopedFolders.folders;
+    const entitledFolderIds = permissionScopedFolders.entitledFolderIds;
+
+    // Permission-filtered docs: only show docs whose folder the user is
+    // actually entitled to (or root-level docs)
     const permissionFilteredDocs = useMemo(() => {
       if (activeSpace === "trash") return visibleDocs;
       const currentUser = currentUserState;
       if (!currentUser) return visibleDocs;
       if (isAdminUser(currentUser)) return visibleDocs;
-      const accessibleFolderIds = new Set(
-        permissionFilteredFolders.map((f) => String(extractId(f.id))),
-      );
+      const accessibleFolderIds = entitledFolderIds || new Set();
       return visibleDocs.filter((doc) => {
         const fId = String(extractId(doc.folderId) || "");
         if (isRecordSharedWithUser(doc, currentUser)) return true;
@@ -5905,7 +5951,7 @@
         if (!fId) return activeSpace !== KNOWLEDGE_STORAGE_TYPE;
         return accessibleFolderIds.has(fId);
       });
-    }, [visibleDocs, permissionFilteredFolders, currentUserState, activeSpace]);
+    }, [visibleDocs, entitledFolderIds, currentUserState, activeSpace]);
 
     const getFolderPermsById = useCallback(
       (folderId, space = activeSpace) => {
@@ -6628,13 +6674,20 @@
         }
         return null;
       };
-      const { accessible } = getVisibleFolderIds(
+      const { accessible, entitled } = getVisibleFolderIds(
         activeFolders,
         currentUser,
         currentLawyerId,
       );
       const accessibleFolderIds = new Set(
         Array.from(accessible).filter(Boolean).map((id) => String(id)),
+      );
+      // Folder-derived module access may use the widened set (an
+      // ancestor-only folder is still navigable), but the document-derived
+      // path below must use the narrow `entitled` set so files sitting
+      // directly inside an ancestor-only folder don't grant module access.
+      const docEntitledFolderIds = new Set(
+        Array.from(entitled).filter(Boolean).map((id) => String(id)),
       );
       const currentUserId = String(extractId(currentUser.id) || "");
 
@@ -6643,7 +6696,7 @@
         if (isRecordSharedWithUser(doc, currentUser)) return true;
 
         const folderId = extractId(doc.folderId);
-        if (folderId && accessibleFolderIds.has(String(folderId))) return true;
+        if (folderId && docEntitledFolderIds.has(String(folderId))) return true;
 
         return (
           currentUserId &&
@@ -15203,7 +15256,7 @@
         <FolderPermissionsModal
           open={!!permissionFolder}
           folder={permissionFolder}
-          allFolders={folders}
+          allFolders={customerCaseFolders}
           onClose={() => setPermissionFolder(null)}
           onSuccess={(permissionResult = {}) => {
             createManualActivityLog(permissionFolder, "permission_updated", {
