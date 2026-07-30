@@ -116,9 +116,25 @@
     "legal_dossiers",
     "report_result",
   ]);
+  // Name-based fallback: cases created before folderTemplateKey existed on
+  // this schema have these 5 folders WITHOUT that field (CaseCreateForm.js
+  // only started stamping it once the field was added), so the primary
+  // key-based check silently misses them. Match on the exact template
+  // names too — these are fixed labels only CaseCreateForm.js assigns, so a
+  // name collision with a genuine user-created folder is effectively nil.
+  const SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES = new Set([
+    "legal study",
+    "lsc & related",
+    "legal docs",
+    "legal dossiers",
+    "report and result",
+  ]);
   const isRenameLockedFolder = (record) =>
     record?._type === "folder" &&
-    SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey);
+    (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
+      SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
+        String(record?.name || "").trim().toLowerCase(),
+      ));
   const CASE_REFERENCE_CREATE_POPUP_UID = "sc3ohtxeu52";
   const CASE_REFERENCE_CREATE_VIEW_URL =
     "https://law.dev.samset.net/admin/5hu22zyhxgd/view/sc3ohtxeu52";
@@ -1861,23 +1877,24 @@
   };
 
   const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
-    const accessible = new Set();
+    const directAccess = new Set();
     const uid = extractId(currentUser?.id);
     const lwId = extractId(currentLawyerId);
 
     if (isAdminUser(currentUser)) {
-      allFolders.forEach((f) => accessible.add(extractId(f.id)));
-      return { accessible, entitled: new Set(accessible) };
+      allFolders.forEach((f) => directAccess.add(extractId(f.id)));
+      return { accessible: directAccess, entitled: new Set(directAccess) };
     }
 
-    if (!uid) return { accessible, entitled: new Set() };
+    if (!uid) return { accessible: new Set(), entitled: new Set() };
 
-    // 1. Find folders with direct access
+    // 1. Find folders with a direct, explicit grant (creator, or explicit
+    // manager/member row on that exact folder).
     allFolders.forEach((f) => {
       const fId = extractId(f.id);
       // Owner check — use String comparison to avoid number/string type mismatch
       if (String(extractId(f.createdById)) === String(uid)) {
-        accessible.add(fId);
+        directAccess.add(fId);
         return;
       }
       // Manager/Member check via currentLawyerId — use String comparison to avoid number/string type mismatch
@@ -1888,54 +1905,97 @@
           managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId)) ||
           members.some((m) => String(getPermissionLawyerId(m)) === String(lwId))
         ) {
-          accessible.add(fId);
+          directAccess.add(fId);
           return;
         }
       }
     });
 
-    // 2. Cascade down: include all descendants of accessible folders
-    const getDescendantIdsRecursive = (pId, list) => {
-      let ids = [];
-      list.forEach((f) => {
-        if (String(extractId(f.parentId)) === String(pId)) {
-          const id = extractId(f.id);
-          ids.push(id);
-          ids = ids.concat(getDescendantIdsRecursive(id, list));
+    const folderById = new Map(allFolders.map((f) => [String(extractId(f.id)), f]));
+    const rootIdCache = new Map();
+    // 2. Root-gated visibility: a folder is only visible when the user ALSO
+    // has a direct grant on the root of its tree — a direct grant on one
+    // folder no longer cascades blindly down to every descendant regardless
+    // of the descendant's own grant, and losing root-level access now
+    // revokes every folder in that tree, even ones with their own
+    // still-present explicit grant. "Root" here is the CASE root (the
+    // folder with its own projectId whose parent doesn't have one — the
+    // same boundary isCaseRootFolder uses), not the Customer root sitting
+    // above it: the Customer root has no projectId, is never itself
+    // individually granted to a user in practice, and would silently gate
+    // out an entire case if treated as "the root" here. Folders with no
+    // projectId at all (company_shared, legal_reference, personal,
+    // knowledge — spaces with no Customer/Case two-tier structure) fall
+    // back to the plain topmost-ancestor walk.
+    const resolveRootId = (folder) => {
+      const key = String(extractId(folder.id));
+      if (rootIdCache.has(key)) return rootIdCache.get(key);
+
+      const ownProjectId = getFolderCaseProjectId(folder);
+      let current = folder;
+      const visited = new Set();
+      if (ownProjectId) {
+        while (true) {
+          const parentId = extractId(current.parentId);
+          if (!parentId || parentId === "root") break;
+          const parentKey = String(parentId);
+          if (visited.has(parentKey)) break;
+          visited.add(parentKey);
+          const parent = folderById.get(parentKey);
+          if (!parent) break;
+          if (!getFolderCaseProjectId(parent)) break;
+          current = parent;
         }
-      });
-      return ids;
+      } else {
+        while (true) {
+          const parentId = extractId(current.parentId);
+          if (!parentId || parentId === "root") break;
+          const parentKey = String(parentId);
+          if (visited.has(parentKey)) break;
+          visited.add(parentKey);
+          const parent = folderById.get(parentKey);
+          if (!parent) break;
+          current = parent;
+        }
+      }
+      const rootId = extractId(current.id);
+      rootIdCache.set(key, rootId);
+      return rootId;
     };
 
-    const directIds = Array.from(accessible);
-    directIds.forEach((pId) => {
-      const descIds = getDescendantIdsRecursive(pId, allFolders);
-      descIds.forEach((id) => accessible.add(id));
+    const gated = new Set();
+    allFolders.forEach((f) => {
+      const fId = extractId(f.id);
+      if (!directAccess.has(fId)) return;
+      const rootId = resolveRootId(f);
+      if (directAccess.has(rootId)) gated.add(fId);
     });
 
     // Snapshot taken BEFORE the ancestor cascade below: `entitled` = folders
-    // the user genuinely has access to (direct grant, or descendant of a
-    // grant). Document/file visibility must be gated by this narrow set, not
-    // by the widened `accessible` set — an ancestor-only folder is shown
+    // the user is genuinely granted on (own explicit grant AND root access).
+    // Document/file visibility must be gated by this narrow set, not by the
+    // widened `accessible` set below — an ancestor-only folder is shown
     // purely so the user can click through it, and must not expose the files
     // sitting directly inside it.
-    const entitled = new Set(accessible);
+    const entitled = new Set(gated);
 
-    // 3. Cascade up: ensure the whole ancestor chain of any accessible
-    // folder is included too — otherwise a user with access only to a deep
-    // subfolder (e.g. one Legal Study child) would never see the case root
-    // folder in the tree and couldn't navigate down to it. This only
-    // widens the visibility set; getFolderPermissions() is untouched, so
-    // these ancestor-only folders still resolve to no edit/rename/manage
-    // rights unless the user has an explicit or inherited role there too.
+    // 3. Cascade up: ensure the whole ancestor chain of any gated folder is
+    // included too — otherwise a user granted on a deep folder (e.g. one
+    // Legal Study child, several levels below the case root) would never
+    // see the intermediate folders above it and couldn't navigate down to
+    // it. This only widens the visibility set; getFolderPermissions() is
+    // untouched, so these ancestor-only folders still resolve to no
+    // edit/rename/manage rights unless the user has an explicit or
+    // inherited role there too.
     // NOTE: what gets added to `accessible` must be the parent folder's own
-    // extractId(parent.id) — the exact same representation steps 1/2 use
-    // (typically a raw number) — never String(parentId). Set.has() is strict
-    // equality, so mixing 12 and "12" would make every downstream
-    // accessible.has(<numeric id>) lookup miss, turning this whole block
-    // into a no-op. String() is used only for folderById's Map keys.
-    const folderById = new Map(allFolders.map((f) => [String(extractId(f.id)), f]));
-    Array.from(accessible).forEach((id) => {
+    // extractId(parent.id) — the exact same representation used elsewhere
+    // in this function (typically a raw number) — never String(parentId).
+    // Set.has() is strict equality, so mixing 12 and "12" would make every
+    // downstream accessible.has(<numeric id>) lookup miss, turning this
+    // whole block into a no-op. String() is used only for folderById's Map
+    // keys.
+    const accessible = new Set(gated);
+    Array.from(gated).forEach((id) => {
       let current = folderById.get(String(id));
       while (current) {
         const parentId = extractId(current.parentId);
@@ -3478,7 +3538,7 @@
         ]}
       >
         <div style={{ marginBottom: 16, fontFamily: FONT }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Add people</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
           <Select
             mode="multiple"
             showSearch
@@ -5943,9 +6003,22 @@
       if (!currentUser) return visibleDocs;
       if (isAdminUser(currentUser)) return visibleDocs;
       const accessibleFolderIds = entitledFolderIds || new Set();
+      const currentUserId = String(extractId(currentUser.id) || "");
       return visibleDocs.filter((doc) => {
         const fId = String(extractId(doc.folderId) || "");
         if (isRecordSharedWithUser(doc, currentUser)) return true;
+        // Owner bypass: a folder's own entitlement can require an explicit
+        // grant the uploader doesn't hold on that exact folder (e.g. upload
+        // permission there came from inherited/manager rights via
+        // getFolderPermissions, not a direct grant row) — without this, the
+        // uploader's own file would vanish from their own view right after
+        // upload, even though canCreate() already let them upload there.
+        if (
+          currentUserId &&
+          (String(extractId(doc.createdById) || "") === currentUserId ||
+            String(extractId(doc.uploadedById) || "") === currentUserId)
+        )
+          return true;
         // Root-level docs: visible to all company members except in Knowledge space
         // (Knowledge root-level docs require explicit share — admin already passed above)
         if (!fId) return activeSpace !== KNOWLEDGE_STORAGE_TYPE;
@@ -6373,6 +6446,11 @@
     const canBulkSelectRecord = useCallback(
       (record) => {
         if (!record || record._type === "legal_reference_record") return false;
+        // System-generated template folders (Legal Study, LSC & Related,
+        // Legal docs, Legal dossiers, Report and Result) are not editable
+        // or deletable by default — same rule as the individual rename
+        // lock (isRenameLockedFolder), extended here to bulk move/delete.
+        if (activeSpace !== "trash" && isRenameLockedFolder(record)) return false;
         const permissions = getRecordPerms(record);
         if (activeSpace === "trash") {
           return permissions.canDelete;
@@ -7786,23 +7864,14 @@
             ...(userId ? { createdById: userId, updatedById: userId } : {}),
           };
 
-          if (activeSpace === "company_shared") {
-            folderPayload.internalCompanyId = extractId(activeCompanyId);
-            folderPayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-          } else if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
-            Object.assign(
-              folderPayload,
-              buildScopedPayload(LEGAL_STUDY_STORAGE_TYPE),
-            );
-          } else if (activeSpace === "legal_reference") {
-            folderPayload.internalCompanyId = extractId(activeCompanyId);
-            folderPayload.legalReferenceId = extractId(activeLegalReferenceId);
-            folderPayload.moduleScope = "legal_reference";
-          } else {
-            Object.assign(folderPayload, {
-              ...buildScopePayload(activeCompanyId),
-            });
-          }
+          // buildScopedPayload() covers every space including "customer"
+          // (sets projectId/caseId/customerId) — the case-scoped fetch in
+          // refreshCaseFolders/loadData filters folders by projectId, so a
+          // folder created without it (the old buildScopePayload() fallback
+          // used here, which only knows moduleScope + internalCompanyId)
+          // would never be returned by that query and would silently never
+          // appear, even though the create call itself succeeds.
+          Object.assign(folderPayload, buildScopedPayload(activeSpace));
 
           const res = await createFolderRecord(folderPayload);
           folderIdMap[path] = extractId(res?.data?.data);
@@ -7854,23 +7923,10 @@
               : {}),
           };
 
-          if (activeSpace === "company_shared") {
-            filePayload.internalCompanyId = extractId(activeCompanyId);
-            filePayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-          } else if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
-            Object.assign(
-              filePayload,
-              buildScopedPayload(LEGAL_STUDY_STORAGE_TYPE),
-            );
-          } else if (activeSpace === "legal_reference") {
-            filePayload.internalCompanyId = extractId(activeCompanyId);
-            filePayload.legalReferenceId = extractId(activeLegalReferenceId);
-            filePayload.moduleScope = "legal_reference";
-          } else {
-            Object.assign(filePayload, {
-              ...buildScopePayload(activeCompanyId),
-            });
-          }
+          // Same fix as folderPayload above — use buildScopedPayload() so
+          // files uploaded through this path also get projectId/caseId in
+          // "customer" space, matching uploadFilesToTarget/handleCreateFolder.
+          Object.assign(filePayload, buildScopedPayload(activeSpace));
 
           await createDocumentRecord(filePayload);
         }
@@ -10618,7 +10674,7 @@
       items: [
         {
           key: "folder",
-          label: renderNewMenuLabel(TYPE_ICONS.folder, "Create Folder"),
+          label: renderNewMenuLabel(TYPE_ICONS.folder, "New Folder"),
         },
         { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload file") },
         {
@@ -10878,74 +10934,40 @@
                         setSelectedFolderId("root");
                       },
                     });
-                    items.push({ type: "divider" });
-                    items.push({
-                      key: "delete",
-                      label: renderContextMenuItemLabel(
-                        DELETE_ICON,
-                        <span style={{ color: "#dc2626" }}>Delete Customer</span>,
-                      ),
-                      onClick: () => {
-                        setEntityContextMenu((p) => ({ ...p, open: false }));
-                        Modal.confirm({
-                          title: "Delete customer?",
-                          content: `Delete "${getCustomerDisplayName(rec)}" cannot be undone.`,
-                          okText: "Delete",
-                          okType: "danger",
-                          cancelText: "Cancel",
-                          onOk: async () => {
-                            try {
-                              await ctx.api.request({
-                                url: `customers:destroy?filterByTk=${recId}`,
-                                method: "POST",
-                              });
-                              message.success("Customer deleted");
-                              loadData();
-                            } catch {
-                              message.error("Delete failed");
-                            }
-                          },
-                        });
-                      },
-                    });
                   } else if (space === "customer" && activeCustomerId) {
+                    // Cards in this gallery represent the case's ROOT FOLDER
+                    // itself (rec: entry.folder — see the "gộp thẳng chọn
+                    // Case + xem folder gốc" merge), so recId here is a
+                    // folder id, not a project id. Must look entries up by
+                    // folder, matching openCustomerCaseRootFolder's own
+                    // left-click behavior below.
                     items.push({
                       key: "open",
                       label: renderContextMenuItemLabel(EYE_ICON, "Open"),
                       onClick: () => {
                         setEntityContextMenu((p) => ({ ...p, open: false }));
-                        setActiveCaseId(recId);
-                        setSelectedFolderId("root");
+                        const caseRootEntry = customerCaseRootFolders.find(
+                          (item) => String(extractId(item.folder)) === recId,
+                        );
+                        if (!caseRootEntry) return;
+                        setActiveCaseId(String(extractId(caseRootEntry.project)));
+                        setSelectedFolderId(String(extractId(caseRootEntry.folder)));
                       },
                     });
                     items.push({ type: "divider" });
                     items.push({
-                      key: "delete",
-                      label: renderContextMenuItemLabel(
-                        DELETE_ICON,
-                        <span style={{ color: "#dc2626" }}>Delete Record</span>,
-                      ),
+                      key: "permission",
+                      label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
                       onClick: () => {
                         setEntityContextMenu((p) => ({ ...p, open: false }));
-                        Modal.confirm({
-                          title: "Delete this record?",
-                          content: `Delete "${rec.projectName || rec.caseCode || `Record #${recId}`}" cannot be undone.`,
-                          okText: "Delete",
-                          okType: "danger",
-                          cancelText: "Cancel",
-                          onOk: async () => {
-                            try {
-                              await ctx.api.request({
-                                url: `projects:destroy?filterByTk=${recId}`,
-                                method: "POST",
-                              });
-                              message.success("Record deleted");
-                              loadData();
-                            } catch {
-                              message.error("Delete failed");
-                            }
-                          },
-                        });
+                        const caseRootEntry = customerCaseRootFolders.find(
+                          (item) => String(extractId(item.folder)) === recId,
+                        );
+                        if (!caseRootEntry) {
+                          message.warning("Could not find this case's root folder.");
+                          return;
+                        }
+                        setPermissionFolder(caseRootEntry.folder);
                       },
                     });
                   } else if (space === "legal_reference") {
@@ -11967,7 +11989,7 @@
                                       key: "create_reference",
                                       label: renderNewMenuLabel(
                                         TYPE_ICONS.folder,
-                                        "Create Case Reference",
+                                        "New Case Study",
                                       ),
                                     },
                                   ],
@@ -12141,8 +12163,11 @@
 
                   const handleBulkDelete = (keys, spaceKey, labelFn) => {
                     if (!keys.length) return;
+                    // customer_entity intentionally excluded — Customer
+                    // records are not deletable from this UI (see
+                    // renderBulkBar, which hides the "Delete selected"
+                    // button for this space to match).
                     const collMap = {
-                      customer_entity: "customers",
                       customer_case: "projects",
                       legal_reference: "legalReference",
                     };
@@ -12200,15 +12225,17 @@
                         >
                           Selected <b>{selectedEntityKeys.length}</b> items
                         </span>
-                        <Button
-                          size="small"
-                          danger
-                          onClick={() =>
-                            handleBulkDelete(selectedEntityKeys, spaceKey)
-                          }
-                        >
-                          Delete selected
-                        </Button>
+                        {spaceKey !== "customer_entity" && (
+                          <Button
+                            size="small"
+                            danger
+                            onClick={() =>
+                              handleBulkDelete(selectedEntityKeys, spaceKey)
+                            }
+                          >
+                            Delete selected
+                          </Button>
+                        )}
                         <Button
                           size="small"
                           onClick={() => setSelectedEntityKeys([])}
@@ -12251,8 +12278,9 @@
                     onClick,
                     rec,
                     space,
+                    selectable = true,
                   }) => {
-                    const isSelected = selectedEntityKeys.includes(key);
+                    const isSelected = selectable && selectedEntityKeys.includes(key);
                     const toggleSelect = (e) => {
                       e.stopPropagation();
                       e.preventDefault();
@@ -12283,27 +12311,29 @@
                             if (cb) cb.style.opacity = "1";
                           }}
                           onMouseLeave={(e) => {
-                            if (!selectedEntityKeys.includes(key)) {
+                            if (!isSelected) {
                               const cb = e.currentTarget.querySelector(".ekc");
                               if (cb) cb.style.opacity = "0";
                             }
                           }}
                         >
-                          <div
-                            className="ekc"
-                            style={{
-                              position: "absolute",
-                              top: 5,
-                              right: 5,
-                              zIndex: 3,
-                              opacity: isSelected ? 1 : 0,
-                              transition: "opacity 0.15s",
-                              lineHeight: 1,
-                            }}
-                            onClick={toggleSelect}
-                          >
-                            <Checkbox checked={isSelected} onChange={() => {}} />
-                          </div>
+                          {selectable && (
+                            <div
+                              className="ekc"
+                              style={{
+                                position: "absolute",
+                                top: 5,
+                                right: 5,
+                                zIndex: 3,
+                                opacity: isSelected ? 1 : 0,
+                                transition: "opacity 0.15s",
+                                lineHeight: 1,
+                              }}
+                              onClick={toggleSelect}
+                            >
+                              <Checkbox checked={isSelected} onChange={() => {}} />
+                            </div>
+                          )}
                           <Card
                             hoverable
                             onClick={onClick}
@@ -12622,15 +12652,8 @@
                     if (galleryViewMode === "table") {
                       return (
                         <div>
-                          {renderBulkBar("customer_entity")}
                           <Table
                             size="small"
-                            rowSelection={{
-                              ...entityRowSelection,
-                              getCheckboxProps: () => ({
-                                onClick: (e) => e.stopPropagation(),
-                              }),
-                            }}
                             dataSource={items}
                             rowKey={(r) => String(extractId(r))}
                             onRow={(r) => ({
@@ -12680,7 +12703,7 @@
                                 },
                               },
                               {
-                                title: "Number of Cases",
+                                title: "Related Cases",
                                 width: 90,
                                 render: (_, r) => {
                                   const st = customerStats[
@@ -12723,7 +12746,6 @@
                     }
                     return (
                       <div style={{ fontFamily: FONT }}>
-                        {items.length > 0 && renderBulkBar("customer_entity")}
                         {items.length === 0 ? (
                           <Empty
                             description={
@@ -12742,6 +12764,7 @@
                                 key: cid,
                                 rec: customer,
                                 space: "customer",
+                                selectable: false,
                                 title: getCustomerDisplayName(customer),
                                 footer: (
                                   <span>
@@ -13574,7 +13597,7 @@
                                     cursor: "pointer",
                                   }}
                                 >
-                                  + Add Document
+                                  + New File
                                 </button>
                                 <button
                                   type="button"
@@ -13593,7 +13616,7 @@
                                     cursor: "pointer",
                                   }}
                                 >
-                                  + Add Folder
+                                  + New Folder
                                 </button>
                               </div>
                             )
@@ -13827,15 +13850,6 @@
                                             <div
                                               onClick={(e) => e.stopPropagation()}
                                             >
-                                              <div
-                                                style={{
-                                                  fontSize: 11,
-                                                  color: "#9CA3AF",
-                                                  fontFamily: FONT,
-                                                }}
-                                              >
-                                                No documents yet
-                                              </div>
                                               {getRecordPerms(record).canCreate && (
                                                 <button
                                                 type="button"
@@ -14553,7 +14567,7 @@
                 fontFamily: FONT,
               }}
             >
-              Create Folder
+              New Folder
             </span>
           }
           open={isFolderOpen}
@@ -14587,7 +14601,7 @@
                 borderColor: "#111827",
               }}
             >
-              Create Folder
+              Submit
             </Button>,
           ]}
           afterOpenChange={(open) => {
