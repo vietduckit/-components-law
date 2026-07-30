@@ -9764,18 +9764,6 @@
             render: (_, __, index) => index + 1,
           },
           {
-            title: "Reference Code",
-            key: "referenceCode",
-            width: 150,
-            sorter: (a, b) =>
-              (a.referenceCode || "").localeCompare(b.referenceCode || "", "vi"),
-            render: (_, record) => (
-              <Text style={{ fontWeight: 600, color: "#111827" }}>
-                {record.referenceCode || "—"}
-              </Text>
-            ),
-          },
-          {
             title: "Case Study Name",
             key: "title",
             minWidth: 250,
