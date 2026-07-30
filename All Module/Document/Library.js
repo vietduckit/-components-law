@@ -2504,7 +2504,7 @@
       record.title ||
       record.name ||
       record.description ||
-      (record.id ? `Case Reference ${record.id}` : "Case Reference")
+      (record.id ? `Case Study ${record.id}` : "Case Study")
     );
   };
 
@@ -7520,7 +7520,7 @@
         ) {
           attachmentUploadFailed = true;
           message.warning(
-            "Case Reference was created, but its ID could not be detected for document upload.",
+            "Case Study was created, but its ID could not be detected for document upload.",
           );
         }
         if (createdReferenceId && createReferenceFiles.length) {
@@ -7531,7 +7531,7 @@
             skipPermissionCheck: true,
             refresh: false,
             successMessage: false,
-            errorMessage: "Upload file for Case Reference failed",
+            errorMessage: "Upload file for Case Study failed",
           });
           if (!uploadOk) attachmentUploadFailed = true;
         }
@@ -7546,23 +7546,23 @@
               refresh: false,
               showProgress: false,
               successMessage: false,
-              errorMessage: "Upload folder for Case Reference failed",
+              errorMessage: "Upload folder for Case Study failed",
             },
           );
           if (!uploadOk) attachmentUploadFailed = true;
         }
         if (attachmentUploadFailed) {
           message.warning(
-            "Case Reference was created, but some documents failed to upload.",
+            "Case Study was created, but some documents failed to upload.",
           );
         } else {
-          message.success("Case Reference created successfully.");
+          message.success("Case Study created successfully.");
         }
         closeCreateReferenceModal();
         loadData();
       } catch (e) {
         console.error(e);
-        message.error("Create Case Reference failed.");
+        message.error("Create Case Study failed.");
       } finally {
         setCreateTemplateLoading(false);
       }
@@ -7597,7 +7597,7 @@
         if (!success) {
           throw lastError || new Error("Failed to update case title");
         }
-        message.success("Case Reference updated successfully!");
+        message.success("Case Study updated successfully!");
         setEditTemplateRecord(null);
         editTemplateForm.resetFields();
         loadData();
@@ -7637,7 +7637,7 @@
           extractId(linkCaseRecord) || activeLegalReferenceId || "",
         );
         if (!targetLegalReferenceId) {
-          message.warning("Please select a Case Reference to link");
+          message.warning("Please select a Case Study to link");
           return;
         }
         const payload = {
@@ -8861,7 +8861,7 @@
       );
       Modal.confirm({
         title: isLegalRef
-          ? `Confirm deletion of Case Reference "${templateRecord.title || templateRecord.name}"?`
+          ? `Confirm deletion of Case Study "${templateRecord.title || templateRecord.name}"?`
           : `Confirm deletion of document type "${templateRecord.title || templateRecord.name}"?`,
         icon: React.createElement(
           "span",
@@ -8869,7 +8869,7 @@
           WarningIcon,
         ),
         content: isLegalRef
-          ? "Are you sure you want to delete this Case Reference? Documents and folders belonging to this case will remain in Trash or become unlinked."
+          ? "Are you sure you want to delete this Case Study? Documents and folders belonging to this case will remain in Trash or become unlinked."
           : "Are you sure you want to delete this document type? Documents under this type will remain stored but will no longer be linked.",
         okText: "Delete",
         okType: "danger",
@@ -8901,7 +8901,7 @@
               });
             }
             message.success(
-              isLegalRef ? "Case Reference deleted" : "Document type deleted",
+              isLegalRef ? "Case Study deleted" : "Document type deleted",
             );
             if (
               isLegalRef &&
@@ -8957,7 +8957,7 @@
           if (!success) {
             throw lastError || new Error("Failed to rename");
           }
-          message.success("Case Reference renamed");
+          message.success("Case Study renamed");
         } else if (rType === "template" || rType === "document_type") {
           await ctx.api.request({
             url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
@@ -9353,7 +9353,7 @@
             key: "delete",
             label: renderContextMenuItemLabel(
               DELETE_ICON,
-              "Delete Case Reference",
+              "Delete Case Study",
               "#cf1322",
             ),
             onClick: () => {
@@ -9776,7 +9776,7 @@
             ),
           },
           {
-            title: "Reference Name",
+            title: "Case Study Name",
             key: "title",
             minWidth: 250,
             sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
@@ -9925,7 +9925,7 @@
                     }}
                   />
                 </Tooltip>
-                <Tooltip title="Delete Case Reference">
+                <Tooltip title="Delete Case Study">
                   <Button
                     size="small"
                     danger
@@ -11001,7 +11001,7 @@
                       onClick: () => {
                         setEntityContextMenu((p) => ({ ...p, open: false }));
                         Modal.confirm({
-                          title: "Delete Case Reference?",
+                          title: "Delete Case Study?",
                           content: `Delete "${getLegalReferenceDisplayName(rec)}" cannot be undone.`,
                           okText: "Delete",
                           okType: "danger",
@@ -11017,7 +11017,7 @@
                                   break;
                                 } catch {}
                               }
-                              message.success("Case Reference deleted");
+                              message.success("Case Study deleted");
                               loadData();
                             } catch {
                               message.error("Delete failed");
@@ -11197,7 +11197,7 @@
                   style={{ height: 1, background: "#F3F4F6", margin: "4px 8px" }}
                 />
 
-                {/* ── FLAT NAV: Customer, Case Reference, Legal Study ── */}
+                {/* ── FLAT NAV: Customer, Case Study, Legal Study ── */}
                 {[
                   ...(canOpenCustomerSpace
                     ? [
@@ -11237,7 +11237,7 @@
                     ? [
                         {
                           key: "legal_reference",
-                          label: "Case Reference",
+                          label: "Case Study",
                           icon: (
                             <svg
                               width="13"
@@ -11731,7 +11731,7 @@
                         : activeSpace === "customer"
                           ? "Search cases..."
                           : activeSpace === "legal_reference"
-                            ? "Search case reference..."
+                            ? "Search case study..."
                             : "Search legal study..."
                     }
                     value={sidebarSearch}
@@ -13098,7 +13098,7 @@
                                 render: (_, __, i) => i + 1,
                               },
                               {
-                                title: "Case Reference Name",
+                                title: "Case Study Name",
                                 key: "name",
                                 render: (_, r) => {
                                   const name = getLegalReferenceDisplayName(r);
@@ -13174,7 +13174,7 @@
                               description={
                                 sidebarSearch
                                   ? "Not found"
-                                  : "No Case Reference yet"
+                                  : "No Case Study yet"
                               }
                             />
                             {!sidebarSearch && (
@@ -13194,7 +13194,7 @@
                                   cursor: "pointer",
                                 }}
                               >
-                                + Create Case Reference
+                                + Create Case Study
                               </button>
                             )}
                           </div>
@@ -13528,7 +13528,7 @@
                           >
                             {activeSpace === "legal_reference" &&
                             !activeLegalReferenceId
-                              ? "No Case Reference yet"
+                              ? "No Case Study yet"
                               : activeSpace === "trash"
                                 ? "Trash is empty"
                                 : query
@@ -13544,7 +13544,7 @@
                           >
                             {activeSpace === "legal_reference" &&
                             !activeLegalReferenceId
-                              ? "Click + Create Case Reference below to get started"
+                              ? "Click + Create Case Study below to get started"
                               : activeSpace === "trash"
                                 ? "No deleted files or folders"
                                 : query
@@ -13569,7 +13569,7 @@
                                 marginTop: 4,
                               }}
                             >
-                              + Create Case Reference
+                              + Create Case Study
                             </button>
                           ) : (
                             activeSpace !== "trash" &&
@@ -14764,7 +14764,7 @@
                 fontFamily: FONT,
               }}
             >
-              Create Case Reference
+              Create Case Study
             </span>
           }
           open={isCreateTemplateOpen}
@@ -14782,10 +14782,10 @@
               <Col span={12}>
                 <Form.Item
                   name="title"
-                  label="Reference Name"
+                  label="Case Study Name"
                   rules={[{ required: true, message: "Please enter a name" }]}
                 >
-                  <Input placeholder="Enter reference name..." />
+                  <Input placeholder="Enter case study name..." />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -14881,15 +14881,15 @@
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="description" label="Reference Summary">
+            <Form.Item name="description" label="Case Study Summary">
               <Input.TextArea
                 rows={4}
-                placeholder="Summarize the reference content..."
+                placeholder="Summarize the case study content..."
               />
             </Form.Item>
             <Form.Item
               name="caseIds"
-              label="Reference To"
+              label="Linked Cases"
               extra="Link to ongoing cases in the system."
             >
               <Select
@@ -15115,7 +15115,7 @@
                 fontFamily: FONT,
               }}
             >
-              Link Case Reference
+              Link Case Study
             </span>
           }
           open={isLinkCaseOpen}
