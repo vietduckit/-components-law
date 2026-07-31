@@ -2535,6 +2535,20 @@
     return [];
   };
 
+  const fetchLegalStudyRecords = async () => {
+    for (const url of ["legalStudy:list", "legalStudies:list"]) {
+      try {
+        return await fetchAllList(url, {
+          sort: ["-createdAt"],
+          fields: ["id", "title", "description"],
+        });
+      } catch (e) {
+        // Try next candidate.
+      }
+    }
+    return [];
+  };
+
   const createLegalReferenceRecord = async (payload) => {
     let lastError = null;
     for (const url of DASHBOARD_CONFIG.parentCreateCandidates) {
@@ -4065,6 +4079,7 @@
     const [documents, setDocuments] = useState([]);
     const [folders, setFolders] = useState([]);
     const [legalReferences, setLegalReferences] = useState([]);
+    const [legalStudyRecords, setLegalStudyRecords] = useState([]);
     const [selectedExt, setSelectedExt] = useState(null);
     const [activeCompanyId, setActiveCompanyId] = useState(null);
     const [activeLegalReferenceId, setActiveLegalReferenceId] = useState(null);
@@ -4333,6 +4348,7 @@
           fetchedDocumentShares,
           fetchedCustomers,
           fetchedCustomerCaseFolders,
+          fetchedLegalStudyRecords,
         ] = await Promise.all([
           fetchAllList("internalCompany:list", { sort: ["createdAt"] }).catch(
             () => [],
@@ -4357,9 +4373,11 @@
             appends: ["internalCompany", "createdBy"],
           }).catch(() => []),
           fetchCustomerCasePermissionFolders(),
+          fetchLegalStudyRecords(),
         ]);
 
         setCompanies(fetchedCompanies);
+        setLegalStudyRecords(fetchedLegalStudyRecords);
         const isAllowedScope = (record) => {
           const scope = normalizeKey(record?.moduleScope);
           return !scope || DASHBOARD_CONFIG.moduleScopes.includes(scope);
@@ -5640,6 +5658,12 @@
     // dùng làm gallery cấp cao nhất của không gian Legal Study, bỏ qua bước
     // chọn Customer → Case. Chỉ hiện case nào thực sự có folder này và user
     // có quyền truy cập folder đó.
+    const legalStudyRecordById = useMemo(() => {
+      const map = new Map();
+      legalStudyRecords.forEach((s) => map.set(String(extractId(s)), s));
+      return map;
+    }, [legalStudyRecords]);
+
     const legalStudyEntities = useMemo(() => {
       const currentUser = currentUserState;
       const activeCaseFolders = customerCaseFolders.filter((f) => !f?.isDeleted);
@@ -5654,7 +5678,14 @@
         if (accessible && !accessible.has(extractId(folder.id))) return;
 
         const projectId = getFolderCaseProjectId(folder);
-        if (!projectId) return;
+        if (!projectId) {
+          // Group 2 — external-resource Legal Study, anchored by a
+          // legalStudy record via folder.legalStudyId, not by any Case.
+          const studyId = extractId(folder.legalStudyId);
+          const study = studyId ? legalStudyRecordById.get(String(studyId)) : null;
+          items.push({ folder, project: null, customer: null, study });
+          return;
+        }
         const project = projectById.get(String(projectId));
         if (!project) return;
         const customerId = getProjectCustomerId(project);
@@ -5662,7 +5693,7 @@
           (c) => String(extractId(c)) === String(customerId),
         );
 
-        items.push({ folder, project, customer });
+        items.push({ folder, project, customer, study: null });
       });
       return items;
     }, [
@@ -5672,6 +5703,7 @@
       isAdmin,
       projectById,
       customers,
+      legalStudyRecordById,
     ]);
 
     // Mỗi entry Legal Study kèm tập id folder con cháu của nó (tính trên
@@ -12445,8 +12477,18 @@
                       });
                     }
 
-                    // caseCode + shortName (khách hàng) + projectName
+                    // caseCode + shortName (khách hàng) + projectName — hoặc
+                    // title của record legalStudy nếu là Group 2 (external
+                    // resource, không gắn Case nào).
                     const formatCaseCustomerLabel = (entry) => {
+                      if (entry.study) {
+                        return (
+                          entry.study.title ||
+                          entry.study.description ||
+                          "External resource"
+                        );
+                      }
+                      if (!entry.project) return "Standalone";
                       const caseCode = entry.project?.caseCode || "";
                       const shortName =
                         entry.customer?.shortName ||
@@ -12462,10 +12504,12 @@
                     // set selectedFolderId ngay bằng id thật của folder (thay
                     // vì "root") để không cần đi qua bước hiện case-root rồi
                     // mới tự nhảy vào (tránh flash 1 card "Legal Study" rồi
-                    // mới vào nội dung thật của nó).
+                    // mới vào nội dung thật của nó). Group 2 (entry.customer/
+                    // entry.project đều null) chỉ set selectedFolderId, giữ
+                    // activeCustomerId/activeCaseId là null.
                     const openLegalStudyEntity = (entry) => {
-                      setActiveCustomerId(String(extractId(entry.customer)));
-                      setActiveCaseId(String(extractId(entry.project)));
+                      if (entry.customer) setActiveCustomerId(String(extractId(entry.customer)));
+                      if (entry.project) setActiveCaseId(String(extractId(entry.project)));
                       setSelectedFolderId(String(extractId(entry.folder)));
                       setSidebarSearch("");
                     };
