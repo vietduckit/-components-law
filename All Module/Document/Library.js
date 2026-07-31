@@ -131,6 +131,7 @@
   ]);
   const isRenameLockedFolder = (record) =>
     record?._type === "folder" &&
+    Boolean(getFolderCaseProjectId(record)) &&
     (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
       SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
         String(record?.name || "").trim().toLowerCase(),
