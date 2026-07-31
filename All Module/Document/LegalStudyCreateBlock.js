@@ -20,6 +20,7 @@ const FONT =
   "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
 const LEGAL_STUDY_MODULE_SCOPE = "legal_study";
+const LEGAL_STUDY_FOLDER_TEMPLATE_KEY = "legal_study";
 const LEGAL_STUDY_RESOURCES = ["legalStudy", "legalStudies"];
 const LEGAL_STUDY_BLOCK_UID = "ql8tgdq5no2";
 const CASE_REFERENCE_BLOCK_UID = "5cyaa66tjwi";
@@ -624,7 +625,7 @@ const getNextFileIndex = async ({ folderId, internalCompanyId, legalStudyId }) =
 const uploadFilesToStudy = async (files, context) => {
   const rows = Array.from(files || []).filter(Boolean);
   if (!rows.length) return true;
-  let nextIndex = await getNextFileIndex({ ...context, folderId: null });
+  let nextIndex = await getNextFileIndex(context);
   const userId = getCurrentUserId();
 
   for (const file of rows) {
@@ -640,6 +641,7 @@ const uploadFilesToStudy = async (files, context) => {
       updatedAt: nowIso,
       uploadedAt: nowIso,
       uploaded_at: nowIso,
+      ...(context.folderId ? { folderId: context.folderId } : {}),
       ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
       ...buildDocumentScopePayload(context),
     });
@@ -651,7 +653,7 @@ const uploadFilesToStudy = async (files, context) => {
 const uploadFolderFilesToStudy = async (files, context) => {
   const rows = Array.from(files || []).filter(Boolean);
   if (!rows.length) return true;
-  const folderIdMap = { "": null };
+  const folderIdMap = { "": context.folderId || null };
   const folderPaths = new Set();
 
   rows.forEach((file) => {
@@ -853,6 +855,34 @@ const LegalStudyCreateBlock = () => {
       let uploadFailed = false;
       let linkFailed = false;
 
+      // Every Legal Study record gets exactly one root folder, tagged with
+      // the same folderTemplateKey the case-bound (system-generated) Legal
+      // Study folders use — this is what makes the entry show up in
+      // Library.js's Legal Study gallery, whether or not the user uploaded
+      // anything. Created regardless of files/folderFiles selection.
+      let rootFolderId = null;
+      if (studyId) {
+        try {
+          const nowIso = new Date().toISOString();
+          const rootFolder = await createFolderRecord({
+            name: values.title?.trim() || "Legal Study",
+            type: "custom",
+            folderTemplateKey: LEGAL_STUDY_FOLDER_TEMPLATE_KEY,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            ...(userId ? { createdById: userId, updatedById: userId } : {}),
+            ...buildDocumentScopePayload({
+              internalCompanyId: values.internalCompanyId,
+              legalStudyId: studyId,
+            }),
+          });
+          rootFolderId = extractId(rootFolder);
+        } catch (error) {
+          console.error("[LegalStudyCreateBlock] create root folder failed", error);
+          message.warning("Legal Study created, but its root folder could not be created.");
+        }
+      }
+
       if ((files.length || folderFiles.length) && !studyId) {
         uploadFailed = true;
         message.warning("Created Legal Study, but could not detect its ID for document upload.");
@@ -883,6 +913,7 @@ const LegalStudyCreateBlock = () => {
       const uploadContext = {
         internalCompanyId: extractId(values.internalCompanyId),
         legalStudyId: studyId,
+        folderId: rootFolderId,
       };
       if (studyId && files.length) {
         await uploadFilesToStudy(files, uploadContext).catch((error) => {
