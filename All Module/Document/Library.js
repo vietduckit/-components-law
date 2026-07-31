@@ -5396,6 +5396,27 @@
       return ids;
     }, [caseFolders, activeLegalStudyFolder]);
 
+    // Group 2 (case-less Legal Study): when there's no active Case but a
+    // specific folder is selected inside the Legal Study space, that
+    // selectedFolderId IS the standalone root the user opened from the
+    // gallery (see openLegalStudyEntity). Its folders/documents already
+    // carry moduleScope: "legal_study", so they're already present in the
+    // component's general `folders`/`documents` state (loadData) — no
+    // extra fetch needed here, unlike the case-bound path above which
+    // needs the separate activeCaseId-scoped caseFolders/caseDocs fetch.
+    const activeStandaloneLegalStudyFolderId =
+      activeSpace === LEGAL_STUDY_STORAGE_TYPE && !activeCaseId && selectedFolderId !== "root"
+        ? String(selectedFolderId)
+        : null;
+
+    const standaloneLegalStudySubtreeFolderIds = useMemo(() => {
+      if (!activeStandaloneLegalStudyFolderId) return new Set();
+      return getFolderSubtreeIds(
+        activeStandaloneLegalStudyFolderId,
+        folders.filter((f) => !f?.isDeleted),
+      );
+    }, [activeStandaloneLegalStudyFolderId, folders]);
+
     // Vào không gian Legal Study + đã chọn Case → tự động khoanh vùng thẳng
     // vào folder "Legal Study" của case đó (bỏ qua bước hiện case-root làm
     // 1 card phải click thêm 1 lần, giống cách "customer" space đang làm).
@@ -5856,6 +5877,15 @@
         );
       }
       if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
+        if (activeStandaloneLegalStudyFolderId) {
+          // Group 2 — case-less, documents already live in the general
+          // `documents` state (moduleScope: "legal_study").
+          return documents.filter(
+            (d) =>
+              !d.isDeleted &&
+              standaloneLegalStudySubtreeFolderIds.has(String(extractId(d.folderId) || "")),
+          );
+        }
         // 🌟 Legal Study giờ chỉ là 1 nhánh trong cây tài liệu của Case
         // (moduleScope vẫn "case_document") — lấy thẳng từ caseDocs, khoanh
         // vùng vào đúng folder Legal Study + folder con cháu của nó.
@@ -5912,6 +5942,8 @@
       activeSpace,
       activeLegalReferenceId,
       legalStudySubtreeFolderIds,
+      activeStandaloneLegalStudyFolderId,
+      standaloneLegalStudySubtreeFolderIds,
       currentLawyerId,
       currentUserState,
       canViewTrashRecord,
@@ -5948,6 +5980,15 @@
         );
       }
       if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
+        if (activeStandaloneLegalStudyFolderId) {
+          // Group 2 — case-less, folders already live in the general
+          // `folders` state (moduleScope: "legal_study").
+          return folders.filter(
+            (f) =>
+              !f.isDeleted &&
+              standaloneLegalStudySubtreeFolderIds.has(String(extractId(f))),
+          );
+        }
         return caseFolders.filter(
           (f) =>
             !f.isDeleted &&
@@ -5988,6 +6029,8 @@
       activeSpace,
       activeLegalReferenceId,
       legalStudySubtreeFolderIds,
+      activeStandaloneLegalStudyFolderId,
+      standaloneLegalStudySubtreeFolderIds,
       canViewTrashRecord,
       caseFolders,
       currentUserState,
@@ -6220,8 +6263,16 @@
         // 🌟 Gallery gốc là danh sách flat các Case có folder Legal Study
         // (xem legalStudyEntities) — không có bước chọn Customer trung
         // gian, nên breadcrumb đi thẳng từ "Legal Study" vào tên Case.
-        if (!activeCustomerId || !activeCaseId)
-          return [{ id: "legal_study_gallery", name: LEGAL_STUDY_LABEL }];
+        if (!activeCaseId) {
+          // Không có Case active — hoặc đang ở gallery gốc, hoặc đang
+          // duyệt bên trong 1 Legal Study độc lập (Group 2). Chỉ nhánh sau
+          // cần buildFolderPath; ở gallery gốc trả về ngay, không đi qua
+          // buildFolderPath (selectedFolderId === "root" lúc đó).
+          if (selectedFolderId === "root") {
+            return [{ id: "legal_study_gallery", name: LEGAL_STUDY_LABEL }];
+          }
+          return buildFolderPath([{ id: "legal_study_gallery", name: LEGAL_STUDY_LABEL }]);
+        }
         // 🌟 selectedFolderId ở đây luôn là ID folder Legal Study thật
         // (không còn sentinel "root" — xem effect tự nhảy vào folder + click
         // card gallery đều set thẳng bằng id thật), nên buildFolderPath tự
@@ -7178,6 +7229,19 @@
             internalCompanyId: extractId(activeCompanyId),
             legalReferenceId: extractId(targetLegalReferenceId),
             moduleScope: "legal_reference",
+          };
+        }
+        if (targetSpace === LEGAL_STUDY_STORAGE_TYPE && !activeCaseId) {
+          // Group 2 — creating a folder/file while browsing a case-less
+          // Legal Study. Needs moduleScope so the new row lands in the
+          // general folders/documents state (same as everything else in
+          // this space), unlike the case-bound branch below which
+          // deliberately has no moduleScope.
+          return {
+            moduleScope: LEGAL_STUDY_STORAGE_TYPE,
+            ...(activeCompanyId
+              ? { internalCompanyId: extractId(activeCompanyId) }
+              : {}),
           };
         }
         // 🌟 Legal Study không còn moduleScope/record riêng — chỉ là 1
