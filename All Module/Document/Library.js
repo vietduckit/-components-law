@@ -4260,7 +4260,9 @@
       (activeSpace === "customer" && !activeCustomerId) ||
       (activeSpace === "customer" && !!activeCustomerId && !activeCaseId) ||
       (activeSpace === "legal_reference" && !activeLegalReferenceId) ||
-      (activeSpace === LEGAL_STUDY_STORAGE_TYPE && !activeCustomerId);
+      (activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
+        !activeCustomerId &&
+        selectedFolderId === "root");
 
     useEffect(() => {
       setSelectedEntityKeys([]);
@@ -7251,9 +7253,17 @@
           // Legal Study. Needs moduleScope so the new row lands in the
           // general folders/documents state (same as everything else in
           // this space), unlike the case-bound branch below which
-          // deliberately has no moduleScope.
+          // deliberately has no moduleScope. Also needs legalStudyId so
+          // the new row stays linked to its owning legalStudy record (read
+          // by LegalStudyDocument.js's Folders/documents relations,
+          // outside this plan's scope but relying on this FK being set).
+          const standaloneRootFolder = folders.find(
+            (f) => String(extractId(f)) === String(activeStandaloneLegalStudyFolderId),
+          );
+          const ownerStudyId = extractId(standaloneRootFolder?.legalStudyId);
           return {
             moduleScope: LEGAL_STUDY_STORAGE_TYPE,
+            ...(ownerStudyId ? { legalStudyId: ownerStudyId } : {}),
             ...(activeCompanyId
               ? { internalCompanyId: extractId(activeCompanyId) }
               : {}),
@@ -7289,7 +7299,14 @@
         }
         return buildScopePayload(activeCompanyId);
       },
-      [activeCompanyId, activeLegalReferenceId, activeCaseId, activeCustomerId],
+      [
+        activeCompanyId,
+        activeLegalReferenceId,
+        activeCaseId,
+        activeCustomerId,
+        folders,
+        activeStandaloneLegalStudyFolderId,
+      ],
     );
 
     const uploadFilesToTarget = useCallback(
@@ -12080,7 +12097,8 @@
                         (activeSpace === "legal_reference" &&
                           !activeLegalReferenceId) ||
                         (activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
-                          !activeCustomerId)) && (
+                          !activeCustomerId &&
+                          selectedFolderId === "root")) && (
                         <Dropdown
                           menu={
                             activeSpace === "legal_reference" &&
@@ -12098,7 +12116,8 @@
                                   onClick: openCreateReferenceModal,
                                 }
                               : activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
-                                  !activeCustomerId
+                                  !activeCustomerId &&
+                                  selectedFolderId === "root"
                                 ? {
                                     items: [
                                       {
@@ -12545,7 +12564,11 @@
                   /* ── LEGAL STUDY GALLERY (flat list of Case có folder
                      folderTemplateKey === "legal_study" — xem
                      legalStudyEntitiesWithSubtree) ── */
-                  if (activeSpace === LEGAL_STUDY_STORAGE_TYPE && !activeCustomerId) {
+                  if (
+                    activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
+                    !activeCustomerId &&
+                    selectedFolderId === "root"
+                  ) {
                     const q = sidebarSearch.toLowerCase();
                     let items = legalStudyEntitiesWithSubtree;
                     if (galleryCompanyFilter.length > 0) {
@@ -12553,6 +12576,7 @@
                         const cid = String(
                           extractId(entry.customer?.internalCompanyId) ||
                             extractId(entry.customer?.internalCompany) ||
+                            extractId(entry.folder?.internalCompanyId) ||
                             "",
                         );
                         return galleryCompanyFilter.includes(cid);
@@ -12568,7 +12592,16 @@
                         const custName = entry.customer
                           ? getCustomerDisplayName(entry.customer).toLowerCase()
                           : "";
-                        return caseName.includes(q) || custName.includes(q);
+                        const studyName = (
+                          entry.study?.title ||
+                          entry.study?.description ||
+                          ""
+                        ).toLowerCase();
+                        return (
+                          caseName.includes(q) ||
+                          custName.includes(q) ||
+                          studyName.includes(q)
+                        );
                       });
                     }
 
