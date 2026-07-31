@@ -139,6 +139,13 @@
   const CASE_REFERENCE_CREATE_POPUP_UID = "sc3ohtxeu52";
   const CASE_REFERENCE_CREATE_VIEW_URL =
     "https://law.dev.samset.net/admin/5hu22zyhxgd/view/sc3ohtxeu52";
+  // Placeholder — the user must create a Nocobase popup view pointing at
+  // All Module/Document/LegalStudyCreateBlock.js (same pattern as the Case
+  // Study popup above) after this task deploys, then replace both values
+  // below with the real UID/URL, exactly like CASE_REFERENCE_CREATE_POPUP_UID
+  // was updated once its real view existed.
+  const LEGAL_STUDY_CREATE_POPUP_UID = "__PENDING_NOCOBASE_VIEW_UID__";
+  const LEGAL_STUDY_CREATE_VIEW_URL = "__PENDING_NOCOBASE_VIEW_URL__";
   const CASE_REFERENCE_DATA_BLOCK_UID = "5cyaa66tjwi";
   // Custom JS blocks like this one aren't resolvable through
   // ctx.getModel(uid)/resource.refresh(), so the reused create-new popups
@@ -7132,6 +7139,14 @@
       });
     };
 
+    const openCreateLegalStudyModal = async () => {
+      if (!requireCompany()) return;
+      await openCreateViewByUid(LEGAL_STUDY_CREATE_POPUP_UID, LEGAL_STUDY_CREATE_VIEW_URL, {
+        activeCompanyId: extractId(activeCompanyId),
+        internalCompanyId: extractId(activeCompanyId),
+      });
+    };
+
     const closeCreateReferenceModal = () => {
       setIsCreateTemplateOpen(false);
       resetCreateReferenceDraft();
@@ -12063,7 +12078,9 @@
                     {activeSpace !== "trash" &&
                       (currentFolderPerms.canCreate ||
                         (activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId)) && (
+                          !activeLegalReferenceId) ||
+                        (activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
+                          !activeCustomerId)) && (
                         <Dropdown
                           menu={
                             activeSpace === "legal_reference" &&
@@ -12080,7 +12097,21 @@
                                   ],
                                   onClick: openCreateReferenceModal,
                                 }
-                              : newMenu
+                              : activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
+                                  !activeCustomerId
+                                ? {
+                                    items: [
+                                      {
+                                        key: "create_legal_study",
+                                        label: renderNewMenuLabel(
+                                          TYPE_ICONS.folder,
+                                          "New Legal Study",
+                                        ),
+                                      },
+                                    ],
+                                    onClick: openCreateLegalStudyModal,
+                                  }
+                                : newMenu
                           }
                           trigger={["click"]}
                         >
