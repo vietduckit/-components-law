@@ -8678,6 +8678,14 @@
       const ok = await uploadFilesToTarget(target.files, {
         folderId: targetFolderId,
         metadata,
+        // The "grouped" folder was just created above (not yet in
+        // `folders` state — loadData() hasn't run yet), so
+        // getFolderPermsById would find no matching folder and treat it
+        // as canCreate: false. The canCreate check on its parent folder
+        // moments ago already covers the same effective permission (this
+        // new folder's root is the same as its parent's), so skip the
+        // redundant re-check here.
+        skipPermissionCheck: metadata.uploadMode === "grouped",
       });
       if (ok) setUploadFieldsTarget(null);
     };
