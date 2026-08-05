@@ -9,6 +9,7 @@ Hệ thống quản lý công ty luật xây dựng trên nền tảng **Nocobas
 - [nocobase-docs/workflows.md](nocobase-docs/workflows.md) — Workflow triggers, nodes, tích hợp với JS block
 - [nocobase-docs/document-system.md](nocobase-docs/document-system.md) — Document system
 - [nocobase-docs/document-inline-edit-upload-grouping-pattern.md](nocobase-docs/document-inline-edit-upload-grouping-pattern.md) — Pattern chuẩn cho inline-edit metadata (Table view) + gom nhóm multi-file upload thành folder; đọc trước khi thêm/sửa 2 tính năng này ở bất kỳ file document nào (Library.js, CaseDocument.js, CustomerDocument.js, ...)
+- [nocobase-docs/library-js-architecture-reference.md](nocobase-docs/library-js-architecture-reference.md) — Tổng kết toàn bộ kiến trúc/business logic/UI-UX của Library.js (permission model, navigation, CRUD flows, components) — dùng làm chuẩn khi tối ưu/đồng bộ CaseDocument.js hoặc file document khác
 
 ---
 
