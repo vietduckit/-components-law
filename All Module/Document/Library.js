@@ -26,6 +26,7 @@
     Dropdown,
     Checkbox,
     DatePicker,
+    Radio,
   } = ctx.antd;
   const { Sider, Content } = Layout;
   const { Title, Text } = Typography;
@@ -4331,10 +4332,15 @@
   const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
+    // "grouped" only ever offered when files.length > 1 (see the
+    // Radio.Group below) — irrelevant, but harmless, for single-file
+    // submits since handleConfirmUploadFields only reads it when grouping.
+    const [uploadMode, setUploadMode] = useState("separate");
 
     useEffect(() => {
       if (open) {
         form.resetFields();
+        setUploadMode("separate");
         // Chỉ gán mặc định tên tài liệu = tên file (không kèm đuôi mở rộng)
         // khi upload đúng 1 file — khớp với logic applyTitleOverride trong
         // uploadFilesToTarget (chỉ override title khi upload 1 file duy nhất).
@@ -4368,6 +4374,8 @@
           senderName: values.senderName?.trim() || "",
           recipientName: values.recipientName?.trim() || "",
           description: values.description?.trim() || "",
+          uploadMode,
+          groupFolderName: values.groupFolderName?.trim() || "",
         });
       } finally {
         setSubmitting(false);
@@ -4410,23 +4418,51 @@
           </Button>,
         ]}
       >
-        <div
-          style={{
-            fontFamily: FONT,
-            marginBottom: 12,
-            fontSize: 12,
-            color: "#6B7280",
-          }}
-        >
-          Selected file(s): <b>{fileNames || "—"}</b>
+        <Form form={form} layout="vertical" style={{ fontFamily: FONT }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              marginBottom: 12,
+              fontSize: 12,
+              color: "#6B7280",
+            }}
+          >
+            Selected file(s): <b>{fileNames || "—"}</b>
+            {files.length > 1 && (
+              <div style={{ marginTop: 4 }}>
+                The information below will be applied to all {files.length} files
+                (the document name will keep each file's own name if left blank).
+              </div>
+            )}
+          </div>
           {files.length > 1 && (
-            <div style={{ marginTop: 4 }}>
-              The information below will be applied to all {files.length} files
-              (the document name will keep each file's own name if left blank).
+            <div style={{ marginBottom: 16 }}>
+              <Radio.Group
+                value={uploadMode}
+                onChange={(e) => setUploadMode(e.target.value)}
+                style={{ fontFamily: FONT }}
+              >
+                <Radio value="separate">Upload as separate files</Radio>
+                <Radio value="grouped">Group into a new folder</Radio>
+              </Radio.Group>
+              {uploadMode === "grouped" && (
+                <Form.Item
+                  name="groupFolderName"
+                  label="Folder Name"
+                  style={{ marginTop: 8, marginBottom: 0 }}
+                  rules={[
+                    { required: true, message: "Please enter a folder name" },
+                  ]}
+                >
+                  <Input
+                    allowClear
+                    placeholder="Enter the new folder's name..."
+                    style={{ fontFamily: FONT }}
+                  />
+                </Form.Item>
+              )}
             </div>
           )}
-        </div>
-        <Form form={form} layout="vertical" style={{ fontFamily: FONT }}>
           <Row gutter={12}>
             <Col span={12}>
               <Form.Item name="documentType" label="Document Type">
