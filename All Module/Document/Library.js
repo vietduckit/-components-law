@@ -100,7 +100,7 @@
   const INTERNAL_TEMPLATE_COLLECTION = DASHBOARD_CONFIG.collection;
   const INTERNAL_TEMPLATE_MODULE_SCOPE = DASHBOARD_CONFIG.moduleScope;
   const INTERNAL_TEMPLATE_MODULE_SCOPES = DASHBOARD_CONFIG.moduleScopes;
-  const LEGAL_STUDY_LABEL = "Legal Study";
+  const LEGAL_STUDY_LABEL = "Reference";
   // 🌟 Legal Study không còn là collection riêng — đây chỉ là 1 folder mẫu
   // có sẵn trong cây tài liệu của mỗi Case (moduleScope vẫn là
   // CASE_DOCUMENT_SCOPE), nhận diện qua field `folderTemplateKey` trên
@@ -136,21 +136,14 @@
       SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
         String(record?.name || "").trim().toLowerCase(),
       ));
-  const CASE_REFERENCE_CREATE_POPUP_UID = "sc3ohtxeu52";
-  const CASE_REFERENCE_CREATE_VIEW_URL =
-    "https://law.dev.samset.net/admin/5hu22zyhxgd/view/sc3ohtxeu52";
-  // Placeholder — the user must create a Nocobase popup view pointing at
-  // All Module/Document/LegalStudyCreateBlock.js (same pattern as the Case
-  // Study popup above) after this task deploys, then replace both values
-  // below with the real UID/URL, exactly like CASE_REFERENCE_CREATE_POPUP_UID
-  // was updated once its real view existed.
-  const LEGAL_STUDY_CREATE_POPUP_UID = "__PENDING_NOCOBASE_VIEW_UID__";
-  const LEGAL_STUDY_CREATE_VIEW_URL = "__PENDING_NOCOBASE_VIEW_URL__";
-  const CASE_REFERENCE_DATA_BLOCK_UID = "5cyaa66tjwi";
-  // Custom JS blocks like this one aren't resolvable through
-  // ctx.getModel(uid)/resource.refresh(), so the reused create-new popups
-  // (CaseReferenceCreateBlock.js) also broadcast this window event after a
-  // successful create; we just reload everything.
+  // "New Case Study"/"New Legal Study" used to open CaseReferenceCreateBlock.js /
+  // LegalStudyCreateBlock.js as separate ctx.openView popups and rely on this
+  // window event to signal back. That cross-window signal proved unreliable
+  // (ctx.openView doesn't guarantee the popup shares this window/iframe), so
+  // both create flows now run as in-page Modals below (see
+  // isCreateTemplateOpen / isCreateLegalStudyOpen) that call loadData()
+  // directly. LIBRARY_DATA_CHANGED_EVENT is kept — other external blocks may
+  // still dispatch it — but nothing in this file relies on it anymore.
   const LIBRARY_DATA_CHANGED_EVENT = "law-library:data-changed";
   const MY_DOCUMENT_STORAGE_TYPE = "personal";
   const KNOWLEDGE_STORAGE_TYPE = "knowledge";
@@ -1761,15 +1754,6 @@
     row?.role ||
     fallback;
 
-  const PERMISSION_ROLE_LABELS = {
-    viewer: "Viewer",
-    editor: "Editor",
-    manager: "Manager",
-  };
-
-  const getPermissionRoleLabel = (role) =>
-    PERMISSION_ROLE_LABELS[role] || role || PERMISSION_ROLE_LABELS.viewer;
-
   const ROLE_LABEL = {
     admin: "Administrator",
     owner: "Owner",
@@ -1779,14 +1763,20 @@
     shared: "Shared",
   };
 
+  // Tiers for the "structural" roles (owner/admin/manager) plus the
+  // fallback/no-access cases — Manager = full access (also Permissions
+  // management), "admin"/"owner" sit above everything. The Member tiers
+  // (viewer/editor/contributed) are NOT resolved here — see
+  // getMemberRoleTierPerms below, which every Members list (folder-based
+  // and entity-based) routes through instead.
   const roleToPerms = (role) => ({
     role,
     canView: role !== null,
-    canCreate: ["admin", "owner", "manager", "editor"].includes(role),
+    canCreate: ["admin", "owner", "manager", "editor", "viewer"].includes(role),
     canRename: ["admin", "owner", "manager", "editor"].includes(role),
-    canMove: ["admin", "owner", "manager"].includes(role),
-    canDelete: ["admin", "owner", "manager"].includes(role),
-    canShare: ["admin", "owner", "manager"].includes(role),
+    canMove: ["admin", "owner", "manager", "editor"].includes(role),
+    canDelete: ["admin", "owner", "manager", "editor"].includes(role),
+    canShare: ["admin", "owner", "manager", "editor"].includes(role),
     canManagePermissions: ["admin", "owner", "manager"].includes(role),
     isManager: ["admin", "owner", "manager"].includes(role),
     isMember: role !== null,
@@ -1810,49 +1800,142 @@
     );
   };
 
-  const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
-    if (isAdminUser(user)) return roleToPerms("admin");
+  // Root-folder-only permission model: every folder tree has exactly one
+  // "root" — the Case root for Customer/Case folders (same boundary
+  // isCaseRootFolder uses), or the topmost ancestor for everything else
+  // (Knowledge, Company Shared, standalone Legal Study). Only the root
+  // folder's own folderManager/folderMembers rows are ever consulted —
+  // subfolders no longer carry their own grants, so granting/revoking
+  // access at the root immediately applies to (or removes access from)
+  // the entire subtree beneath it.
+  const resolveFolderTreeRootFromMap = (folder, folderById) => {
+    const ownProjectId = getFolderCaseProjectId(folder);
+    let current = folder;
+    const visited = new Set();
+    if (ownProjectId) {
+      while (true) {
+        const parentId = extractId(current.parentId);
+        if (!parentId || parentId === "root") break;
+        const parentKey = String(parentId);
+        if (visited.has(parentKey)) break;
+        visited.add(parentKey);
+        const parent = folderById.get(parentKey);
+        if (!parent) break;
+        if (!getFolderCaseProjectId(parent)) break;
+        current = parent;
+      }
+    } else {
+      while (true) {
+        const parentId = extractId(current.parentId);
+        if (!parentId || parentId === "root") break;
+        const parentKey = String(parentId);
+        if (visited.has(parentKey)) break;
+        visited.add(parentKey);
+        const parent = folderById.get(parentKey);
+        if (!parent) break;
+        current = parent;
+      }
+    }
+    return current;
+  };
+
+  const resolveFolderTreeRoot = (folder, allFolders) => {
+    if (!folder) return null;
+    const folderById = new Map(
+      (allFolders || []).map((f) => [String(extractId(f)), f]),
+    );
+    return resolveFolderTreeRootFromMap(folder, folderById);
+  };
+
+  // Whether `folder` is itself the root of its own tree (as opposed to a
+  // descendant) — used to gate the "Permissions" action so it only ever
+  // appears at the root, never on a subfolder.
+  const isFolderTreeRoot = (folder, allFolders) => {
+    if (!folder) return false;
+    const parentId = getFolderParentId(folder);
+    if (!parentId || parentId === "root") return true;
+    return isCaseRootFolder(folder, allFolders || []);
+  };
+
+  // The root folder of a standalone Legal Study (legalStudyId set, no
+  // projectId — Group 2) can never be deleted by anyone, including admins.
+  // Only the root is locked (matching how the case-bound Group-1 "Legal
+  // Study" template folder locks only itself, not its contents) — files/
+  // subfolders inside remain governed by the normal role-based canDelete.
+  const isLegalStudyRootFolder = (folder) =>
+    Boolean(folder) &&
+    Boolean(extractId(folder.legalStudyId)) &&
+    !getFolderCaseProjectId(folder) &&
+    (!getFolderParentId(folder) || getFolderParentId(folder) === "root");
+
+  const getFolderPermissions = (
+    folder,
+    user,
+    allFolders,
+    currentLawyerId,
+    entityCtx,
+  ) => {
+    const lockDeleteIfLegalStudyRoot = (perms) =>
+      isLegalStudyRootFolder(folder) ? { ...perms, canDelete: false } : perms;
+
+    if (isAdminUser(user))
+      return lockDeleteIfLegalStudyRoot(roleToPerms("admin"));
     if (!folder) return roleToPerms("admin");
     if (!user) return roleToPerms(null);
 
     const uid = extractId(user.id);
     const lwId = extractId(currentLawyerId);
 
-    // Owner check (Nocobase user ID) — use String comparison to avoid number/string type mismatch
-    if (uid && String(extractId(folder.createdById)) === String(uid))
+    // Legal Study bridge — every folder under a standalone Legal Study
+    // carries its own legalStudyId directly (not just the root), so check
+    // the folder itself rather than the physical folder tree's root.
+    // Checked BEFORE the generic folder-tree owner check below, because
+    // that check's "root" is a physical-folder concept unrelated to the
+    // entity. Access here is governed strictly by the ENTITY record's own
+    // Manager/Legal Member role, never by folderManager/folderMembers
+    // (which stay empty for these folders) and deliberately never by
+    // createdById either — the creator is auto-assigned as Manager at
+    // creation time (handleCreateLegalStudy), so this tightened rule
+    // never produces a "why can't I see what I created?" surprise, while
+    // still correctly revoking access if the Manager is later reassigned
+    // to someone else.
+    const entityStudyId = extractId(folder.legalStudyId);
+    if (entityStudyId) {
+      return lockDeleteIfLegalStudyRoot(
+        resolveLegalEntityFolderPerms(
+          entityStudyId,
+          "legal_study",
+          lwId,
+          entityCtx,
+        ) || roleToPerms(null),
+      );
+    }
+
+    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+
+    // Owner check (Nocobase user ID) — the ROOT folder's creator, not the
+    // specific subfolder's — use String comparison to avoid number/string
+    // type mismatch.
+    if (uid && String(extractId(root.createdById)) === String(uid))
       return roleToPerms("owner");
 
-    const managers = getFolderManagerRows(folder);
-    const members = getFolderMemberRows(folder);
-
-    // Check explicit permissions using Lawyer ID
     if (lwId) {
+      const managers = getFolderManagerRows(root);
       const isExplicitManager = managers.some(
         (m) => String(getPermissionLawyerId(m)) === String(lwId),
       );
       if (isExplicitManager) return roleToPerms("manager");
 
+      const members = getFolderMemberRows(root);
       const explicitMember = members.find(
         (m) => String(getPermissionLawyerId(m)) === String(lwId),
       );
       if (explicitMember) {
-        const r = getPermissionRole(explicitMember, "viewer");
-        if (r === "manager") return roleToPerms("manager");
-        if (r === "editor") return roleToPerms("editor");
-        return roleToPerms("viewer");
+        return getMemberRoleTierPerms(getPermissionRole(explicitMember, "viewer"));
       }
     }
 
-    // Inherit from parent
-    const pId = extractId(folder.parentId);
-    if (!pId || pId === "root") return roleToPerms(null);
-
-    const parentFolder = allFolders.find(
-      (f) => String(extractId(f.id)) === String(pId),
-    );
-    if (!parentFolder) return roleToPerms(null);
-
-    return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
+    return roleToPerms(null);
   };
 
   const canManageFile = (file, folder, user, allFolders, currentLawyerId) => {
@@ -1874,9 +1957,10 @@
     user,
     allFolders,
     currentLawyerId,
+    entityCtx,
   ) => {
     const fp = folder
-      ? getFolderPermissions(folder, user, allFolders, currentLawyerId)
+      ? getFolderPermissions(folder, user, allFolders, currentLawyerId, entityCtx)
       : roleToPerms(null);
     if (fp.role === null && isRecordSharedWithUser(file, user)) {
       return { ...roleToPerms(null), role: "shared", canView: true };
@@ -1884,140 +1968,267 @@
     return { ...fp, canView: fp.canView || isRecordSharedWithUser(file, user) };
   };
 
-  const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
-    const directAccess = new Set();
+  // Case Study (legalReference) / Legal Study (legalStudy) permission model —
+  // unlike folders, these records carry their own direct `manager` (belongsTo
+  // lawyers, single) relation field, plus a `members` belongsToMany relation
+  // backed by the Legal Member table (see resolveLegalEntityFolderPerms),
+  // which DOES carry a per-row role (viewer/editor/contributed) — instead of
+  // going through folderManager/folderMembers.
+  const getLegalEntityManagerId = (record) =>
+    extractId(record?.managerId) || extractRelationId(record?.manager);
+
+  // Thin wrapper around resolveLegalEntityFolderPerms for call sites that
+  // only have the record + kind (not a folder) — e.g. gating Rename/
+  // Permissions/Delete on the Case Study/Legal Study record itself.
+  // Deliberately no owner/createdById bypass: access is governed strictly
+  // by admin status, Manager, or Legal Member role. The creator is
+  // auto-assigned as Manager at creation time (see
+  // handleCreateLegalReference/handleCreateLegalStudy), so tightening this
+  // never produces a "why can't I see what I created?" surprise, while
+  // still correctly revoking access if the Manager is later reassigned to
+  // someone else.
+  const getLegalEntityPermissions = (record, user, currentLawyerId, kind, entityCtx) => {
+    if (isAdminUser(user)) return roleToPerms("admin");
+    if (!record || !entityCtx) return roleToPerms(null);
+    const lwId = extractId(currentLawyerId);
+    if (!lwId) return roleToPerms(null);
+    return (
+      resolveLegalEntityFolderPerms(extractId(record), kind, lwId, entityCtx) ||
+      roleToPerms(null)
+    );
+  };
+
+  const ENTITY_PERMISSION_UPDATE_CANDIDATES = {
+    legal_study: (id) => [
+      `legalStudy:update?filterByTk=${id}`,
+      `legalStudies:update?filterByTk=${id}`,
+    ],
+  };
+
+  // Legal Member — the through collection backing Case Study / Legal
+  // Study's "members" relation, carrying its own `role` field (viewer /
+  // editor / contributed / manager) alongside legalReferenceId and
+  // legalStudyId FK columns (shared table for both parent kinds). Managed
+  // directly (destroy + recreate), same pattern as folderManagers/
+  // folderMembers for folders — the Manager is simply the row whose role
+  // is "manager", auto-set rather than user-picked.
+  const ENTITY_MEMBER_ROLE_OPTIONS = [
+    { value: "viewer", label: "Viewer" },
+    { value: "editor", label: "Editor" },
+    { value: "contributed", label: "Contributed" },
+  ];
+  const ENTITY_MEMBER_FK_FIELD = {
+    legal_study: "legalStudyId",
+  };
+  const getEntityMemberRowLawyerId = (row) =>
+    extractId(row?.memberId) || extractRelationId(row?.member);
+  const getEntityMemberRowLawyerRecord = (row) => {
+    if (!row || typeof row !== "object") return {};
+    if (row.member && typeof row.member === "object") return row.member;
+    if (row.memberId && typeof row.memberId === "object") return row.memberId;
+    return row;
+  };
+  const fetchEntityMemberRows = async (fkField, recordId) => {
+    if (!fkField || !recordId) return [];
+    const filter = JSON.stringify({ [fkField]: { $eq: recordId } });
+    for (const url of ["legalMembers:list", "legalMember:list"]) {
+      try {
+        return await fetchAllList(url, { pageSize: 1000, filter, appends: ["member"] });
+      } catch (e) {
+        try {
+          return await fetchAllList(url, { pageSize: 1000, filter });
+        } catch (e2) {}
+      }
+    }
+    return [];
+  };
+  const destroyEntityMemberRows = async (fkField, recordId) => {
+    for (const url of ["legalMembers:destroy", "legalMember:destroy"]) {
+      try {
+        await ctx.api.request({
+          url,
+          method: "POST",
+          params: { filter: JSON.stringify({ [fkField]: { $eq: recordId } }) },
+        });
+        return true;
+      } catch {}
+    }
+    return false;
+  };
+  const createEntityMemberRow = async (fkField, recordId, memberId, role) => {
+    const payload = { [fkField]: recordId, memberId: Number(memberId), role };
+    let lastError = null;
+    for (const url of ["legalMembers:create", "legalMember:create"]) {
+      try {
+        return await ctx.api.request({ url, method: "POST", data: payload });
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError || new Error("Failed to create legal member row");
+  };
+
+  // Unfiltered fetch of every Legal Member row (both legalReferenceId and
+  // legalStudyId rows share this one table) — used once at load time to
+  // build the role lookups consumed by resolveLegalEntityFolderPerms below,
+  // rather than re-fetching per folder/record.
+  const fetchAllLegalMemberRows = async () => {
+    for (const url of ["legalMembers:list", "legalMember:list"]) {
+      try {
+        return await fetchAllList(url, { pageSize: 1000, appends: ["member"] });
+      } catch (e) {
+        try {
+          return await fetchAllList(url, { pageSize: 1000 });
+        } catch (e2) {}
+      }
+    }
+    return [];
+  };
+
+  // Capability tiers for the shared Member role (viewer/editor/contributed)
+  // — used by BOTH the entity-level Legal Member table (Case Study/Legal
+  // Study) and the folder-level folderMembers table (Customer/Case root
+  // folders), so every "Members" list in the app resolves to the exact
+  // same set of capabilities regardless of which backend stores the role.
+  // Bridged into folder/document permission resolution below
+  // (getFolderPermissions/getVisibleFolderIds) because every folder/
+  // document under a Case Study or Legal Study carries its owning
+  // legalReferenceId/legalStudyId directly (flat tagging), at every
+  // nesting depth, not just on a single root folder.
+  const MEMBER_ROLE_CAPABILITIES = {
+    viewer: {
+      canCreate: true,
+      canRename: false,
+      canMove: false,
+      canDelete: false,
+      canShare: false,
+      canEdit: false,
+    },
+    editor: {
+      canCreate: true,
+      canRename: true,
+      canMove: false,
+      canDelete: false,
+      canShare: true,
+      canEdit: true,
+    },
+    contributed: {
+      canCreate: true,
+      canRename: true,
+      canMove: true,
+      canDelete: true,
+      canShare: true,
+      canEdit: true,
+    },
+  };
+  const getMemberRoleTierPerms = (role) => {
+    const capabilities = MEMBER_ROLE_CAPABILITIES[role];
+    if (!capabilities) return roleToPerms(null);
+    return {
+      role,
+      canView: true,
+      canManagePermissions: false,
+      isManager: false,
+      isMember: true,
+      ...capabilities,
+    };
+  };
+
+  // Resolves the effective folder/document permission tier for a Case
+  // Study/Legal Study, given the current lawyer id and the precomputed
+  // lookups in entityCtx (see entityPermissionContext in
+  // InternalTemplates). Returns null when entityCtx wasn't supplied or the
+  // entity record hasn't loaded yet — callers fall back to roleToPerms(null).
+  const resolveLegalEntityFolderPerms = (entityId, kind, lwId, entityCtx) => {
+    if (!entityCtx || !entityId || !lwId) return null;
+    const entityRecord = entityCtx.legalStudyById?.get(String(entityId));
+    if (!entityRecord) return null;
+    const managerId = getLegalEntityManagerId(entityRecord);
+    if (managerId && String(managerId) === String(lwId))
+      return roleToPerms("manager");
+    const roleMap = entityCtx.legalMemberRoleByStudy?.get(String(entityId));
+    const role = roleMap?.get(String(lwId));
+    if (!role) return roleToPerms(null);
+    return getMemberRoleTierPerms(role);
+  };
+
+  // Root-only visibility: a folder is visible to a user iff the ROOT of
+  // its tree grants them access (owner of the root, or an explicit
+  // manager/member row on the root) — subfolders never carry their own
+  // grants anymore, so there is no more "ancestor-only, click-through but
+  // no file access" folder: either the whole tree is visible (documents
+  // included) or none of it is. `accessible` and `entitled` used to differ
+  // (accessible was widened for navigation); under root-only gating they
+  // collapse into the same set, kept as two keys only so every existing
+  // call site (which destructures one or both) keeps working unchanged.
+  const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx) => {
     const uid = extractId(currentUser?.id);
     const lwId = extractId(currentLawyerId);
 
     if (isAdminUser(currentUser)) {
-      allFolders.forEach((f) => directAccess.add(extractId(f.id)));
-      return { accessible: directAccess, entitled: new Set(directAccess) };
+      const all = new Set(allFolders.map((f) => extractId(f.id)));
+      return { accessible: all, entitled: new Set(all) };
     }
 
     if (!uid) return { accessible: new Set(), entitled: new Set() };
 
-    // 1. Find folders with a direct, explicit grant (creator, or explicit
-    // manager/member row on that exact folder).
-    allFolders.forEach((f) => {
-      const fId = extractId(f.id);
-      // Owner check — use String comparison to avoid number/string type mismatch
-      if (String(extractId(f.createdById)) === String(uid)) {
-        directAccess.add(fId);
-        return;
-      }
-      // Manager/Member check via currentLawyerId — use String comparison to avoid number/string type mismatch
-      if (lwId) {
-        const managers = getFolderManagerRows(f);
-        const members = getFolderMemberRows(f);
-        if (
-          managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId)) ||
-          members.some((m) => String(getPermissionLawyerId(m)) === String(lwId))
-        ) {
-          directAccess.add(fId);
-          return;
-        }
-      }
-    });
-
-    const folderById = new Map(allFolders.map((f) => [String(extractId(f.id)), f]));
-    const rootIdCache = new Map();
-    // 2. Root-gated visibility: a folder is only visible when the user ALSO
-    // has a direct grant on the root of its tree — a direct grant on one
-    // folder no longer cascades blindly down to every descendant regardless
-    // of the descendant's own grant, and losing root-level access now
-    // revokes every folder in that tree, even ones with their own
-    // still-present explicit grant. "Root" here is the CASE root (the
-    // folder with its own projectId whose parent doesn't have one — the
-    // same boundary isCaseRootFolder uses), not the Customer root sitting
-    // above it: the Customer root has no projectId, is never itself
-    // individually granted to a user in practice, and would silently gate
-    // out an entire case if treated as "the root" here. Folders with no
-    // projectId at all (company_shared, legal_reference, personal,
-    // knowledge — spaces with no Customer/Case two-tier structure) fall
-    // back to the plain topmost-ancestor walk.
-    const resolveRootId = (folder) => {
+    const folderById = new Map(
+      allFolders.map((f) => [String(extractId(f.id)), f]),
+    );
+    const rootCache = new Map();
+    const resolveRoot = (folder) => {
       const key = String(extractId(folder.id));
-      if (rootIdCache.has(key)) return rootIdCache.get(key);
-
-      const ownProjectId = getFolderCaseProjectId(folder);
-      let current = folder;
-      const visited = new Set();
-      if (ownProjectId) {
-        while (true) {
-          const parentId = extractId(current.parentId);
-          if (!parentId || parentId === "root") break;
-          const parentKey = String(parentId);
-          if (visited.has(parentKey)) break;
-          visited.add(parentKey);
-          const parent = folderById.get(parentKey);
-          if (!parent) break;
-          if (!getFolderCaseProjectId(parent)) break;
-          current = parent;
-        }
-      } else {
-        while (true) {
-          const parentId = extractId(current.parentId);
-          if (!parentId || parentId === "root") break;
-          const parentKey = String(parentId);
-          if (visited.has(parentKey)) break;
-          visited.add(parentKey);
-          const parent = folderById.get(parentKey);
-          if (!parent) break;
-          current = parent;
-        }
-      }
-      const rootId = extractId(current.id);
-      rootIdCache.set(key, rootId);
-      return rootId;
+      if (rootCache.has(key)) return rootCache.get(key);
+      const root = resolveFolderTreeRootFromMap(folder, folderById);
+      rootCache.set(key, root);
+      return root;
     };
 
-    const gated = new Set();
+    const hasRootGrant = (root) => {
+      if (!root) return false;
+      if (String(extractId(root.createdById)) === String(uid)) return true;
+      if (!lwId) return false;
+      const managers = getFolderManagerRows(root);
+      const members = getFolderMemberRows(root);
+      return (
+        managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId)) ||
+        members.some((m) => String(getPermissionLawyerId(m)) === String(lwId))
+      );
+    };
+
+    // Legal Study bridge — every folder under a standalone Legal Study
+    // carries its own legalStudyId directly (flat tagging, not just on a
+    // root folder), so visibility is resolved per-folder from the
+    // entity's manager/Legal Member role rather than via folderManager/
+    // folderMembers. Returns null for folders that aren't entity-linked,
+    // so the caller falls through to the root-based check.
+    const hasEntityGrant = (folder) => {
+      const studyId = extractId(folder.legalStudyId);
+      if (!studyId) return null;
+      // No owner/createdById bypass here — same reasoning as
+      // getFolderPermissions: access is governed strictly by admin
+      // status, Manager, or Legal Member role.
+      if (!lwId) return false;
+      const perms = resolveLegalEntityFolderPerms(
+        studyId,
+        "legal_study",
+        lwId,
+        entityCtx,
+      );
+      return !!(perms && perms.canView);
+    };
+
+    const entitled = new Set();
     allFolders.forEach((f) => {
-      const fId = extractId(f.id);
-      if (!directAccess.has(fId)) return;
-      const rootId = resolveRootId(f);
-      if (directAccess.has(rootId)) gated.add(fId);
-    });
-
-    // Snapshot taken BEFORE the ancestor cascade below: `entitled` = folders
-    // the user is genuinely granted on (own explicit grant AND root access).
-    // Document/file visibility must be gated by this narrow set, not by the
-    // widened `accessible` set below — an ancestor-only folder is shown
-    // purely so the user can click through it, and must not expose the files
-    // sitting directly inside it.
-    const entitled = new Set(gated);
-
-    // 3. Cascade up: ensure the whole ancestor chain of any gated folder is
-    // included too — otherwise a user granted on a deep folder (e.g. one
-    // Legal Study child, several levels below the case root) would never
-    // see the intermediate folders above it and couldn't navigate down to
-    // it. This only widens the visibility set; getFolderPermissions() is
-    // untouched, so these ancestor-only folders still resolve to no
-    // edit/rename/manage rights unless the user has an explicit or
-    // inherited role there too.
-    // NOTE: what gets added to `accessible` must be the parent folder's own
-    // extractId(parent.id) — the exact same representation used elsewhere
-    // in this function (typically a raw number) — never String(parentId).
-    // Set.has() is strict equality, so mixing 12 and "12" would make every
-    // downstream accessible.has(<numeric id>) lookup miss, turning this
-    // whole block into a no-op. String() is used only for folderById's Map
-    // keys.
-    const accessible = new Set(gated);
-    Array.from(gated).forEach((id) => {
-      let current = folderById.get(String(id));
-      while (current) {
-        const parentId = extractId(current.parentId);
-        if (!parentId || parentId === "root") break;
-        const parent = folderById.get(String(parentId));
-        if (!parent) break;
-        const parentRawId = extractId(parent.id);
-        if (accessible.has(parentRawId)) break;
-        accessible.add(parentRawId);
-        current = parent;
+      const entityGrant = hasEntityGrant(f);
+      if (entityGrant !== null) {
+        if (entityGrant) entitled.add(extractId(f.id));
+        return;
       }
+      if (hasRootGrant(resolveRoot(f))) entitled.add(extractId(f.id));
     });
 
-    return { accessible, entitled };
+    return { accessible: entitled, entitled };
   };
 
   const LOCK_ICON = (
@@ -2522,32 +2733,18 @@
   const getRecordLegalReferenceId = (record) =>
     DASHBOARD_CONFIG.getParentListId(record);
 
-  const fetchLegalReferenceRecords = async (internalCompanyId = null) => {
-    let lastError = null;
-    for (const url of DASHBOARD_CONFIG.parentListCandidates) {
-      try {
-        let items;
-        items = await fetchAllList(url, {
-          sort: ["-createdAt"],
-          appends: ["internalCompany", "cases", "createdBy"],
-        });
-        return items.filter((item) =>
-          matchesInternalCompany(item, internalCompanyId),
-        );
-      } catch (e) {
-        lastError = e;
-      }
-    }
-    console.warn("Failed to fetch parent records:", lastError);
-    return [];
-  };
+  // Standalone Legal Study docs/folders carry legalStudyId flat-tagged
+  // directly on themselves (same "flat tagging" pattern as legalReferenceId
+  // above — see buildLegalStudyDocumentScopePayload / buildScopedPayload),
+  // so no ancestor walk is needed to find it.
+  const getRecordLegalStudyId = (record) => extractId(record?.legalStudyId);
 
   const fetchLegalStudyRecords = async () => {
     for (const url of ["legalStudy:list", "legalStudies:list"]) {
       try {
         return await fetchAllList(url, {
           sort: ["-createdAt"],
-          fields: ["id", "title", "description"],
+          appends: ["manager", "members"],
         });
       } catch (e) {
         // Try next candidate.
@@ -2556,20 +2753,196 @@
     return [];
   };
 
-  const createLegalReferenceRecord = async (payload) => {
+  const createLegalStudyRecord = async (payload) => {
     let lastError = null;
-    for (const url of DASHBOARD_CONFIG.parentCreateCandidates) {
+    for (const url of ["legalStudy:create", "legalStudies:create"]) {
       try {
-        return await ctx.api.request({
-          url,
-          method: "POST",
-          data: payload,
-        });
+        return await ctx.api.request({ url, method: "POST", data: payload });
       } catch (e) {
         lastError = e;
       }
     }
-    throw lastError || new Error("Failed to create parent record");
+    throw lastError || new Error("Failed to create legal study record");
+  };
+
+  // Relation endpoint names aren't fixed in the schema — try candidates the
+  // same way JsLegalStudyLinks.js does to read these links back.
+  const postLegalStudyRelation = async (candidates) => {
+    let lastError = null;
+    for (const candidate of candidates) {
+      const targetValue = extractId(candidate.targetId);
+      if (!targetValue) continue;
+      for (const data of [{ tk: targetValue }, { tks: [targetValue] }]) {
+        try {
+          return await ctx.api.request({ url: candidate.url, method: "POST", data });
+        } catch (e) {
+          lastError = e;
+        }
+      }
+    }
+    throw lastError || new Error("Failed to create relation link");
+  };
+
+  const linkCaseToLegalStudy = (legalStudyId, caseId) => {
+    const studyId = extractId(legalStudyId);
+    const cId = extractId(caseId);
+    if (!studyId || !cId)
+      return Promise.reject(new Error("Missing Legal Study or Case ID"));
+    return postLegalStudyRelation([
+      { url: `projects/${encodeURIComponent(cId)}/legalStudy:add`, targetId: studyId },
+      { url: `projects/${encodeURIComponent(cId)}/legalStudies:add`, targetId: studyId },
+      { url: `projects/${encodeURIComponent(cId)}/sourceLegalStudy:add`, targetId: studyId },
+      { url: `cases/${encodeURIComponent(cId)}/legalStudy:add`, targetId: studyId },
+      { url: `cases/${encodeURIComponent(cId)}/legalStudies:add`, targetId: studyId },
+      { url: `cases/${encodeURIComponent(cId)}/sourceLegalStudy:add`, targetId: studyId },
+      { url: `legalStudy/${encodeURIComponent(studyId)}/cases:add`, targetId: cId },
+      { url: `legalStudy/${encodeURIComponent(studyId)}/projects:add`, targetId: cId },
+      { url: `legalStudies/${encodeURIComponent(studyId)}/cases:add`, targetId: cId },
+      { url: `legalStudies/${encodeURIComponent(studyId)}/projects:add`, targetId: cId },
+      { url: `LegalStudy/${encodeURIComponent(studyId)}/cases:add`, targetId: cId },
+      { url: `LegalStudy/${encodeURIComponent(studyId)}/projects:add`, targetId: cId },
+    ]);
+  };
+
+  // Standalone create-flow uploads for a brand-new Legal Study: unlike
+  // uploadFilesToTarget/buildScopedPayload (which derive legalStudyId from
+  // the currently *browsed* folder), these take the freshly created
+  // legalStudyId/folderId explicitly, since neither exists in component
+  // state yet at the moment of creation.
+  const buildLegalStudyDocumentScopePayload = ({ internalCompanyId, legalStudyId }) => ({
+    storageType: LEGAL_STUDY_STORAGE_TYPE,
+    moduleScope: LEGAL_STUDY_STORAGE_TYPE,
+    internalCompanyId: extractId(internalCompanyId),
+    legalStudyId: extractId(legalStudyId),
+  });
+
+  const getNextLegalStudyFileIndex = async ({ folderId, internalCompanyId, legalStudyId }) => {
+    const parentId = normalizeParentId(folderId);
+    try {
+      const filter = {
+        storageType: { $eq: LEGAL_STUDY_STORAGE_TYPE },
+        moduleScope: { $eq: LEGAL_STUDY_STORAGE_TYPE },
+        internalCompanyId: { $eq: extractId(internalCompanyId) },
+        legalStudyId: { $eq: extractId(legalStudyId) },
+        ...(parentId ? { folderId: { $eq: parentId } } : {}),
+      };
+      const rows = await fetchAllList("documents:list", {
+        pageSize: 2000,
+        filter: JSON.stringify(filter),
+        sort: ["-fileIndex", "-createdAt"],
+      });
+      const sameFolderDocs = rows.filter(
+        (doc) => String(extractId(doc.folderId) || "") === String(parentId || ""),
+      );
+      return sameFolderDocs.reduce((max, doc) => Math.max(max, Number(doc.fileIndex) || 0), 0) + 1;
+    } catch {
+      return 1;
+    }
+  };
+
+  const uploadFilesToLegalStudy = async (files, context) => {
+    const rows = Array.from(files || []).filter(Boolean);
+    if (!rows.length) return true;
+    let nextIndex = await getNextLegalStudyFileIndex(context);
+    const userId = getCurrentUserId();
+
+    for (const file of rows) {
+      const attachment = await uploadAttachment(file, file.name);
+      const nowIso = new Date().toISOString();
+      await createDocumentRecord({
+        name: file.name,
+        title: file.name,
+        documentCode: "",
+        fileIndex: nextIndex,
+        fileAttachment: [{ id: attachment.id }],
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        uploadedAt: nowIso,
+        uploaded_at: nowIso,
+        ...(context.folderId ? { folderId: context.folderId } : {}),
+        ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+        ...buildLegalStudyDocumentScopePayload(context),
+      });
+      nextIndex += 1;
+    }
+    return true;
+  };
+
+  const uploadFolderFilesToLegalStudy = async (files, context) => {
+    const rows = Array.from(files || []).filter(Boolean);
+    if (!rows.length) return true;
+    const folderIdMap = { "": context.folderId || null };
+    const folderPaths = new Set();
+
+    rows.forEach((file) => {
+      const relativePath = getUploadRelativePath(file);
+      const parts = relativePath.split("/");
+      parts.pop();
+      let currentPath = "";
+      parts.forEach((part) => {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (currentPath) folderPaths.add(currentPath);
+      });
+    });
+
+    const userId = getCurrentUserId();
+    const nowIso = new Date().toISOString();
+    const sortedPaths = Array.from(folderPaths).sort(
+      (a, b) => a.split("/").length - b.split("/").length,
+    );
+
+    for (const path of sortedPaths) {
+      const parts = path.split("/");
+      const folderName = parts.pop();
+      const parentPath = parts.join("/");
+      const parentId = folderIdMap[parentPath] || null;
+      const folderRes = await createFolderRecord({
+        name: folderName,
+        type: "custom",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        ...(parentId ? { parentId } : {}),
+        ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        ...buildLegalStudyDocumentScopePayload(context),
+      });
+      folderIdMap[path] = extractId(folderRes?.data?.data || folderRes?.data);
+    }
+
+    const fileIndexCache = {};
+    const nextIndexForFolder = async (folderId) => {
+      const key = String(folderId || "root");
+      if (fileIndexCache[key] === undefined) {
+        fileIndexCache[key] = await getNextLegalStudyFileIndex({ ...context, folderId });
+        return fileIndexCache[key];
+      }
+      fileIndexCache[key] += 1;
+      return fileIndexCache[key];
+    };
+
+    for (const file of rows) {
+      const relativePath = getUploadRelativePath(file);
+      const parts = relativePath.split("/");
+      const fileName = parts.pop();
+      const parentPath = parts.join("/");
+      const folderId = folderIdMap[parentPath] || null;
+      const attachment = await uploadAttachment(file, fileName);
+      const fileNowIso = new Date().toISOString();
+      await createDocumentRecord({
+        name: fileName,
+        title: fileName,
+        documentCode: "",
+        fileIndex: await nextIndexForFolder(folderId),
+        fileAttachment: [{ id: attachment.id }],
+        createdAt: fileNowIso,
+        updatedAt: fileNowIso,
+        uploadedAt: fileNowIso,
+        uploaded_at: fileNowIso,
+        ...(folderId ? { folderId } : {}),
+        ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+        ...buildLegalStudyDocumentScopePayload(context),
+      });
+    }
+    return true;
   };
 
   const fetchFoldersForInternalTemplates = async () => {
@@ -3322,173 +3695,237 @@
   };
 
   // ============================================================
-  // Folder Permissions Modal
+  // Permission adapters — load/save functions for PermissionManagerModal,
+  // one pair per permission target kind. Each returns/accepts the same
+  // shape ({ managerId, members: [{id, role, lawyerData}] }) so the shared
+  // modal component never needs to know which backend it's talking to.
   // ============================================================
-  const FolderPermissionsModal = ({ open, folder, allFolders, onClose, onSuccess }) => {
+  const loadFolderPermissions = async (folder) => {
+    const folderId = extractId(folder.id || folder);
+    const [mgRes, mbRes] = await Promise.all([
+      ctx.api
+        .request({
+          url: `folders/${folderId}/folderManager:list`,
+          params: { pageSize: 1000 },
+        })
+        .catch(() => ({ data: { data: [] } })),
+      ctx.api
+        .request({
+          url: "folderMembers:list",
+          params: {
+            pageSize: 1000,
+            filter: JSON.stringify({ folderId: { $eq: folderId } }),
+          },
+        })
+        .catch(() => ({ data: { data: [] } })),
+    ]);
+    const managerRow = (mgRes?.data?.data || [])[0];
+    const memberRows = mbRes?.data?.data || [];
+    return {
+      managerId: managerRow ? String(getPermissionLawyerId(managerRow)) : null,
+      members: memberRows
+        .map((row) => ({
+          id: String(getPermissionLawyerId(row)),
+          role: getPermissionRole(row, "viewer"),
+          lawyerData: getRelationLawyerRecord(row),
+        }))
+        .filter((s) => s.id && s.id !== "undefined"),
+    };
+  };
+
+  const saveFolderPermissions = async (folder, allFolders, managerId, members) => {
+    const folderId = extractId(folder.id);
+    const isRootFolder = isCaseRootFolder(folder, allFolders || []);
+
+    await Promise.all([
+      ctx.api
+        .request({
+          url: "folderManagers:destroy",
+          method: "POST",
+          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+        })
+        .catch(() => {}),
+      ctx.api
+        .request({
+          url: "folderMembers:destroy",
+          method: "POST",
+          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+        })
+        .catch(() => {}),
+    ]);
+
+    const createPromises = [];
+    if (managerId) {
+      createPromises.push(
+        ctx.api.request({
+          url: "folderManagers:create",
+          method: "POST",
+          data: { folderId, lawyerId: Number(managerId), role: "manager" },
+        }),
+      );
+    }
+    members.forEach((s) => {
+      createPromises.push(
+        ctx.api.request({
+          url: "folderMembers:create",
+          method: "POST",
+          data: { folderId, lawyerId: Number(s.id), role: s.role },
+        }),
+      );
+    });
+    await Promise.all(createPromises);
+
+    if (isRootFolder) {
+      const projectId = getFolderCaseProjectId(folder);
+      try {
+        await ctx.api.request({
+          url: "projects:update",
+          method: "POST",
+          params: { filterByTk: parseInt(projectId) },
+          data: {
+            managerId: managerId ? parseInt(managerId) : null,
+            assignees: members.map((m) => ({ id: parseInt(m.id) })),
+          },
+        });
+      } catch (syncError) {
+        console.warn(
+          "Could not sync case manager/assignees from folder permissions:",
+          syncError,
+        );
+        message.warning(
+          "Đã lưu quyền folder, nhưng không đồng bộ được Manager/Members lên Case.",
+        );
+      }
+    }
+  };
+
+  const loadEntityPermissions = async (record, fkField) => {
+    const recordId = extractId(record);
+    const memberRows = await fetchEntityMemberRows(fkField, recordId);
+    const recordManagerId = getLegalEntityManagerId(record);
+    return {
+      managerId: recordManagerId ? String(recordManagerId) : null,
+      members: memberRows
+        .filter((r) => r.role !== "manager")
+        .map((r) => ({
+          id: String(getEntityMemberRowLawyerId(r)),
+          role: r.role || "viewer",
+          lawyerData: getEntityMemberRowLawyerRecord(r),
+        }))
+        .filter((s) => s.id && s.id !== "undefined"),
+    };
+  };
+
+  const saveEntityPermissions = async (record, kind, fkField, managerId, members) => {
+    const recordId = extractId(record);
+    const numericManagerId = managerId ? Number(managerId) : null;
+    // Keep the parent record's own single-value "manager" field in sync
+    // (still a plain belongsTo column, separate from the role-tracking
+    // Legal Member table below).
+    const parentPayload = { manager: numericManagerId, managerId: numericManagerId };
+    const updateCandidates = ENTITY_PERMISSION_UPDATE_CANDIDATES[kind] || (() => []);
+    for (const url of updateCandidates(recordId)) {
+      try {
+        await ctx.api.request({ url, method: "POST", data: parentPayload });
+        break;
+      } catch (e) {
+        // try next candidate
+      }
+    }
+
+    // Role-tracking table: destroy + recreate, same pattern as
+    // folderManagers/folderMembers. The manager is intentionally NOT
+    // written here — this table also backs the `members` belongsToMany
+    // association, so a manager row would resurface as a duplicate entry
+    // under Members (both in this modal and in the raw Nocobase admin
+    // grid). Manager identity lives solely in the parent record's own
+    // manager/managerId field, written above.
+    await destroyEntityMemberRows(fkField, recordId);
+    await Promise.all(
+      members.map((s) => createEntityMemberRow(fkField, recordId, s.id, s.role)),
+    );
+  };
+
+  // ============================================================
+  // Permission Manager Modal — unified Manager (single) + Members
+  // (viewer/editor/contributed) editor, reused for every "Permissions"
+  // entry point in this file: Case Study, Legal Study (entity-level
+  // manager/members fields + Legal Member table) and Customer/Case root
+  // folders (folderManagers/folderMembers tables). The caller supplies
+  // loadPermissions/savePermissions adapters (see above); this component
+  // owns only the shared UI + local editing state, so every permission
+  // screen in the app looks and behaves identically.
+  // ============================================================
+  const PermissionManagerModal = ({
+    open,
+    title,
+    loadPermissions,
+    savePermissions,
+    onClose,
+    onSuccess,
+  }) => {
     const [saving, setSaving] = useState(false);
     const [availableLawyers, setAvailableLawyers] = useState([]);
+    const [managerId, setManagerId] = useState(null);
     const [shares, setShares] = useState([]);
     const [pendingLawyerIds, setPendingLawyerIds] = useState([]);
 
     useEffect(() => {
       if (!open) {
+        setManagerId(null);
         setShares([]);
         setPendingLawyerIds([]);
         return;
       }
-      if (!folder) return;
-
-      const folderId = extractId(folder.id || folder);
       Promise.all([
         ctx.api
           .request({ url: "lawyers:list", params: { pageSize: 1000 } })
           .catch(() => ({ data: { data: [] } })),
-        ctx.api
-          .request({
-            url: `folders/${folderId}/folderManager:list`,
-            params: { pageSize: 1000 },
-          })
-          .catch(() => ({ data: { data: [] } })),
-        ctx.api
-          .request({
-            url: "folderMembers:list",
-            params: {
-              pageSize: 1000,
-              filter: JSON.stringify({ folderId: { $eq: folderId } }),
-            },
-          })
-          .catch(() => ({ data: { data: [] } })),
-      ]).then(([lwRes, mgRes, mbRes]) => {
+        loadPermissions(),
+      ]).then(([lwRes, perms]) => {
         setAvailableLawyers(lwRes?.data?.data || []);
-        const initialShares = [];
-        const managerRows = mgRes?.data?.data || [];
-        const memberRows = mbRes?.data?.data || [];
-        managerRows.forEach((row) => {
-          const lawyerId = getPermissionLawyerId(row);
-          if (!lawyerId) return;
-          initialShares.push({
-            id: String(lawyerId),
-            role: "manager",
-            lawyerData: getRelationLawyerRecord(row),
-          });
-        });
-        memberRows.forEach((row) => {
-          const lawyerId = getPermissionLawyerId(row);
-          if (!lawyerId) return;
-          initialShares.push({
-            id: String(lawyerId),
-            role: getPermissionRole(row),
-            lawyerData: getRelationLawyerRecord(row),
-          });
-        });
-        setShares(initialShares);
+        setManagerId(perms?.managerId || null);
+        setShares(perms?.members || []);
         setPendingLawyerIds([]);
       });
-    }, [open, folder]);
+      // Intentionally keyed only on `open` — loadPermissions is a fresh
+      // closure per render (see permissionModalConfig), but the target it
+      // points at only ever changes together with `open` flipping to true.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
-    const buildAccessSummary = (shareList = shares) => {
-      if (!shareList.length) return "No one has been granted access";
-      return shareList
-        .map((s) => {
-          const lw =
-            availableLawyers.find(
-              (l) => String(extractId(l.id)) === String(s.id),
-            ) ||
-            s.lawyerData ||
-            s;
-          const displayName = getLawyerDisplayName(
-            lw.id ? lw : s.lawyerData || s,
-            "User",
-          );
-          return `${displayName} - ${getPermissionRoleLabel(s.role)}`;
-        })
-        .join("; ");
-    };
+    const lawyerOptions = availableLawyers.map((l) => ({
+      value: String(extractId(l.id)),
+      label: getLawyerDisplayName(l),
+    }));
 
-    const handleSave = async () => {
-      const managers = shares.filter((s) => s.role === "manager");
-      const members = shares.filter((s) => s.role !== "manager");
-      const isRootFolder = isCaseRootFolder(folder, allFolders || []);
-
-      if (isRootFolder && managers.length > 1) {
-        message.error(
-          "Case chỉ được phép có 1 Manager — vui lòng chỉ giữ lại 1 người.",
+    const buildAccessSummary = () => {
+      const parts = [];
+      if (managerId) {
+        const mgr = availableLawyers.find(
+          (l) => String(extractId(l.id)) === String(managerId),
         );
-        return;
+        parts.push(
+          `${mgr ? getLawyerDisplayName(mgr) : `Lawyer #${managerId}`} - Manager`,
+        );
       }
-
-      setSaving(true);
-      try {
-        const folderId = extractId(folder.id);
-
-        await Promise.all([
-          ctx.api
-            .request({
-              url: "folderManagers:destroy",
-              method: "POST",
-              params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-            })
-            .catch(() => {}),
-          ctx.api
-            .request({
-              url: "folderMembers:destroy",
-              method: "POST",
-              params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-            })
-            .catch(() => {}),
-        ]);
-
-        const createPromises = [];
-        managers.forEach((s) => {
-          createPromises.push(
-            ctx.api.request({
-              url: "folderManagers:create",
-              method: "POST",
-              data: { folderId, lawyerId: Number(s.id), role: "manager" },
-            }),
-          );
-        });
-        members.forEach((s) => {
-          createPromises.push(
-            ctx.api.request({
-              url: "folderMembers:create",
-              method: "POST",
-              data: { folderId, lawyerId: Number(s.id), role: s.role },
-            }),
-          );
-        });
-
-        await Promise.all(createPromises);
-
-        if (isRootFolder) {
-          const projectId = getFolderCaseProjectId(folder);
-          try {
-            await ctx.api.request({
-              url: "projects:update",
-              method: "POST",
-              params: { filterByTk: parseInt(projectId) },
-              data: {
-                managerId: managers[0] ? parseInt(managers[0].id) : null,
-                assignees: members.map((m) => ({ id: parseInt(m.id) })),
-              },
-            });
-          } catch (syncError) {
-            console.warn(
-              "Could not sync case manager/assignees from folder permissions:",
-              syncError,
-            );
-            message.warning(
-              "Đã lưu quyền folder, nhưng không đồng bộ được Manager/Members lên Case.",
-            );
-          }
-        }
-
-        message.success("Permissions updated successfully");
-        onSuccess({ accessSummary: buildAccessSummary(shares), shares });
-      } catch (e) {
-        message.error("An error occurred while updating permissions");
-      }
-      setSaving(false);
+      shares.forEach((s) => {
+        const lw =
+          availableLawyers.find(
+            (l) => String(extractId(l.id)) === String(s.id),
+          ) ||
+          s.lawyerData ||
+          {};
+        const displayName = getLawyerDisplayName(
+          lw.id ? lw : s.lawyerData || s,
+          "User",
+        );
+        const roleLabel =
+          ENTITY_MEMBER_ROLE_OPTIONS.find((o) => o.value === s.role)?.label ||
+          s.role;
+        parts.push(`${displayName} - ${roleLabel}`);
+      });
+      return parts.length ? parts.join("; ") : "No one has been granted access";
     };
 
     const handleAddLawyers = (selectedIds = pendingLawyerIds) => {
@@ -3500,7 +3937,12 @@
       const nextShares = [...shares];
       ids.forEach((lawyerId) => {
         const safeLawyerId = String(extractId(lawyerId));
-        if (!safeLawyerId || existingIds.has(safeLawyerId)) return;
+        if (
+          !safeLawyerId ||
+          safeLawyerId === String(managerId) ||
+          existingIds.has(safeLawyerId)
+        )
+          return;
         existingIds.add(safeLawyerId);
         const lawyerData =
           availableLawyers.find(
@@ -3524,24 +3966,25 @@
       setShares(shares.filter((s) => String(s.id) !== String(lawyerId)));
     };
 
-    const lawyerOptions = availableLawyers
-      .filter(
-        (l) => !shares.some((s) => String(s.id) === String(extractId(l.id))),
-      )
-      .map((l) => ({
-        value: String(extractId(l.id)),
-        label: getLawyerDisplayName(l),
-      }));
+    const handleSave = async () => {
+      setSaving(true);
+      try {
+        await savePermissions(managerId, shares);
+        message.success("Permissions updated successfully");
+        onSuccess({ accessSummary: buildAccessSummary() });
+      } catch (e) {
+        console.error("[Library] update permissions failed", e);
+        message.error("An error occurred while updating permissions");
+      } finally {
+        setSaving(false);
+      }
+    };
 
     return (
       <Modal
         open={open}
         onCancel={onClose}
-        title={
-          <span style={{ fontFamily: FONT }}>
-            Folder permissions: {folder?.name || ""}
-          </span>
-        }
+        title={<span style={{ fontFamily: FONT }}>{title}</span>}
         width={520}
         destroyOnClose
         footer={[
@@ -3560,6 +4003,27 @@
         ]}
       >
         <div style={{ marginBottom: 16, fontFamily: FONT }}>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>Manager</div>
+          <Select
+            allowClear
+            showSearch
+            style={{ width: "100%" }}
+            placeholder="Select manager..."
+            options={lawyerOptions}
+            value={managerId}
+            onChange={(val) => {
+              setManagerId(val || null);
+              if (val)
+                setShares((prev) =>
+                  prev.filter((s) => String(s.id) !== String(val)),
+                );
+            }}
+            filterOption={(input, option) =>
+              (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+            }
+          />
+        </div>
+        <div style={{ marginBottom: 16, fontFamily: FONT }}>
           <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
           <Select
             mode="multiple"
@@ -3567,7 +4031,11 @@
             allowClear
             style={{ width: "100%" }}
             placeholder="Search and select multiple people..."
-            options={lawyerOptions}
+            options={lawyerOptions.filter(
+              (o) =>
+                o.value !== managerId &&
+                !shares.some((s) => String(s.id) === o.value),
+            )}
             value={pendingLawyerIds}
             onChange={handleAddLawyers}
             filterOption={(input, option) =>
@@ -3576,13 +4044,11 @@
           />
         </div>
         <div style={{ fontFamily: FONT }}>
-          <div style={{ marginBottom: 12, fontWeight: 600 }}>
-            People with access
-          </div>
+          <div style={{ marginBottom: 12, fontWeight: 600 }}>Members</div>
           {shares.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Not shared with anyone yet"
+              description="No members added yet"
             />
           ) : (
             shares.map((s) => {
@@ -3595,7 +4061,6 @@
               const displayName = getLawyerDisplayName(
                 lw.id ? lw : s.lawyerData || s,
               );
-              const initials = displayName.charAt(0).toUpperCase();
               return (
                 <div
                   key={s.id}
@@ -3607,52 +4072,14 @@
                     borderBottom: "1px solid #f0f0f0",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: "#1890ff",
-                        color: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontWeight: "bold",
-                        fontSize: 16,
-                      }}
-                    >
-                      {initials}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 500, lineHeight: 1.2 }}>
-                        {displayName}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                        {getPermissionRoleLabel(s.role)}
-                      </div>
-                    </div>
-                  </div>
+                  <span style={{ fontWeight: 500 }}>{displayName}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Select
                       value={s.role}
                       onChange={(val) => handleChangeRole(s.id, val)}
                       bordered={false}
                       style={{ width: 150, fontFamily: FONT }}
-                      options={[
-                        {
-                          value: "viewer",
-                          label: getPermissionRoleLabel("viewer"),
-                        },
-                        {
-                          value: "editor",
-                          label: getPermissionRoleLabel("editor"),
-                        },
-                        {
-                          value: "manager",
-                          label: getPermissionRoleLabel("manager"),
-                        },
-                      ]}
+                      options={ENTITY_MEMBER_ROLE_OPTIONS}
                     />
                     <Button
                       type="text"
@@ -4080,32 +4507,251 @@
     );
   };
 
+  // Formats any stored date value into the "YYYY-MM-DD" shape a native
+  // <input type="date"> needs for its `value` — display formatting still
+  // goes through formatDate().
+  const toDateInputValue = (value) => (value ? String(value).slice(0, 10) : "");
+
+  // Generic click-to-edit cell for Library.js's Table view — used by the
+  // Description column and buildDocMetaColumns() so those 8 fields don't
+  // each need their own copy of the open/save/cancel state machine that
+  // editingTitleId/handleSaveFileTitle already owns for the Name column.
+  // Each instance owns its own edit state (not a shared editingCell state)
+  // since every call site already has a fully-formed onSave callback bound
+  // to its own (record, field) pair.
+  const InlineEditCell = ({
+    value,
+    type = "text",
+    canEdit,
+    onSave,
+    placeholder = "—",
+  }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const displayValue =
+      type === "date"
+        ? value
+          ? formatDate(value)
+          : placeholder
+        : value || placeholder;
+
+    if (!canEdit) {
+      return <Text type="secondary">{displayValue}</Text>;
+    }
+
+    if (!editing) {
+      return (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setDraft(type === "date" ? toDateInputValue(value) : value || "");
+            setEditing(true);
+          }}
+          style={{
+            cursor: "pointer",
+            display: "inline-block",
+            minHeight: 20,
+            borderBottom: "1px dashed transparent",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderBottomColor = "#D1D5DB";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderBottomColor = "transparent";
+          }}
+        >
+          <Text type="secondary">{displayValue}</Text>
+        </div>
+      );
+    }
+
+    const commit = async () => {
+      if (saving) return;
+      setSaving(true);
+      try {
+        await onSave(type === "date" ? draft || null : draft);
+        setEditing(false);
+      } catch (e) {
+        // onSave already shows message.error — stay in edit mode so the
+        // user can fix the value and retry instead of losing it.
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const cancel = () => setEditing(false);
+
+    if (type === "textarea") {
+      return (
+        <Input.TextArea
+          size="small"
+          autoFocus
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancel();
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+
+    return (
+      <Input
+        size="small"
+        type={type === "date" ? "date" : "text"}
+        autoFocus
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onPressEnter={commit}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") cancel();
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
+  };
+
+  // Reusable "choose file(s) / choose folder / clear selection" picker used
+  // by every create-new-entity form in this file (New Case Study, New Legal
+  // Study, ...). Owns its own hidden <input> elements and refs so multiple
+  // instances never collide; the parent just tracks the selected File[]
+  // arrays and appends newly picked batches via onSelectFiles/onSelectFolderFiles.
+  const DocumentPickerField = ({
+    files = [],
+    folderFiles = [],
+    onSelectFiles,
+    onSelectFolderFiles,
+    onClear,
+    disabled = false,
+  }) => {
+    const pickerFileInputRef = useRef(null);
+    const pickerFolderInputRef = useRef(null);
+    const hasSelection = files.length > 0 || folderFiles.length > 0;
+
+    return (
+      <div
+        style={{
+          border: "1px dashed #D1D5DB",
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16,
+          background: "#F9FAFB",
+        }}
+      >
+        <Text strong style={{ display: "block", marginBottom: 10, color: "#374151" }}>
+          Upload documents (optional)
+        </Text>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button
+            type="default"
+            disabled={disabled}
+            onClick={() => pickerFileInputRef.current?.click()}
+            style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5" }}
+          >
+            Choose file
+          </Button>
+          <Button
+            type="default"
+            disabled={disabled}
+            onClick={() => pickerFolderInputRef.current?.click()}
+            style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5" }}
+          >
+            Choose folder
+          </Button>
+          {hasSelection && (
+            <Button
+              type="text"
+              disabled={disabled}
+              onClick={() => {
+                onClear?.();
+                if (pickerFileInputRef.current) pickerFileInputRef.current.value = "";
+                if (pickerFolderInputRef.current) pickerFolderInputRef.current.value = "";
+              }}
+              style={{ color: "#6B7280" }}
+            >
+              Clear selection
+            </Button>
+          )}
+        </div>
+        {hasSelection && (
+          <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {files.length > 0 && <Tag color="blue">{files.length} file</Tag>}
+            {folderFiles.length > 0 && (
+              <Tag color="green">{folderFiles.length} file trong folder</Tag>
+            )}
+          </div>
+        )}
+        <input
+          ref={pickerFileInputRef}
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const picked = Array.from(event.target.files || []);
+            event.target.value = "";
+            if (picked.length) onSelectFiles?.(picked);
+          }}
+        />
+        <input
+          ref={pickerFolderInputRef}
+          type="file"
+          multiple
+          webkitdirectory="true"
+          directory="true"
+          style={{ display: "none" }}
+          onChange={(event) => {
+            const picked = Array.from(event.target.files || []);
+            event.target.value = "";
+            if (picked.length) onSelectFolderFiles?.(picked);
+          }}
+        />
+      </div>
+    );
+  };
+
   const InternalTemplates = () => {
     const [loading, setLoading] = useState(true);
     const [companies, setCompanies] = useState([]);
     const [documents, setDocuments] = useState([]);
     const [folders, setFolders] = useState([]);
-    const [legalReferences, setLegalReferences] = useState([]);
+    // Case Study (legalReference) has been fully removed from the UI — this
+    // stays a permanently-empty array so the handful of shared lookups
+    // that still read it (filteredLegalReferences etc.) stay well-defined
+    // without cascading a rewrite through every one of their consumers.
+    const legalReferences = [];
     const [legalStudyRecords, setLegalStudyRecords] = useState([]);
+    // Every row of the Legal Member table (both legalReferenceId and
+    // legalStudyId rows) — used to build the role lookups consumed by
+    // resolveLegalEntityFolderPerms (see entityPermissionContext below).
+    const [legalMemberRows, setLegalMemberRows] = useState([]);
     const [selectedExt, setSelectedExt] = useState(null);
     const [activeCompanyId, setActiveCompanyId] = useState(null);
     const [activeLegalReferenceId, setActiveLegalReferenceId] = useState(null);
     const [activeSpace, setActiveSpace] = useState(KNOWLEDGE_STORAGE_TYPE);
     const [projects, setProjects] = useState([]);
-    const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
-    const [linkCaseRecord, setLinkCaseRecord] = useState(null);
-    const [linkCaseLoading, setLinkCaseLoading] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
     const [bulkMoveTargetId, setBulkMoveTargetId] = useState("root");
-    const [linkCaseForm] = Form.useForm();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [selectedFolderId, setSelectedFolderId] = useState("root");
     const [query, setQuery] = useState("");
 
-    const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
-    const [createTemplateLoading, setCreateTemplateLoading] = useState(false);
-    const [createTemplateForm] = Form.useForm();
+    const [isCreateLegalStudyOpen, setIsCreateLegalStudyOpen] = useState(false);
+    const [createLegalStudyLoading, setCreateLegalStudyLoading] = useState(false);
+    const [createLegalStudyForm] = Form.useForm();
+    const [createLegalStudyFiles, setCreateLegalStudyFiles] = useState([]);
+    const [createLegalStudyFolderFiles, setCreateLegalStudyFolderFiles] = useState([]);
+    // Same reasoning as createReferenceManagerId above.
+    const [createLegalStudyManagerId, setCreateLegalStudyManagerId] = useState(null);
+    const [createLegalStudyMemberIds, setCreateLegalStudyMemberIds] = useState([]);
 
     const filteredLegalReferences = useMemo(() => {
       return legalReferences.filter((record) =>
@@ -4127,38 +4773,12 @@
       activeLegalReferenceIdRef.current = activeLegalReferenceId;
     }, [activeLegalReferenceId]);
 
-    const usedProjectIds = useMemo(() => {
-      const ids = new Set();
-      legalReferences.forEach((ref) => {
-        if (ref.sourceCaseId) {
-          ids.add(String(ref.sourceCaseId));
-        }
-        if (ref.cases) {
-          ref.cases.forEach((proj) => {
-            const pid = extractId(proj);
-            if (pid) {
-              ids.add(String(pid));
-            }
-          });
-        }
-      });
-      return ids;
-    }, [legalReferences]);
-
-    const activeLinkedIds = useMemo(() => {
-      const sourceRecord = linkCaseRecord || activeLegalReference;
-      if (!sourceRecord) return new Set();
-      return new Set(
-        (sourceRecord.cases || []).map((item) => String(extractId(item))),
-      );
-    }, [activeLegalReference, linkCaseRecord]);
-
     const isLegalReferenceRoot =
       activeSpace === "legal_reference" && !activeLegalReferenceId;
 
-    const [viewMode, setViewMode] = useState("grid");
+    const [viewMode, setViewMode] = useState("table");
     const [sortMode, setSortMode] = useState("manual");
-    const [galleryViewMode, setGalleryViewMode] = useState("grid");
+    const [galleryViewMode, setGalleryViewMode] = useState("table");
     const [galleryCompanyFilter, setGalleryCompanyFilter] = useState([]);
     const [users, setUsers] = useState([]);
     const [entityContextMenu, setEntityContextMenu] = useState({
@@ -4185,16 +4805,15 @@
 
     const [folderLoading, setFolderLoading] = useState(false);
     const [uploadLoading, setUploadLoading] = useState(false);
-    const [editTemplateRecord, setEditTemplateRecord] = useState(null);
-    const [editTemplateForm] = Form.useForm();
-    const [editTemplateLoading, setEditTemplateLoading] = useState(false);
     const [currentLawyerId, setCurrentLawyerId] = useState(null);
     const [currentUserState, setCurrentUserState] = useState(null);
     const currentUserRef = useRef(null);
     const activeLegalReferenceIdRef = useRef(null);
     const refreshCaseFoldersRef = useRef(() => {});
     const [lawyers, setLawyers] = useState([]);
-    const [permissionFolder, setPermissionFolder] = useState(null);
+    // Single trigger for the shared PermissionManagerModal — shape:
+    // { kind: "folder", folder } | { kind: "legal_reference" | "legal_study", record }
+    const [permissionTarget, setPermissionTarget] = useState(null);
     const [uploadFieldsTarget, setUploadFieldsTarget] = useState(null);
     const [shareFileRecord, setShareFileRecord] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
@@ -4218,13 +4837,7 @@
     const directFileTargetRef = useRef(null);
     const folderInputRef = useRef(null);
     const folderNameInputRef = useRef(null);
-    const createReferenceFileInputRef = useRef(null);
-    const createReferenceFolderInputRef = useRef(null);
     const [folderForm] = Form.useForm();
-    const [createReferenceFiles, setCreateReferenceFiles] = useState([]);
-    const [createReferenceFolderFiles, setCreateReferenceFolderFiles] = useState(
-      [],
-    );
     const [renameRecord, setRenameRecord] = useState(null);
     const [renameForm] = Form.useForm();
 
@@ -4352,19 +4965,18 @@
           fetchedCompanies,
           fetchedFolders,
           fetchedDocs,
-          fetchedLegalReferences,
           fetchedProjects,
           fetchedDocumentShares,
           fetchedCustomers,
           fetchedCustomerCaseFolders,
           fetchedLegalStudyRecords,
+          fetchedLegalMemberRows,
         ] = await Promise.all([
           fetchAllList("internalCompany:list", { sort: ["createdAt"] }).catch(
             () => [],
           ),
           fetchFoldersForInternalTemplates(),
           fetchDocumentsForInternalTemplates(),
-          fetchLegalReferenceRecords(),
           fetchAllList("projects:list", {
             fields: [
               "id",
@@ -4383,10 +4995,16 @@
           }).catch(() => []),
           fetchCustomerCasePermissionFolders(),
           fetchLegalStudyRecords(),
+          fetchAllLegalMemberRows(),
         ]);
 
         setCompanies(fetchedCompanies);
-        setLegalStudyRecords(fetchedLegalStudyRecords);
+        // Same defensive filter as legalReferences below — Legal Study's
+        // own gallery is already folder-driven (excludes isDeleted
+        // folders), so this mainly guards legalStudyRecordById lookups
+        // used elsewhere from resolving a soft-deleted record.
+        setLegalStudyRecords(fetchedLegalStudyRecords.filter((s) => !s?.isDeleted));
+        setLegalMemberRows(fetchedLegalMemberRows);
         const isAllowedScope = (record) => {
           const scope = normalizeKey(record?.moduleScope);
           return !scope || DASHBOARD_CONFIG.moduleScopes.includes(scope);
@@ -4439,7 +5057,6 @@
           }
         }
 
-        setLegalReferences(fetchedLegalReferences);
         setProjects(fetchedProjects);
         setCustomers(fetchedCustomers);
         setCustomerCaseFolders(
@@ -5115,20 +5732,20 @@
         shared_file: "share document",
         unshared_file: "unshare document",
         permission_updated: "update permissions",
-        linked_legal_study: "add to Legal Study",
-        unlinked_legal_study: "remove from Legal Study",
+        linked_legal_study: `add to ${LEGAL_STUDY_LABEL}`,
+        unlinked_legal_study: `remove from ${LEGAL_STUDY_LABEL}`,
       };
 
       if (action === "linked_legal_study") {
         const parts = String(newV || "").split(" - ");
         const targetLabel = parts.length > 1 ? parts[0].trim() : "";
         return targetLabel
-          ? `Added document to Legal Study at "${targetLabel}"`
-          : "Added document to Legal Study";
+          ? `Added document to ${LEGAL_STUDY_LABEL} at "${targetLabel}"`
+          : `Added document to ${LEGAL_STUDY_LABEL}`;
       }
 
       if (action === "unlinked_legal_study") {
-        return "Removed document from Legal Study";
+        return `Removed document from ${LEGAL_STUDY_LABEL}`;
       }
 
       if (action === "previewed") {
@@ -5285,7 +5902,7 @@
     useEffect(() => {
       let active = true;
       let timer = null;
-      const handleExternalDataChanged = () => {
+      const scheduleReload = () => {
         if (!active) return;
         if (timer) window.clearTimeout(timer);
         timer = window.setTimeout(() => {
@@ -5293,11 +5910,23 @@
           loadData();
         }, 300);
       };
+      const handleExternalDataChanged = () => scheduleReload();
+      // `storage` fires in every OTHER same-origin tab/window/iframe when
+      // localStorage changes there — the one channel that still works when
+      // the popup that emitted LIBRARY_DATA_CHANGED_EVENT isn't reachable
+      // via window/window.parent (e.g. ctx.openView rendered it in a
+      // separate window or a sibling iframe rather than this block's own
+      // window or its parent).
+      const handleStorageChanged = (event) => {
+        if (event.key === LIBRARY_DATA_CHANGED_EVENT) scheduleReload();
+      };
       window.addEventListener(LIBRARY_DATA_CHANGED_EVENT, handleExternalDataChanged);
+      window.addEventListener("storage", handleStorageChanged);
       return () => {
         active = false;
         if (timer) window.clearTimeout(timer);
         window.removeEventListener(LIBRARY_DATA_CHANGED_EVENT, handleExternalDataChanged);
+        window.removeEventListener("storage", handleStorageChanged);
       };
     }, [loadData]);
 
@@ -5458,6 +6087,24 @@
     const getCustomerDisplayName = (c) =>
       c?.customerName || c?.name || c?.shortName || `Customer ${extractId(c)}`;
 
+    // caseCode - shortName (customer) - projectName, matching the same
+    // format used by the Legal Study / Case gallery cards (formatCaseCustomerLabel /
+    // formatCaseLabel below) — used for the "Link Case(s)" pickers in the New
+    // Case Study / New Legal Study create modals.
+    const getProjectLinkLabel = (proj) => {
+      const customerId = getProjectCustomerId(proj);
+      const customer = customers.find(
+        (c) => String(extractId(c)) === String(customerId),
+      );
+      const shortName =
+        customer?.shortName || (customer ? getCustomerDisplayName(customer) : "");
+      return (
+        [proj?.caseCode, shortName, proj?.projectName]
+          .filter(Boolean)
+          .join(" - ") || `Case #${extractId(proj)}`
+      );
+    };
+
     const projectById = useMemo(() => {
       const map = new Map();
       projects.forEach((project) => {
@@ -5466,6 +6113,43 @@
       });
       return map;
     }, [projects]);
+
+    const legalStudyRecordById = useMemo(() => {
+      const map = new Map();
+      legalStudyRecords.forEach((s) => map.set(String(extractId(s)), s));
+      return map;
+    }, [legalStudyRecords]);
+
+    // Per-entity lawyerId → role lookups built once from the raw Legal
+    // Member rows, consumed by resolveLegalEntityFolderPerms to bridge
+    // Legal Study member roles into folder/document permission resolution
+    // (getFolderPermissions/getVisibleFolderIds below).
+    const legalMemberRoleByStudy = useMemo(() => {
+      const map = new Map();
+      legalMemberRows.forEach((row) => {
+        const studyId = extractId(row?.legalStudyId);
+        if (!studyId) return;
+        const lawyerId = getEntityMemberRowLawyerId(row);
+        if (!lawyerId) return;
+        const key = String(studyId);
+        if (!map.has(key)) map.set(key, new Map());
+        map.get(key).set(String(lawyerId), row.role);
+      });
+      return map;
+    }, [legalMemberRows]);
+
+    // Passed as the 5th arg to getFolderPermissions/getVisibleFolderIds so
+    // they can resolve Case Study/Legal Study folder access from the
+    // entity's manager/Legal Member role instead of folderManager/
+    // folderMembers (which stay empty for these folders — see
+    // resolveLegalEntityFolderPerms).
+    const entityPermissionContext = useMemo(
+      () => ({
+        legalStudyById: legalStudyRecordById,
+        legalMemberRoleByStudy,
+      }),
+      [legalStudyRecordById, legalMemberRoleByStudy],
+    );
 
     const customerAccessScope = useMemo(() => {
       const unrestricted = { customerIds: null, caseIds: null };
@@ -5499,6 +6183,7 @@
         customerCaseFolders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       const customerIds = new Set();
       const caseIds = new Set();
@@ -5518,7 +6203,13 @@
       });
 
       return { customerIds, caseIds };
-    }, [customerCaseFolders, currentLawyerId, currentUserState, projectById]);
+    }, [
+      customerCaseFolders,
+      currentLawyerId,
+      currentUserState,
+      projectById,
+      entityPermissionContext,
+    ]);
 
     const visibleCustomerProjects = useMemo(() => {
       const allowedCaseIds = customerAccessScope.caseIds;
@@ -5688,42 +6379,32 @@
     // dùng làm gallery cấp cao nhất của không gian Legal Study, bỏ qua bước
     // chọn Customer → Case. Chỉ hiện case nào thực sự có folder này và user
     // có quyền truy cập folder đó.
-    const legalStudyRecordById = useMemo(() => {
-      const map = new Map();
-      legalStudyRecords.forEach((s) => map.set(String(extractId(s)), s));
-      return map;
-    }, [legalStudyRecords]);
-
     const legalStudyEntities = useMemo(() => {
       const currentUser = currentUserState;
       const activeCaseFolders = customerCaseFolders.filter((f) => !f?.isDeleted);
       const { accessible } =
         currentUser && !isAdmin
-          ? getVisibleFolderIds(activeCaseFolders, currentUser, currentLawyerId)
+          ? getVisibleFolderIds(
+              activeCaseFolders,
+              currentUser,
+              currentLawyerId,
+              entityPermissionContext,
+            )
           : { accessible: null };
 
+      // Group 2 only — standalone Legal Study created via "New Legal Study",
+      // never bound to a Case (no projectId). Case-bound Legal Study
+      // (Group 1) is still reachable via Customer → Case → its folder tree,
+      // just no longer listed in this top-level gallery.
       const items = [];
       activeCaseFolders.forEach((folder) => {
         if (folder.folderTemplateKey !== LEGAL_STUDY_FOLDER_TEMPLATE_KEY) return;
+        if (getFolderCaseProjectId(folder)) return;
         if (accessible && !accessible.has(extractId(folder.id))) return;
 
-        const projectId = getFolderCaseProjectId(folder);
-        if (!projectId) {
-          // Group 2 — external-resource Legal Study, anchored by a
-          // legalStudy record via folder.legalStudyId, not by any Case.
-          const studyId = extractId(folder.legalStudyId);
-          const study = studyId ? legalStudyRecordById.get(String(studyId)) : null;
-          items.push({ folder, project: null, customer: null, study });
-          return;
-        }
-        const project = projectById.get(String(projectId));
-        if (!project) return;
-        const customerId = getProjectCustomerId(project);
-        const customer = customers.find(
-          (c) => String(extractId(c)) === String(customerId),
-        );
-
-        items.push({ folder, project, customer, study: null });
+        const studyId = extractId(folder.legalStudyId);
+        const study = studyId ? legalStudyRecordById.get(String(studyId)) : null;
+        items.push({ folder, project: null, customer: null, study });
       });
       return items;
     }, [
@@ -5731,9 +6412,8 @@
       currentUserState,
       currentLawyerId,
       isAdmin,
-      projectById,
-      customers,
       legalStudyRecordById,
+      entityPermissionContext,
     ]);
 
     // Mỗi entry Legal Study kèm tập id folder con cháu của nó (tính trên
@@ -5802,22 +6482,6 @@
       });
       return map;
     }, [legalStudyEntitiesWithSubtree, legalStudyDocs]);
-
-    const legalRefStats = useMemo(() => {
-      const stats = {};
-      filteredLegalReferences.forEach((ref) => {
-        const rid = String(extractId(ref));
-        stats[rid] = {
-          folderCount: folders.filter(
-            (f) => !f.isDeleted && String(getRecordLegalReferenceId(f)) === rid,
-          ).length,
-          docCount: documents.filter(
-            (d) => !d.isDeleted && String(getRecordLegalReferenceId(d)) === rid,
-          ).length,
-        };
-      });
-      return stats;
-    }, [filteredLegalReferences, folders, documents]);
 
     const customerStats = useMemo(() => {
       const stats = {};
@@ -6066,6 +6730,7 @@
         visibleFolders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       return {
         folders: visibleFolders.filter((f) => accessible.has(extractId(f.id))),
@@ -6075,7 +6740,13 @@
             .map((id) => String(id)),
         ),
       };
-    }, [visibleFolders, currentUserState, currentLawyerId, activeSpace]);
+    }, [
+      visibleFolders,
+      currentUserState,
+      currentLawyerId,
+      activeSpace,
+      entityPermissionContext,
+    ]);
 
     const permissionFilteredFolders = permissionScopedFolders.folders;
     const entitledFolderIds = permissionScopedFolders.entitledFolderIds;
@@ -6089,27 +6760,65 @@
       if (isAdminUser(currentUser)) return visibleDocs;
       const accessibleFolderIds = entitledFolderIds || new Set();
       const currentUserId = String(extractId(currentUser.id) || "");
+      const folderById = new Map(
+        visibleFolders.map((f) => [String(extractId(f)), f]),
+      );
       return visibleDocs.filter((doc) => {
         const fId = String(extractId(doc.folderId) || "");
         if (isRecordSharedWithUser(doc, currentUser)) return true;
+
+        const parentFolder = fId ? folderById.get(fId) : null;
+        const entityRefId =
+          getRecordLegalReferenceId(doc) || extractId(parentFolder?.legalReferenceId);
+        const entityStudyId =
+          getRecordLegalStudyId(doc) || extractId(parentFolder?.legalStudyId);
+        if (entityRefId || entityStudyId) {
+          // Case Study / Legal Study (Manager+Member model): access is
+          // governed strictly by the entity's own Manager/Member role — no
+          // creator/uploader bypass here. Otherwise a file uploaded before
+          // (or without) a Manager/Member grant on this specific record
+          // would stay visible forever, even after that grant is revoked
+          // or was never given — exactly the "root record decides, no
+          // upload-history backdoor" rule this model requires.
+          return getLegalEntityPermissions(
+            entityRefId || entityStudyId,
+            currentUser,
+            currentLawyerId,
+            entityRefId ? "legal_reference" : "legal_study",
+            entityPermissionContext,
+          ).canView;
+        }
+
         // Owner bypass: a folder's own entitlement can require an explicit
         // grant the uploader doesn't hold on that exact folder (e.g. upload
         // permission there came from inherited/manager rights via
         // getFolderPermissions, not a direct grant row) — without this, the
         // uploader's own file would vanish from their own view right after
         // upload, even though canCreate() already let them upload there.
+        // Not applied to Case Study/Legal Study docs — handled above.
         if (
           currentUserId &&
           (String(extractId(doc.createdById) || "") === currentUserId ||
             String(extractId(doc.uploadedById) || "") === currentUserId)
         )
           return true;
-        // Root-level docs: visible to all company members except in Knowledge space
-        // (Knowledge root-level docs require explicit share — admin already passed above)
-        if (!fId) return activeSpace !== KNOWLEDGE_STORAGE_TYPE;
+        if (!fId) {
+          // Root-level docs elsewhere: visible to all company members
+          // except in Knowledge space (Knowledge root-level docs require
+          // explicit share — admin already passed above).
+          return activeSpace !== KNOWLEDGE_STORAGE_TYPE;
+        }
         return accessibleFolderIds.has(fId);
       });
-    }, [visibleDocs, entitledFolderIds, currentUserState, activeSpace]);
+    }, [
+      visibleDocs,
+      visibleFolders,
+      entitledFolderIds,
+      currentUserState,
+      currentLawyerId,
+      activeSpace,
+      entityPermissionContext,
+    ]);
 
     const getFolderPermsById = useCallback(
       (folderId, space = activeSpace) => {
@@ -6118,9 +6827,28 @@
         if (!currentUser) return roleToPerms(null);
         if (!normalizedFolderId) {
           if (space === MY_DOCUMENT_STORAGE_TYPE) return roleToPerms("owner");
-          return isAdminUser(currentUser)
-            ? roleToPerms("admin")
-            : roleToPerms("viewer");
+          if (isAdminUser(currentUser)) return roleToPerms("admin");
+          // Case Study (legal_reference) has no folders row of its own
+          // until the first subfolder/file is created — its "root" is a
+          // virtual sentinel, unlike Legal Study/Customer which always
+          // jump straight into a real folder id. Resolve permission from
+          // the Case Study record's own Manager/Legal Member role (the
+          // same source resolveLegalEntityFolderPerms uses for its real
+          // subfolders) instead of falling through to a hardcoded
+          // "viewer" — that hardcode silently downgraded every Manager/
+          // Editor/Contributed member to View Only whenever they hadn't
+          // yet navigated into a subfolder.
+          if (space === "legal_reference" && activeLegalReferenceId) {
+            // No owner/createdById bypass — see resolveLegalEntityFolderPerms.
+            const perms = resolveLegalEntityFolderPerms(
+              activeLegalReferenceId,
+              "legal_reference",
+              extractId(currentLawyerId),
+              entityPermissionContext,
+            );
+            return perms || roleToPerms(null);
+          }
+          return roleToPerms("viewer");
         }
         const folder = visibleFolders.find(
           (item) =>
@@ -6132,9 +6860,17 @@
           currentUser,
           visibleFolders,
           currentLawyerId,
+          entityPermissionContext,
         );
       },
-      [activeSpace, currentLawyerId, currentUserState, visibleFolders],
+      [
+        activeSpace,
+        activeLegalReferenceId,
+        currentLawyerId,
+        currentUserState,
+        visibleFolders,
+        entityPermissionContext,
+      ],
     );
 
     // Current folder permissions for the selected folder
@@ -6142,6 +6878,101 @@
       () => getFolderPermsById(selectedFolderId),
       [getFolderPermsById, selectedFolderId],
     );
+
+    // Readonly "Manager: ... / Member: ..." summary shown below the
+    // breadcrumb, for both the root folder itself and any subfolder inside
+    // it — always resolved from the TREE ROOT's own folderManager/
+    // folderMembers rows (never the currently-browsed subfolder's), since
+    // permission now lives exclusively at the root. Folder data already
+    // carries these as appends (see fetchFoldersForInternalTemplates), so
+    // no extra fetch is needed here.
+    const currentRootFolderPermissionSummary = useMemo(() => {
+      // Case Study (legal_reference): permission lives on the entity
+      // record's own manager/Legal Member fields (see
+      // resolveLegalEntityFolderPerms), never on folderManager/
+      // folderMembers — and unlike Legal Study/Customer, its "root" is a
+      // virtual sentinel with no real folders row until the first
+      // subfolder/file exists. Resolve straight from the entity record
+      // (checked first, before the selectedFolderId === "root" bail below)
+      // so the summary shows at every depth, including before any
+      // subfolder has been created.
+      if (activeSpace === "legal_reference" && activeLegalReferenceId) {
+        if (!activeLegalReference) return null;
+        const managerId = getLegalEntityManagerId(activeLegalReference);
+        const managerRecord = getRelationLawyerRecord(activeLegalReference.manager);
+        const managerNames = managerId
+          ? [getLawyerDisplayName(managerRecord)].filter(Boolean)
+          : [];
+        // Same reasoning as the Legal Study branch below — the Legal
+        // Member table also backs the Manager row (role: "manager"), so
+        // exclude it here to avoid the manager showing up twice.
+        const memberNames = asArray(activeLegalReference.members)
+          .filter((m) => String(getPermissionLawyerId(m)) !== String(managerId))
+          .map((m) => getLawyerDisplayName(getRelationLawyerRecord(m)))
+          .filter(Boolean);
+        return { managerNames, memberNames };
+      }
+
+      if (selectedFolderId === "root") return null;
+      if (
+        [
+          MY_DOCUMENT_STORAGE_TYPE,
+          "trash",
+          "recent",
+          "shared_with_me",
+        ].includes(activeSpace)
+      )
+        return null;
+      const folder = visibleFolders.find(
+        (f) => String(extractId(f)) === String(selectedFolderId),
+      );
+      if (!folder) return null;
+      const root = resolveFolderTreeRoot(folder, visibleFolders) || folder;
+
+      // Standalone Legal Study root folders are governed by the ENTITY-level
+      // manager/members fields on their own legalStudy record (see
+      // saveEntityPermissions / getLegalEntityPermissions) — not by the
+      // folder-based folderManager/folderMembers rows, which stay empty for
+      // these folders since "Permissions" here never writes to them. Reading
+      // the entity record instead keeps this label in sync with what the
+      // Permissions action on the Legal Study gallery actually edits.
+      const studyId = extractId(root.legalStudyId);
+      const study = studyId ? legalStudyRecordById.get(String(studyId)) : null;
+      if (study) {
+        const managerRecord = getRelationLawyerRecord(study.manager);
+        const managerId = getLegalEntityManagerId(study);
+        const managerNames = managerId
+          ? [getLawyerDisplayName(managerRecord)].filter(Boolean)
+          : [];
+        // The Legal Member table backs BOTH the Manager row (role:
+        // "manager") and every regular Member row (see
+        // saveEntityPermissions) — Nocobase's `members`
+        // association simply returns every linked row regardless of role,
+        // so the manager's own row always resurfaces inside study.members
+        // too. Exclude it here to avoid the same person showing up under
+        // both Manager and Member in this label.
+        const memberNames = asArray(study.members)
+          .filter((m) => String(getPermissionLawyerId(m)) !== String(managerId))
+          .map((m) => getLawyerDisplayName(getRelationLawyerRecord(m)))
+          .filter(Boolean);
+        return { managerNames, memberNames };
+      }
+
+      const managerNames = getFolderManagerRows(root)
+        .map((row) => getLawyerDisplayName(getRelationLawyerRecord(row)))
+        .filter(Boolean);
+      const memberNames = getFolderMemberRows(root)
+        .map((row) => getLawyerDisplayName(getRelationLawyerRecord(row)))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }, [
+      selectedFolderId,
+      activeSpace,
+      activeLegalReferenceId,
+      activeLegalReference,
+      visibleFolders,
+      legalStudyRecordById,
+    ]);
 
     const getRecordPerms = useCallback(
       (record) => {
@@ -6154,6 +6985,7 @@
             currentUser,
             visibleFolders,
             currentLawyerId,
+            entityPermissionContext,
           );
         }
         const parentFolderId = extractId(record.folderId);
@@ -6168,6 +7000,7 @@
             currentUser,
             visibleFolders,
             currentLawyerId,
+            entityPermissionContext,
           );
         }
         if (
@@ -6187,6 +7020,7 @@
         currentUserState,
         getFolderPermsById,
         visibleFolders,
+        entityPermissionContext,
       ],
     );
 
@@ -6646,6 +7480,15 @@
       (activeSpace === "trash" || currentFolderPerms.canDelete) &&
       selectedBulkRecords.every(canBulkSelectRecord) &&
       selectedBulkRecords.every((record) => getRecordPerms(record).canDelete);
+    // Bulk "Move to Trash" (as opposed to bulk Restore in Trash, which
+    // still uses canBulkDeleteSelected above unchanged) is admin-only
+    // outside My Documents — same reasoning as renderContextMenuItems's
+    // canDelete gate: a Manager/Editor/Contributed collaborator can still
+    // move records, but only an admin can delete a shared record/folder.
+    const canBulkMoveToTrashSelected =
+      activeSpace !== "trash" &&
+      canBulkDeleteSelected &&
+      (activeSpace === MY_DOCUMENT_STORAGE_TYPE || isAdminUser(currentUserState));
     const hasAuthorizedBulkSelection =
       selectedBulkRecords.length === selectedRowKeys.length &&
       selectedBulkRecords.length > 0 &&
@@ -6699,10 +7542,17 @@
           folders,
           currentUser,
           currentLawyerId,
+          entityPermissionContext,
         );
         return accessible.has(extractId(f.id));
       });
-    }, [folders, activeCompanyId, currentUserState, currentLawyerId]);
+    }, [
+      folders,
+      activeCompanyId,
+      currentUserState,
+      currentLawyerId,
+      entityPermissionContext,
+    ]);
 
     const legalReferenceRootFolders = useMemo(() => {
       return folders.filter((f) => {
@@ -6720,10 +7570,17 @@
           folders,
           currentUser,
           currentLawyerId,
+          entityPermissionContext,
         );
         return accessible.has(extractId(f.id));
       });
-    }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId]);
+    }, [
+      folders,
+      activeLegalReferenceId,
+      currentUserState,
+      currentLawyerId,
+      entityPermissionContext,
+    ]);
 
     // Per-record map: refId → root folders (used in sidebar so each item shows its own folders independently)
     const legalReferenceRootFoldersByRecord = useMemo(() => {
@@ -6731,7 +7588,12 @@
       const currentUser = currentUserState;
       const { accessible } =
         currentUser && !isAdminUser(currentUser)
-          ? getVisibleFolderIds(folders, currentUser, currentLawyerId)
+          ? getVisibleFolderIds(
+              folders,
+              currentUser,
+              currentLawyerId,
+              entityPermissionContext,
+            )
           : { accessible: null };
       folders.forEach((f) => {
         if (f.isDeleted) return;
@@ -6744,7 +7606,7 @@
         map[refId].push(f);
       });
       return map;
-    }, [folders, currentUserState, currentLawyerId]);
+    }, [folders, currentUserState, currentLawyerId, entityPermissionContext]);
 
     // Sidebar search-filtered lists
     const filteredSidebarCustomers = useMemo(() => {
@@ -6849,6 +7711,7 @@
         activeFolders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       const accessibleFolderIds = new Set(
         Array.from(accessible).filter(Boolean).map((id) => String(id)),
@@ -6868,6 +7731,21 @@
 
         const folderId = extractId(doc.folderId);
         if (folderId && docEntitledFolderIds.has(String(folderId))) return true;
+
+        // Case Study / Legal Study docs are governed strictly by the
+        // entity's own Manager/Member role (see resolveLegalEntityFolderPerms)
+        // — no creator/uploader bypass, otherwise a document uploaded
+        // before/without a Manager or Member grant on that specific record
+        // would keep granting it module visibility forever.
+        const parentFolder = folderId ? folderById.get(String(folderId)) : null;
+        const isEntityScoped = !!(
+          getRecordLegalReferenceId(doc) ||
+          getRecordLegalStudyId(doc) ||
+          (parentFolder &&
+            (extractId(parentFolder.legalReferenceId) ||
+              extractId(parentFolder.legalStudyId)))
+        );
+        if (isEntityScoped) return false;
 
         return (
           currentUserId &&
@@ -6901,6 +7779,28 @@
         if (legalRefId) legalRefIds.add(String(legalRefId));
       });
 
+      // Seed directly from each Case Study record's own Manager/Legal
+      // Member status — the folder/document scans above require at least
+      // one folder or file to already exist under the reference, so a
+      // brand-new (or still folder-less) Case Study would otherwise never
+      // appear here for its Manager/Member, even though they are fully
+      // entitled to it.
+      legalReferences.forEach((ref) => {
+        const refId = extractId(ref);
+        if (!refId) return;
+        if (
+          getLegalEntityPermissions(
+            refId,
+            currentUser,
+            currentLawyerId,
+            "legal_reference",
+            entityPermissionContext,
+          ).canView
+        ) {
+          legalRefIds.add(String(refId));
+        }
+      });
+
       return { legalRefIds };
     }, [
       isAdmin,
@@ -6909,79 +7809,8 @@
       folders,
       documents,
       sharedWithMeDocs,
-    ]);
-
-    // For non-admin: only show records where the user has accessible folders/files.
-    const accessibleLegalRefIds = documentModuleAccessScope.legalRefIds;
-    const canOpenLegalReferenceSpace =
-      isAdmin || Boolean(accessibleLegalRefIds && accessibleLegalRefIds.size > 0);
-    // 🌟 Quyền mở không gian Legal Study phụ thuộc việc user có truy cập
-    // được ít nhất 1 Case có folder "legal_study" hay không (xem
-    // legalStudyEntities) — không còn dùng chung điều kiện với "customer".
-    // Trong lúc dữ liệu (customerCaseFolders) chưa load xong, tạm coi là
-    // true để tránh nút "Legal Study" bị ẩn/hiện chớp nháy ở lần render đầu.
-    const canOpenLegalStudySpace =
-      !currentUserState || isAdmin || legalStudyEntities.length > 0;
-
-    useEffect(() => {
-      if (activeSpace === "legal_reference" && !canOpenLegalReferenceSpace) {
-        setActiveSpace(KNOWLEDGE_STORAGE_TYPE);
-        setActiveLegalReferenceId(null);
-        setSelectedFolderId("root");
-        return;
-      }
-      if (
-        activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
-        !canOpenLegalStudySpace
-      ) {
-        setActiveSpace(KNOWLEDGE_STORAGE_TYPE);
-        setActiveCustomerId(null);
-        setActiveCaseId(null);
-        setSelectedFolderId("root");
-      }
-    }, [activeSpace, canOpenLegalReferenceSpace, canOpenLegalStudySpace]);
-
-    useEffect(() => {
-      if (
-        activeSpace === "legal_reference" &&
-        activeLegalReferenceId &&
-        accessibleLegalRefIds &&
-        !accessibleLegalRefIds.has(String(activeLegalReferenceId))
-      ) {
-        setActiveLegalReferenceId(null);
-        setSelectedFolderId("root");
-      }
-    }, [activeSpace, activeLegalReferenceId, accessibleLegalRefIds]);
-
-    const filteredSidebarLegalRefs = useMemo(() => {
-      let result = legalReferences;
-      // Non-admin: filter to only references with accessible folders/docs
-      if (!isAdmin && accessibleLegalRefIds !== null) {
-        result = result.filter((r) =>
-          accessibleLegalRefIds.has(String(extractId(r))),
-        );
-      }
-      if (galleryCompanyFilter.length > 0) {
-        result = result.filter((r) => {
-          const cid = String(
-            extractId(r.internalCompanyId) || extractId(r.internalCompany) || "",
-          );
-          return galleryCompanyFilter.includes(cid);
-        });
-      }
-      if (sidebarSearch) {
-        const q = sidebarSearch.toLowerCase();
-        result = result.filter((r) =>
-          getLegalReferenceDisplayName(r).toLowerCase().includes(q),
-        );
-      }
-      return result;
-    }, [
       legalReferences,
-      isAdmin,
-      accessibleLegalRefIds,
-      sidebarSearch,
-      galleryCompanyFilter,
+      entityPermissionContext,
     ]);
 
     const treeData = useMemo(() => {
@@ -7056,12 +7885,6 @@
       return false;
     };
 
-    const resetCreateReferenceDraft = () => {
-      createTemplateForm.resetFields();
-      setCreateReferenceFiles([]);
-      setCreateReferenceFolderFiles([]);
-    };
-
     const loadUsersIfNeeded = useCallback(async () => {
       if (users.length > 0) return;
       try {
@@ -7073,85 +7896,37 @@
       } catch {}
     }, [users.length]);
 
-    const openCreateViewByUid = useCallback(async (uid, fallbackUrl, params = {}) => {
-      const normalizedParams = {};
-      Object.keys(params || {}).forEach((key) => {
-        const value = params[key];
-        if (value !== undefined && value !== null && value !== "") {
-          normalizedParams[key] = value;
-        }
-      });
-
-      const defineProperties = {};
-      Object.keys(normalizedParams).forEach((key) => {
-        defineProperties[key] = {
-          value: normalizedParams[key],
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        };
-      });
-
-      if (typeof ctx.openView === "function") {
-        try {
-          const result = ctx.openView(uid, {
-            navigation: false,
-            inputArgs: normalizedParams,
-            params: normalizedParams,
-            defineProperties,
-            ...normalizedParams,
-          });
-          if (result?.then) await result;
-          return true;
-        } catch (error) {
-          console.warn("[Library] ctx.openView failed", error);
-        }
-      }
-
+    // Shared by both "New Case Study" and "New Legal Study" — the Manager
+    // picker on each needs the same lawyers list.
+    const loadLawyersIfNeeded = useCallback(async () => {
+      if (lawyers.length > 0) return;
       try {
-        let targetUrl = fallbackUrl;
-        if (typeof URL !== "undefined" && fallbackUrl) {
-          const url = new URL(fallbackUrl);
-          Object.keys(normalizedParams).forEach((key) => {
-            url.searchParams.set(key, String(normalizedParams[key]));
-          });
-          targetUrl = url.toString();
-        }
-        if (targetUrl && typeof window !== "undefined" && typeof window.open === "function") {
-          window.open(targetUrl, "_blank", "noopener,noreferrer");
-          return true;
-        }
-      } catch (error) {
-        console.warn("[Library] popup fallback failed", error);
-      }
+        const res = await ctx.api.request({
+          url: "lawyers:list",
+          params: { pageSize: 1000 },
+        });
+        setLawyers(res?.data?.data || []);
+      } catch {}
+    }, [lawyers.length]);
 
-      message.error("Cannot open configured popup view.");
-      return false;
-    }, []);
-
-    const openCreateReferenceModal = async () => {
-      if (!requireCompany()) return;
-      const dataBlockUid = CASE_REFERENCE_DATA_BLOCK_UID;
-      await openCreateViewByUid(CASE_REFERENCE_CREATE_POPUP_UID, CASE_REFERENCE_CREATE_VIEW_URL, {
-        activeCompanyId: extractId(activeCompanyId),
-        internalCompanyId: extractId(activeCompanyId),
-        sourceBlockUid: dataBlockUid,
-        targetBlockUid: dataBlockUid,
-        dataBlockUid,
-      });
+    const resetCreateLegalStudyDraft = () => {
+      createLegalStudyForm.resetFields();
+      setCreateLegalStudyFiles([]);
+      setCreateLegalStudyFolderFiles([]);
+      setCreateLegalStudyManagerId(currentLawyerId ? String(currentLawyerId) : null);
+      setCreateLegalStudyMemberIds([]);
     };
 
-    const openCreateLegalStudyModal = async () => {
+    const openCreateLegalStudyModal = () => {
       if (!requireCompany()) return;
-      await openCreateViewByUid(LEGAL_STUDY_CREATE_POPUP_UID, LEGAL_STUDY_CREATE_VIEW_URL, {
-        activeCompanyId: extractId(activeCompanyId),
-        internalCompanyId: extractId(activeCompanyId),
-      });
+      resetCreateLegalStudyDraft();
+      loadLawyersIfNeeded();
+      setIsCreateLegalStudyOpen(true);
     };
 
-    const closeCreateReferenceModal = () => {
-      setIsCreateTemplateOpen(false);
-      resetCreateReferenceDraft();
+    const closeCreateLegalStudyModal = () => {
+      setIsCreateLegalStudyOpen(false);
+      resetCreateLegalStudyDraft();
     };
 
     const getNextFileIndex = useCallback(
@@ -7613,198 +8388,119 @@
       ],
     );
 
-    const handleCreateLegalReference = async (values) => {
+    const handleCreateLegalStudy = async (values) => {
       if (!requireCompany()) return;
-      setCreateTemplateLoading(true);
+      setCreateLegalStudyLoading(true);
       try {
         const userId = getCurrentUserId();
-        const mergedCaseIds = [];
-        if (values.caseIds && values.caseIds.length > 0) {
-          values.caseIds.forEach((caseId) => {
-            const numId = Number(caseId);
-            if (!mergedCaseIds.includes(numId)) {
-              mergedCaseIds.push(numId);
-            }
-          });
-        }
-        const payload = {
+        const internalCompanyId = extractId(values.internalCompanyId || activeCompanyId);
+        // Manager defaults to the creator (see resetCreateLegalStudyDraft)
+        // — keeps them from being locked out of their own Legal Study now
+        // that access is strictly Manager/Member-based.
+        const numericManagerId = createLegalStudyManagerId
+          ? Number(createLegalStudyManagerId)
+          : null;
+        const basePayload = {
           title: values.title?.trim(),
           description: values.description?.trim() || "",
-          internalCompanyId: extractId(
-            values.internalCompanyId || activeCompanyId,
-          ),
-          cases: mergedCaseIds,
-          priority: values.priority || null,
-          status: values.status || null,
+          internalCompanyId,
+          manager: numericManagerId,
+          managerId: numericManagerId,
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
-        const createRes = await createLegalReferenceRecord(payload);
-        const createdReference = createRes?.data?.data || createRes?.data || null;
-        const createdReferenceId = extractId(createdReference);
 
-        let attachmentUploadFailed = false;
-        if (
-          (createReferenceFiles.length || createReferenceFolderFiles.length) &&
-          !createdReferenceId
-        ) {
-          attachmentUploadFailed = true;
-          message.warning(
-            "Case Study was created, but its ID could not be detected for document upload.",
-          );
-        }
-        if (createdReferenceId && createReferenceFiles.length) {
-          const uploadOk = await uploadFilesToTarget(createReferenceFiles, {
-            storageType: "legal_reference",
-            legalReferenceId: createdReferenceId,
-            folderId: "root",
-            skipPermissionCheck: true,
-            refresh: false,
-            successMessage: false,
-            errorMessage: "Upload file for Case Study failed",
-          });
-          if (!uploadOk) attachmentUploadFailed = true;
-        }
-        if (createdReferenceId && createReferenceFolderFiles.length) {
-          const uploadOk = await uploadFolderFilesToTarget(
-            createReferenceFolderFiles,
-            {
-              storageType: "legal_reference",
-              legalReferenceId: createdReferenceId,
-              folderId: "root",
-              skipPermissionCheck: true,
-              refresh: false,
-              showProgress: false,
-              successMessage: false,
-              errorMessage: "Upload folder for Case Study failed",
-            },
-          );
-          if (!uploadOk) attachmentUploadFailed = true;
-        }
-        if (attachmentUploadFailed) {
-          message.warning(
-            "Case Study was created, but some documents failed to upload.",
-          );
-        } else {
-          message.success("Case Study created successfully.");
-        }
-        closeCreateReferenceModal();
-        loadData();
-      } catch (e) {
-        console.error(e);
-        message.error("Create Case Study failed.");
-      } finally {
-        setCreateTemplateLoading(false);
-      }
-    };
+        const createRes = await createLegalStudyRecord(basePayload);
+        const createdStudy = createRes?.data?.data || createRes?.data || null;
+        const studyId = extractId(createdStudy);
 
-    const handleEditTemplateSubmit = async (values) => {
-      if (!editTemplateRecord) return;
-      setEditTemplateLoading(true);
-      try {
-        const newTitle = values.title?.trim();
-        const rId = extractId(editTemplateRecord);
-        const candidates = [
-          `legalReference:update?filterByTk=${rId}`,
-          `legalReferences:update?filterByTk=${rId}`,
-          `LegalReference:update?filterByTk=${rId}`,
-        ];
-        let success = false;
-        let lastError = null;
-        for (const url of candidates) {
-          try {
-            await ctx.api.request({
-              url,
-              method: "POST",
-              data: { title: newTitle },
-            });
-            success = true;
-            break;
-          } catch (e) {
-            lastError = e;
-          }
-        }
-        if (!success) {
-          throw lastError || new Error("Failed to update case title");
-        }
-        message.success("Case Study updated successfully!");
-        setEditTemplateRecord(null);
-        editTemplateForm.resetFields();
-        loadData();
-      } catch (e) {
-        message.error("Update failed");
-      } finally {
-        setEditTemplateLoading(false);
-      }
-    };
-
-    const openLegalReferenceDetail = useCallback((recordOrId) => {
-      const refId = String(extractId(recordOrId) || "");
-      if (!refId) return;
-      setActiveSpace("legal_reference");
-      setActiveLegalReferenceId(refId);
-      setSelectedFolderId("root");
-    }, []);
-
-    const openLinkCaseModal = useCallback(
-      (record) => {
-        if (!record) return;
-        const linkedIds = (record.cases || []).map((item) =>
-          String(extractId(item)),
-        );
-        setLinkCaseRecord(record);
-        linkCaseForm.resetFields();
-        linkCaseForm.setFieldsValue({ caseIds: linkedIds });
-        setIsLinkCaseOpen(true);
-      },
-      [linkCaseForm],
-    );
-
-    const handleLinkCaseSubmit = async (values) => {
-      setLinkCaseLoading(true);
-      try {
-        const targetLegalReferenceId = String(
-          extractId(linkCaseRecord) || activeLegalReferenceId || "",
-        );
-        if (!targetLegalReferenceId) {
-          message.warning("Please select a Case Study to link");
+        if (!studyId) {
+          message.error(`Create ${LEGAL_STUDY_LABEL} failed: could not detect its ID.`);
           return;
         }
-        const payload = {
-          cases: (values.caseIds || []).map((caseId) => Number(caseId)),
-        };
-        const candidates = [
-          `legalReference:update?filterByTk=${targetLegalReferenceId}`,
-          `legalReferences:update?filterByTk=${targetLegalReferenceId}`,
-          `LegalReference:update?filterByTk=${targetLegalReferenceId}`,
-        ];
-        let success = false;
-        let lastError = null;
-        for (const url of candidates) {
-          try {
-            await ctx.api.request({
-              url,
-              method: "POST",
-              data: payload,
+
+        let issueOccurred = false;
+        let rootFolderId = null;
+        // Every Legal Study record gets exactly one root folder, tagged with
+        // the same folderTemplateKey the case-bound (system-generated) Legal
+        // Study folders use — this is what makes the entry show up in the
+        // Legal Study gallery below, whether or not the user uploaded
+        // anything.
+        try {
+          const nowIso = new Date().toISOString();
+          const folderRes = await createFolderRecord({
+            name: values.title?.trim() || LEGAL_STUDY_LABEL,
+            type: "custom",
+            folderTemplateKey: LEGAL_STUDY_FOLDER_TEMPLATE_KEY,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            ...(userId ? { createdById: userId, updatedById: userId } : {}),
+            ...buildLegalStudyDocumentScopePayload({ internalCompanyId, legalStudyId: studyId }),
+          });
+          rootFolderId = extractId(folderRes?.data?.data || folderRes?.data);
+        } catch (e) {
+          issueOccurred = true;
+          console.error("[Library] create legal study root folder failed", e);
+          message.warning(`${LEGAL_STUDY_LABEL} created, but its root folder could not be created.`);
+        }
+
+        const caseIds = Array.from(
+          new Set((values.caseIds || []).map((id) => extractId(id)).filter(Boolean)),
+        );
+        if (caseIds.length) {
+          for (const caseId of caseIds) {
+            await linkCaseToLegalStudy(studyId, caseId).catch((e) => {
+              issueOccurred = true;
+              console.error("[Library] link case to legal study failed", e);
             });
-            success = true;
-            break;
-          } catch (e) {
-            lastError = e;
           }
         }
-        if (!success) {
-          throw lastError || new Error("Failed to update case links");
+
+        if (createLegalStudyMemberIds.length) {
+          // Members picked here default to Viewer — the Manager can
+          // promote anyone to Editor/Contributed afterward via
+          // Permissions (matches the "default role over creation UI"
+          // convention used elsewhere in this file).
+          await Promise.all(
+            createLegalStudyMemberIds.map((memberId) =>
+              createEntityMemberRow(
+                "legalStudyId",
+                studyId,
+                memberId,
+                "viewer",
+              ).catch((e) => {
+                issueOccurred = true;
+                console.error("[Library] assign member to new Legal Study failed", e);
+              }),
+            ),
+          );
         }
-        message.success("Case links updated successfully");
-        setIsLinkCaseOpen(false);
-        setLinkCaseRecord(null);
-        linkCaseForm.resetFields();
+
+        const uploadContext = { internalCompanyId, legalStudyId: studyId, folderId: rootFolderId };
+        if (createLegalStudyFiles.length) {
+          await uploadFilesToLegalStudy(createLegalStudyFiles, uploadContext).catch((e) => {
+            issueOccurred = true;
+            console.error("[Library] upload files to legal study failed", e);
+          });
+        }
+        if (createLegalStudyFolderFiles.length) {
+          await uploadFolderFilesToLegalStudy(createLegalStudyFolderFiles, uploadContext).catch((e) => {
+            issueOccurred = true;
+            console.error("[Library] upload folder to legal study failed", e);
+          });
+        }
+
+        if (issueOccurred) {
+          message.warning(`${LEGAL_STUDY_LABEL} created, but some related data failed to save.`);
+        } else {
+          message.success(`${LEGAL_STUDY_LABEL} created successfully.`);
+        }
+        closeCreateLegalStudyModal();
         loadData();
       } catch (e) {
-        console.error("Error linking case:", e);
-        message.error("Error linking case");
+        console.error("[Library] create legal study failed", e);
+        message.error(`Create ${LEGAL_STUDY_LABEL} failed.`);
       } finally {
-        setLinkCaseLoading(false);
+        setCreateLegalStudyLoading(false);
       }
     };
 
@@ -7900,20 +8596,6 @@
         metadata,
       });
       if (ok) setUploadFieldsTarget(null);
-    };
-
-    const handleCreateReferenceFileSelect = (event) => {
-      const files = Array.from(event.target.files || []);
-      event.target.value = null;
-      if (!files.length) return;
-      setCreateReferenceFiles((prev) => prev.concat(files));
-    };
-
-    const handleCreateReferenceFolderSelect = (event) => {
-      const files = Array.from(event.target.files || []);
-      event.target.value = null;
-      if (!files.length) return;
-      setCreateReferenceFolderFiles((prev) => prev.concat(files));
     };
 
     const handleFolderInputTrigger = (event) => {
@@ -8181,6 +8863,11 @@
         message.warning("Can only permanently delete items in Trash");
         return;
       }
+      // Hard delete is admin-only — every other role may only restore.
+      if (!isAdminUser(currentUserState)) {
+        message.warning("Only administrators can permanently delete items.");
+        return;
+      }
       if (!getBulkRecordsWithPermission("canDelete", "permanently delete")) return;
       Modal.confirm({
         title: `Permanently delete ${selectedRowKeys.length} selected items?`,
@@ -8238,6 +8925,15 @@
 
     const handleBulkDelete = async () => {
       if (selectedRowKeys.length === 0) return;
+      // Defense in depth — the bulk bar's "Move to Trash" button is already
+      // hidden for non-admins outside My Documents (canBulkMoveToTrashSelected).
+      if (
+        activeSpace !== MY_DOCUMENT_STORAGE_TYPE &&
+        !isAdminUser(currentUserState)
+      ) {
+        message.warning("Only administrators can delete these items.");
+        return;
+      }
 
       const records = getBulkRecordsWithPermission("canDelete", "delete");
       if (!records) return;
@@ -8743,6 +9439,28 @@
     };
 
     const showDeleteConfirm = (folder) => {
+      // Same lock as rename — system-generated template folders (Legal
+      // Study, LSC & Related, Legal docs, Legal dossiers, Report and
+      // Result) can never be deleted from here, regardless of role.
+      if (isRenameLockedFolder(folder)) {
+        message.error("Folder mẫu hệ thống không được xoá.");
+        return;
+      }
+      // A standalone Legal Study's root folder can never be deleted either,
+      // not even by an admin — this is the Legal Study "record" itself.
+      if (isLegalStudyRootFolder(folder)) {
+        message.error(`${LEGAL_STUDY_LABEL} không được phép xoá.`);
+        return;
+      }
+      // Defense in depth — the Move to Trash trigger (context menu / row
+      // action) is already hidden for non-admins outside My Documents.
+      if (
+        activeSpace !== MY_DOCUMENT_STORAGE_TYPE &&
+        !isAdminUser(currentUserState)
+      ) {
+        message.warning("Only administrators can move this folder to Trash.");
+        return;
+      }
       const fId = extractId(folder);
       const folderIdsToDelete = getDescendantIds(fId);
       // Include the folder itself
@@ -8853,6 +9571,15 @@
     };
 
     const handleDeleteFile = (record) => {
+      // Defense in depth — the Move to Trash trigger (context menu) is
+      // already hidden for non-admins outside My Documents.
+      if (
+        activeSpace !== MY_DOCUMENT_STORAGE_TYPE &&
+        !isAdminUser(currentUserState)
+      ) {
+        message.warning("Only administrators can move this file to Trash.");
+        return;
+      }
       Modal.confirm({
         title: "Move file to Trash?",
         icon: React.createElement(
@@ -8886,6 +9613,78 @@
       });
     };
 
+    // Standalone (Group 2) Legal Study root folders carry a legalStudyId
+    // back to their own legalStudy record — restoring/permanently-deleting
+    // just the folder row in Trash (the only unit Trash operates on) would
+    // otherwise leave that record's own isDeleted state out of sync. Case-bound
+    // (Group 1) folders always have a projectId and never own a legalStudy
+    // record here, so they're a no-op.
+    const isStandaloneLegalStudyFolder = (record) =>
+      record?._type === "folder" &&
+      record?.folderTemplateKey === LEGAL_STUDY_FOLDER_TEMPLATE_KEY &&
+      !getFolderCaseProjectId(record) &&
+      !!extractId(record?.legalStudyId);
+
+    const restoreLegalStudyRecordIfNeeded = async (record) => {
+      if (!isStandaloneLegalStudyFolder(record)) return;
+      const studyId = extractId(record.legalStudyId);
+      for (const url of [
+        `legalStudy:update?filterByTk=${studyId}`,
+        `legalStudies:update?filterByTk=${studyId}`,
+      ]) {
+        try {
+          await ctx.api.request({
+            url,
+            method: "POST",
+            data: { isDeleted: false, deletedAt: null },
+          });
+          return;
+        } catch {}
+      }
+    };
+
+    const destroyLegalStudyRecordIfNeeded = async (record) => {
+      if (!isStandaloneLegalStudyFolder(record)) return;
+      const studyId = extractId(record.legalStudyId);
+      for (const url of [
+        `legalStudy:destroy?filterByTk=${studyId}`,
+        `legalStudies:destroy?filterByTk=${studyId}`,
+      ]) {
+        try {
+          await ctx.api.request({ url, method: "POST" });
+          return;
+        } catch {}
+      }
+    };
+
+    // Case Study (legalReference) has no single "root folder" the way
+    // Legal Study does — every folder/document under it carries its own
+    // legalReferenceId directly. So restoring ANY one of them also restores
+    // the parent record (harmless no-op if it wasn't deleted). We don't
+    // mirror this for permanent delete: hard-deleting one file/folder under
+    // a Case Study must not destroy the whole record, since it can hold
+    // many files — only handleDeleteCaseStudy (or an admin hard-deleting
+    // the Trash row for the Case Study record itself, if ever exposed)
+    // should do that.
+    const restoreCaseStudyRecordIfNeeded = async (record) => {
+      const refId = extractId(record?.legalReferenceId);
+      if (!refId) return;
+      for (const url of [
+        `legalReference:update?filterByTk=${refId}`,
+        `legalReferences:update?filterByTk=${refId}`,
+        `LegalReference:update?filterByTk=${refId}`,
+      ]) {
+        try {
+          await ctx.api.request({
+            url,
+            method: "POST",
+            data: { isDeleted: false, deletedAt: null },
+          });
+          return;
+        } catch {}
+      }
+    };
+
     const handleRestoreRecord = async (record) => {
       try {
         if (record._type === "folder") {
@@ -8894,12 +9693,15 @@
             method: "POST",
             data: { isDeleted: false, deletedAt: null },
           });
+          await restoreLegalStudyRecordIfNeeded(record);
+          await restoreCaseStudyRecordIfNeeded(record);
         } else {
           await ctx.api.request({
             url: `documents:update?filterByTk=${extractId(record)}`,
             method: "POST",
             data: { isDeleted: false, deletedAt: null },
           });
+          await restoreCaseStudyRecordIfNeeded(record);
         }
         await createTrashActivityLog(record, "restored");
         message.success("Restored successfully");
@@ -8912,6 +9714,12 @@
     const handlePermanentDelete = (record) => {
       if (activeSpace !== "trash") {
         message.warning("Can only permanently delete items in Trash");
+        return;
+      }
+      // Hard delete is admin-only — every other role may only restore from
+      // Trash. Soft-delete (Move to Trash) already covers everyday deletion.
+      if (!isAdminUser(currentUserState)) {
+        message.warning("Only administrators can permanently delete items.");
         return;
       }
       Modal.confirm({
@@ -8936,6 +9744,7 @@
                 url: `folders:destroy?filterByTk=${extractId(record)}`,
                 method: "POST",
               });
+              await destroyLegalStudyRecordIfNeeded(record);
             } else {
               await ctx.api.request({
                 url: `documents:destroy?filterByTk=${extractId(record)}`,
@@ -8983,61 +9792,25 @@
     };
 
     const handleDeleteTemplate = async (templateRecord) => {
-      const isLegalRef = !!(
-        templateRecord.referenceCode ||
-        templateRecord._type === "legal_reference_record" ||
-        activeSpace === "legal_reference"
-      );
       Modal.confirm({
-        title: isLegalRef
-          ? `Confirm deletion of Case Study "${templateRecord.title || templateRecord.name}"?`
-          : `Confirm deletion of document type "${templateRecord.title || templateRecord.name}"?`,
+        title: `Confirm deletion of document type "${templateRecord.title || templateRecord.name}"?`,
         icon: React.createElement(
           "span",
           { style: { color: "#faad14", marginRight: 16 } },
           WarningIcon,
         ),
-        content: isLegalRef
-          ? "Are you sure you want to delete this Case Study? Documents and folders belonging to this case will remain in Trash or become unlinked."
-          : "Are you sure you want to delete this document type? Documents under this type will remain stored but will no longer be linked.",
+        content:
+          "Are you sure you want to delete this document type? Documents under this type will remain stored but will no longer be linked.",
         okText: "Delete",
         okType: "danger",
         cancelText: "Cancel",
         onOk: async () => {
           try {
-            if (isLegalRef) {
-              const candidates = [
-                `legalReference:destroy?filterByTk=${extractId(templateRecord)}`,
-                `legalReferences:destroy?filterByTk=${extractId(templateRecord)}`,
-                `LegalReference:destroy?filterByTk=${extractId(templateRecord)}`,
-              ];
-              let success = false;
-              let lastError = null;
-              for (const url of candidates) {
-                try {
-                  await ctx.api.request({ url, method: "POST" });
-                  success = true;
-                  break;
-                } catch (e) {
-                  lastError = e;
-                }
-              }
-              if (!success) throw lastError || new Error("Failed to delete");
-            } else {
-              await ctx.api.request({
-                url: `${INTERNAL_TEMPLATE_COLLECTION}:destroy?filterByTk=${extractId(templateRecord)}`,
-                method: "POST",
-              });
-            }
-            message.success(
-              isLegalRef ? "Case Study deleted" : "Document type deleted",
-            );
-            if (
-              isLegalRef &&
-              activeLegalReferenceId === String(extractId(templateRecord))
-            ) {
-              setActiveLegalReferenceId(null);
-            }
+            await ctx.api.request({
+              url: `${INTERNAL_TEMPLATE_COLLECTION}:destroy?filterByTk=${extractId(templateRecord)}`,
+              method: "POST",
+            });
+            message.success("Document type deleted");
             loadData();
           } catch (e) {
             message.error("Delete failed");
@@ -9057,37 +9830,7 @@
         const rType = renameRecord._type;
         const rId = extractId(renameRecord);
 
-        const isLegalRef = !!(
-          renameRecord.referenceCode ||
-          renameRecord._type === "legal_reference_record"
-        );
-
-        if (isLegalRef) {
-          const candidates = [
-            `legalReference:update?filterByTk=${rId}`,
-            `legalReferences:update?filterByTk=${rId}`,
-            `LegalReference:update?filterByTk=${rId}`,
-          ];
-          let success = false;
-          let lastError = null;
-          for (const url of candidates) {
-            try {
-              await ctx.api.request({
-                url,
-                method: "POST",
-                data: { title: newName },
-              });
-              success = true;
-              break;
-            } catch (e) {
-              lastError = e;
-            }
-          }
-          if (!success) {
-            throw lastError || new Error("Failed to rename");
-          }
-          message.success("Case Study renamed");
-        } else if (rType === "template" || rType === "document_type") {
+        if (rType === "template" || rType === "document_type") {
           await ctx.api.request({
             url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
             method: "POST",
@@ -9448,50 +10191,6 @@
         const isFolder = record._type === "folder";
         const isTemplate =
           record._type === "template" || record._type === "document_type";
-        const isLegalReferenceRecord = record._type === "legal_reference_record";
-
-        if (isLegalReferenceRecord) {
-          items.push({
-            key: "open_detail",
-            label: renderContextMenuItemLabel(EYE_ICON, "Open details"),
-            onClick: () => {
-              closeContextMenu();
-              openLegalReferenceDetail(record);
-            },
-          });
-          items.push({
-            key: "link_case",
-            label: renderContextMenuItemLabel(LINK_CASE_ICON, "Link Case"),
-            onClick: () => {
-              closeContextMenu();
-              openLinkCaseModal(record);
-            },
-          });
-          items.push({
-            key: "rename",
-            label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
-            onClick: () => {
-              closeContextMenu();
-              setRenameRecord(record);
-              renameForm.setFieldsValue({
-                name: record.title || record.name || "",
-              });
-            },
-          });
-          items.push({
-            key: "delete",
-            label: renderContextMenuItemLabel(
-              DELETE_ICON,
-              "Delete Case Study",
-              "#cf1322",
-            ),
-            onClick: () => {
-              closeContextMenu();
-              handleDeleteTemplate(record);
-            },
-          });
-          return items;
-        }
 
         if (isTemplate) {
           items.push({
@@ -9529,24 +10228,41 @@
               handleRestoreRecord(record);
             },
           });
-          items.push({
-            key: "permanent_delete",
-            label: renderContextMenuItemLabel(
-              DELETE_ICON,
-              "Permanently Delete",
-              "#cf1322",
-            ),
-            onClick: () => {
-              closeContextMenu();
-              handlePermanentDelete(record);
-            },
-          });
+          // Hard delete is admin-only — every other role only gets Restore.
+          if (isAdminUser(currentUserState)) {
+            items.push({
+              key: "permanent_delete",
+              label: renderContextMenuItemLabel(
+                DELETE_ICON,
+                "Permanently Delete",
+                "#cf1322",
+              ),
+              onClick: () => {
+                closeContextMenu();
+                handlePermanentDelete(record);
+              },
+            });
+          }
           return items;
         }
 
-        const { canRename: rawCanRename, canMove, canDelete, canShare, canManagePermissions } =
+        const { canRename: rawCanRename, canMove, canDelete: rawCanDelete, canShare, canManagePermissions } =
           getRecordPerms(record);
-        const canRename = rawCanRename && !isRenameLockedFolder(record);
+        const isLocked = isRenameLockedFolder(record);
+        const canRename = rawCanRename && !isLocked;
+        // Same lock as rename — system template folders can never be
+        // deleted from the context menu either, regardless of role.
+        // Move to Trash is admin-only outside My Documents — a Manager/
+        // Editor/Contributed member with role-based canDelete can still
+        // move/edit, but only an admin can delete a shared record/folder,
+        // so an accidental delete by a delegated collaborator can't happen.
+        // Personal space keeps role-based canDelete since only the owner
+        // themselves ever holds it there.
+        const canDelete =
+          rawCanDelete &&
+          !isLocked &&
+          (activeSpace === MY_DOCUMENT_STORAGE_TYPE ||
+            isAdminUser(currentUserState));
 
         if (!isFolder) {
           items.push({
@@ -9603,13 +10319,13 @@
           });
         }
 
-        if (isFolder && canManagePermissions) {
+        if (isFolder && canManagePermissions && isFolderTreeRoot(record, visibleFolders)) {
           items.push({
             key: "permission",
             label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
             onClick: () => {
               closeContextMenu();
-              setPermissionFolder(record);
+              setPermissionTarget({ kind: "folder", folder: record });
             },
           });
         }
@@ -9635,9 +10351,9 @@
       [
         getRecordPerms,
         currentUserState,
+        currentLawyerId,
         activeSpace,
-        openLegalReferenceDetail,
-        openLinkCaseModal,
+        visibleFolders,
       ],
     );
 
@@ -9725,23 +10441,41 @@
                   }}
                 />
               </Tooltip>
-              <Tooltip title="Permanently Delete">
-                <Button
-                  size="small"
-                  danger
-                  icon={DELETE_ICON}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handlePermanentDelete(record);
-                  }}
-                />
-              </Tooltip>
+              {isAdminUser(currentUser) && (
+                <Tooltip title="Permanently Delete">
+                  <Button
+                    size="small"
+                    danger
+                    icon={DELETE_ICON}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePermanentDelete(record);
+                    }}
+                  />
+                </Tooltip>
+              )}
             </div>
           );
         }
-        const { canRename: rawCanRename, canMove, canDelete, canManagePermissions } =
-          getRecordPerms(record);
-        const canRename = rawCanRename && !isRenameLockedFolder(record);
+        const {
+          canRename: rawCanRename,
+          canMove,
+          canDelete: rawCanDelete,
+          canManagePermissions: rawCanManagePermissions,
+        } = getRecordPerms(record);
+        const isLocked = isRenameLockedFolder(record);
+        const canRename = rawCanRename && !isLocked;
+        // Same lock as rename — system template folders can never be
+        // deleted from here either, regardless of role. Also admin-only
+        // outside My Documents — see renderContextMenuItems for why.
+        const canDelete =
+          rawCanDelete &&
+          !isLocked &&
+          (activeSpace === MY_DOCUMENT_STORAGE_TYPE ||
+            isAdminUser(currentUser));
+        // Permissions is root-folder-only now — never shown on a subfolder.
+        const canManagePermissions =
+          rawCanManagePermissions && isFolderTreeRoot(record, visibleFolders);
         if (!canRename && !canMove && !canDelete && !canManagePermissions)
           return null;
         return (
@@ -9755,7 +10489,7 @@
                   icon={LOCK_ICON}
                   onClick={(event) => {
                     event.stopPropagation();
-                    setPermissionFolder(record);
+                    setPermissionTarget({ kind: "folder", folder: record });
                   }}
                 />
               </Tooltip>
@@ -9828,35 +10562,39 @@
                   }}
                 />
               </Tooltip>
-              <Tooltip title="Permanently Delete">
-                <Button
-                  size="small"
-                  danger
-                  icon={DELETE_ICON}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handlePermanentDelete(record);
-                  }}
-                />
-              </Tooltip>
+              {isAdminUser(currentUser) && (
+                <Tooltip title="Permanently Delete">
+                  <Button
+                    size="small"
+                    danger
+                    icon={DELETE_ICON}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePermanentDelete(record);
+                    }}
+                  />
+                </Tooltip>
+              )}
             </div>
           );
         }
-        const { canShare } = getRecordPerms(record);
+        const { canShare, canRename } = getRecordPerms(record);
         return (
           <div
             style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}
           >
-            <Tooltip title="Preview">
-              <Button
-                size="small"
-                icon={EYE_ICON}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  previewRecordFile(record);
-                }}
-              />
-            </Tooltip>
+            {canRename && (
+              <Tooltip title="Rename">
+                <Button
+                  size="small"
+                  icon={EDIT_ICON}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    startEditTitle(record);
+                  }}
+                />
+              </Tooltip>
+            )}
             <Tooltip title="Download">
               <Button
                 size="small"
@@ -9882,182 +10620,6 @@
           </div>
         );
       };
-
-      if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
-        return [
-          {
-            title: "STT",
-            key: "stt",
-            width: 60,
-            align: "center",
-            render: (_, __, index) => index + 1,
-          },
-          {
-            title: "Case Study Name",
-            key: "title",
-            minWidth: 250,
-            sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
-            render: (_, record) => (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openLegalReferenceDetail(record);
-                }}
-                style={{
-                  border: 0,
-                  background: "transparent",
-                  padding: 0,
-                  cursor: "pointer",
-                  fontFamily: FONT,
-                  fontWeight: 700,
-                  color: "#185FA5",
-                  textAlign: "left",
-                }}
-              >
-                {record.title || "—"}
-              </button>
-            ),
-          },
-          {
-            title: "Case Summary",
-            key: "description",
-            minWidth: 200,
-            render: (_, record) => (
-              <Text type="secondary">{record.description || "—"}</Text>
-            ),
-          },
-          {
-            title: "Linked Cases",
-            key: "linkedCases",
-            minWidth: 200,
-            render: (_, record) => (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
-                {(record.cases || []).length === 0 ? (
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "#9CA3AF",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    Not linked
-                  </span>
-                ) : (
-                  (() => {
-                    const list = record.cases || [];
-                    const visibleCount = 2;
-                    const visibleItems = list.slice(0, visibleCount);
-                    const extraItems = list.slice(visibleCount);
-                    const getDisplayName = (project) => {
-                      return project.projectName
-                        ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}`
-                        : `Case #${extractId(project)}`;
-                    };
-                    return (
-                      <React.Fragment>
-                        {visibleItems.map((project, idx) => (
-                          <Tag
-                            key={idx}
-                            color="default"
-                            style={{
-                              borderRadius: 4,
-                              margin: 0,
-                              maxWidth: 150,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={getDisplayName(project)}
-                          >
-                            {getDisplayName(project)}
-                          </Tag>
-                        ))}
-                        {extraItems.length > 0 && (
-                          <Tooltip
-                            title={
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 4,
-                                  maxHeight: 250,
-                                  overflowY: "auto",
-                                }}
-                              >
-                                {extraItems.map((project, idx) => (
-                                  <div key={idx}>{getDisplayName(project)}</div>
-                                ))}
-                              </div>
-                            }
-                          >
-                            <Tag
-                              color="default"
-                              style={{
-                                borderRadius: 4,
-                                margin: 0,
-                                cursor: "pointer",
-                                fontWeight: 600,
-                              }}
-                            >
-                              +{extraItems.length} more
-                            </Tag>
-                          </Tooltip>
-                        )}
-                      </React.Fragment>
-                    );
-                  })()
-                )}
-              </div>
-            ),
-          },
-          {
-            title: "Actions",
-            key: "actions",
-            width: 100,
-            align: "right",
-            render: (_, record) => (
-              <div
-                style={{
-                  display: "inline-flex",
-                  justifyContent: "flex-end",
-                  gap: 6,
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Tooltip title="Link Case">
-                  <Button
-                    size="small"
-                    icon={LINK_CASE_ICON}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openLinkCaseModal(record);
-                    }}
-                  />
-                </Tooltip>
-                <Tooltip title="Delete Case Study">
-                  <Button
-                    size="small"
-                    danger
-                    icon={DELETE_ICON}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteTemplate(record);
-                    }}
-                  />
-                </Tooltip>
-              </div>
-            ),
-          },
-        ];
-      }
 
       if (isAllFolders) {
         if (activeSpace === "trash") {
@@ -10098,7 +10660,7 @@
               ),
             },
             {
-              title: "Upload Date",
+              title: "Upload At",
               key: "createdAt",
               width: 150,
               sorter: (a, b) =>
@@ -10135,6 +10697,7 @@
               key: "actions",
               width: 120,
               align: "right",
+              fixed: "right",
               render: (_, record) => renderFolderActions(record),
             },
           ];
@@ -10169,7 +10732,7 @@
             ),
           },
           {
-            title: "Created Date",
+            title: "Created At",
             key: "createdAt",
             width: 150,
             sorter: (a, b) =>
@@ -10191,6 +10754,7 @@
             key: "actions",
             width: 120,
             align: "right",
+            fixed: "right",
             render: (_, record) => renderFolderActions(record),
           },
         ];
@@ -10326,7 +10890,7 @@
               ),
             },
             {
-              title: "Upload Date",
+              title: "Upload At",
               key: "uploadedAt",
               width: 160,
               sorter: (a, b) =>
@@ -10365,6 +10929,7 @@
               key: "actions",
               width: 120,
               align: "right",
+              fixed: "right",
               render: (_, record) => renderFileActions(record),
             },
           ];
@@ -10404,7 +10969,7 @@
             ),
           },
           {
-            title: "Upload Date",
+            title: "Upload At",
             key: "uploadedAt",
             width: 160,
             sorter: (a, b) =>
@@ -10426,6 +10991,7 @@
             key: "actions",
             width: 120,
             align: "right",
+            fixed: "right",
             render: (_, record) => renderFileActions(record),
           },
         ];
@@ -10477,7 +11043,7 @@
             },
           },
           {
-            title: "Created Date",
+            title: "Created At",
             key: "createdAt",
             width: 120,
             sorter: (a, b) =>
@@ -10501,7 +11067,7 @@
               ),
           },
           {
-            title: "Upload Date",
+            title: "Upload At",
             key: "uploadedAt",
             width: 150,
             sorter: (a, b) =>
@@ -10543,6 +11109,7 @@
             key: "actions",
             width: 120,
             align: "right",
+            fixed: "right",
             render: (_, record) =>
               record._type === "folder"
                 ? renderFolderActions(record)
@@ -10596,7 +11163,7 @@
           },
         },
         {
-          title: "Created Date",
+          title: "Created At",
           key: "createdAt",
           width: 120,
           sorter: (a, b) =>
@@ -10609,7 +11176,7 @@
             ),
         },
         {
-          title: "Upload Date",
+          title: "Upload At",
           key: "uploadedAt",
           width: 150,
           sorter: (a, b) =>
@@ -10637,6 +11204,7 @@
           key: "actions",
           width: 120,
           align: "right",
+          fixed: "right",
           render: (_, record) =>
             record._type === "folder"
               ? renderFolderActions(record)
@@ -10657,14 +11225,11 @@
       activeSpace,
       getFolderSize,
       getRecordPerms,
-      openLegalReferenceDetail,
-      openLinkCaseModal,
     ]);
 
     const rowDragProps = (record) => {
       const canDrag =
         activeSpace !== "trash" &&
-        record._type !== "legal_reference_record" &&
         getRecordPerms(record).canMove;
       return {
         draggable: canDrag,
@@ -10749,11 +11314,6 @@
               y: e.clientY,
               record,
             });
-          }
-        },
-        onClick: () => {
-          if (record._type === "legal_reference_record") {
-            openLegalReferenceDetail(record);
           }
         },
         style: getDropTargetStyle(record),
@@ -10996,6 +11556,31 @@
       ],
     );
 
+    // Adapter config for the shared PermissionManagerModal — computed once
+    // per permissionTarget change so its loadPermissions/savePermissions
+    // closures stay stable while the modal is open (its effect only reacts
+    // to `open`, not to these closures' identity).
+    const permissionModalConfig = useMemo(() => {
+      if (!permissionTarget) return null;
+      if (permissionTarget.kind === "folder") {
+        const folder = permissionTarget.folder;
+        return {
+          title: `Folder permissions: ${folder?.name || ""}`,
+          loadPermissions: () => loadFolderPermissions(folder),
+          savePermissions: (managerId, members) =>
+            saveFolderPermissions(folder, customerCaseFolders, managerId, members),
+        };
+      }
+      const { record, kind } = permissionTarget;
+      const fkField = ENTITY_MEMBER_FK_FIELD[kind];
+      return {
+        title: `${LEGAL_STUDY_LABEL} permissions: ${record?.title || record?.name || ""}`,
+        loadPermissions: () => loadEntityPermissions(record, fkField),
+        savePermissions: (managerId, members) =>
+          saveEntityPermissions(record, kind, fkField, managerId, members),
+      };
+    }, [permissionTarget, customerCaseFolders]);
+
     if (loading && companies.length === 0 && documents.length === 0) {
       return (
         <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
@@ -11084,65 +11669,80 @@
                           message.warning("Could not find this case's root folder.");
                           return;
                         }
-                        setPermissionFolder(caseRootEntry.folder);
+                        setPermissionTarget({ kind: "folder", folder: caseRootEntry.folder });
                       },
                     });
-                  } else if (space === "legal_reference") {
-                    items.push({
-                      key: "open",
-                      label: renderContextMenuItemLabel(EYE_ICON, "Open"),
-                      onClick: () => {
-                        setEntityContextMenu((p) => ({ ...p, open: false }));
-                        setActiveLegalReferenceId(recId);
-                        setSelectedFolderId("root");
-                      },
-                    });
-                    items.push({ type: "divider" });
-                    items.push({
-                      key: "rename",
-                      label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
-                      onClick: () => {
-                        setEntityContextMenu((p) => ({ ...p, open: false }));
-                        setEditTemplateRecord(rec);
-                        editTemplateForm.setFieldsValue({
-                          title: rec.title || "",
-                        });
-                      },
-                    });
-                    items.push({
-                      key: "delete",
-                      label: renderContextMenuItemLabel(
-                        DELETE_ICON,
-                        <span style={{ color: "#dc2626" }}>Delete</span>,
-                      ),
-                      onClick: () => {
-                        setEntityContextMenu((p) => ({ ...p, open: false }));
-                        Modal.confirm({
-                          title: "Delete Case Study?",
-                          content: `Delete "${getLegalReferenceDisplayName(rec)}" cannot be undone.`,
-                          okText: "Delete",
-                          okType: "danger",
-                          cancelText: "Cancel",
-                          onOk: async () => {
-                            try {
-                              for (const url of [
-                                `legalReference:destroy?filterByTk=${recId}`,
-                                `legalReferences:destroy?filterByTk=${recId}`,
-                              ]) {
-                                try {
-                                  await ctx.api.request({ url, method: "POST" });
-                                  break;
-                                } catch {}
-                              }
-                              message.success("Case Study deleted");
-                              loadData();
-                            } catch {
-                              message.error("Delete failed");
-                            }
+                  } else if (space === "legal_study") {
+                    // Grid cards pass rec: entry.folder — look the full
+                    // gallery entry back up (has .project/.study/._subtreeIds)
+                    // since renderEntityCard only has the folder itself.
+                    const entry = legalStudyEntitiesWithSubtree.find(
+                      (item) => String(extractId(item.folder)) === recId,
+                    );
+                    if (entry) {
+                      const perms = getFolderPermissions(
+                        entry.folder,
+                        currentUserState,
+                        customerCaseFolders,
+                        currentLawyerId,
+                        entityPermissionContext,
+                      );
+                      const canRenameFolder =
+                        perms.canRename && !isRenameLockedFolder(entry.folder);
+                      const isStandalone = !entry.project;
+
+                      items.push({
+                        key: "open",
+                        label: renderContextMenuItemLabel(EYE_ICON, "Open"),
+                        onClick: () => {
+                          setEntityContextMenu((p) => ({ ...p, open: false }));
+                          if (entry.customer)
+                            setActiveCustomerId(String(extractId(entry.customer)));
+                          if (entry.project)
+                            setActiveCaseId(String(extractId(entry.project)));
+                          setSelectedFolderId(String(extractId(entry.folder)));
+                        },
+                      });
+                      if (canRenameFolder) {
+                        items.push({
+                          key: "rename",
+                          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+                          onClick: () => {
+                            setEntityContextMenu((p) => ({ ...p, open: false }));
+                            setRenameRecord({ ...entry.folder, _type: "folder" });
+                            renameForm.setFieldsValue({
+                              name: entry.folder?.name || "Folder",
+                            });
                           },
                         });
-                      },
-                    });
+                      }
+                      // Manager+members permission (getLegalEntityPermissions)
+                      // only exists on the standalone legalStudy record
+                      // (entry.study) — case-bound (Group 1) folders never
+                      // own one, so this only ever appears for Group 2.
+                      if (
+                        isStandalone &&
+                        entry.study &&
+                        getLegalEntityPermissions(
+                          entry.study,
+                          currentUserState,
+                          currentLawyerId,
+                          "legal_study",
+                          entityPermissionContext,
+                        ).isManager
+                      ) {
+                        items.push({
+                          key: "permission",
+                          label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
+                          onClick: () => {
+                            setEntityContextMenu((p) => ({ ...p, open: false }));
+                            setPermissionTarget({ kind: "legal_study", record: entry.study });
+                          },
+                        });
+                      }
+                      // Legal Study can never be deleted, not even by an
+                      // admin — no Delete action is offered here.
+                    }
                   }
                   return items;
                 })()
@@ -11314,7 +11914,7 @@
                   style={{ height: 1, background: "#F3F4F6", margin: "4px 8px" }}
                 />
 
-                {/* ── FLAT NAV: Customer, Case Study, Legal Study ── */}
+                {/* ── FLAT NAV: Customer, Reference ── */}
                 {[
                   ...(canOpenCustomerSpace
                     ? [
@@ -11350,73 +11950,34 @@
                         },
                       ]
                     : []),
-                  ...(canOpenLegalReferenceSpace
-                    ? [
-                        {
-                          key: "legal_reference",
-                          label: "Case Study",
-                          icon: (
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
-                              <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
-                              <path d="M7 21h10" />
-                              <path d="M12 3v18" />
-                              <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
-                            </svg>
-                          ),
-                          isActive: activeSpace === "legal_reference",
-                          onClick: () => {
-                            setActiveSpace("legal_reference");
-                            setActiveLegalReferenceId(null);
-                            setActiveCustomerId(null);
-                            setActiveCaseId(null);
-                            setSelectedFolderId("root");
-                            setSidebarSearch("");
-                          },
-                        },
-                      ]
-                    : []),
-                  ...(canOpenLegalStudySpace
-                    ? [
-                        {
-                          key: LEGAL_STUDY_STORAGE_TYPE,
-                          label: "Legal Study",
-                          icon: (
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                              <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                            </svg>
-                          ),
-                          isActive: activeSpace === LEGAL_STUDY_STORAGE_TYPE,
-                          onClick: () => {
-                            setActiveSpace(LEGAL_STUDY_STORAGE_TYPE);
-                            setActiveLegalReferenceId(null);
-                            setActiveCustomerId(null);
-                            setActiveCaseId(null);
-                            setSelectedFolderId("root");
-                            setSidebarSearch("");
-                          },
-                        },
-                      ]
-                    : []),
+                  {
+                    key: LEGAL_STUDY_STORAGE_TYPE,
+                    label: LEGAL_STUDY_LABEL,
+                    icon: (
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                        <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                      </svg>
+                    ),
+                    isActive: activeSpace === LEGAL_STUDY_STORAGE_TYPE,
+                    onClick: () => {
+                      setActiveSpace(LEGAL_STUDY_STORAGE_TYPE);
+                      setActiveLegalReferenceId(null);
+                      setActiveCustomerId(null);
+                      setActiveCaseId(null);
+                      setSelectedFolderId("root");
+                      setSidebarSearch("");
+                    },
+                  },
                 ].map(({ key, label, icon, isActive, onClick }) => (
                   <button
                     key={key}
@@ -11804,7 +12365,7 @@
                       { value: "downloaded", label: "Download" },
                       {
                         value: "linked_legal_study",
-                        label: "Add to Legal Study",
+                        label: `Add to ${LEGAL_STUDY_LABEL}`,
                       },
                       { value: "shared_file", label: "Share document" },
                       { value: "unshared_file", label: "Unshare" },
@@ -12094,43 +12655,27 @@
                   <React.Fragment>
                     {activeSpace !== "trash" &&
                       (currentFolderPerms.canCreate ||
-                        (activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId) ||
                         (activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
                           !activeCustomerId &&
                           selectedFolderId === "root")) && (
                         <Dropdown
                           menu={
-                            activeSpace === "legal_reference" &&
-                            !activeLegalReferenceId
+                            activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
+                            !activeCustomerId &&
+                            selectedFolderId === "root"
                               ? {
                                   items: [
                                     {
-                                      key: "create_reference",
+                                      key: "create_legal_study",
                                       label: renderNewMenuLabel(
                                         TYPE_ICONS.folder,
-                                        "New Case Study",
+                                        `New ${LEGAL_STUDY_LABEL}`,
                                       ),
                                     },
                                   ],
-                                  onClick: openCreateReferenceModal,
+                                  onClick: openCreateLegalStudyModal,
                                 }
-                              : activeSpace === LEGAL_STUDY_STORAGE_TYPE &&
-                                  !activeCustomerId &&
-                                  selectedFolderId === "root"
-                                ? {
-                                    items: [
-                                      {
-                                        key: "create_legal_study",
-                                        label: renderNewMenuLabel(
-                                          TYPE_ICONS.folder,
-                                          "New Legal Study",
-                                        ),
-                                      },
-                                    ],
-                                    onClick: openCreateLegalStudyModal,
-                                  }
-                                : newMenu
+                              : newMenu
                           }
                           trigger={["click"]}
                         >
@@ -12197,23 +12742,6 @@
                 style={{ display: "none" }}
                 onChange={handleFolderInputTrigger}
               />
-              <input
-                ref={createReferenceFileInputRef}
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                onChange={handleCreateReferenceFileSelect}
-              />
-              <input
-                ref={createReferenceFolderInputRef}
-                type="file"
-                multiple
-                webkitdirectory="true"
-                directory="true"
-                style={{ display: "none" }}
-                onChange={handleCreateReferenceFolderSelect}
-              />
-
               {(externalDropActive || externalUploadInProgress) && (
                 <div
                   style={{
@@ -12561,6 +13089,110 @@
                     );
                   };
 
+                  // Reused by both the Legal Study gallery table and the
+                  // Customer case-root-folder gallery table, AND the Case
+                  // Study (legalReference) gallery table — same column set
+                  // (STT/Name/Size/Created At/Created By/Actions). Unlike
+                  // Legal Study/Customer (always folder-backed rows), Case
+                  // Study rows may have no folder at all yet (a reference
+                  // with no uploads/manual folder creation), so every cell
+                  // is resolved through an accessor callback rather than
+                  // reading `r.folder` directly — callers decide how to
+                  // fall back to the record itself when there's no folder.
+                  const renderEntityGalleryTable = ({
+                    items,
+                    rowKey,
+                    onOpen,
+                    contextMenuSpace,
+                    contextMenuRecord,
+                    getName,
+                    getSize,
+                    getCreatedAt,
+                    getCreatedBy,
+                    renderActions,
+                    rowSelection,
+                  }) => (
+                    <Table
+                      size="small"
+                      rowSelection={rowSelection}
+                      dataSource={items}
+                      rowKey={rowKey}
+                      onRow={(r) => ({
+                        onClick: () => onOpen(r),
+                        onContextMenu: (e) =>
+                          handleEntityCtx(e, contextMenuRecord(r), contextMenuSpace),
+                      })}
+                      pagination={{
+                        pageSize: 20,
+                        showSizeChanger: true,
+                        pageSizeOptions: ["20", "50", "100"],
+                        showTotal: (total) => `${total} items`,
+                      }}
+                      style={{
+                        background: "#fff",
+                        borderRadius: 10,
+                        border: "1px solid #E5E7EB",
+                      }}
+                      scroll={{ x: "max-content" }}
+                      columns={[
+                        {
+                          title: "STT",
+                          width: 52,
+                          render: (_, __, i) => i + 1,
+                        },
+                        {
+                          title: "Name",
+                          key: "name",
+                          render: (_, r) => (
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: "#111827",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
+                            >
+                              <span
+                                style={{ color: "#185FA5", display: "inline-flex" }}
+                              >
+                                {TYPE_ICONS.folder}
+                              </span>
+                              {getName(r)}
+                            </span>
+                          ),
+                        },
+                        {
+                          title: "Size",
+                          key: "size",
+                          width: 110,
+                          render: (_, r) => formatBytes(getSize(r)),
+                        },
+                        {
+                          title: "Created At",
+                          key: "createdAt",
+                          width: 110,
+                          render: (_, r) => formatDate(getCreatedAt(r)),
+                        },
+                        {
+                          title: "Created By",
+                          key: "createdBy",
+                          width: 160,
+                          render: (_, r) => getCreatedBy(r),
+                        },
+                        {
+                          title: "Actions",
+                          key: "actions",
+                          width: 160,
+                          align: "right",
+                          fixed: "right",
+                          render: (_, r) => renderActions(r),
+                        },
+                      ]}
+                    />
+                  );
+
                   /* ── LEGAL STUDY GALLERY (flat list of Case có folder
                      folderTemplateKey === "legal_study" — xem
                      legalStudyEntitiesWithSubtree) ── */
@@ -12643,109 +13275,94 @@
                     };
 
                     if (galleryViewMode === "table") {
-                      return (
-                        <Table
-                          size="small"
-                          dataSource={items}
-                          rowKey={(r) => String(extractId(r.folder))}
-                          onRow={(r) => ({
-                            onClick: () => openLegalStudyEntity(r),
-                          })}
-                          pagination={{
-                            pageSize: 20,
-                            showSizeChanger: true,
-                            pageSizeOptions: ["20", "50", "100"],
-                            showTotal: (total) => `${total} items`,
-                          }}
-                          style={{
-                            background: "#fff",
-                            borderRadius: 10,
-                            border: "1px solid #E5E7EB",
-                          }}
-                          columns={[
-                            {
-                              title: "STT",
-                              width: 52,
-                              render: (_, __, i) => i + 1,
-                            },
-                            {
-                              title: "Folder Name",
-                              key: "folderName",
-                              render: (_, r) => {
-                                const name = r.folder?.name || LEGAL_STUDY_LABEL;
-                                return (
-                                  <span
-                                    style={{
-                                      fontWeight: 600,
-                                      color: "#111827",
-                                      cursor: "pointer",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                    }}
-                                  >
-                                    <span style={{ color: "#185FA5", display: "inline-flex" }}>
-                                      {TYPE_ICONS.folder}
-                                    </span>
-                                    {name}
-                                  </span>
-                                );
-                              },
-                            },
-                            {
-                              title: "Related Case & Customer",
-                              key: "caseCustomer",
-                              render: (_, r) => {
-                                const label = formatCaseCustomerLabel(r);
-                                return (
-                                  <Tooltip title={label}>
-                                    <span style={{ color: "#374151" }}>{label}</span>
-                                  </Tooltip>
-                                );
-                              },
-                            },
-                            {
-                              title: "Size",
-                              key: "size",
-                              width: 110,
-                              render: (_, r) =>
-                                formatBytes(
-                                  legalStudyFolderSizeById[String(extractId(r.folder))],
-                                ),
-                            },
-                            {
-                              title: "Created Date",
-                              key: "createdAt",
-                              width: 110,
-                              render: (_, r) => formatDate(r.folder?.createdAt),
-                            },
-                            {
-                              title: "Created By",
-                              key: "createdBy",
-                              width: 160,
-                              render: (_, r) => getUploadUserName(r.folder),
-                            },
-                            {
-                              title: "Actions",
-                              key: "actions",
-                              width: 90,
-                              align: "right",
-                              render: (_, r) => (
-                                <Tooltip title="Open">
+                      return renderEntityGalleryTable({
+                        items,
+                        rowKey: (r) => String(extractId(r.folder)),
+                        onOpen: openLegalStudyEntity,
+                        contextMenuSpace: "legal_study",
+                        contextMenuRecord: (r) => r.folder,
+                        getName: (r) => r.folder?.name || LEGAL_STUDY_LABEL,
+                        getSize: (r) => legalStudyFolderSizeById[String(extractId(r.folder))],
+                        getCreatedAt: (r) => r.folder?.createdAt,
+                        getCreatedBy: (r) => getUploadUserName(r.folder),
+                        renderActions: (r) => {
+                          const perms = getFolderPermissions(
+                            r.folder,
+                            currentUserState,
+                            customerCaseFolders,
+                            currentLawyerId,
+                            entityPermissionContext,
+                          );
+                          const canRenameFolder =
+                            perms.canRename && !isRenameLockedFolder(r.folder);
+                          // Manager+members permission only exists on the
+                          // standalone legalStudy record (r.study) — Group
+                          // 1 (case-bound) never owns one.
+                          const canManageEntityPermissions =
+                            !r.project &&
+                            r.study &&
+                            getLegalEntityPermissions(
+                              r.study,
+                              currentUserState,
+                              currentLawyerId,
+                              "legal_study",
+                              entityPermissionContext,
+                            ).isManager;
+                          return (
+                            <div
+                              style={{
+                                display: "inline-flex",
+                                gap: 6,
+                                justifyContent: "flex-end",
+                              }}
+                            >
+                              <Tooltip title="Open">
+                                <Button
+                                  size="small"
+                                  icon={EYE_ICON}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openLegalStudyEntity(r);
+                                  }}
+                                />
+                              </Tooltip>
+                              {canRenameFolder && (
+                                <Tooltip title="Rename">
                                   <Button
                                     size="small"
-                                    icon={EYE_ICON}
+                                    icon={EDIT_ICON}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      openLegalStudyEntity(r);
+                                      setRenameRecord({
+                                        ...r.folder,
+                                        _type: "folder",
+                                      });
+                                      renameForm.setFieldsValue({
+                                        name: r.folder?.name || "Folder",
+                                      });
                                     }}
                                   />
                                 </Tooltip>
-                              ),
-                            },
-                          ]}
-                        />
-                      );
+                              )}
+                              {canManageEntityPermissions && (
+                                <Tooltip title="Permissions">
+                                  <Button
+                                    size="small"
+                                    icon={LOCK_ICON}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPermissionTarget({
+                                        kind: "legal_study",
+                                        record: r.study,
+                                      });
+                                    }}
+                                  />
+                                </Tooltip>
+                              )}
+                            </div>
+                          );
+                        },
+                      });
                     }
                     return (
                       <div style={{ fontFamily: FONT }}>
@@ -12753,8 +13370,8 @@
                           <Empty
                             description={
                               sidebarSearch
-                                ? "No Legal Study found"
-                                : "No case has a Legal Study folder yet"
+                                ? `No ${LEGAL_STUDY_LABEL} found`
+                                : `No case has a ${LEGAL_STUDY_LABEL} folder yet`
                             }
                             style={{ padding: "80px 0" }}
                           />
@@ -12864,7 +13481,7 @@
                                 },
                               },
                               {
-                                title: "Related Cases",
+                                title: "Cases",
                                 width: 90,
                                 render: (_, r) => {
                                   const st = customerStats[
@@ -12883,7 +13500,7 @@
                                 },
                               },
                               {
-                                title: "Created Date",
+                                title: "Created At",
                                 width: 110,
                                 dataIndex: "createdAt",
                                 defaultSortOrder: "descend",
@@ -13039,102 +13656,36 @@
                       return (
                         <div>
                           {entityBreadcrumb}
-                          <Table
-                            size="small"
-                            dataSource={items}
-                            rowKey={(r) => String(extractId(r.folder))}
-                            onRow={(r) => ({
-                              onClick: () => openCustomerCaseRootFolder(r),
-                            })}
-                            pagination={{
-                              pageSize: 20,
-                              showSizeChanger: true,
-                              pageSizeOptions: ["20", "50", "100"],
-                              showTotal: (total) => `${total} items`,
-                            }}
-                            style={{
-                              background: "#fff",
-                              borderRadius: 10,
-                              border: "1px solid #E5E7EB",
-                            }}
-                            columns={[
-                              {
-                                title: "STT",
-                                width: 52,
-                                render: (_, __, i) => i + 1,
-                              },
-                              {
-                                title: "Folder Name",
-                                key: "folderName",
-                                render: (_, r) => {
-                                  const name = r.folder?.name || "Folder";
-                                  return (
-                                    <span
-                                      style={{
-                                        fontWeight: 600,
-                                        color: "#111827",
-                                        cursor: "pointer",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          color: "#185FA5",
-                                          display: "inline-flex",
-                                        }}
-                                      >
-                                        {TYPE_ICONS.folder}
-                                      </span>
-                                      {name}
-                                    </span>
-                                  );
-                                },
-                              },
-                              {
-                                title: "Related Cases",
-                                key: "caseLabel",
-                                render: (_, r) => {
-                                  const label = formatCaseLabel(r);
-                                  return (
-                                    <Tooltip title={label}>
-                                      <span style={{ color: "#374151" }}>
-                                        {label}
-                                      </span>
-                                    </Tooltip>
-                                  );
-                                },
-                              },
-                              {
-                                title: "Size",
-                                key: "size",
-                                width: 110,
-                                render: (_, r) =>
-                                  formatBytes(
-                                    customerCaseRootFolderSizeById[
-                                      String(extractId(r.folder))
-                                    ],
-                                  ),
-                              },
-                              {
-                                title: "Created Date",
-                                key: "createdAt",
-                                width: 110,
-                                render: (_, r) => formatDate(r.folder?.createdAt),
-                              },
-                              {
-                                title: "Created By",
-                                key: "createdBy",
-                                width: 160,
-                                render: (_, r) => getUploadUserName(r.folder),
-                              },
-                              {
-                                title: "Actions",
-                                key: "actions",
-                                width: 90,
-                                align: "right",
-                                render: (_, r) => (
+                          {renderEntityGalleryTable({
+                            items,
+                            rowKey: (r) => String(extractId(r.folder)),
+                            onOpen: openCustomerCaseRootFolder,
+                            contextMenuSpace: "customer",
+                            contextMenuRecord: (r) => r.folder,
+                            getName: (r) => r.folder?.name || "Folder",
+                            getSize: (r) =>
+                              customerCaseRootFolderSizeById[String(extractId(r.folder))],
+                            getCreatedAt: (r) => r.folder?.createdAt,
+                            getCreatedBy: (r) => getUploadUserName(r.folder),
+                            renderActions: (r) => {
+                              const perms = getFolderPermissions(
+                                r.folder,
+                                currentUserState,
+                                customerCaseFolders,
+                                currentLawyerId,
+                                entityPermissionContext,
+                              );
+                              const canRenameFolder =
+                                perms.canRename && !isRenameLockedFolder(r.folder);
+                              const canManagePermissions = perms.canManagePermissions;
+                              return (
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    gap: 6,
+                                    justifyContent: "flex-end",
+                                  }}
+                                >
                                   <Tooltip title="Open">
                                     <Button
                                       size="small"
@@ -13145,10 +13696,40 @@
                                       }}
                                     />
                                   </Tooltip>
-                                ),
-                              },
-                            ]}
-                          />
+                                  {canRenameFolder && (
+                                    <Tooltip title="Rename">
+                                      <Button
+                                        size="small"
+                                        icon={EDIT_ICON}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRenameRecord({
+                                            ...r.folder,
+                                            _type: "folder",
+                                          });
+                                          renameForm.setFieldsValue({
+                                            name: r.folder?.name || "Folder",
+                                          });
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                  {canManagePermissions && (
+                                    <Tooltip title="Permissions">
+                                      <Button
+                                        size="small"
+                                        icon={LOCK_ICON}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPermissionTarget({ kind: "folder", folder: r.folder });
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              );
+                            },
+                          })}
                         </div>
                       );
                     }
@@ -13213,204 +13794,6 @@
                     );
                   }
 
-                  /* ── LEGAL REFERENCE GALLERY ── */
-                  if (
-                    activeSpace === "legal_reference" &&
-                    !activeLegalReferenceId
-                  ) {
-                    const items = filteredSidebarLegalRefs;
-                    if (galleryViewMode === "table") {
-                      return (
-                        <div>
-                          {renderBulkBar("legal_reference")}
-                          <Table
-                            size="small"
-                            rowSelection={{
-                              ...entityRowSelection,
-                              getCheckboxProps: () => ({
-                                onClick: (e) => e.stopPropagation(),
-                              }),
-                            }}
-                            dataSource={items}
-                            rowKey={(r) => String(extractId(r))}
-                            onRow={(r) => ({
-                              onClick: () => {
-                                setActiveLegalReferenceId(String(extractId(r)));
-                                setSelectedFolderId("root");
-                              },
-                              onContextMenu: (e) =>
-                                handleEntityCtx(e, r, "legal_reference"),
-                            })}
-                            pagination={{
-                              pageSize: 20,
-                              showSizeChanger: true,
-                              pageSizeOptions: ["20", "50", "100"],
-                              showTotal: (total) => `${total} items`,
-                            }}
-                            style={{
-                              background: "#fff",
-                              borderRadius: 10,
-                              border: "1px solid #E5E7EB",
-                            }}
-                            columns={[
-                              {
-                                title: "STT",
-                                width: 52,
-                                render: (_, __, i) => i + 1,
-                              },
-                              {
-                                title: "Case Study Name",
-                                key: "name",
-                                render: (_, r) => {
-                                  const name = getLegalReferenceDisplayName(r);
-                                  return (
-                                    <Tooltip title={name}>
-                                      <span
-                                        style={{
-                                          fontWeight: 500,
-                                          cursor: "pointer",
-                                        }}
-                                      >
-                                        {name}
-                                      </span>
-                                    </Tooltip>
-                                  );
-                                },
-                              },
-                              {
-                                title: "Folder",
-                                width: 80,
-                                render: (_, r) => {
-                                  const st =
-                                    legalRefStats[String(extractId(r))] || {};
-                                  return (
-                                    <span style={{ color: "#185FA5" }}>
-                                      {st.folderCount || 0}
-                                    </span>
-                                  );
-                                },
-                              },
-                              {
-                                title: "File",
-                                width: 60,
-                                render: (_, r) => {
-                                  const st =
-                                    legalRefStats[String(extractId(r))] || {};
-                                  return (
-                                    <span style={{ color: "#185FA5" }}>
-                                      {st.docCount || 0}
-                                    </span>
-                                  );
-                                },
-                              },
-                              {
-                                title: "Created Date",
-                                dataIndex: "createdAt",
-                                width: 110,
-                                defaultSortOrder: "descend",
-                                sorter: (a, b) =>
-                                  new Date(a.createdAt || 0) -
-                                  new Date(b.createdAt || 0),
-                                render: (v) => formatDate(v),
-                              },
-                              {
-                                title: "Created By",
-                                width: 140,
-                                render: (_, r) =>
-                                  r.createdBy?.nickname ||
-                                  r.createdBy?.email ||
-                                  "—",
-                              },
-                            ]}
-                          />
-                        </div>
-                      );
-                    }
-                    return (
-                      <div style={{ fontFamily: FONT }}>
-                        {items.length > 0 && renderBulkBar("legal_reference")}
-                        {items.length === 0 ? (
-                          <div style={{ padding: "80px 0", textAlign: "center" }}>
-                            <Empty
-                              description={
-                                sidebarSearch
-                                  ? "Not found"
-                                  : "No Case Study yet"
-                              }
-                            />
-                            {!sidebarSearch && (
-                              <button
-                                type="button"
-                                onClick={openCreateReferenceModal}
-                                style={{
-                                  marginTop: 12,
-                                  padding: "8px 18px",
-                                  background: "#185FA5",
-                                  color: "#fff",
-                                  border: "none",
-                                  borderRadius: 8,
-                                  fontFamily: FONT,
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                + Create Case Study
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <Row gutter={[10, 10]}>
-                            {items.map((ref) => {
-                              const rid = String(extractId(ref));
-                              const st = legalRefStats[rid] || {
-                                folderCount: 0,
-                                docCount: 0,
-                              };
-                              const hasContent =
-                                st.folderCount > 0 || st.docCount > 0;
-                              const creator =
-                                ref.createdBy?.nickname ||
-                                ref.createdBy?.email ||
-                                "—";
-                              return renderEntityCard({
-                                key: rid,
-                                rec: ref,
-                                space: "legal_reference",
-                                title: getLegalReferenceDisplayName(ref),
-                                sub: (
-                                  <span>
-                                    {creator} · {formatDate(ref.createdAt)}
-                                  </span>
-                                ),
-                                footer: (
-                                  <span>
-                                    {st.folderCount} folder(s) ·{" "}
-                                    <span
-                                      style={{
-                                        color: "#185FA5",
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      {st.docCount}
-                                    </span>{" "}
-                                    file
-                                  </span>
-                                ),
-                                borderLeft: hasContent
-                                  ? "2px solid #185FA5"
-                                  : "0.5px solid #E5E7EB",
-                                onClick: () => {
-                                  setActiveLegalReferenceId(rid);
-                                  setSelectedFolderId("root");
-                                },
-                              });
-                            })}
-                          </Row>
-                        )}
-                      </div>
-                    );
-                  }
 
                   return null;
                 })()
@@ -13517,6 +13900,43 @@
                       )}
                   </div>
 
+                  {currentRootFolderPermissionSummary && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        flexWrap: "wrap",
+                        marginBottom: 16,
+                        marginTop: -8,
+                        fontFamily: FONT,
+                        fontSize: 12,
+                        color: "#6B7280",
+                      }}
+                    >
+                      <span>
+                        <span style={{ color: "#9CA3AF" }}>Manager: </span>
+                        <strong style={{ color: "#374151", fontWeight: 500 }}>
+                          {currentRootFolderPermissionSummary.managerNames.length
+                            ? currentRootFolderPermissionSummary.managerNames.join(
+                                ", ",
+                              )
+                            : "—"}
+                        </strong>
+                      </span>
+                      <span>
+                        <span style={{ color: "#9CA3AF" }}>Member: </span>
+                        <strong style={{ color: "#374151", fontWeight: 500 }}>
+                          {currentRootFolderPermissionSummary.memberNames.length
+                            ? currentRootFolderPermissionSummary.memberNames.join(
+                                ", ",
+                              )
+                            : "—"}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+
                   {hasAuthorizedBulkSelection && !isLegalReferenceRoot && (
                     <div
                       style={{
@@ -13587,23 +14007,25 @@
                             >
                               Restore
                             </Button>
-                            <Button
-                              size="small"
-                              icon={DELETE_ICON}
-                              onClick={handleBulkPermanentDelete}
-                              style={{
-                                borderRadius: 6,
-                                fontSize: 12,
-                                background: "#FEF2F2",
-                                color: "#991B1B",
-                                borderColor: "#FEE2E2",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                fontFamily: FONT,
-                              }}
-                            >
-                              Permanently Delete
-                            </Button>
+                            {isAdmin && (
+                              <Button
+                                size="small"
+                                icon={DELETE_ICON}
+                                onClick={handleBulkPermanentDelete}
+                                style={{
+                                  borderRadius: 6,
+                                  fontSize: 12,
+                                  background: "#FEF2F2",
+                                  color: "#991B1B",
+                                  borderColor: "#FEE2E2",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  fontFamily: FONT,
+                                }}
+                              >
+                                Permanently Delete
+                              </Button>
+                            )}
                             </React.Fragment>
                           ) : null
                         ) : (
@@ -13627,7 +14049,7 @@
                               Move
                               </Button>
                             )}
-                            {canBulkDeleteSelected && (
+                            {canBulkMoveToTrashSelected && (
                               <Button
                               size="small"
                               icon={DELETE_ICON}
@@ -13687,14 +14109,11 @@
                               fontFamily: FONT,
                             }}
                           >
-                            {activeSpace === "legal_reference" &&
-                            !activeLegalReferenceId
-                              ? "No Case Study yet"
-                              : activeSpace === "trash"
-                                ? "Trash is empty"
-                                : query
-                                  ? "No results found"
-                                  : "Folder is empty"}
+                            {activeSpace === "trash"
+                              ? "Trash is empty"
+                              : query
+                                ? "No results found"
+                                : "Folder is empty"}
                           </div>
                           <div
                             style={{
@@ -13703,36 +14122,13 @@
                               fontFamily: FONT,
                             }}
                           >
-                            {activeSpace === "legal_reference" &&
-                            !activeLegalReferenceId
-                              ? "Click + Create Case Study below to get started"
-                              : activeSpace === "trash"
-                                ? "No deleted files or folders"
-                                : query
-                                  ? "Try a different search term"
-                                  : ""}
+                            {activeSpace === "trash"
+                              ? "No deleted files or folders"
+                              : query
+                                ? "Try a different search term"
+                                : ""}
                           </div>
-                          {activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId ? (
-                            <button
-                              type="button"
-                              onClick={openCreateReferenceModal}
-                              style={{
-                                padding: "8px 18px",
-                                background: "#185FA5",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: 8,
-                                fontFamily: FONT,
-                                fontSize: 13,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                                marginTop: 4,
-                              }}
-                            >
-                              + Create Case Study
-                            </button>
-                          ) : (
+                          {(
                             activeSpace !== "trash" &&
                             !query &&
                             currentFolderPerms.canCreate && (
@@ -14038,7 +14434,7 @@
                                                   fontFamily: FONT,
                                                 }}
                                               >
-                                                + Upload first file
+                                                + Upload
                                                 </button>
                                               )}
                                             </div>
@@ -14475,162 +14871,6 @@
 
                           return (
                             <React.Fragment>
-                              {/* ── Section: Case Tham Chiếu ── */}
-                              {tableData.some(
-                                (r) => r._type === "legal_reference_record",
-                              ) && (
-                                <Row
-                                  gutter={[12, 12]}
-                                  style={{ marginBottom: 20 }}
-                                >
-                                  {tableData
-                                    .filter(
-                                      (r) => r._type === "legal_reference_record",
-                                    )
-                                    .map((record) => {
-                                      const refId = String(extractId(record));
-                                      const filesCount = documents.filter(
-                                        (doc) =>
-                                          String(
-                                            getRecordLegalReferenceId(doc),
-                                          ) === refId && !doc.isDeleted,
-                                      ).length;
-                                      const foldersCount = folders.filter(
-                                        (f) =>
-                                          String(getRecordLegalReferenceId(f)) ===
-                                            refId && !f.isDeleted,
-                                      ).length;
-                                      return (
-                                        <Col span={6} key={record._key}>
-                                          <Card
-                                            hoverable
-                                            onClick={() =>
-                                              openLegalReferenceDetail(record)
-                                            }
-                                            onContextMenu={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              setContextMenuState({
-                                                open: true,
-                                                x: e.clientX,
-                                                y: e.clientY,
-                                                record: {
-                                                  ...record,
-                                                  _type: "legal_reference_record",
-                                                },
-                                              });
-                                            }}
-                                            style={{
-                                              borderRadius: 12,
-                                              border: "0.5px solid #E5E7EB",
-                                              cursor: "pointer",
-                                              height: "100%",
-                                              borderLeft: "3px solid #185FA5",
-                                              background: "#FFFFFF",
-                                            }}
-                                            bodyStyle={{
-                                              padding: "16px",
-                                              display: "flex",
-                                              flexDirection: "column",
-                                              gap: 8,
-                                              height: "100%",
-                                            }}
-                                          >
-                                            <div
-                                              style={{
-                                                fontWeight: 600,
-                                                fontSize: 14,
-                                                color: "#111827",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                whiteSpace: "nowrap",
-                                              }}
-                                            >
-                                              {record.title ||
-                                                record.name ||
-                                                getLegalReferenceDisplayName(
-                                                  record,
-                                                )}
-                                            </div>
-                                            <div
-                                              style={{
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                gap: 4,
-                                                marginTop: 4,
-                                                fontSize: 12,
-                                                color: "#6B7280",
-                                              }}
-                                            >
-                                              <div>
-                                                <span
-                                                  style={{ color: "#9CA3AF" }}
-                                                >
-                                                  Created by:{" "}
-                                                </span>
-                                                <strong>
-                                                  {record.createdBy?.nickname ||
-                                                    record.createdBy?.username ||
-                                                    "System"}
-                                                </strong>
-                                              </div>
-                                              <div>
-                                                <span
-                                                  style={{ color: "#9CA3AF" }}
-                                                >
-                                                  Created:{" "}
-                                                </span>
-                                                <span>
-                                                  {record.createdAt
-                                                    ? new Date(
-                                                        record.createdAt,
-                                                      ).toLocaleString("vi-VN", {
-                                                        day: "2-digit",
-                                                        month: "2-digit",
-                                                        year: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                      })
-                                                    : "—"}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            <div
-                                              style={{
-                                                marginTop: "auto",
-                                                paddingTop: 8,
-                                                borderTop: "0.5px solid #F3F4F6",
-                                                display: "flex",
-                                                justifyContent: "space-between",
-                                                alignItems: "center",
-                                              }}
-                                            >
-                                              <span
-                                                style={{
-                                                  fontSize: 11,
-                                                  color: "#9CA3AF",
-                                                }}
-                                              >
-                                                Resources:
-                                              </span>
-                                              <span
-                                                style={{
-                                                  fontSize: 11,
-                                                  fontWeight: 600,
-                                                  color: "#185FA5",
-                                                }}
-                                              >
-                                                {foldersCount} Folder(s) ·{" "}
-                                                {filesCount} file
-                                              </span>
-                                            </div>
-                                          </Card>
-                                        </Col>
-                                      );
-                                    })}
-                                </Row>
-                              )}
-
                               {/* ── Section: Thư mục ── */}
                               {tableData.some((r) => r._type === "folder") && (
                                 <div
@@ -14688,9 +14928,7 @@
                     <Table
                       rowSelection={bulkRowSelection}
                       rowKey={(record) => record._key}
-                      columns={tableColumns.filter(
-                        (column) => column.key !== "actions",
-                      )}
+                      columns={tableColumns}
                       dataSource={tableData}
                       size="middle"
                       pagination={{ pageSize: 20, showSizeChanger: true }}
@@ -14925,28 +15163,28 @@
                 fontFamily: FONT,
               }}
             >
-              Create Case Study
+              New {LEGAL_STUDY_LABEL}
             </span>
           }
-          open={isCreateTemplateOpen}
-          onCancel={closeCreateReferenceModal}
+          open={isCreateLegalStudyOpen}
+          onCancel={closeCreateLegalStudyModal}
           footer={null}
           destroyOnClose
           width={680}
         >
           <Form
-            form={createTemplateForm}
+            form={createLegalStudyForm}
             layout="vertical"
-            onFinish={handleCreateLegalReference}
+            onFinish={handleCreateLegalStudy}
           >
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
                   name="title"
-                  label="Case Study Name"
-                  rules={[{ required: true, message: "Please enter a name" }]}
+                  label="Title"
+                  rules={[{ required: true, message: "Please enter a title" }]}
                 >
-                  <Input placeholder="Enter case study name..." />
+                  <Input placeholder="Enter legal study title..." />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -14969,28 +15207,26 @@
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="description" label="Case Study Summary">
+            <Form.Item name="description" label="Summary">
               <Input.TextArea
                 rows={4}
-                placeholder="Summarize the case study content..."
+                placeholder="Summarize the legal study..."
               />
             </Form.Item>
             <Form.Item
               name="caseIds"
-              label="Linked Cases"
-              extra="Link to ongoing cases in the system."
+              label="Link Case"
+              extra="Link this legal study to active cases in the system."
             >
               <Select
                 mode="multiple"
-                placeholder="Select linked cases..."
+                placeholder="Select link cases..."
                 allowClear
                 optionFilterProp="label"
               >
                 {projects.map((proj) => {
                   const pid = String(extractId(proj));
-                  const label = proj.projectName
-                    ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
-                    : `Case #${pid}`;
+                  const label = getProjectLinkLabel(proj);
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -14999,82 +15235,77 @@
                 })}
               </Select>
             </Form.Item>
-            <div
-              style={{
-                border: "1px dashed #D1D5DB",
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 16,
-                background: "#F9FAFB",
-              }}
-            >
-              <Text
-                strong
-                style={{ display: "block", marginBottom: 10, color: "#374151" }}
-              >
-                Upload documents (optional)
-              </Text>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Button
-                  type="default"
-                  onClick={() => createReferenceFileInputRef.current?.click()}
-                  style={{
-                    borderRadius: 8,
-                    border: "0.5px solid #E5E7EB",
-                    color: "#185FA5",
-                  }}
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  label="Manager"
+                  extra="Automatically assigned to you — change only if creating this on behalf of someone else."
                 >
-                  Choose file
-                </Button>
-                <Button
-                  type="default"
-                  onClick={() => createReferenceFolderInputRef.current?.click()}
-                  style={{
-                    borderRadius: 8,
-                    border: "0.5px solid #E5E7EB",
-                    color: "#185FA5",
-                  }}
-                >
-                  Choose folder
-                </Button>
-                {(createReferenceFiles.length > 0 ||
-                  createReferenceFolderFiles.length > 0) && (
-                  <Button
-                    type="text"
-                    onClick={() => {
-                      setCreateReferenceFiles([]);
-                      setCreateReferenceFolderFiles([]);
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder="Select manager..."
+                    value={createLegalStudyManagerId}
+                    onChange={(val) => {
+                      setCreateLegalStudyManagerId(val || null);
+                      if (val)
+                        setCreateLegalStudyMemberIds((prev) =>
+                          prev.filter((id) => id !== val),
+                        );
                     }}
-                    style={{ color: "#6B7280" }}
-                  >
-                    Clear selection
-                  </Button>
-                )}
-              </div>
-              {(createReferenceFiles.length > 0 ||
-                createReferenceFolderFiles.length > 0) && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    display: "flex",
-                    gap: 6,
-                    flexWrap: "wrap",
-                  }}
+                    optionFilterProp="label"
+                    options={lawyers.map((l) => ({
+                      value: String(extractId(l.id)),
+                      label: getLawyerDisplayName(l),
+                    }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  label="Members"
+                  extra="optional — multiple, default role Viewer"
                 >
-                  {createReferenceFiles.length > 0 && (
-                    <Tag color="blue">{createReferenceFiles.length} file</Tag>
-                  )}
-                  {createReferenceFolderFiles.length > 0 && (
-                    <Tag color="green">
-                      {createReferenceFolderFiles.length} file trong folder
-                    </Tag>
-                  )}
-                </div>
-              )}
-            </div>
+                  <Select
+                    mode="multiple"
+                    showSearch
+                    allowClear
+                    placeholder="Select members..."
+                    value={createLegalStudyMemberIds}
+                    onChange={setCreateLegalStudyMemberIds}
+                    optionFilterProp="label"
+                    options={lawyers
+                      .filter(
+                        (l) =>
+                          String(extractId(l.id)) !==
+                          String(createLegalStudyManagerId),
+                      )
+                      .map((l) => ({
+                        value: String(extractId(l.id)),
+                        label: getLawyerDisplayName(l),
+                      }))}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <DocumentPickerField
+              files={createLegalStudyFiles}
+              folderFiles={createLegalStudyFolderFiles}
+              onSelectFiles={(picked) =>
+                setCreateLegalStudyFiles((prev) => prev.concat(picked))
+              }
+              onSelectFolderFiles={(picked) =>
+                setCreateLegalStudyFolderFiles((prev) => prev.concat(picked))
+              }
+              onClear={() => {
+                setCreateLegalStudyFiles([]);
+                setCreateLegalStudyFolderFiles([]);
+              }}
+              disabled={createLegalStudyLoading}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <Button
-                onClick={closeCreateReferenceModal}
+                onClick={closeCreateLegalStudyModal}
                 style={{
                   borderRadius: 8,
                   border: "0.5px solid #E5E7EB",
@@ -15086,74 +15317,14 @@
               <Button
                 type="primary"
                 htmlType="submit"
-                loading={createTemplateLoading}
+                loading={createLegalStudyLoading}
                 style={{
                   borderRadius: 8,
                   background: "#185FA5",
                   borderColor: "#185FA5",
                 }}
               >
-                Create
-              </Button>
-            </div>
-          </Form>
-        </Modal>
-
-        <Modal
-          title={
-            <span
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: "#111827",
-                fontFamily: FONT,
-              }}
-            >
-              Edit document item
-            </span>
-          }
-          open={!!editTemplateRecord}
-          onCancel={() => {
-            setEditTemplateRecord(null);
-            editTemplateForm.resetFields();
-          }}
-          footer={null}
-          destroyOnClose
-        >
-          <Form
-            form={editTemplateForm}
-            layout="vertical"
-            onFinish={handleEditTemplateSubmit}
-          >
-            <Form.Item
-              name="title"
-              label="Title"
-              rules={[{ required: true, message: "Please enter a title" }]}
-            >
-              <Input placeholder="Enter title..." />
-            </Form.Item>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button
-                onClick={() => setEditTemplateRecord(null)}
-                style={{
-                  borderRadius: 8,
-                  border: "0.5px solid #E5E7EB",
-                  color: "#6B7280",
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={editTemplateLoading}
-                style={{
-                  borderRadius: 8,
-                  background: "#111827",
-                  borderColor: "#111827",
-                }}
-              >
-                Save
+                Submit
               </Button>
             </div>
           </Form>
@@ -15189,96 +15360,6 @@
               rules={[{ required: true, message: "Please enter a name" }]}
             >
               <Input placeholder="Enter new name..." />
-            </Form.Item>
-          </Form>
-        </Modal>
-
-        <Modal
-          title={
-            <span
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: "#111827",
-                fontFamily: FONT,
-              }}
-            >
-              Link Case Study
-            </span>
-          }
-          open={isLinkCaseOpen}
-          onCancel={() => {
-            setIsLinkCaseOpen(false);
-            setLinkCaseRecord(null);
-            linkCaseForm.resetFields();
-          }}
-          footer={[
-            <Button
-              key="cancel"
-              onClick={() => {
-                setIsLinkCaseOpen(false);
-                setLinkCaseRecord(null);
-                linkCaseForm.resetFields();
-              }}
-              style={{
-                borderRadius: 8,
-                border: "0.5px solid #E5E7EB",
-                color: "#6B7280",
-              }}
-            >
-              Cancel
-            </Button>,
-            <Button
-              key="submit"
-              type="primary"
-              loading={linkCaseLoading}
-              onClick={() => linkCaseForm.submit()}
-              style={{
-                borderRadius: 8,
-                background: "#185FA5",
-                borderColor: "#185FA5",
-              }}
-            >
-              Save links
-            </Button>,
-          ]}
-          destroyOnClose
-        >
-          <Form
-            form={linkCaseForm}
-            layout="vertical"
-            onFinish={handleLinkCaseSubmit}
-          >
-            <Form.Item
-              name="caseIds"
-              label="Select ongoing Cases/Projects to link"
-              extra="The list is drawn from existing projects in the system."
-            >
-              <Select
-                mode="multiple"
-                placeholder="Select case..."
-                allowClear
-                optionFilterProp="label"
-                style={{ width: "100%" }}
-              >
-                {projects
-                  .filter(
-                    (p) =>
-                      !usedProjectIds.has(String(extractId(p))) ||
-                      activeLinkedIds.has(String(extractId(p))),
-                  )
-                  .map((proj) => {
-                    const pid = String(extractId(proj));
-                    const label = proj.projectName
-                      ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
-                      : `Case #${pid}`;
-                    return (
-                      <Select.Option key={pid} value={pid} label={label}>
-                        {label}
-                      </Select.Option>
-                    );
-                  })}
-              </Select>
             </Form.Item>
           </Form>
         </Modal>
@@ -15355,20 +15436,28 @@
           }}
         />
 
-        <FolderPermissionsModal
-          open={!!permissionFolder}
-          folder={permissionFolder}
-          allFolders={customerCaseFolders}
-          onClose={() => setPermissionFolder(null)}
+        <PermissionManagerModal
+          open={!!permissionTarget}
+          title={permissionModalConfig?.title || ""}
+          loadPermissions={
+            permissionModalConfig?.loadPermissions ||
+            (() => Promise.resolve({ managerId: null, members: [] }))
+          }
+          savePermissions={
+            permissionModalConfig?.savePermissions || (() => Promise.resolve())
+          }
+          onClose={() => setPermissionTarget(null)}
           onSuccess={(permissionResult = {}) => {
-            createManualActivityLog(permissionFolder, "permission_updated", {
-              collectionName: "Folder",
-              fieldName: "permissions",
-              newValue:
-                permissionResult.accessSummary ||
-                "No one has been granted access",
-            });
-            setPermissionFolder(null);
+            if (permissionTarget?.kind === "folder") {
+              createManualActivityLog(permissionTarget.folder, "permission_updated", {
+                collectionName: "Folder",
+                fieldName: "permissions",
+                newValue:
+                  permissionResult.accessSummary ||
+                  "No one has been granted access",
+              });
+            }
+            setPermissionTarget(null);
             loadData();
           }}
         />
