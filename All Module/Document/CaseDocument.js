@@ -10414,36 +10414,25 @@ const InternalTemplates = () => {
                   }}
                 >
                   <div
-                    onClick={() => {
-                      setActiveSpace("cases");
-                      setActiveLegalReferenceId(null);
-                      // Jump straight into the root folder (not the "root"
-                      // sentinel) so New/Upload always creates children of
-                      // it, not siblings shown only once navigated in —
-                      // matches the folder button below.
-                      setSelectedFolderId(
-                        activeCaseRootFolderId
-                          ? String(activeCaseRootFolderId)
-                          : "root",
-                      );
-                    }}
+                    // Title click no longer navigates — the folder button
+                    // below is the sole entry point into this space now, so
+                    // the header stays a plain (non-clickable) label plus
+                    // its own expand/collapse chevron, matching Linked
+                    // Cases/Reference below.
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 4,
-                      cursor: "pointer",
                       userSelect: "none",
                     }}
                   >
                     <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSpacesExpanded(!spacesExpanded);
-                      }}
+                      onClick={() => setSpacesExpanded(!spacesExpanded)}
                       style={{
                         color: "#9CA3AF",
                         display: "inline-flex",
                         alignItems: "center",
+                        cursor: "pointer",
                       }}
                     >
                       {spacesExpanded ? ChevronDown : ChevronRight}
@@ -10605,28 +10594,24 @@ const InternalTemplates = () => {
                   }}
                 >
                   <div
-                    onClick={() => {
-                      setActiveSpace("case_reference");
-                      setActiveCaseReferenceId(null);
-                      setSelectedFolderId("root");
-                    }}
+                    // Title click no longer navigates — each linked case's
+                    // own row is the sole entry point into it, so the
+                    // header stays a plain (non-clickable) label plus its
+                    // own expand/collapse chevron.
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 4,
-                      cursor: "pointer",
                       userSelect: "none",
                     }}
                   >
                     <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCaseReferenceExpanded(!caseReferenceExpanded);
-                      }}
+                      onClick={() => setCaseReferenceExpanded(!caseReferenceExpanded)}
                       style={{
                         color: "#9CA3AF",
                         display: "inline-flex",
                         alignItems: "center",
+                        cursor: "pointer",
                       }}
                     >
                       {caseReferenceExpanded ? ChevronDown : ChevronRight}
@@ -10785,28 +10770,24 @@ const InternalTemplates = () => {
                   }}
                 >
                   <div
-                    onClick={() => {
-                      setActiveSpace("legal_study");
-                      setActiveLegalStudyId(null);
-                      setSelectedFolderId("root");
-                    }}
+                    // Title click no longer navigates — each Reference's
+                    // own row is the sole entry point into it, so the
+                    // header stays a plain (non-clickable) label plus its
+                    // own expand/collapse chevron.
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 4,
-                      cursor: "pointer",
                       userSelect: "none",
                     }}
                   >
                     <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLegalStudyExpanded(!legalStudyExpanded);
-                      }}
+                      onClick={() => setLegalStudyExpanded(!legalStudyExpanded)}
                       style={{
                         color: "#9CA3AF",
                         display: "inline-flex",
                         alignItems: "center",
+                        cursor: "pointer",
                       }}
                     >
                       {legalStudyExpanded ? ChevronDown : ChevronRight}
