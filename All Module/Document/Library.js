@@ -8540,6 +8540,40 @@
       }
     };
 
+    // Applies activeSpace-specific scoping fields (internalCompanyId,
+    // moduleScope, legalReferenceId, projectId/caseId/customerId, ...) to a
+    // folder payload — shared by handleCreateFolder and the "group into a
+    // new folder" upload path (handleConfirmUploadFields) so both create
+    // folders with identical scoping.
+    const applyFolderSpacePayload = (payload) => {
+      if (activeSpace === "company_shared") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+      } else if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
+        Object.assign(payload, buildScopedPayload(LEGAL_STUDY_STORAGE_TYPE));
+      } else if (activeSpace === "legal_reference") {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.legalReferenceId = extractId(activeLegalReferenceId);
+        payload.moduleScope = "legal_reference";
+      } else if (activeSpace === "customer") {
+        if (activeCaseId) {
+          payload.projectId = extractId(activeCaseId);
+          payload.caseId = extractId(activeCaseId);
+        }
+        if (activeCustomerId) payload.customerId = extractId(activeCustomerId);
+        if (activeCompanyId)
+          payload.internalCompanyId = extractId(activeCompanyId);
+        delete payload.moduleScope; // case folders don't use moduleScope
+      } else if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) {
+        payload.moduleScope = MY_DOCUMENT_STORAGE_TYPE;
+        // no internalCompanyId — personal space is user-scoped, not company-scoped
+      } else if (activeSpace === KNOWLEDGE_STORAGE_TYPE) {
+        payload.internalCompanyId = extractId(activeCompanyId);
+        payload.moduleScope = KNOWLEDGE_STORAGE_TYPE;
+      }
+      return payload;
+    };
+
     const handleCreateFolder = async (values) => {
       if (!getFolderPermsById(selectedFolderId).canCreate) {
         message.warning("You do not have permission to create a folder at this location");
@@ -8568,31 +8602,7 @@
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
 
-        if (activeSpace === "company_shared") {
-          payload.internalCompanyId = extractId(activeCompanyId);
-          payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
-          Object.assign(payload, buildScopedPayload(LEGAL_STUDY_STORAGE_TYPE));
-        } else if (activeSpace === "legal_reference") {
-          payload.internalCompanyId = extractId(activeCompanyId);
-          payload.legalReferenceId = extractId(activeLegalReferenceId);
-          payload.moduleScope = "legal_reference";
-        } else if (activeSpace === "customer") {
-          if (activeCaseId) {
-            payload.projectId = extractId(activeCaseId);
-            payload.caseId = extractId(activeCaseId);
-          }
-          if (activeCustomerId) payload.customerId = extractId(activeCustomerId);
-          if (activeCompanyId)
-            payload.internalCompanyId = extractId(activeCompanyId);
-          delete payload.moduleScope; // case folders don't use moduleScope
-        } else if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) {
-          payload.moduleScope = MY_DOCUMENT_STORAGE_TYPE;
-          // no internalCompanyId — personal space is user-scoped, not company-scoped
-        } else if (activeSpace === KNOWLEDGE_STORAGE_TYPE) {
-          payload.internalCompanyId = extractId(activeCompanyId);
-          payload.moduleScope = KNOWLEDGE_STORAGE_TYPE;
-        }
+        applyFolderSpacePayload(payload);
 
         await createFolderRecord(payload);
         message.success("Folder created successfully!");
