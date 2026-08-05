@@ -2515,16 +2515,15 @@ function LegalReferenceWorkspace() {
           message?.warning?.("Please select at least one Case.");
           return;
         }
-        // One-directional access sync (per explicit requirement): only the
-        // current case's Members — never its Manager — are pushed onto
-        // each newly-linked case, so those Members aren't blocked from
-        // opening it. Access = the case's own "assignees" relation (same
-        // field checked by loadCaseAccessById), scoped to memberIds only
-        // (excludes managerIds). Alongside it, also sync the folder-level
-        // folderMembers table (grantFolderMemberAccess) so the newly-granted
-        // lawyer isn't blocked from that case's documents in Library.js,
-        // which still reads folderMembers. No reverse sync — the target
-        // case's own team is left untouched on the current case.
+        // One-directional access sync: everyone with access to the current
+        // case — its Manager AND its Members alike — is pushed onto each
+        // newly-linked case as a plain Member grant (assignees), so nobody
+        // on the current case's team is blocked from opening it. Alongside
+        // it, also sync the folder-level folderMembers table
+        // (grantFolderMemberAccess) so the newly-granted lawyer isn't
+        // blocked from that case's documents in Library.js, which still
+        // reads folderMembers. No reverse sync — the target case's own
+        // team is left untouched on the current case.
         const grantCaseAccess = async (targetCaseId, lawyerId) => {
           try {
             await addRelationLink("assignees", targetCaseId, lawyerId);
@@ -2536,7 +2535,7 @@ function LegalReferenceWorkspace() {
         };
 
         const currentAccess = caseAccessById[String(idValue(caseId))];
-        const currentCaseMemberIds = currentAccess?.memberIds || [];
+        const currentCaseTeamIds = currentAccess?.allIds || [];
         console.log("[handleLinkSubmit] currentCase=", caseId, "currentAccess=", currentAccess);
 
         let successCount = 0;
@@ -2548,7 +2547,7 @@ function LegalReferenceWorkspace() {
 
             const targetAccess = caseAccessById[String(sourceCaseId)];
             const targetKnownLawyers = new Set((targetAccess?.allIds || []).map(String));
-            const missingOnTarget = currentCaseMemberIds.filter((id) => !targetKnownLawyers.has(String(id)));
+            const missingOnTarget = currentCaseTeamIds.filter((id) => !targetKnownLawyers.has(String(id)));
             console.log("[handleLinkSubmit] missingOnTarget (to grant on case", sourceCaseId, ")=", missingOnTarget);
             await Promise.all(missingOnTarget.map((lawyerId) => grantCaseAccess(sourceCaseId, lawyerId)));
           } catch (error) {
@@ -2586,16 +2585,17 @@ function LegalReferenceWorkspace() {
         }
         await addRelationLink("legalStudy", caseId, legalStudyId);
 
-        // Same one-directional Members-only sync as the Case branch above:
-        // push the current case's Members (never its Manager) onto the
-        // newly-linked Reference as viewer-tier legalMembers rows, so
-        // they aren't blocked from browsing it. Skip anyone who's already
-        // the target Reference's own Manager — grantLegalStudyMemberAccess
-        // itself dedupes against existing legalMembers rows.
+        // Same one-directional sync as the Case branch above: everyone
+        // with access to the current case — its Manager AND its Members
+        // alike — is pushed onto the newly-linked Reference as viewer-tier
+        // legalMembers rows, so nobody on the current case's team is
+        // blocked from browsing it. Skip anyone who's already the target
+        // Reference's own Manager — grantLegalStudyMemberAccess itself
+        // dedupes against existing legalMembers rows.
         const currentAccess = caseAccessById[String(idValue(caseId))];
-        const currentCaseMemberIds = currentAccess?.memberIds || [];
+        const currentCaseTeamIds = currentAccess?.allIds || [];
         const targetManagerId = extractId(legalStudyRecord?.managerId) || extractId(legalStudyRecord?.manager);
-        const membersToGrant = currentCaseMemberIds.filter(
+        const membersToGrant = currentCaseTeamIds.filter(
           (id) => !targetManagerId || String(id) !== String(targetManagerId),
         );
         console.log("[handleLinkSubmit] legalStudy=", legalStudyId, "membersToGrant=", membersToGrant);
