@@ -10373,7 +10373,15 @@ const InternalTemplates = () => {
                     onClick={() => {
                       setActiveSpace("cases");
                       setActiveLegalReferenceId(null);
-                      setSelectedFolderId("root");
+                      // Jump straight into the root folder (not the "root"
+                      // sentinel) so New/Upload always creates children of
+                      // it, not siblings shown only once navigated in —
+                      // matches the folder button below.
+                      setSelectedFolderId(
+                        activeCaseRootFolderId
+                          ? String(activeCaseRootFolderId)
+                          : "root",
+                      );
                     }}
                     style={{
                       display: "flex",
@@ -10420,7 +10428,7 @@ const InternalTemplates = () => {
                         onClick={() => {
                           setActiveSpace("cases");
                           setActiveLegalReferenceId(null);
-                          setSelectedFolderId("root");
+                          setSelectedFolderId(String(extractId(activeCaseRootFolder)));
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -10812,7 +10820,14 @@ const InternalTemplates = () => {
                             onClick={() => {
                               setActiveSpace("legal_study");
                               setActiveLegalStudyId(refId);
-                              setSelectedFolderId("root");
+                              // Jump straight into this Reference's root
+                              // folder (not the "root" sentinel) — same
+                              // reasoning as the Case entry above: New/
+                              // Upload should always land inside it, not
+                              // beside it.
+                              setSelectedFolderId(
+                                rootFolder ? String(extractId(rootFolder)) : "root",
+                              );
                             }}
                             style={{
                               width: "100%",
