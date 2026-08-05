@@ -9438,6 +9438,31 @@
       }
     };
 
+    // Generic single-field save for InlineEditCell — folders only ever
+    // get "description" through this path; files can get any of the 8
+    // fields the Table's Description column / buildDocMetaColumns() offer.
+    const saveRecordField = async (record, field, value) => {
+      try {
+        const isFolder = record._type === "folder";
+        const userId = getCurrentUserId();
+        await ctx.api.request({
+          url: isFolder
+            ? `folders:update?filterByTk=${extractId(record)}`
+            : `documents:update?filterByTk=${extractId(record)}`,
+          method: "POST",
+          data: {
+            [field]: value,
+            updatedAt: new Date().toISOString(),
+            ...(userId ? { updatedById: userId } : {}),
+          },
+        });
+        loadData();
+      } catch (e) {
+        message.error("Failed to update");
+        throw e;
+      }
+    };
+
     const showDeleteConfirm = (folder) => {
       // Same lock as rename — system-generated template folders (Legal
       // Study, LSC & Related, Legal docs, Legal dossiers, Report and
