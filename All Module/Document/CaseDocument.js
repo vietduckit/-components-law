@@ -11469,6 +11469,19 @@ const InternalTemplates = () => {
                 >
                   {breadcrumbs.map((item, index) => {
                     const isCurrent = index === breadcrumbs.length - 1;
+                    // The space-level "root" sentinel (index 0, e.g. "Cases")
+                    // is disabled once a real root folder is already showing
+                    // as the next crumb — the sidebar now navigates straight
+                    // into that root folder (see the Case/Reference sidebar
+                    // entries), so clicking back to the bare sentinel would
+                    // re-expose the "New" menu creating items at the same
+                    // level as the root folder instead of inside it. Kept
+                    // visible (not removed) so the path still reads
+                    // naturally, just non-interactive.
+                    const isDisabledRootCrumb =
+                      index === 0 &&
+                      breadcrumbs.length > 1 &&
+                      (activeSpace === "cases" || activeSpace === "legal_study");
                     return (
                       <React.Fragment key={item.id}>
                         {index > 0 && (
@@ -11484,22 +11497,30 @@ const InternalTemplates = () => {
                         )}
                         <button
                           type="button"
-                          onClick={() => handleBreadcrumbClick(item)}
+                          disabled={isDisabledRootCrumb}
+                          onClick={() => {
+                            if (isDisabledRootCrumb) return;
+                            handleBreadcrumbClick(item);
+                          }}
                           style={{
                             border: 0,
                             background: "transparent",
                             borderRadius: 6,
                             padding: "3px 6px",
-                            cursor: "pointer",
+                            cursor: isDisabledRootCrumb ? "default" : "pointer",
                             fontFamily: FONT,
                             fontSize: 13,
                             fontWeight: isCurrent ? 600 : 400,
-                            color: isCurrent ? "#111827" : "#6B7280",
+                            color: isDisabledRootCrumb
+                              ? "#C1C7CF"
+                              : isCurrent
+                                ? "#111827"
+                                : "#6B7280",
                             textDecoration: "none",
                             transition: "color 0.15s",
                           }}
                           onMouseEnter={(e) => {
-                            if (!isCurrent)
+                            if (!isCurrent && !isDisabledRootCrumb)
                               e.currentTarget.style.textDecoration =
                                 "underline";
                           }}
