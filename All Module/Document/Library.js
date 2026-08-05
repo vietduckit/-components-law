@@ -4463,81 +4463,85 @@
               )}
             </div>
           )}
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="documentType" label="Document Type">
-                <Input
+          {uploadMode !== "grouped" && (
+            <React.Fragment>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentType" label="Document Type">
+                    <Input
+                      allowClear
+                      placeholder="e.g. Contract, Meeting Minutes..."
+                      style={inpStyle}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="title" label="Document Name">
+                    <Input
+                      allowClear
+                      placeholder="Leave blank to use file name"
+                      style={inpStyle}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentCode" label="Document Code">
+                    <Input
+                      allowClear
+                      placeholder="e.g. 123/2024/CT"
+                      style={inpStyle}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="openingDate" label="Opening/Issue Date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="signedAt" label="Signed Date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="effectiveAt" label="Effective Date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="senderName" label="Sender">
+                    <Input
+                      allowClear
+                      placeholder="Sender name/organization"
+                      style={inpStyle}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="recipientName" label="Recipient">
+                    <Input
+                      allowClear
+                      placeholder="Recipient name/organization"
+                      style={inpStyle}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="description" label="Description">
+                <Input.TextArea
+                  rows={3}
                   allowClear
-                  placeholder="e.g. Contract, Meeting Minutes..."
-                  style={inpStyle}
+                  placeholder="Summarize the main content..."
                 />
               </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="title" label="Document Name">
-                <Input
-                  allowClear
-                  placeholder="Leave blank to use file name"
-                  style={inpStyle}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="documentCode" label="Document Code">
-                <Input
-                  allowClear
-                  placeholder="e.g. 123/2024/CT"
-                  style={inpStyle}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="openingDate" label="Opening/Issue Date">
-                <Input type="date" style={dateStyle} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="signedAt" label="Signed Date">
-                <Input type="date" style={dateStyle} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="effectiveAt" label="Effective Date">
-                <Input type="date" style={dateStyle} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="senderName" label="Sender">
-                <Input
-                  allowClear
-                  placeholder="Sender name/organization"
-                  style={inpStyle}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="recipientName" label="Recipient">
-                <Input
-                  allowClear
-                  placeholder="Recipient name/organization"
-                  style={inpStyle}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea
-              rows={3}
-              allowClear
-              placeholder="Summarize the main content..."
-            />
-          </Form.Item>
+            </React.Fragment>
+          )}
         </Form>
       </Modal>
     );
