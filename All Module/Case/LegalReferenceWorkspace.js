@@ -1768,6 +1768,11 @@ function LegalReferenceWorkspace() {
   const [selectedCaseIdsForLink, setSelectedCaseIdsForLink] = React.useState([]);
   const [legalStudySearch, setLegalStudySearch] = React.useState("");
   const [selectedLegalStudyId, setSelectedLegalStudyId] = React.useState("");
+  // Multi-select list for the "Reference" tab — mirrors selectedCaseIdsForLink
+  // on the "Case" tab. selectedLegalStudyId (singular, above) stays as-is;
+  // it only backs the unused folder/document source-picker plumbing further
+  // down (renderSourceSelectionPicker is never actually rendered).
+  const [selectedLegalStudyIds, setSelectedLegalStudyIds] = React.useState([]);
   const [newReferenceFiles, setNewReferenceFiles] = React.useState([]);
   const [newReferenceFolderFiles, setNewReferenceFolderFiles] = React.useState([]);
 
@@ -2296,6 +2301,7 @@ function LegalReferenceWorkspace() {
     setCaseOptionSearch("");
     setLegalStudySearch("");
     setSelectedLegalStudyId("");
+    setSelectedLegalStudyIds([]);
     setSelectedCaseIdsForLink([]);
     resetSourceSelection();
     setNewReferenceFiles([]);
@@ -2569,41 +2575,79 @@ function LegalReferenceWorkspace() {
         }
 
       } else if (linkMode === "legal_study") {
-        const legalStudyId = values.legalStudyId || selectedLegalStudyId;
-        const legalStudyRecord =
-          selectedLegalStudy ||
-          activeRows(legalStudyLibrary.studies).find((study) => String(extractId(study)) === String(legalStudyId));
-        if (!legalStudyId || !legalStudyRecord) {
-          message?.warning?.("Please select a Legal Study.");
+        // Reference: supports linking multiple selected Legal Studies in
+        // one submit, mirroring the "Case" branch above.
+        if (selectedLegalStudyIds.length === 0) {
+          message?.warning?.("Please select at least one Reference.");
           return;
         }
-        const isAlreadyLinked = links.some((row) => row?.type === "legal_study" && String(extractId(row?.reference)) === String(legalStudyId));
-        if (isAlreadyLinked) {
-          message?.info?.("This Legal Study is already linked to the current case.");
-          setLinkModalOpen(false);
-          return;
-        }
-        await addRelationLink("legalStudy", caseId, legalStudyId);
 
         // Same one-directional sync as the Case branch above: everyone
         // with access to the current case — its Manager AND its Members
-        // alike — is pushed onto the newly-linked Reference as viewer-tier
-        // legalMembers rows, so nobody on the current case's team is
-        // blocked from browsing it. Skip anyone who's already the target
-        // Reference's own Manager — grantLegalStudyMemberAccess itself
-        // dedupes against existing legalMembers rows.
+        // alike — is pushed onto each newly-linked Reference as
+        // viewer-tier legalMembers rows, so nobody on the current case's
+        // team is blocked from browsing it. Skip anyone who's already the
+        // target Reference's own Manager — grantLegalStudyMemberAccess
+        // itself dedupes against existing legalMembers rows.
         const currentAccess = caseAccessById[String(idValue(caseId))];
         const currentCaseTeamIds = currentAccess?.allIds || [];
-        const targetManagerId = extractId(legalStudyRecord?.managerId) || extractId(legalStudyRecord?.manager);
-        const membersToGrant = currentCaseTeamIds.filter(
-          (id) => !targetManagerId || String(id) !== String(targetManagerId),
-        );
-        console.log("[handleLinkSubmit] legalStudy=", legalStudyId, "membersToGrant=", membersToGrant);
-        await Promise.all(
-          membersToGrant.map((lawyerId) => grantLegalStudyMemberAccess(legalStudyId, lawyerId)),
-        );
 
-        message?.success?.("Linked Legal Study successfully.");
+        let successCount = 0;
+        let failedCount = 0;
+        let alreadyLinkedCount = 0;
+        for (const legalStudyId of selectedLegalStudyIds) {
+          const legalStudyRecord = activeRows(legalStudyLibrary.studies).find(
+            (study) => String(extractId(study)) === String(legalStudyId),
+          );
+          if (!legalStudyRecord) {
+            failedCount += 1;
+            continue;
+          }
+          const isAlreadyLinked = links.some(
+            (row) => row?.type === "legal_study" && String(extractId(row?.reference)) === String(legalStudyId),
+          );
+          if (isAlreadyLinked) {
+            alreadyLinkedCount += 1;
+            continue;
+          }
+
+          try {
+            await addRelationLink("legalStudy", caseId, legalStudyId);
+            successCount += 1;
+
+            const targetManagerId = extractId(legalStudyRecord?.managerId) || extractId(legalStudyRecord?.manager);
+            const membersToGrant = currentCaseTeamIds.filter(
+              (id) => !targetManagerId || String(id) !== String(targetManagerId),
+            );
+            console.log("[handleLinkSubmit] legalStudy=", legalStudyId, "membersToGrant=", membersToGrant);
+            await Promise.all(
+              membersToGrant.map((lawyerId) => grantLegalStudyMemberAccess(legalStudyId, lawyerId)),
+            );
+          } catch (error) {
+            failedCount += 1;
+            console.error("[JsItemLegalReference] link legal study failed", legalStudyId, error);
+          }
+        }
+
+        if (successCount > 0 && failedCount === 0) {
+          message?.success?.(
+            successCount === 1
+              ? "Linked Reference successfully."
+              : `Linked ${successCount} References successfully.`,
+          );
+        } else if (successCount > 0 && failedCount > 0) {
+          message?.warning?.(`Linked ${successCount} Reference(s), ${failedCount} failed.`);
+        } else if (failedCount > 0) {
+          message?.error?.("Failed to link Reference.");
+          return;
+        } else if (alreadyLinkedCount > 0) {
+          message?.info?.("Selected Reference(s) are already linked to the current case.");
+          setLinkModalOpen(false);
+          return;
+        } else {
+          message?.warning?.("Please select at least one Reference.");
+          return;
+        }
 
       } else {
         message?.warning?.("Unknown link mode.");
@@ -2616,6 +2660,7 @@ function LegalReferenceWorkspace() {
       setNewReferenceFiles([]);
       setNewReferenceFolderFiles([]);
       setSelectedCaseIdsForLink([]);
+      setSelectedLegalStudyIds([]);
       await loadLinks();
     } catch (error) {
       if (error?.errorFields) return;
@@ -3931,6 +3976,7 @@ function LegalReferenceWorkspace() {
           setCaseOptionSearch("");
           setLegalStudySearch("");
           setSelectedLegalStudyId("");
+          setSelectedLegalStudyIds([]);
           setSelectedCaseIdsForLink([]);
           resetSourceSelection();
           setNewReferenceFiles([]);
@@ -3969,6 +4015,7 @@ function LegalReferenceWorkspace() {
               onClick: () => {
                 setLinkMode("case");
                 setSelectedLegalStudyId("");
+                setSelectedLegalStudyIds([]);
                 resetSourceSelection();
                 linkForm.setFieldsValue({ sourceType: "case" });
               },
@@ -4140,26 +4187,32 @@ function LegalReferenceWorkspace() {
           ]
           : [
             h(
+              "div",
+              {
+                key: "legalStudyCount",
+                style: { marginBottom: 8, color: color.muted, fontSize: 12 },
+              },
+              `Selected ${selectedLegalStudyIds.length} Reference(s)`,
+            ),
+            h(
               Form.Item,
               {
                 key: "legalStudyId",
-                name: "legalStudyId",
                 label: "Reference",
-                rules: [{ required: true, message: "Please select a Reference" }],
               },
               h(
                 Select,
                 {
+                  mode: "multiple",
                   showSearch: true,
                   loading: optionLoading,
-                  placeholder: "Select Reference...",
+                  placeholder: "Select one or more References...",
                   optionFilterProp: "label",
+                  value: selectedLegalStudyIds,
                   filterOption: (input, option) =>
                     normalizeSearchValue(option?.label).includes(normalizeSearchValue(input)),
-                  onChange: (value) => {
-                    setSelectedLegalStudyId(String(value || ""));
-                    resetSourceSelection();
-                    linkForm.setFieldsValue({ legalStudyId: value });
+                  onChange: (values) => {
+                    setSelectedLegalStudyIds(asArray(values).map((v) => String(v)));
                   },
                   notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Reference not found",
                 },
