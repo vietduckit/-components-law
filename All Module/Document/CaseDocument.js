@@ -5959,6 +5959,17 @@ const InternalTemplates = () => {
     let current =
       folderMap.get(String(selectedFolderId)) ||
       folderById.get(String(selectedFolderId));
+    // Case-bound folders (Cases / Linked Cases spaces) never climb past
+    // the case boundary — the Case's own root folder's real DB parentId
+    // points at the Customer folder above it, which must never surface as
+    // a clickable crumb here. Without this gate, clicking that crumb lands
+    // selectedFolderId on the Customer folder, and the Case root folder
+    // then shows as an ordinary sibling card inside it — silently
+    // breaking the root-only permission model (resolveFolderTreeRoot
+    // applies this exact same gate for permission resolution; the
+    // breadcrumb's own separate parent-walk needs it too). ownCaseId is
+    // read once from the folder we're starting the walk at.
+    const ownCaseId = getLinkedCaseId(current);
     while (current) {
       const currentId = String(extractId(current));
       path.unshift({ id: currentId, name: current.name || "Folder" });
@@ -5967,7 +5978,9 @@ const InternalTemplates = () => {
       // ancestor was excluded from folderMap (ACL-hidden or trashed) —
       // otherwise the breadcrumb chain silently truncates mid-path instead
       // of continuing up to root.
-      current = folderMap.get(parentId) || folderById.get(parentId);
+      const parent = folderMap.get(parentId) || folderById.get(parentId);
+      if (ownCaseId && parent && !getLinkedCaseId(parent)) break;
+      current = parent;
     }
     return items.concat(path);
   }, [
