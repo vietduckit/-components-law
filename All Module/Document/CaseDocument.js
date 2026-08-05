@@ -20,7 +20,6 @@ const {
   Select,
   Table,
   Tooltip,
-  Upload,
   Progress,
   TreeSelect,
   Dropdown,
@@ -29,7 +28,6 @@ const {
 } = ctx.antd;
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
-const { Dragger } = Upload;
 
 const FONT =
   "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -3660,6 +3658,232 @@ const InlineEditCell = ({
   );
 };
 
+// Metadata-only modal shown AFTER file(s) are already picked via the native
+// OS file dialog (see handleFileInputTrigger) — no Dragger/file re-selection
+// here. Matches Library.js's DocumentUploadFieldsModal exactly: the 2-step
+// "pick files → fill metadata" flow, not a single modal with an embedded
+// Dragger. No Google Drive URL field — Library never had one in the create
+// flow (only reads it for legacy records), and the user chose to drop this
+// file-less "link" creation path from CaseDocument.js too rather than keep
+// a feature Library doesn't have.
+const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
+  // "grouped" only ever offered when files.length > 1 (see the Radio.Group
+  // below) — irrelevant, but harmless, for single-file submits since
+  // handleConfirmUploadFields only reads it when grouping.
+  const [uploadMode, setUploadMode] = useState("separate");
+
+  useEffect(() => {
+    if (open) {
+      form.resetFields();
+      setUploadMode("separate");
+      // Chỉ gán mặc định tên tài liệu = tên file (không kèm đuôi mở rộng)
+      // khi upload đúng 1 file — khớp với logic applyTitleOverride trong
+      // uploadFilesToTarget (chỉ override title khi upload 1 file duy nhất).
+      if (files.length === 1) {
+        const rawName = files[0].name;
+        const dotIndex = rawName.lastIndexOf(".");
+        const nameWithoutExt =
+          dotIndex > 0 ? rawName.slice(0, dotIndex) : rawName;
+        form.setFieldsValue({ title: nameWithoutExt });
+      }
+      setSubmitting(false);
+    }
+  }, [open, files]);
+
+  const handleOk = async () => {
+    let values = {};
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        title: values.title?.trim() || "",
+        documentType: values.documentType?.trim() || "",
+        documentCode: values.documentCode?.trim() || "",
+        openingDate: values.openingDate || "",
+        signedAt: values.signedAt || "",
+        effectiveAt: values.effectiveAt || "",
+        senderName: values.senderName?.trim() || "",
+        recipientName: values.recipientName?.trim() || "",
+        description: values.description?.trim() || "",
+        uploadMode,
+        groupFolderName: values.groupFolderName?.trim() || "",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fileNames = files.map((f) => f.name).join(", ");
+  const inpStyle = { fontFamily: FONT };
+  const dateStyle = { width: "100%", fontFamily: FONT };
+
+  return (
+    <Modal
+      open={open}
+      onCancel={submitting ? undefined : onClose}
+      maskClosable={!submitting}
+      destroyOnClose
+      width={640}
+      title={
+        <span style={{ fontFamily: FONT }}>
+          Document Information {files.length > 1 ? `(${files.length} files)` : ""}
+        </span>
+      }
+      footer={[
+        <Button
+          key="cancel"
+          onClick={onClose}
+          disabled={submitting}
+          style={{ fontFamily: FONT }}
+        >
+          Cancel
+        </Button>,
+        <Button
+          key="ok"
+          type="primary"
+          loading={submitting}
+          onClick={handleOk}
+          style={{ fontFamily: FONT }}
+        >
+          Upload
+        </Button>,
+      ]}
+    >
+      <Form form={form} layout="vertical" style={{ fontFamily: FONT }}>
+        <div
+          style={{
+            fontFamily: FONT,
+            marginBottom: 12,
+            fontSize: 12,
+            color: "#6B7280",
+          }}
+        >
+          Selected file(s): <b>{fileNames || "—"}</b>
+          {files.length > 1 && (
+            <div style={{ marginTop: 4 }}>
+              The information below will be applied to all {files.length} files
+              (the document name will keep each file's own name if left blank).
+            </div>
+          )}
+        </div>
+        {files.length > 1 && (
+          <div style={{ marginBottom: 16 }}>
+            <Radio.Group
+              value={uploadMode}
+              onChange={(e) => setUploadMode(e.target.value)}
+              style={{ fontFamily: FONT }}
+            >
+              <Radio value="separate">Upload as separate files</Radio>
+              <Radio value="grouped">Group into a new folder</Radio>
+            </Radio.Group>
+            {uploadMode === "grouped" && (
+              <Form.Item
+                name="groupFolderName"
+                label="Folder Name"
+                style={{ marginTop: 8, marginBottom: 0 }}
+                rules={[
+                  { required: true, message: "Please enter a folder name" },
+                ]}
+              >
+                <Input
+                  allowClear
+                  placeholder="Enter the new folder's name..."
+                  style={{ fontFamily: FONT }}
+                />
+              </Form.Item>
+            )}
+          </div>
+        )}
+        {uploadMode !== "grouped" && (
+          <React.Fragment>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="documentType" label="Document Type">
+                  <Input
+                    allowClear
+                    placeholder="e.g. Contract, Meeting Minutes..."
+                    style={inpStyle}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="title" label="Document Name">
+                  <Input
+                    allowClear
+                    placeholder="Leave blank to use file name"
+                    style={inpStyle}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="documentCode" label="Document Code">
+                  <Input
+                    allowClear
+                    placeholder="e.g. 123/2024/CT"
+                    style={inpStyle}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="openingDate" label="Opening/Issue Date">
+                  <Input type="date" style={dateStyle} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="signedAt" label="Signed Date">
+                  <Input type="date" style={dateStyle} />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="effectiveAt" label="Effective Date">
+                  <Input type="date" style={dateStyle} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="senderName" label="Sender">
+                  <Input
+                    allowClear
+                    placeholder="Sender name/organization"
+                    style={inpStyle}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="recipientName" label="Recipient">
+                  <Input
+                    allowClear
+                    placeholder="Recipient name/organization"
+                    style={inpStyle}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="description" label="Description">
+              <Input.TextArea
+                rows={3}
+                allowClear
+                placeholder="Summarize the main content..."
+              />
+            </Form.Item>
+          </React.Fragment>
+        )}
+      </Form>
+    </Modal>
+  );
+};
+
 const InternalTemplates = () => {
   const initialCaseContext = useMemo(() => getInitialCaseContext(), []);
   const [loading, setLoading] = useState(true);
@@ -3757,7 +3981,6 @@ const InternalTemplates = () => {
   const [sortMode, setSortMode] = useState("manual");
 
   const [isFolderOpen, setIsFolderOpen] = useState(false);
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [moveRecord, setMoveRecord] = useState(null);
   const [moveTargetId, setMoveTargetId] = useState("root");
   const [previewDoc, setPreviewDoc] = useState(null);
@@ -3771,7 +3994,6 @@ const InternalTemplates = () => {
   const [bulkPercent, setBulkPercent] = useState(0);
 
   const [folderLoading, setFolderLoading] = useState(false);
-  const [uploadLoading, setUploadLoading] = useState(false);
   const [editTemplateRecord, setEditTemplateRecord] = useState(null);
   const [editTemplateForm] = Form.useForm();
   const [editTemplateLoading, setEditTemplateLoading] = useState(false);
@@ -3789,12 +4011,11 @@ const InternalTemplates = () => {
 
   const folderInputRef = useRef(null);
   const [folderForm] = Form.useForm();
-  const [uploadForm] = Form.useForm();
-  const [uploadFileList, setUploadFileList] = useState([]);
-  // "grouped" only ever offered when uploadFileList.length > 1 (see the
-  // Radio.Group in the Upload File modal) — matches Library.js's
-  // uploadMode toggle in DocumentUploadFieldsModal.
-  const [uploadMode, setUploadMode] = useState("separate");
+  // Native OS file picker (2-step upload flow, matches Library.js) — files
+  // are picked here first, then DocumentUploadFieldsModal collects metadata.
+  const fileInputRef = useRef(null);
+  const directFileTargetRef = useRef(null);
+  const [uploadFieldsTarget, setUploadFieldsTarget] = useState(null);
   const [renameRecord, setRenameRecord] = useState(null);
   const [renameForm] = Form.useForm();
 
@@ -3859,8 +4080,6 @@ const InternalTemplates = () => {
   const documentTypes = useMemo(() => {
     return DEFAULT_DOCUMENT_TYPE_OPTIONS.map(decorateDocumentTypeOption);
   }, []);
-  const activeTypeId = "";
-
   const getRecordDocumentType = useCallback((record) => {
     return String(record?.documentType || "");
   }, []);
@@ -6697,141 +6916,134 @@ const InternalTemplates = () => {
     }
   };
 
-  // Ported from Library.js's uploadFilesToTarget/DocumentUploadFieldsModal:
-  // supports multiple files in one submit, sharing the metadata fields
-  // below across all of them; the Document Name field only overrides the
-  // record title when uploading exactly 1 file (Library's applyTitleOverride
-  // rule), otherwise each record keeps its own file name. The Google Drive
-  // URL field is CaseDocument-only (no file attached, single link record)
-  // and isn't part of Library's flow.
-  const handleUploadSubmit = async () => {
-    if (activeSpace !== "personal" && !requireCompany()) return;
-    if (!requireCaseRootFolderForUpload(selectedFolderId)) return;
-    if (!currentFolderPerms.canCreate) {
-      message.warning("You do not have permission to upload documents to this folder");
-      return;
-    }
+  // Ported from Library.js's uploadFilesToTarget: uploads already-picked
+  // files (from the native OS file dialog — see handleFileInputTrigger)
+  // into targetFolderId, applying the shared metadata fields collected by
+  // DocumentUploadFieldsModal to every record. The Document Name field
+  // only overrides the record title when uploading exactly 1 file
+  // (Library's applyTitleOverride rule), otherwise each record keeps its
+  // own file name. No permission re-check here — the caller
+  // (handleFileInputTrigger / handleConfirmUploadFields) already checked
+  // canCreate on the real target folder before this runs; re-checking
+  // after a "grouped" folder was just created would false-block since
+  // that folder isn't in `folders` state yet (loadData() hasn't run).
+  const uploadFilesToTarget = async (selectedFiles, targetFolderId, metadata) => {
+    const filesToUpload = Array.from(selectedFiles || []).filter(Boolean);
+    if (!filesToUpload.length) return true;
     try {
-      await uploadForm.validateFields();
-    } catch {
-      return;
-    }
-    const values = uploadForm.getFieldsValue();
-    const hasFiles = uploadFileList.length > 0;
-    const hasUrl = !!values.googleDriveUrl?.trim();
-    if (!hasFiles && !hasUrl) {
-      message.error("Please select file(s) or enter a Google Drive URL");
-      return;
-    }
-
-    setUploadLoading(true);
-    try {
-      let folderId = getEffectiveFolderId(selectedFolderId);
       const userId = getCurrentUserId();
-
-      if (uploadMode === "grouped" && hasFiles) {
-        const nowIso = new Date().toISOString();
-        const folderPayload = {
-          name: values.groupFolderName.trim(),
-          type: "custom",
-          createdAt: nowIso,
-          updatedAt: nowIso,
-          storageType: activeSpace,
-          ...(folderId ? { parentId: folderId } : {}),
-          ...(userId ? { createdById: userId, updatedById: userId } : {}),
-        };
-        applySpaceFolderPayload(folderPayload);
-
-        let folderRes;
-        try {
-          folderRes = await createFolderRecord(folderPayload);
-        } catch (e) {
-          message.error("Failed to create folder");
-          return;
-        }
-        const newFolderId = extractId(folderRes?.data?.data);
-        if (!newFolderId) {
-          message.error("Failed to create folder");
-          return;
-        }
-        folderId = newFolderId;
-      }
-
-      const applyTitleOverride = !!values.title?.trim() && uploadFileList.length === 1;
+      let nextIndex = await getNextFileIndex(targetFolderId);
+      const applyTitleOverride = !!metadata?.title && filesToUpload.length === 1;
       const sharedFields = {
-        documentType: values.documentType?.trim() || "",
-        documentCode: values.documentCode?.trim() || "",
-        openingDate: values.openingDate || null,
-        signedAt: values.signedAt || null,
-        effectiveAt: values.effectiveAt || null,
-        senderName: values.senderName?.trim() || "",
-        recipientName: values.recipientName?.trim() || "",
-        description: values.description?.trim() || "",
+        documentType: metadata?.documentType || "",
+        documentCode: metadata?.documentCode || "",
+        openingDate: metadata?.openingDate || null,
+        signedAt: metadata?.signedAt || null,
+        effectiveAt: metadata?.effectiveAt || null,
+        senderName: metadata?.senderName || "",
+        recipientName: metadata?.recipientName || "",
+        description: metadata?.description || "",
       };
 
-      if (hasFiles) {
-        let nextIndex = await getNextFileIndex(folderId);
-        for (const item of uploadFileList) {
-          const attachment = await uploadAttachment(item.originFileObj);
-          const title = applyTitleOverride ? values.title.trim() : item.name;
-          const nowIso = new Date().toISOString();
-          const payload = {
-            name: item.name,
-            title,
-            fileIndex: nextIndex,
-            createdAt: nowIso,
-            updatedAt: nowIso,
-            uploadedAt: nowIso,
-            uploaded_at: nowIso,
-            storageType: activeSpace,
-            ...sharedFields,
-            ...(folderId ? { folderId } : {}),
-            ...(attachment ? { fileAttachment: [{ id: attachment.id }] } : {}),
-            ...(userId
-              ? { uploadedById: userId, createdById: userId, updatedById: userId }
-              : {}),
-          };
-          applySpaceDocumentPayload(payload);
-          await createDocumentRecord(payload);
-          nextIndex += 1;
-        }
-      } else {
-        const title = values.title?.trim() || "Google Drive Link";
+      for (const file of filesToUpload) {
+        const attachment = await uploadAttachment(file, file.name);
+        const title = applyTitleOverride ? metadata.title : file.name;
         const nowIso = new Date().toISOString();
         const payload = {
-          name: title,
+          name: file.name,
           title,
-          googleDriveUrl: values.googleDriveUrl.trim(),
-          fileIndex: await getNextFileIndex(folderId),
+          fileIndex: nextIndex,
+          fileAttachment: [{ id: attachment.id }],
           createdAt: nowIso,
           updatedAt: nowIso,
           uploadedAt: nowIso,
           uploaded_at: nowIso,
           storageType: activeSpace,
           ...sharedFields,
-          ...(folderId ? { folderId } : {}),
+          ...(targetFolderId ? { folderId: targetFolderId } : {}),
           ...(userId
             ? { uploadedById: userId, createdById: userId, updatedById: userId }
             : {}),
         };
         applySpaceDocumentPayload(payload);
         await createDocumentRecord(payload);
+        nextIndex += 1;
       }
 
-      message.success(
-        hasFiles
-          ? `Upload ${uploadFileList.length} file(s) successfully!`
-          : "Link added successfully!",
-      );
-      setIsUploadOpen(false);
-      setUploadFileList([]);
-      uploadForm.resetFields();
+      message.success(`Upload ${filesToUpload.length} file(s) successfully!`);
       loadData();
+      return true;
     } catch (e) {
       message.error("Upload failed");
-    } finally {
-      setUploadLoading(false);
+      return false;
     }
+  };
+
+  // Fires when the native file dialog (fileInputRef, triggered by
+  // handleNewActionClick / the empty-state buttons / a folder card's own
+  // "+ Upload file" button) returns a selection. Matches Library.js's
+  // handleFileInputTrigger: permission is checked here, against the real
+  // target folder, BEFORE the metadata modal even opens.
+  const handleFileInputTrigger = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = null;
+    if (!files.length) return;
+    const targetSelector =
+      directFileTargetRef.current === undefined || directFileTargetRef.current === null
+        ? selectedFolderId
+        : directFileTargetRef.current;
+    directFileTargetRef.current = null;
+    if (activeSpace !== "personal" && !requireCompany()) return;
+    if (!requireCaseRootFolderForUpload(targetSelector)) return;
+    if (!currentFolderPerms.canCreate) {
+      message.warning("You do not have permission to upload documents to this folder");
+      return;
+    }
+    setUploadFieldsTarget({ files, folderId: getEffectiveFolderId(targetSelector) });
+  };
+
+  // Submits DocumentUploadFieldsModal — creates the "grouped" folder first
+  // (if chosen) then uploads every file into it, matching Library.js's
+  // handleConfirmUploadFields.
+  const handleConfirmUploadFields = async (metadata) => {
+    const target = uploadFieldsTarget;
+    if (!target) return;
+    let targetFolderId = target.folderId;
+
+    if (metadata.uploadMode === "grouped") {
+      if (!currentFolderPerms.canCreate) {
+        message.warning("You do not have permission to create a folder at this location");
+        return;
+      }
+      const userId = getCurrentUserId();
+      const nowIso = new Date().toISOString();
+      const folderPayload = {
+        name: metadata.groupFolderName.trim(),
+        type: "custom",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        storageType: activeSpace,
+        ...(targetFolderId ? { parentId: targetFolderId } : {}),
+        ...(userId ? { createdById: userId, updatedById: userId } : {}),
+      };
+      applySpaceFolderPayload(folderPayload);
+
+      let folderRes;
+      try {
+        folderRes = await createFolderRecord(folderPayload);
+      } catch (e) {
+        message.error("Failed to create folder");
+        return;
+      }
+      targetFolderId = extractId(folderRes?.data?.data);
+      if (!targetFolderId) {
+        message.error("Failed to create folder");
+        return;
+      }
+    }
+
+    const ok = await uploadFilesToTarget(target.files, targetFolderId, metadata);
+    if (ok) setUploadFieldsTarget(null);
   };
 
   const handleFolderInputTrigger = (event) => {
@@ -9556,11 +9768,8 @@ const InternalTemplates = () => {
       return;
     }
     if (key === "upload") {
-      uploadForm.resetFields();
-      uploadForm.setFieldsValue({ documentType: activeTypeId });
-      setUploadFileList([]);
-      setUploadMode("separate");
-      setIsUploadOpen(true);
+      directFileTargetRef.current = selectedFolderId;
+      fileInputRef.current?.click();
       return;
     }
     if (key === "upload_folder") {
@@ -11330,10 +11539,8 @@ const InternalTemplates = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  uploadForm.resetFields();
-                                  setUploadFileList([]);
-                                  setUploadMode("separate");
-                                  setIsUploadOpen(true);
+                                  directFileTargetRef.current = selectedFolderId;
+                                  fileInputRef.current?.click();
                                 }}
                                 style={{
                                   padding: "8px 18px",
@@ -11789,27 +11996,32 @@ const InternalTemplates = () => {
                                                 >
                                                   No documents yet
                                                 </div>
-                                                <button
-                                                  type="button"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    uploadForm.resetFields();
-                                                    setUploadFileList([]);
-                                                    setUploadMode("separate");
-                                                    setIsUploadOpen(true);
-                                                  }}
-                                                  style={{
-                                                    fontSize: 11,
-                                                    color: "#185FA5",
-                                                    background: "none",
-                                                    border: "none",
-                                                    padding: 0,
-                                                    cursor: "pointer",
-                                                    fontFamily: FONT,
-                                                  }}
-                                                >
-                                                  + Upload file
-                                                </button>
+                                                {getRecordPerms(record).canCreate && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      const fid = String(extractId(record));
+                                                      directFileTargetRef.current = fid;
+                                                      setSelectedFolderId(fid);
+                                                      setTimeout(
+                                                        () => fileInputRef.current?.click(),
+                                                        0,
+                                                      );
+                                                    }}
+                                                    style={{
+                                                      fontSize: 11,
+                                                      color: "#185FA5",
+                                                      background: "none",
+                                                      border: "none",
+                                                      padding: 0,
+                                                      cursor: "pointer",
+                                                      fontFamily: FONT,
+                                                    }}
+                                                  >
+                                                    + Upload file
+                                                  </button>
+                                                )}
                                               </div>
                                             ) : (
                                               <span
@@ -12301,182 +12513,19 @@ const InternalTemplates = () => {
         </Form>
       </Modal>
 
-      <Modal
-        title={
-          <span
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: "#111827",
-              fontFamily: FONT,
-            }}
-          >
-            Upload File
-          </span>
-        }
-        open={isUploadOpen}
-        onCancel={() => {
-          setIsUploadOpen(false);
-          uploadForm.resetFields();
-          setUploadFileList([]);
-        }}
-        width={760}
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => setIsUploadOpen(false)}
-            style={{
-              borderRadius: 8,
-              border: "0.5px solid #E5E7EB",
-              color: "#6B7280",
-            }}
-          >
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            loading={uploadLoading}
-            onClick={handleUploadSubmit}
-            style={{
-              borderRadius: 8,
-              background: "#111827",
-              borderColor: "#111827",
-            }}
-          >
-            Upload
-          </Button>,
-        ]}
-        destroyOnClose
-      >
-        <Form form={uploadForm} layout="vertical">
-          {uploadFileList.length > 1 && (
-            <div
-              style={{
-                fontFamily: FONT,
-                marginBottom: 12,
-                fontSize: 12,
-                color: "#6B7280",
-              }}
-            >
-              The information below will be applied to all {uploadFileList.length}{" "}
-              files (each file keeps its own name; Document Name is ignored
-              when uploading more than one file).
-            </div>
-          )}
-          {uploadFileList.length > 1 && (
-            <div style={{ marginBottom: 16 }}>
-              <Radio.Group
-                value={uploadMode}
-                onChange={(e) => setUploadMode(e.target.value)}
-              >
-                <Radio value="separate">Upload as separate files</Radio>
-                <Radio value="grouped">Group into a new folder</Radio>
-              </Radio.Group>
-              {uploadMode === "grouped" && (
-                <Form.Item
-                  name="groupFolderName"
-                  label="Folder Name"
-                  style={{ marginTop: 8, marginBottom: 0 }}
-                  rules={[
-                    { required: true, message: "Please enter a folder name" },
-                  ]}
-                >
-                  <Input
-                    allowClear
-                    placeholder="Enter the new folder's name..."
-                  />
-                </Form.Item>
-              )}
-            </div>
-          )}
-          {uploadMode !== "grouped" && (
-            <React.Fragment>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="documentType" label="Document Type">
-                    <Input
-                      allowClear
-                      placeholder="e.g. Contract, Meeting Minutes..."
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="title" label="Document Name">
-                    <Input
-                      allowClear
-                      placeholder="Leave blank to use file name"
-                      disabled={uploadFileList.length > 1}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="documentCode" label="Document Code">
-                    <Input allowClear placeholder="e.g. 123/2024/CT" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="openingDate" label="Opening/Issue Date">
-                    <Input type="date" style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="signedAt" label="Signed Date">
-                    <Input type="date" style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="effectiveAt" label="Effective Date">
-                    <Input type="date" style={{ width: "100%" }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={12}>
-                <Col span={12}>
-                  <Form.Item name="senderName" label="Sender">
-                    <Input allowClear placeholder="Sender name/organization" />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="recipientName" label="Recipient">
-                    <Input allowClear placeholder="Recipient name/organization" />
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Form.Item name="description" label="Description">
-                <Input.TextArea rows={2} placeholder="Short description..." />
-              </Form.Item>
-              <Form.Item
-                name="googleDriveUrl"
-                label="Google Drive URL"
-                tooltip="Only used when no file is attached below"
-              >
-                <Input
-                  placeholder="Paste a URL if not uploading a file"
-                  disabled={uploadFileList.length > 0}
-                />
-              </Form.Item>
-            </React.Fragment>
-          )}
-          <Form.Item label="Attached File(s)">
-            <Dragger
-              fileList={uploadFileList}
-              beforeUpload={() => false}
-              onChange={({ fileList }) => setUploadFileList(fileList)}
-              multiple
-            >
-              <p style={{ fontSize: 22, margin: "4px 0", color: "#6b7280" }}>
-                {TYPE_ICONS.upload}
-              </p>
-              <p style={{ margin: 0 }}>Drag & drop or click to select file(s)</p>
-            </Dragger>
-          </Form.Item>
-        </Form>
-      </Modal>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleFileInputTrigger}
+      />
+      <DocumentUploadFieldsModal
+        open={!!uploadFieldsTarget}
+        files={uploadFieldsTarget?.files || []}
+        onClose={() => setUploadFieldsTarget(null)}
+        onSubmit={handleConfirmUploadFields}
+      />
 
       <Modal
         title={

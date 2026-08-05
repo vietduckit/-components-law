@@ -371,11 +371,30 @@ map action → label/màu/icon/mô tả tiếng Việt-Anh lẫn. Lọc trùng: 
   `saveRecordField` + `buildDocMetaColumns` — CaseDocument.js trước đây
   chưa có 7/8 cột này ở Table view, đã thêm mới hoàn toàn theo mẫu
   Library.js, không chỉ wiring lại cột có sẵn).
-- Gom nhóm multi-file upload thành folder — CaseDocument.js port theo kiến
-  trúc modal riêng của nó (1 Modal+Form duy nhất, không tách
-  `DocumentUploadFieldsModal` + `handleConfirmUploadFields` như Library.js)
-  nhưng hành vi/UX giống hệt: toggle Radio.Group, ẩn field metadata khi
-  grouped, tạo folder trước rồi mới upload vào.
+- Upload flow — **2026-08-05: port lại lần 2 để khớp đúng kiến trúc của
+  Library.js**, không còn là 1 Modal+Form duy nhất có Dragger nhúng sẵn nữa.
+  Giờ CaseDocument.js dùng đúng flow 2 bước của Library.js:
+  1. "Upload File" (menu New / nút "+ Add Document" ở empty state / nút
+     "+ Upload file" trên 1 folder card cụ thể) → click thẳng vào 1
+     `<input type="file" multiple>` ẩn (`fileInputRef`) mở native OS file
+     picker — không còn Dragger trong modal nữa.
+  2. Chọn file xong (`handleFileInputTrigger`) → check quyền trên đúng
+     folder đích (`directFileTargetRef`, không phải lúc nào cũng là
+     `selectedFolderId` — nút trên 1 folder card cụ thể set ref = id của
+     folder đó rồi mới `setSelectedFolderId` + `setTimeout(...click(), 0)`
+     để permission memo kịp cập nhật trước khi dialog OS đóng) → mở
+     `DocumentUploadFieldsModal` (component top-level riêng, y hệt cấu trúc
+     Library.js, không có Dragger, không có field Google Drive URL) để
+     nhập metadata + chọn Radio "separate"/"grouped".
+  3. Submit → `handleConfirmUploadFields` tạo folder "grouped" trước (nếu
+     chọn) rồi gọi `uploadFilesToTarget` — không re-check permission trên
+     folder vừa tạo (tránh đúng bug false "no permission" đã gặp ở
+     Library.js, xem pattern doc).
+  Đã bỏ hẳn field "Google Drive URL" khỏi luồng tạo mới ở CaseDocument.js
+  (theo yêu cầu người dùng, để khớp 100% Library.js — Library chưa từng có
+  UI tạo mới bằng URL, chỉ đọc/hiển thị field này cho record cũ). Các
+  record cũ có `googleDriveUrl` vẫn xem/preview bình thường — chỉ path tạo
+  mới bị gỡ.
 - `roleToPerms`/permission tier cho folder Member — xem mục 3.1/3.3, giờ
   khớp byte-for-byte, cả 2 file cùng dùng capability tier
   viewer/editor/contributed/manager.
