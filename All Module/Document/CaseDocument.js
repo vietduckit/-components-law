@@ -8943,7 +8943,12 @@ const InternalTemplates = () => {
           key: "description",
           minWidth: 200,
           render: (_, record) => (
-            <Text type="secondary">{record.description || "—"}</Text>
+            <InlineEditCell
+              type="textarea"
+              value={record.description}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "description", v)}
+            />
           ),
         },
         {
@@ -8985,6 +8990,128 @@ const InternalTemplates = () => {
         },
       ];
     }
+
+    // Document metadata columns (type, code, dates, sender/recipient) —
+    // same 7 fields collected in the Upload File modal. Editable via
+    // InlineEditCell for file rows only — folders don't carry these
+    // fields, so folder rows always show a static "—". Ported from
+    // Library.js's buildDocMetaColumns().
+    const buildDocMetaColumns = () => [
+      {
+        title: "Document Type",
+        key: "documentType",
+        width: 140,
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              value={record.documentType}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "documentType", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Document Code",
+        key: "documentCode",
+        width: 140,
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              value={record.documentCode}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "documentCode", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Opening Date",
+        key: "openingDate",
+        width: 120,
+        sorter: (a, b) =>
+          new Date(a.openingDate || 0) - new Date(b.openingDate || 0),
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              type="date"
+              value={record.openingDate}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "openingDate", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Signed Date",
+        key: "signedAt",
+        width: 120,
+        sorter: (a, b) =>
+          new Date(a.signedAt || 0) - new Date(b.signedAt || 0),
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              type="date"
+              value={record.signedAt}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "signedAt", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Effective Date",
+        key: "effectiveAt",
+        width: 130,
+        sorter: (a, b) =>
+          new Date(a.effectiveAt || 0) - new Date(b.effectiveAt || 0),
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              type="date"
+              value={record.effectiveAt}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "effectiveAt", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Sender",
+        key: "senderName",
+        width: 150,
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              value={record.senderName}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "senderName", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+      {
+        title: "Recipient",
+        key: "recipientName",
+        width: 150,
+        render: (_, record) =>
+          record._type === "file" ? (
+            <InlineEditCell
+              value={record.recipientName}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "recipientName", v)}
+            />
+          ) : (
+            <Text type="secondary">—</Text>
+          ),
+      },
+    ];
 
     if (isAllFiles) {
       if (activeSpace === "trash") {
@@ -9090,9 +9217,15 @@ const InternalTemplates = () => {
           key: "description",
           minWidth: 200,
           render: (_, record) => (
-            <Text type="secondary">{record.description || "—"}</Text>
+            <InlineEditCell
+              type="textarea"
+              value={record.description}
+              canEdit={getRecordPerms(record).canRename}
+              onSave={(v) => saveRecordField(record, "description", v)}
+            />
           ),
         },
+        ...buildDocMetaColumns(),
         {
           title: "Size",
           key: "size",
@@ -9270,9 +9403,15 @@ const InternalTemplates = () => {
         key: "description",
         minWidth: 200,
         render: (_, record) => (
-          <Text type="secondary">{record.description || "—"}</Text>
+          <InlineEditCell
+            type="textarea"
+            value={record.description}
+            canEdit={getRecordPerms(record).canRename}
+            onSave={(v) => saveRecordField(record, "description", v)}
+          />
         ),
       },
+      ...buildDocMetaColumns(),
       {
         title: "Size",
         key: "size",
@@ -9359,6 +9498,7 @@ const InternalTemplates = () => {
     getFolderSize,
     openLegalReferenceDetail,
     openLinkCaseModal,
+    saveRecordField,
   ]);
 
   const rowDragProps = (record) => ({
