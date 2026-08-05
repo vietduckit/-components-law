@@ -75,17 +75,29 @@ viewer | null`
 
 ```javascript
 canView:              role !== null
-canCreate:            admin/owner/manager/editor/viewer   // ⚠️ viewer CŨNG được canCreate ở Library.js
+canCreate:            admin/owner/manager/editor/viewer
 canRename/canMove/canDelete/canShare: admin/owner/manager/editor
 canManagePermissions: admin/owner/manager
 ```
 
-⚠️ **Khác biệt đã xác nhận với CaseDocument.js** — `CaseDocument.js`'s
-`roleToPerms`: `canCreate` chỉ admin/owner/manager/editor (KHÔNG có
-`viewer`), và `canMove`/`canDelete`/`canShare` chỉ admin/owner/manager
-(KHÔNG có `editor`). Đây là lệch tier thật sự giữa 2 file — cần xác nhận
-với người phụ trách nghiệp vụ đây là chủ ý (2 module có mức độ mở khác
-nhau) hay là gap cần đồng bộ, trước khi tự ý sửa 1 trong 2 file.
+✅ **Đã đồng bộ (2026-08-05)** — `CaseDocument.js`'s `roleToPerms` giờ khớp
+byte-for-byte với Library.js's. Người dùng xác nhận đây là chủ ý: capability
+tier chuẩn cho Member là **viewer/editor/contributed** (không phải
+admin/owner/manager/editor/viewer như base `roleToPerms` gợi ý — xem mục
+3.3), cụ thể:
+
+| Tier | Quyền |
+|---|---|
+| Viewer | Upload/View/Download |
+| Editor | Upload/View/Download/Edit/Share |
+| Contributed | Upload/View/Download/Edit/Delete/Share/Move |
+| Manager | Full access |
+
+`getFolderPermissions`'s nhánh folder-Member (mục 3.2) giờ route qua
+`getMemberRoleTierPerms` (dùng chung với entity-Member ở mục 3.3) thay vì
+tự check "manager"/"editor"/else-"viewer" — cả 2 file giờ giống hệt nhau.
+`FolderPermissionsModal` (CaseDocument.js) đã thêm "Contributed" làm option
+thứ 4 trong Select gán role.
 
 ### 3.2. Root-only permission — mọi folder/document thừa hưởng quyền từ
 **gốc cây (root)** của nó, không phải từ chính nó
@@ -351,27 +363,36 @@ map action → label/màu/icon/mô tả tiếng Việt-Anh lẫn. Lọc trùng: 
   đồng bộ ngược.
 - `DASHBOARD_CONFIG` khác nhau theo đúng domain mỗi file (mục 1).
 
-**Đã đồng bộ trong phiên làm việc trước** (xem
-[pattern doc](document-inline-edit-upload-grouping-pattern.md)):
+**Đã đồng bộ** (xem [pattern doc](document-inline-edit-upload-grouping-pattern.md)):
 - `resolveFolderTreeRoot` có gate theo case boundary.
 - Chặn xoá root folder (mọi loại root).
 - Modal upload đa file với metadata phong phú.
-- Inline edit 8 field metadata trong Table (đã port sang Library.js phiên
-  này — **CaseDocument.js CHƯA có `InlineEditCell`/`saveRecordField`**,
-  cần port riêng theo checklist trong pattern doc).
-- Gom nhóm multi-file upload thành folder (**CaseDocument.js CHƯA có** —
-  cần port riêng).
+- Inline edit 8 field metadata trong Table (`InlineEditCell` +
+  `saveRecordField` + `buildDocMetaColumns` — CaseDocument.js trước đây
+  chưa có 7/8 cột này ở Table view, đã thêm mới hoàn toàn theo mẫu
+  Library.js, không chỉ wiring lại cột có sẵn).
+- Gom nhóm multi-file upload thành folder — CaseDocument.js port theo kiến
+  trúc modal riêng của nó (1 Modal+Form duy nhất, không tách
+  `DocumentUploadFieldsModal` + `handleConfirmUploadFields` như Library.js)
+  nhưng hành vi/UX giống hệt: toggle Radio.Group, ẩn field metadata khi
+  grouped, tạo folder trước rồi mới upload vào.
+- `roleToPerms`/permission tier cho folder Member — xem mục 3.1/3.3, giờ
+  khớp byte-for-byte, cả 2 file cùng dùng capability tier
+  viewer/editor/contributed/manager.
 
-**Cần xác minh lại, chưa kết luận** (phát hiện khi viết tài liệu này, chưa
-đối chiếu sâu):
-- `roleToPerms` lệch tier giữa 2 file (mục 3.1) — Library.js cho `viewer`
-  quyền `canCreate`, CaseDocument.js thì không; Library.js cho `editor`
-  quyền `canMove`/`canDelete`/`canShare`, CaseDocument.js yêu cầu
-  `manager`. Cần hỏi lại nghiệp vụ trước khi sửa bên nào.
-- Chưa đối chiếu: kéo-thả file/fol4er ngoài OS
-  (`handleContentDragEnter`/`readDroppedFiles`), sắp xếp thủ công
-  (`reorderFileAroundTarget`), Activity Log filter logic — CaseDocument.js
-  có các tính năng này chưa, nếu có thì cách triển khai có khớp không.
+**Bẫy thực tế lặp lại y hệt khi port sang CaseDocument.js** (đã có ở
+Library.js, gặp lại lần 2): `replace_all` trên block Description giống hệt
+text vô tình khớp luôn nhánh **mixed Trash** (không phải chỉ 2 nhánh
+non-trash như tính toán) — vì nhánh mixed Trash ở CaseDocument.js cùng cấp
+thụt lề với 2 nhánh non-trash khác, khác quy luật "trash luôn thụt lề sâu
+hơn" đúng ở isAllFolders/isAllFiles. Luôn đếm lại số occurrence còn lại sau
+`replace_all` trước khi commit, đừng tin giả định thụt lề.
+
+**Chưa đối chiếu** (chưa xác nhận CaseDocument.js có/không có, nếu có thì
+cách triển khai có khớp Library.js không):
+- Kéo-thả file/folder ngoài OS (`handleContentDragEnter`/`readDroppedFiles`).
+- Sắp xếp thủ công kéo-thả (`reorderFileAroundTarget`).
+- Activity Log filter logic (trùng lặp trash-log 60s...).
 
 ## 9. Cách dùng tài liệu này
 
