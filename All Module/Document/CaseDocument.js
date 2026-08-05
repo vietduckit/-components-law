@@ -5840,6 +5840,20 @@ const InternalTemplates = () => {
       return { managerNames, memberNames };
     }
 
+    // Linked Cases (case_reference): same shape as Current Case above —
+    // its "root" sentinel also resolves straight to the tree root, via
+    // the already-known activeCaseReferenceRootFolder.
+    if (activeSpace === "case_reference") {
+      if (!activeCaseReferenceRootFolder) return null;
+      const managerNames = getFolderManagerRows(activeCaseReferenceRootFolder)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      const memberNames = getFolderMemberRows(activeCaseReferenceRootFolder)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }
+
     // Reference (legal_study): governed by the entity's own manager/
     // members fields (see resolveLegalEntityFolderPerms), never by
     // folderManager/folderMembers (which stay empty for these folders) —
@@ -5879,6 +5893,7 @@ const InternalTemplates = () => {
   }, [
     activeSpace,
     activeCaseRootFolder,
+    activeCaseReferenceRootFolder,
     activeLegalStudyId,
     legalStudyById,
     selectedFolderId,
@@ -10662,20 +10677,6 @@ const InternalTemplates = () => {
                           ref.projectName ||
                           ref.title ||
                           getCaseDisplayName(ref);
-                        // Manager/Member preview so a linked case's access
-                        // grants can be followed straight from the sidebar
-                        // without opening it — same root-folder tables the
-                        // main breadcrumb summary reads from.
-                        const managerNames = rootFolder
-                          ? getFolderManagerRows(rootFolder)
-                              .map((row) => getLawyerDisplayName(row))
-                              .filter(Boolean)
-                          : [];
-                        const memberNames = rootFolder
-                          ? getFolderMemberRows(rootFolder)
-                              .map((row) => getLawyerDisplayName(row))
-                              .filter(Boolean)
-                          : [];
                         return (
                           <button
                             key={refId}
@@ -10688,9 +10689,8 @@ const InternalTemplates = () => {
                             style={{
                               width: "100%",
                               display: "flex",
-                              flexDirection: "column",
-                              alignItems: "flex-start",
-                              gap: 2,
+                              alignItems: "center",
+                              gap: 8,
                               padding: "7px 10px",
                               border: "0",
                               borderRadius: 8,
@@ -10728,70 +10728,38 @@ const InternalTemplates = () => {
                               });
                             }}
                           >
-                            <div
+                            <span
                               style={{
-                                display: "flex",
+                                width: 15,
+                                height: 15,
+                                flexShrink: 0,
+                                display: "inline-flex",
                                 alignItems: "center",
-                                gap: 8,
-                                width: "100%",
-                                minWidth: 0,
+                                justifyContent: "center",
+                                color: isActive ? "#185FA5" : "#6B7280",
                               }}
+                            >
+                              {React.cloneElement(TYPE_ICONS.folder, {
+                                size: 14,
+                              })}
+                            </span>
+                            <Tooltip
+                              title={displayLabel}
+                              placement="right"
+                              mouseEnterDelay={0.5}
                             >
                               <span
                                 style={{
-                                  width: 15,
-                                  height: 15,
-                                  flexShrink: 0,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: isActive ? "#185FA5" : "#6B7280",
-                                }}
-                              >
-                                {React.cloneElement(TYPE_ICONS.folder, {
-                                  size: 14,
-                                })}
-                              </span>
-                              <Tooltip
-                                title={displayLabel}
-                                placement="right"
-                                mouseEnterDelay={0.5}
-                              >
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {displayLabel}
-                                </span>
-                              </Tooltip>
-                            </div>
-                            {rootFolder && (
-                              <div
-                                style={{
-                                  width: "100%",
-                                  paddingLeft: 23,
-                                  fontSize: 10,
-                                  color: "#9CA3AF",
-                                  fontFamily: FONT,
+                                  flex: 1,
+                                  minWidth: 0,
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
                                   whiteSpace: "nowrap",
                                 }}
-                                title={`Manager: ${managerNames.length ? managerNames.join(", ") : "—"} · Member: ${memberNames.length ? memberNames.join(", ") : "—"}`}
                               >
-                                <span style={{ color: "#B5BDC7" }}>Manager: </span>
-                                {managerNames.length ? managerNames.join(", ") : "—"}
-                                <span style={{ color: "#B5BDC7", marginLeft: 8 }}>
-                                  Member:{" "}
-                                </span>
-                                {memberNames.length ? memberNames.join(", ") : "—"}
-                              </div>
-                            )}
+                                {displayLabel}
+                              </span>
+                            </Tooltip>
                           </button>
                         );
                       })
