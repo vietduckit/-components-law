@@ -1931,14 +1931,20 @@ const isRenameLockedFolder = (record) =>
       String(record?.name || "").trim().toLowerCase(),
     ));
 
+// Matches Library.js's roleToPerms exactly — "editor"/"viewer" here are
+// mostly a legacy/default fallback shape now (see the 2 direct
+// roleToPerms("viewer") call sites below); the real per-Member capability
+// tiers (viewer/editor/contributed) live in MEMBER_ROLE_CAPABILITIES /
+// getMemberRoleTierPerms further down, which getFolderPermissions routes
+// explicit folder Members through.
 const roleToPerms = (role) => ({
   role,
   canView:              role !== null,
-  canCreate:            ["admin","owner","manager","editor"].includes(role),
+  canCreate:            ["admin","owner","manager","editor","viewer"].includes(role),
   canRename:            ["admin","owner","manager","editor"].includes(role),
-  canMove:              ["admin","owner","manager"].includes(role),
-  canDelete:            ["admin","owner","manager"].includes(role),
-  canShare:             ["admin","owner","manager"].includes(role),
+  canMove:              ["admin","owner","manager","editor"].includes(role),
+  canDelete:            ["admin","owner","manager","editor"].includes(role),
+  canShare:             ["admin","owner","manager","editor"].includes(role),
   canManagePermissions: ["admin","owner","manager"].includes(role),
   isManager: ["admin","owner","manager"].includes(role),
   isMember:  role !== null,
@@ -1958,9 +1964,12 @@ const getLegalEntityManagerId = (record) =>
 const getEntityMemberRowLawyerId = (row) =>
   extractId(row?.memberId) || extractRelationId(row?.member);
 
-// Capability tiers for the Reference's Member role (viewer/editor/
-// contributed) — separate from the case-folder role tiers in roleToPerms
-// since a Reference Member is never promoted to "owner" via createdById.
+// Capability tiers for the Member role (viewer/editor/contributed) —
+// shared by BOTH the Reference's entity-level Members (this file's
+// resolveLegalEntityFolderPerms) AND regular folder Members
+// (getFolderPermissions' folderMembers branch below), matching Library.js.
+// A Reference Member is never promoted to "owner" via createdById — that
+// bypass only applies to the folder-tree path.
 const MEMBER_ROLE_CAPABILITIES = {
   viewer: {
     canCreate: true,
@@ -2112,10 +2121,13 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityC
 
     const explicitMember = members.find((m) => String(getPermissionLawyerId(m)) === String(lwId));
     if (explicitMember) {
+      // Capability tiers (viewer/editor/contributed) — same table used for
+      // Reference (legalStudy) Members above, unified with folder Members
+      // to match Library.js. "manager" here is legacy data from before
+      // Manager became its own slot (folderManagers) — still honored.
       const r = getPermissionRole(explicitMember, "viewer");
       if (r === "manager") return roleToPerms("manager");
-      if (r === "editor")  return roleToPerms("editor");
-      return roleToPerms("viewer");
+      return getMemberRoleTierPerms(r);
     }
   }
 
@@ -3496,9 +3508,11 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
                     <div style={{ fontSize: 12, color: "#8c8c8c" }}>
                       {s.role === "manager"
                         ? "Manager"
-                        : s.role === "editor"
-                          ? "Editor"
-                          : "Viewer"}
+                        : s.role === "contributed"
+                          ? "Contributed"
+                          : s.role === "editor"
+                            ? "Editor"
+                            : "Viewer"}
                     </div>
                   </div>
                 </div>
@@ -3511,6 +3525,7 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
                     options={[
                       { value: "viewer", label: "Viewer" },
                       { value: "editor", label: "Editor" },
+                      { value: "contributed", label: "Contributed" },
                       { value: "manager", label: "Manager" },
                     ]}
                   />
