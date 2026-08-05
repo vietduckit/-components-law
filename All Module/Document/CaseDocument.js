@@ -3532,6 +3532,119 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
   );
 };
 
+// Formats any stored date value into the "YYYY-MM-DD" shape a native
+// <input type="date"> needs for its `value` — display formatting still
+// goes through formatDate().
+const toDateInputValue = (value) => (value ? String(value).slice(0, 10) : "");
+
+// Generic click-to-edit cell for the Table view — used by the Description
+// column and buildDocMetaColumns() so those 8 fields don't each need their
+// own copy of the open/save/cancel state machine that editingTitleId/
+// handleSaveFileTitle already owns for the Name column. Each instance owns
+// its own edit state (not a shared editingCell state) since every call
+// site already has a fully-formed onSave callback bound to its own
+// (record, field) pair. Ported from Library.js — see
+// nocobase-docs/document-inline-edit-upload-grouping-pattern.md.
+const InlineEditCell = ({
+  value,
+  type = "text",
+  canEdit,
+  onSave,
+  placeholder = "—",
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const displayValue =
+    type === "date"
+      ? value
+        ? formatDate(value)
+        : placeholder
+      : value || placeholder;
+
+  if (!canEdit) {
+    return <Text type="secondary">{displayValue}</Text>;
+  }
+
+  if (!editing) {
+    return (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setDraft(type === "date" ? toDateInputValue(value) : value || "");
+          setEditing(true);
+        }}
+        style={{
+          cursor: "pointer",
+          display: "inline-block",
+          minHeight: 20,
+          borderBottom: "1px dashed transparent",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderBottomColor = "#D1D5DB";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderBottomColor = "transparent";
+        }}
+      >
+        <Text type="secondary">{displayValue}</Text>
+      </div>
+    );
+  }
+
+  const commit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(type === "date" ? draft || null : draft);
+      setEditing(false);
+    } catch (e) {
+      // onSave already shows message.error — stay in edit mode so the
+      // user can fix the value and retry instead of losing it.
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancel = () => setEditing(false);
+
+  if (type === "textarea") {
+    return (
+      <Input.TextArea
+        size="small"
+        autoFocus
+        autoSize={{ minRows: 1, maxRows: 4 }}
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") cancel();
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
+  }
+
+  return (
+    <Input
+      size="small"
+      type={type === "date" ? "date" : "text"}
+      autoFocus
+      value={draft}
+      disabled={saving}
+      onChange={(e) => setDraft(e.target.value)}
+      onPressEnter={commit}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") cancel();
+      }}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+};
+
 const InternalTemplates = () => {
   const initialCaseContext = useMemo(() => getInitialCaseContext(), []);
   const [loading, setLoading] = useState(true);
@@ -7376,6 +7489,33 @@ const InternalTemplates = () => {
           ? "Failed to update folder name"
           : "Failed to update document name",
       );
+    }
+  };
+
+  // Generic single-field save for InlineEditCell — folders only ever get
+  // "description" through this path; files can get any of the 8 fields the
+  // Table's Description column / buildDocMetaColumns() offer. Ported from
+  // Library.js's saveRecordField.
+  const saveRecordField = async (record, field, value) => {
+    try {
+      const isFolder = record._type === "folder";
+      const userId = getCurrentUserId();
+      const requestFn = isFolder ? ctx.api.request : requestDocumentApi;
+      await requestFn({
+        url: isFolder
+          ? `folders:update?filterByTk=${extractId(record)}`
+          : `documents:update?filterByTk=${extractId(record)}`,
+        method: "POST",
+        data: {
+          [field]: value,
+          updatedAt: new Date().toISOString(),
+          ...(userId ? { updatedById: userId } : {}),
+        },
+      });
+      loadData();
+    } catch (e) {
+      message.error("Failed to update");
+      throw e;
     }
   };
 
