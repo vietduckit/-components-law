@@ -25,6 +25,7 @@ const {
   TreeSelect,
   Dropdown,
   Checkbox,
+  Radio,
 } = ctx.antd;
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -1887,14 +1888,48 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
   );
 };
 
+// Display label only — matches Library.js's LEGAL_STUDY_LABEL rename.
+// Internal keys (activeSpace "legal_study", storageType "legal_study",
+// field names legalStudyId/legalMembers/...) stay unchanged; only the text
+// shown to the user changes, so this doesn't touch stored data.
+const REFERENCE_LABEL = "Reference";
+
 const ROLE_LABEL = {
-  admin:   "Quản trị viên",
-  owner:   "Chủ sở hữu",
-  manager: "Quản lý",
-  editor:  "Chỉnh sửa",
-  viewer:  "Chỉ xem",
-  shared:  "Được chia sẻ",
+  admin:   "Admin",
+  owner:   "Owner",
+  manager: "Manager",
+  editor:  "Editor",
+  viewer:  "Viewer",
+  shared:  "Shared",
 };
+
+// The 5 fixed template folders CaseCreateForm.js auto-creates per case
+// (see its defaultChildren list) — never renameable by anyone, including
+// admins. Mirrors Library.js's SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS/NAMES +
+// isRenameLockedFolder exactly (duplicated per-file — see
+// [[nocobase_single_file_constraint]]). Name-based fallback covers cases
+// created before folderTemplateKey existed on this schema.
+const SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS = new Set([
+  "legal_study",
+  "lsc_related",
+  "legal_docs",
+  "legal_dossiers",
+  "report_result",
+]);
+const SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES = new Set([
+  "legal study",
+  "lsc & related",
+  "legal docs",
+  "legal dossiers",
+  "report and result",
+]);
+const isRenameLockedFolder = (record) =>
+  record?._type === "folder" &&
+  Boolean(getLinkedCaseId(record)) &&
+  (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
+    SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
+      String(record?.name || "").trim().toLowerCase(),
+    ));
 
 const roleToPerms = (role) => ({
   role,
@@ -1910,20 +1945,168 @@ const roleToPerms = (role) => ({
   canEdit:   ["admin","owner","manager","editor"].includes(role),
 });
 
-const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
-  if (isAdminUser(user)) return roleToPerms("admin");
+// Standalone Reference (legalStudy collection, linked to this case via the
+// "legalStudy" relation — see fetchLinkedRelationRows) permission model —
+// matches Library.js's resolveLegalEntityFolderPerms exactly. Unlike case
+// folders, a Reference carries its own direct `manager` (belongsTo lawyers,
+// single) plus a `members` belongsToMany relation backed by the Legal
+// Member table (legalMembers), which DOES carry a per-row role
+// (viewer/editor/contributed) — never via folderManager/folderMembers.
+const getLegalEntityManagerId = (record) =>
+  extractId(record?.managerId) || extractRelationId(record?.manager);
+
+const getEntityMemberRowLawyerId = (row) =>
+  extractId(row?.memberId) || extractRelationId(row?.member);
+
+// Capability tiers for the Reference's Member role (viewer/editor/
+// contributed) — separate from the case-folder role tiers in roleToPerms
+// since a Reference Member is never promoted to "owner" via createdById.
+const MEMBER_ROLE_CAPABILITIES = {
+  viewer: {
+    canCreate: true,
+    canRename: false,
+    canMove: false,
+    canDelete: false,
+    canShare: false,
+    canEdit: false,
+  },
+  editor: {
+    canCreate: true,
+    canRename: true,
+    canMove: false,
+    canDelete: false,
+    canShare: true,
+    canEdit: true,
+  },
+  contributed: {
+    canCreate: true,
+    canRename: true,
+    canMove: true,
+    canDelete: true,
+    canShare: true,
+    canEdit: true,
+  },
+};
+const getMemberRoleTierPerms = (role) => {
+  const capabilities = MEMBER_ROLE_CAPABILITIES[role];
+  if (!capabilities) return roleToPerms(null);
+  return {
+    role,
+    canView: true,
+    canManagePermissions: false,
+    isManager: false,
+    isMember: true,
+    ...capabilities,
+  };
+};
+
+// Resolves the effective permission tier for a Reference (legalStudy)
+// folder/document, given the current lawyer id and the precomputed lookups
+// in entityCtx (see entityPermissionContext below). Returns null when
+// entityCtx wasn't supplied or the entity record hasn't loaded yet —
+// callers fall back to roleToPerms(null). No owner/createdById bypass —
+// access is governed strictly by admin status, Manager, or Legal Member
+// role (mirrors Library.js exactly).
+const resolveLegalEntityFolderPerms = (entityId, lwId, entityCtx) => {
+  if (!entityCtx || !entityId || !lwId) return null;
+  const entityRecord = entityCtx.legalStudyById?.get(String(entityId));
+  if (!entityRecord) return null;
+  const managerId = getLegalEntityManagerId(entityRecord);
+  if (managerId && String(managerId) === String(lwId))
+    return roleToPerms("manager");
+  const roleMap = entityCtx.legalMemberRoleByStudy?.get(String(entityId));
+  const role = roleMap?.get(String(lwId));
+  if (!role) return roleToPerms(null);
+  return getMemberRoleTierPerms(role);
+};
+
+// Standalone (case-less) Reference root folders — legalStudyId set, no
+// projectId/caseId — can never be deleted, matching Library.js's
+// isLegalStudyRootFolder. Root = no parentId, or "root" sentinel.
+const isReferenceEntityRootFolder = (folder) =>
+  Boolean(folder) &&
+  Boolean(extractId(folder.legalStudyId)) &&
+  !getLinkedCaseId(folder) &&
+  (!getFolderParentId(folder) || getFolderParentId(folder) === "root");
+
+// Root-only permission model (matches Library.js): a folder's own
+// folderManagers/folderMembers rows and createdById no longer matter on
+// their own — only the ROOT of its tree grants access. Walk up the
+// parentId chain within `allFolders` to find that root. `allFolders` MUST
+// include the root folder record itself — a root-excluded rendering list
+// (e.g. caseReferenceVisibleFolders, which hides that root's own row from
+// the tree body) makes this walk stop one level too low and resolve to a
+// template child folder instead of the real root.
+const resolveFolderTreeRoot = (folder, allFolders) => {
+  if (!folder) return null;
+  const folderById = new Map(
+    (allFolders || []).map((f) => [String(extractId(f.id)), f]),
+  );
+  // Case-bound folders (getLinkedCaseId set) stop climbing once the parent
+  // no longer carries the SAME case's link — the Case root's own parent is
+  // the Customer folder above it, which must never be treated as part of
+  // this case's tree (matches Library.js's resolveFolderTreeRootFromMap;
+  // without this gate a Case root folder's permissions/canDelete would
+  // silently resolve against the Customer folder instead of itself).
+  const ownCaseId = getLinkedCaseId(folder);
+  let current = folder;
+  const visited = new Set();
+  while (true) {
+    const parentId = extractId(current.parentId);
+    if (!parentId || parentId === "root") break;
+    const parentKey = String(parentId);
+    if (visited.has(parentKey)) break;
+    visited.add(parentKey);
+    const parent = folderById.get(parentKey);
+    if (!parent) break;
+    if (ownCaseId && !getLinkedCaseId(parent)) break;
+    current = parent;
+  }
+  return current;
+};
+
+const lockDeleteIfReferenceEntityRoot = (folder, perms) =>
+  isReferenceEntityRootFolder(folder) ? { ...perms, canDelete: false } : perms;
+
+// Permissions is root-folder-only now — never offered on a subfolder
+// (its own folderManagers/folderMembers rows are ignored by the
+// root-only model above, so editing them there would silently do
+// nothing). True when `folder` IS its own tree root.
+const isFolderTreeRoot = (folder, allFolders) => {
+  if (!folder) return false;
+  const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+  return String(extractId(root)) === String(extractId(folder));
+};
+
+const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityCtx) => {
+  if (isAdminUser(user)) return lockDeleteIfReferenceEntityRoot(folder, roleToPerms("admin"));
   if (!folder) return roleToPerms("admin");
   if (!user) return roleToPerms(null);
 
   const uid = extractId(user.id);
   const lwId = extractId(currentLawyerId);
 
-  if (uid && String(extractId(folder.createdById)) === String(uid)) return roleToPerms("owner");
+  // Reference (legalStudy) bridge — every folder under a standalone
+  // Reference carries its own legalStudyId directly (flat tagging, not
+  // just on a root folder), so check the folder itself rather than the
+  // physical folder tree's root. Checked BEFORE the generic case-folder
+  // root check below, since that check's "root" is a physical-folder
+  // concept unrelated to the entity.
+  const entityStudyId = extractId(folder.legalStudyId);
+  if (entityStudyId) {
+    return lockDeleteIfReferenceEntityRoot(
+      folder,
+      resolveLegalEntityFolderPerms(entityStudyId, lwId, entityCtx) || roleToPerms(null),
+    );
+  }
 
-  const managers = getFolderManagerRows(folder);
-  const members = getFolderMemberRows(folder);
+  const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+
+  if (uid && String(extractId(root.createdById)) === String(uid)) return roleToPerms("owner");
 
   if (lwId) {
+    const managers = getFolderManagerRows(root);
+    const members = getFolderMemberRows(root);
     const isExplicitManager = managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId));
     if (isExplicitManager) return roleToPerms("manager");
 
@@ -1936,82 +2119,76 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
     }
   }
 
-  const pId = extractId(folder.parentId);
-  if (!pId || pId === "root") return roleToPerms(null);
-
-  const parentFolder = allFolders.find((f) => String(extractId(f.id)) === String(pId));
-  if (!parentFolder) return roleToPerms(null);
-
-  return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
+  return roleToPerms(null);
 };
 
-const canManageFile = (file, folder, user, allFolders, currentLawyerId) => {
+const canManageFile = (file, folder, user, allFolders, currentLawyerId, entityCtx) => {
   if (!user) return false;
   const { isManager, canEdit } = getFolderPermissions(
     folder,
     user,
     allFolders,
     currentLawyerId,
+    entityCtx,
   );
   if (isManager || canEdit) return true;
   if (extractId(file.createdById) === extractId(user.id)) return true;
   return false;
 };
 
-const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
-  const accessible = new Set();
+const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx) => {
   const uid = extractId(currentUser?.id);
   const lwId = extractId(currentLawyerId);
 
   if (isAdminUser(currentUser)) {
-    allFolders.forEach((f) => accessible.add(extractId(f.id)));
-    return { accessible };
+    const all = new Set(allFolders.map((f) => extractId(f.id)));
+    return { accessible: all, entitled: new Set(all) };
   }
 
-  if (!uid) return { accessible };
+  if (!uid) return { accessible: new Set(), entitled: new Set() };
 
-  // 1. Find folders with direct access
-  allFolders.forEach((f) => {
-    const fId = extractId(f.id);
-    // Owner check
-    if (extractId(f.createdById) === uid) {
-      accessible.add(fId);
-      return;
-    }
-    // Manager/Member check via currentLawyerId
-    if (lwId) {
-      const managers = getFolderManagerRows(f);
-      const members = getFolderMemberRows(f);
-      if (
-        managers.some((m) => getPermissionLawyerId(m) === lwId) ||
-        members.some((m) => getPermissionLawyerId(m) === lwId)
-      ) {
-        accessible.add(fId);
-        return;
-      }
-    }
-  });
-
-  // 2. Cascade down: include all descendants of accessible folders
-  const getDescendantIdsRecursive = (pId, list) => {
-    let ids = [];
-    list.forEach((f) => {
-      if (extractId(f.parentId) === pId) {
-        const id = extractId(f.id);
-        ids.push(id);
-        ids = ids.concat(getDescendantIdsRecursive(id, list));
-      }
-    });
-    return ids;
+  const rootCache = new Map();
+  const resolveRoot = (folder) => {
+    const key = String(extractId(folder.id));
+    if (rootCache.has(key)) return rootCache.get(key);
+    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+    rootCache.set(key, root);
+    return root;
   };
 
-  const directIds = Array.from(accessible);
-  directIds.forEach((pId) => {
-    const descIds = getDescendantIdsRecursive(pId, allFolders);
-    descIds.forEach((id) => accessible.add(id));
+  const hasRootGrant = (root) => {
+    if (!root) return false;
+    if (String(extractId(root.createdById)) === String(uid)) return true;
+    if (!lwId) return false;
+    const managers = getFolderManagerRows(root);
+    const members = getFolderMemberRows(root);
+    return (
+      managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId)) ||
+      members.some((m) => String(getPermissionLawyerId(m)) === String(lwId))
+    );
+  };
+
+  // Reference bridge — returns null for folders that aren't entity-linked
+  // (no legalStudyId), so the caller falls through to the root-based check.
+  const hasEntityGrant = (folder) => {
+    const studyId = extractId(folder.legalStudyId);
+    if (!studyId) return null;
+    if (!lwId) return false;
+    const perms = resolveLegalEntityFolderPerms(studyId, lwId, entityCtx);
+    return !!(perms && perms.canView);
+  };
+
+  const accessible = new Set();
+  allFolders.forEach((f) => {
+    const entityGrant = hasEntityGrant(f);
+    if (entityGrant !== null) {
+      if (entityGrant) accessible.add(extractId(f.id));
+      return;
+    }
+    if (hasRootGrant(resolveRoot(f))) accessible.add(extractId(f.id));
   });
 
-  return { accessible };
+  return { accessible, entitled: accessible };
 };
 
 const LOCK_ICON = (
@@ -2317,7 +2494,7 @@ const createLegalReferenceRecord = async (payload) => {
   throw lastError || new Error("Failed to create parent record");
 };
 
-const fetchLinkedRelationRows = async (caseId, relationName) => {
+const fetchLinkedRelationRows = async (caseId, relationName, extraAppends = []) => {
   const safeCaseId = extractId(caseId);
   if (!safeCaseId) return [];
 
@@ -2328,13 +2505,29 @@ const fetchLinkedRelationRows = async (caseId, relationName) => {
 
   for (const url of candidates) {
     try {
-      const rows = await fetchAllList(url, { appends: ["createdBy"] });
+      const rows = await fetchAllList(url, { appends: ["createdBy", ...extraAppends] });
       console.log(`[OK] ${url} → ${rows.length} rows`);
       return rows.filter((r) => !r.isDeleted);
     } catch (error) {
       console.warn(
         `[FAIL] ${url} → ${error?.response?.status || error?.message}`,
       );
+    }
+  }
+  return [];
+};
+
+// Unfiltered fetch of every Legal Member row (the legalMembers table backs
+// both legalReferenceId- and legalStudyId-scoped rows) — matches Library.js's
+// fetchAllLegalMemberRows. Filtered down per-entity by entityPermissionContext.
+const fetchAllLegalMemberRows = async () => {
+  for (const url of ["legalMembers:list", "legalMember:list"]) {
+    try {
+      return await fetchAllList(url, { pageSize: 1000, appends: ["member"] });
+    } catch (e) {
+      try {
+        return await fetchAllList(url, { pageSize: 1000 });
+      } catch (e2) {}
     }
   }
   return [];
@@ -2442,7 +2635,7 @@ const uploadAttachment = async (file, fileName = null) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   const attachment = uploadRes?.data?.data;
-  if (!attachment?.id) throw new Error("Upload file thất bại");
+  if (!attachment?.id) throw new Error("Upload failed");
   return attachment;
 };
 
@@ -2636,15 +2829,15 @@ const PreviewModal = ({ doc, onClose }) => {
             icon={DOWNLOAD_ICON}
             onClick={() => window.open(fullUrl, "_blank")}
           >
-            Tải về
+            Download
           </Button>
         ),
         <Button key="close" onClick={onClose}>
-          Đóng
+          Close
         </Button>,
       ].filter(Boolean)}
     >
-      {/* Spinner nền */}
+      {/* Background spinner */}
       {!isText && (
         <div
           style={{
@@ -2655,7 +2848,7 @@ const PreviewModal = ({ doc, onClose }) => {
             zIndex: 0,
           }}
         >
-          <Spin tip="Đang tải bản xem trước..." />
+          <Spin tip="Loading preview..." />
         </div>
       )}
 
@@ -2753,7 +2946,7 @@ const PreviewModal = ({ doc, onClose }) => {
                         : "video/mp4"
               }
             />
-            Trình duyệt của bạn không hỗ trợ phát video.
+            Your browser does not support video playback.
           </video>
         </div>
       )}
@@ -2813,7 +3006,7 @@ const PreviewModal = ({ doc, onClose }) => {
                             : "audio/mpeg"
               }
             />
-            Trình duyệt của bạn không hỗ trợ phát audio.
+            Your browser does not support audio playback.
           </audio>
         </div>
       )}
@@ -2851,7 +3044,7 @@ const PreviewModal = ({ doc, onClose }) => {
               style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}
             >
               {textContent != null
-                ? `${textContent.split("\n").length} dòng · ${textContent.length} ký tự`
+                ? `${textContent.split("\n").length} lines · ${textContent.length} characters`
                 : ""}
             </span>
           </div>
@@ -2873,7 +3066,7 @@ const PreviewModal = ({ doc, onClose }) => {
                   color: "#ccc",
                 }}
               >
-                <Spin tip="Đang tải nội dung..." />
+                <Spin tip="Loading content..." />
               </div>
             )}
             {textError && (
@@ -2890,7 +3083,7 @@ const PreviewModal = ({ doc, onClose }) => {
                 <Empty
                   description={
                     <span style={{ color: "#aaa" }}>
-                      Không thể tải nội dung file
+                      Could not load file content
                     </span>
                   }
                 />
@@ -2903,7 +3096,7 @@ const PreviewModal = ({ doc, onClose }) => {
                     background: "transparent",
                   }}
                 >
-                  Tải xuống để xem
+                  Download to view
                 </Button>
               </div>
             )}
@@ -2960,7 +3153,7 @@ const PreviewModal = ({ doc, onClose }) => {
             zIndex: 1,
           }}
         >
-          <Empty description="Tài liệu chưa có file hoặc URL để xem trước" />
+          <Empty description="This document has no file or URL to preview" />
         </div>
       )}
 
@@ -2996,7 +3189,7 @@ const PreviewModal = ({ doc, onClose }) => {
                 color: "#374151",
               }}
             >
-              Không thể xem trước định dạng{" "}
+              Cannot preview this format{" "}
               <code
                 style={{
                   background: "#f3f4f6",
@@ -3004,11 +3197,11 @@ const PreviewModal = ({ doc, onClose }) => {
                   borderRadius: 4,
                 }}
               >
-                {fileExt || "này"}
+                {fileExt || "this"}
               </code>
             </div>
             <div style={{ color: "#6b7280", fontSize: 13 }}>
-              Tải xuống để mở bằng ứng dụng phù hợp
+              Download to open with a compatible application
             </div>
             <Button
               type="primary"
@@ -3016,7 +3209,7 @@ const PreviewModal = ({ doc, onClose }) => {
               style={{ marginTop: 8 }}
               onClick={() => window.open(fullUrl, "_blank")}
             >
-              Tải xuống để xem
+              Download to view
             </Button>
           </div>
         )}
@@ -3027,7 +3220,7 @@ const PreviewModal = ({ doc, onClose }) => {
 // ============================================================
 // Folder Permissions Modal
 // ============================================================
-const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
+const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClose, onSuccess }) => {
   const [saving, setSaving] = useState(false);
   const [availableLawyers, setAvailableLawyers] = useState([]);
   const [shares, setShares] = useState([]);
@@ -3087,11 +3280,21 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
   }, [open, folder]);
 
   const handleSave = async () => {
+    const managers = shares.filter((s) => s.role === "manager");
+    const members = shares.filter((s) => s.role !== "manager");
+
+    // The Case record only has a single managerId slot — matches
+    // Library.js's saveFolderPermissions guard (see
+    // [[nocobase_single_file_constraint]] for why this is duplicated here
+    // instead of shared).
+    if (isCaseRootFolder && managers.length > 1) {
+      message.error("A Case can only have 1 Manager — please keep only one person.");
+      return;
+    }
+
     setSaving(true);
     try {
       const folderId = extractId(folder.id);
-      const managers = shares.filter((s) => s.role === "manager");
-      const members = shares.filter((s) => s.role !== "manager");
 
       await Promise.all([
         ctx.api
@@ -3131,10 +3334,39 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       });
 
       await Promise.all(createPromises);
-      message.success("Cập nhật phân quyền thành công");
+
+      // Editing Manager/Members here only updates the folder permission
+      // tables — push it back onto the Case record too (managerId/assignees,
+      // the source of truth read elsewhere, e.g. LegalReferenceWorkspace.js's
+      // canManageCurrentCase) so the two stay in sync. Only when saving on
+      // the case's own root folder — CaseCreateForm.js only syncs this once,
+      // at case creation, so later edits here had no way to flow back.
+      if (isCaseRootFolder && caseId) {
+        try {
+          await ctx.api.request({
+            url: "projects:update",
+            method: "POST",
+            params: { filterByTk: parseInt(caseId) },
+            data: {
+              managerId: managers[0] ? parseInt(managers[0].id) : null,
+              assignees: members.map((m) => ({ id: parseInt(m.id) })),
+            },
+          });
+        } catch (syncError) {
+          console.warn(
+            "Could not sync case manager/assignees from folder permissions:",
+            syncError,
+          );
+          message.warning(
+            "Folder permissions saved, but Manager/Members could not be synced to the Case.",
+          );
+        }
+      }
+
+      message.success("Permissions updated successfully");
       onSuccess();
     } catch (e) {
-      message.error("Có lỗi xảy ra khi cập nhật phân quyền");
+      message.error("Failed to update permissions");
     }
     setSaving(false);
   };
@@ -3174,14 +3406,14 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       onCancel={onClose}
       title={
         <span style={{ fontFamily: FONT }}>
-          Phân quyền thư mục: {folder?.name || ""}
+          Folder Permissions: {folder?.name || ""}
         </span>
       }
       width={520}
       destroyOnClose
       footer={[
         <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>
-          Hủy
+          Cancel
         </Button>,
         <Button
           key="save"
@@ -3190,16 +3422,16 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
           onClick={handleSave}
           style={{ fontFamily: FONT }}
         >
-          Lưu
+          Save
         </Button>,
       ]}
     >
       <div style={{ marginBottom: 16, fontFamily: FONT }}>
-        <div style={{ marginBottom: 8, fontWeight: 600 }}>Thêm người</div>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>Add Person</div>
         <Select
           showSearch
           style={{ width: "100%" }}
-          placeholder="Tìm và thêm người..."
+          placeholder="Search and add people..."
           options={lawyerOptions}
           value={null}
           onChange={handleAddLawyer}
@@ -3210,12 +3442,12 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       </div>
       <div style={{ fontFamily: FONT }}>
         <div style={{ marginBottom: 12, fontWeight: 600 }}>
-          Những người có quyền truy cập
+          People with access
         </div>
         {shares.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Chưa chia sẻ cho ai"
+            description="Not shared with anyone yet"
           />
         ) : (
           shares.map((s) => {
@@ -3263,10 +3495,10 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
                     </div>
                     <div style={{ fontSize: 12, color: "#8c8c8c" }}>
                       {s.role === "manager"
-                        ? "Quản lý"
+                        ? "Manager"
                         : s.role === "editor"
-                          ? "Người chỉnh sửa"
-                          : "Người xem"}
+                          ? "Editor"
+                          : "Viewer"}
                     </div>
                   </div>
                 </div>
@@ -3277,9 +3509,9 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
                     bordered={false}
                     style={{ width: 150, fontFamily: FONT }}
                     options={[
-                      { value: "viewer", label: "Người xem" },
-                      { value: "editor", label: "Người chỉnh sửa" },
-                      { value: "manager", label: "Quản lý" },
+                      { value: "viewer", label: "Viewer" },
+                      { value: "editor", label: "Editor" },
+                      { value: "manager", label: "Manager" },
                     ]}
                   />
                   <Button
@@ -3309,6 +3541,10 @@ const InternalTemplates = () => {
   const [legalReferences, setLegalReferences] = useState([]);
   const [caseReferences, setCaseReferences] = useState([]);
   const [legalStudies, setLegalStudies] = useState([]);
+  // Legal Member rows (legalMembers table) — Reference (legalStudy) Manager/
+  // Member roles, bridged into folder/document permission resolution via
+  // entityPermissionContext below. See resolveLegalEntityFolderPerms.
+  const [legalMemberRows, setLegalMemberRows] = useState([]);
   const [activeCaseReferenceId, setActiveCaseReferenceId] = useState(null);
   const [activeLegalStudyId, setActiveLegalStudyId] = useState(null);
   const [legalReferenceExpanded, setLegalReferenceExpanded] = useState(true);
@@ -3427,6 +3663,10 @@ const InternalTemplates = () => {
   const [folderForm] = Form.useForm();
   const [uploadForm] = Form.useForm();
   const [uploadFileList, setUploadFileList] = useState([]);
+  // "grouped" only ever offered when uploadFileList.length > 1 (see the
+  // Radio.Group in the Upload File modal) — matches Library.js's
+  // uploadMode toggle in DocumentUploadFieldsModal.
+  const [uploadMode, setUploadMode] = useState("separate");
   const [renameRecord, setRenameRecord] = useState(null);
   const [renameForm] = Form.useForm();
 
@@ -3481,7 +3721,7 @@ const InternalTemplates = () => {
       if (ext) exts.add(ext.toUpperCase().replace(".", ""));
     });
     return [
-      { value: "all", label: "Tất cả" },
+      { value: "all", label: "All" },
       ...Array.from(exts).map((ext) => ({
         value: ext.toLowerCase(),
         label: ext,
@@ -3602,7 +3842,9 @@ const InternalTemplates = () => {
           const [lRefs, cRefs, lStds] = await Promise.all([
             fetchLinkedRelationRows(nextCaseId, "legalReference"),
             fetchLinkedRelationRows(nextCaseId, "caseReferences"),
-            fetchLinkedRelationRows(nextCaseId, "legalStudy"),
+            // manager/members appended: needed to resolve Reference
+            // Manager/Member permissions (resolveLegalEntityFolderPerms).
+            fetchLinkedRelationRows(nextCaseId, "legalStudy", ["manager", "members"]),
           ]);
           fetchedLegalRefs = lRefs;
           fetchedCaseRefs = cRefs;
@@ -3615,6 +3857,14 @@ const InternalTemplates = () => {
       setCaseReferences(fetchedCaseRefs);
       setLegalStudies(fetchedLegalStds);
 
+      // Legal Member rows — Reference Manager/Member role source of truth,
+      // consumed by entityPermissionContext below.
+      try {
+        setLegalMemberRows(await fetchAllLegalMemberRows());
+      } catch (err) {
+        console.warn("Error fetching legal member rows:", err);
+      }
+
       // Set current user & lawyer after data is ready
       if (resolvedUser) {
         // Store in refs/state for permission checks
@@ -3625,7 +3875,7 @@ const InternalTemplates = () => {
       }
     } catch (e) {
       console.error("loadData error", e);
-      message.error("Lỗi tải dữ liệu");
+      message.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -3837,13 +4087,79 @@ const InternalTemplates = () => {
     legalStudies,
   ]);
 
+  const createManualActivityLog = useCallback(
+    (record, action, options = {}) => {
+      const recordId = extractId(record);
+      if (!recordId || !action) return Promise.resolve();
+
+      const isFolder =
+        options.collectionName === "Folder" || record?._type === "folder";
+      const currentUser =
+        currentUserState || currentUserRef.current || getCurrentUser();
+      const now = new Date().toISOString();
+      const title =
+        options.title ||
+        (isFolder
+          ? record?.name || record?.title || "Folder"
+          : getDocTitle(record));
+      const toNullableString = (value) =>
+        value === undefined || value === null || value === ""
+          ? null
+          : String(value);
+
+      return ctx.api
+        .request({
+          url: "activity_log:create",
+          method: "POST",
+          data: {
+            collectionName: isFolder ? "Folder" : "Document",
+            recordId,
+            action,
+            fieldName:
+              options.fieldName || (isFolder ? "permissions" : "fileAttachment"),
+            oldValue: toNullableString(options.oldValue),
+            newValue: toNullableString(
+              options.newValue !== undefined ? options.newValue : title,
+            ),
+            changedByName: getUserDisplayName(currentUser) || "System",
+            changedAt: now,
+            createdAt: now,
+            batchId: options.batchId || null,
+            dataId: options.dataId || null,
+          },
+        })
+        .then(() => {
+          if (activeSpace === "recent") {
+            fetchActivityLogs();
+          }
+        })
+        .catch((e) => {
+          console.warn("Failed to create manual activity log", e);
+        });
+    },
+    [activeSpace, currentUserState, fetchActivityLogs],
+  );
+
+  const createTrashActivityLog = useCallback(
+    (record, action) =>
+      createManualActivityLog(record, action, {
+        fieldName: "deletedAt",
+        newValue:
+          record?._type === "folder"
+            ? record?.name || record?.title || "Folder"
+            : getDocTitle(record),
+        dataId: extractId(activeCaseIdValue),
+      }),
+    [activeCaseIdValue, createManualActivityLog],
+  );
+
   const resolveActivityActionInfo = useCallback((log) => {
     const { action, fieldName: field, newValue: newV } = log;
 
     if (action === "uploaded") {
       return {
         key: "uploaded",
-        label: "Tải lên",
+        label: "Uploaded",
         color: "#0C447C",
         bg: "#E6F1FB",
         border: "#B5D4F4",
@@ -3869,7 +4185,7 @@ const InternalTemplates = () => {
     if (action === "created") {
       return {
         key: "created",
-        label: "Tạo mới",
+        label: "Created",
         color: "#0369A1",
         bg: "#F0F9FF",
         border: "#BAE6FD",
@@ -3894,7 +4210,7 @@ const InternalTemplates = () => {
     if (action === "moved") {
       return {
         key: "moved",
-        label: "Di chuyển",
+        label: "Moved",
         color: "#B45309",
         bg: "#FFFBEB",
         border: "#FEF3C7",
@@ -3923,7 +4239,7 @@ const InternalTemplates = () => {
     if (action === "previewed") {
       return {
         key: "previewed",
-        label: "Xem trước",
+        label: "Preview",
         color: "#4338CA",
         bg: "#EEF2FF",
         border: "#C7D2FE",
@@ -3948,7 +4264,7 @@ const InternalTemplates = () => {
     if (action === "downloaded") {
       return {
         key: "downloaded",
-        label: "Tải về",
+        label: "Downloaded",
         color: "#075985",
         bg: "#E0F2FE",
         border: "#BAE6FD",
@@ -3974,7 +4290,7 @@ const InternalTemplates = () => {
     if (action === "linked_legal_study") {
       return {
         key: "linked_legal_study",
-        label: "Đưa vào Legal Study",
+        label: `Added to ${REFERENCE_LABEL}`,
         color: "#0369A1",
         bg: "#F0F9FF",
         border: "#BAE6FD",
@@ -4000,7 +4316,7 @@ const InternalTemplates = () => {
     if (action === "unlinked_legal_study") {
       return {
         key: "unlinked_legal_study",
-        label: "Gỡ khỏi Legal Study",
+        label: `Removed from ${REFERENCE_LABEL}`,
         color: "#7C2D12",
         bg: "#FFF7ED",
         border: "#FED7AA",
@@ -4026,7 +4342,7 @@ const InternalTemplates = () => {
     if (action === "shared_file") {
       return {
         key: "shared_file",
-        label: "Chia sẻ",
+        label: "Share",
         color: "#6D28D9",
         bg: "#F5F3FF",
         border: "#DDD6FE",
@@ -4037,7 +4353,7 @@ const InternalTemplates = () => {
     if (action === "unshared_file") {
       return {
         key: "unshared_file",
-        label: "Hủy chia sẻ",
+        label: "Unshare",
         color: "#991B1B",
         bg: "#FEF2F2",
         border: "#FECACA",
@@ -4048,7 +4364,7 @@ const InternalTemplates = () => {
     if (action === "permission_updated") {
       return {
         key: "permission_updated",
-        label: "Cập nhật phân quyền",
+        label: "Permissions Updated",
         color: "#7C2D12",
         bg: "#FFF7ED",
         border: "#FED7AA",
@@ -4073,7 +4389,7 @@ const InternalTemplates = () => {
     if (action === "trash_deleted") {
       return {
         key: "trash_deleted",
-        label: "Xóa vào Thùng rác",
+        label: "Moved to Trash",
         color: "#B91C1C",
         bg: "#FEF2F2",
         border: "#FEE2E2",
@@ -4098,7 +4414,7 @@ const InternalTemplates = () => {
     if (action === "restored") {
       return {
         key: "restored",
-        label: "Khôi phục",
+        label: "Restored",
         color: "#15803D",
         bg: "#F0FDF4",
         border: "#DCFCE7",
@@ -4125,7 +4441,7 @@ const InternalTemplates = () => {
         if (isTrashDeleteActivity(log)) {
           return {
             key: "trash_deleted",
-            label: "Xóa vào Thùng rác",
+            label: "Moved to Trash",
             color: "#B91C1C",
             bg: "#FEF2F2",
             border: "#FEE2E2",
@@ -4148,7 +4464,7 @@ const InternalTemplates = () => {
         } else {
           return {
             key: "restored",
-            label: "Khôi phục",
+            label: "Restored",
             color: "#15803D",
             bg: "#F0FDF4",
             border: "#DCFCE7",
@@ -4173,7 +4489,7 @@ const InternalTemplates = () => {
       if (field === "folderId" || field === "parentId") {
         return {
           key: "moved",
-          label: "Di chuyển",
+          label: "Moved",
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -4200,7 +4516,7 @@ const InternalTemplates = () => {
       }
       return {
         key: "updated",
-        label: "Cập nhật",
+        label: "Updated",
         color: "#4D7C0F",
         bg: "#F7FEE7",
         border: "#ECFCCB",
@@ -4225,7 +4541,7 @@ const InternalTemplates = () => {
     if (action === "deleted") {
       return {
         key: "deleted",
-        label: "Xóa vĩnh viễn",
+        label: "Permanently Deleted",
         color: "#451A03",
         bg: "#FFF7ED",
         border: "#FFEDD5",
@@ -4283,177 +4599,177 @@ const InternalTemplates = () => {
       collectionName,
     } = log;
     const isFolder = collectionName === "Folder";
-    const entityName = isFolder ? "thư mục" : "tài liệu";
+    const entityName = isFolder ? "folder" : "document";
 
     const FIELD_LABELS = {
-      internalTemplateId: "loại tài liệu",
-      internalTemplate: "loại tài liệu",
-      internalTemplates: "loại tài liệu",
-      internalTemplatesId: "loại tài liệu",
-      legalReferenceId: "khách hàng liên kết",
-      legalReference: "khách hàng liên kết",
-      customerId: "khách hàng liên kết",
-      customer: "khách hàng liên kết",
-      customers: "khách hàng liên kết",
-      folderId: "thư mục",
-      folder: "thư mục",
-      parentId: "thư mục cha",
-      internalCompanyId: "công ty nội bộ",
-      internalCompany: "công ty nội bộ",
-      name: "tên gọi",
-      title: "tiêu đề",
-      description: "mô tả",
-      googleDriveUrl: "liên kết Google Drive",
-      fileAttachment: "tập tin thô",
-      fileIndex: "vị trí sắp xếp",
-      documentType: "phân loại tài liệu",
-      storageType: "không gian lưu trữ",
-      userId: "người được chia sẻ",
-      users: "người được chia sẻ",
-      documentId: "tài liệu được chia sẻ",
-      documents: "tài liệu được chia sẻ",
-      status: "trạng thái",
-      isDeleted: "trạng thái xóa",
-      deletedAt: "ngày xoá",
-      deleted_at: "ngày xoá",
-      updatedAt: "thời gian cập nhật",
-      createdAt: "thời gian tạo",
-      documentCode: "mã tài liệu",
-      openingDate: "ngày mở",
-      senderName: "người gửi",
-      recipientName: "người nhận",
-      language: "ngôn ngữ",
-      docFormat: "định dạng tài liệu",
-      signedAt: "ngày ký",
-      effectiveAt: "ngày có hiệu lực",
-      note: "ghi chú",
-      deteledAt: "ngày xoá",
+      internalTemplateId: "document type",
+      internalTemplate: "document type",
+      internalTemplates: "document type",
+      internalTemplatesId: "document type",
+      legalReferenceId: "linked customer",
+      legalReference: "linked customer",
+      customerId: "linked customer",
+      customer: "linked customer",
+      customers: "linked customer",
+      folderId: "folder",
+      folder: "folder",
+      parentId: "parent folder",
+      internalCompanyId: "internal company",
+      internalCompany: "internal company",
+      name: "name",
+      title: "title",
+      description: "description",
+      googleDriveUrl: "Google Drive link",
+      fileAttachment: "raw file",
+      fileIndex: "sort position",
+      documentType: "document category",
+      storageType: "storage space",
+      userId: "shared with",
+      users: "shared with",
+      documentId: "shared document",
+      documents: "shared document",
+      status: "status",
+      isDeleted: "deletion status",
+      deletedAt: "deleted date",
+      deleted_at: "deleted date",
+      updatedAt: "updated time",
+      createdAt: "created time",
+      documentCode: "document code",
+      openingDate: "opening date",
+      senderName: "sender",
+      recipientName: "recipient",
+      language: "language",
+      docFormat: "document format",
+      signedAt: "signed date",
+      effectiveAt: "effective date",
+      note: "note",
+      deteledAt: "deleted date",
     };
 
     const ACTION_LABELS = {
-      uploaded: "tải lên",
-      created: "tạo mới",
-      updated: "cập nhật",
-      moved: "di chuyển",
-      deleted: "xóa vĩnh viễn",
-      trash_deleted: "xóa vào thùng rác",
-      restored: "khôi phục",
-      previewed: "xem trước",
-      downloaded: "tải về",
-      shared_file: "chia sẻ tài liệu",
-      unshared_file: "hủy chia sẻ tài liệu",
-      permission_updated: "cập nhật phân quyền",
-      linked_legal_study: "đưa vào Legal Study",
-      unlinked_legal_study: "gỡ khỏi Legal Study",
+      uploaded: "uploaded",
+      created: "created",
+      updated: "updated",
+      moved: "moved",
+      deleted: "permanently deleted",
+      trash_deleted: "moved to trash",
+      restored: "restored",
+      previewed: "previewed",
+      downloaded: "downloaded",
+      shared_file: "shared document",
+      unshared_file: "unshared document",
+      permission_updated: "updated permissions",
+      linked_legal_study: `added to ${REFERENCE_LABEL}`,
+      unlinked_legal_study: `removed from ${REFERENCE_LABEL}`,
     };
 
     if (action === "linked_legal_study") {
       const parts = String(newV || "").split(" - ");
       const targetLabel = parts.length > 1 ? parts[0].trim() : "";
       return targetLabel
-        ? `Đã đưa tài liệu vào Legal Study tại "${targetLabel}"`
-        : "Đã đưa tài liệu vào Legal Study";
+        ? `Added the document to ${REFERENCE_LABEL} at "${targetLabel}"`
+        : `Added the document to ${REFERENCE_LABEL}`;
     }
 
     if (action === "unlinked_legal_study") {
-      return "Đã gỡ tài liệu khỏi Legal Study";
+      return `Removed the document from ${REFERENCE_LABEL}`;
     }
 
     if (action === "previewed") {
-      return `Đã xem trước ${entityName}`;
+      return `Previewed the ${entityName}`;
     }
 
     if (action === "downloaded") {
-      return `Đã tải về ${entityName}`;
+      return `Downloaded the ${entityName}`;
     }
 
     if (action === "shared_file") {
-      if (!newV) return "Đã chia sẻ tài liệu cho người dùng";
+      if (!newV) return "Shared the document with a user";
       return String(newV).includes(";")
-        ? `Đã chia sẻ tài liệu cho các người dùng: ${newV}`
-        : `Đã chia sẻ tài liệu cho người dùng tên ${newV}`;
+        ? `Shared the document with users: ${newV}`
+        : `Shared the document with user ${newV}`;
     }
 
     if (action === "unshared_file") {
-      if (!newV) return "Đã hủy chia sẻ tài liệu cho người dùng";
+      if (!newV) return "Unshared the document from a user";
       return String(newV).includes(";")
-        ? `Đã hủy chia sẻ tài liệu cho các người dùng: ${newV}`
-        : `Đã hủy chia sẻ tài liệu cho người dùng tên ${newV}`;
+        ? `Unshared the document from users: ${newV}`
+        : `Unshared the document from user ${newV}`;
     }
 
     if (action === "permission_updated") {
       return newV
-        ? `Đã cập nhật phân quyền ${entityName}: ${newV}`
-        : `Đã cập nhật phân quyền ${entityName}`;
+        ? `Updated ${entityName} permissions: ${newV}`
+        : `Updated ${entityName} permissions`;
     }
 
     if (action === "uploaded" || action === "created") {
-      return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
+      return isFolder ? "Created a new folder" : "Uploaded a new document";
     }
 
     if (action === "deleted") {
-      return `Đã xóa vĩnh viễn ${entityName}`;
+      return `Permanently deleted the ${entityName}`;
     }
 
     if (action === "trash_deleted") {
-      return `Đã di chuyển ${entityName} vào Thùng rác`;
+      return `Moved the ${entityName} to Trash`;
     }
 
     if (action === "restored") {
-      return `Đã khôi phục ${entityName} từ Thùng rác`;
+      return `Restored the ${entityName} from Trash`;
     }
 
     if (action === "moved") {
       const getFolderName = (id) => {
         if (!id || id === "root" || id === "0" || id === 0)
-          return "Thư mục gốc";
+          return "Root folder";
         const f = foldersList.find(
           (item) => String(extractId(item.id)) === String(id),
         );
-        return f ? f.name : `Thư mục #${id}`;
+        return f ? f.name : `Folder #${id}`;
       };
       if (oldV || newV) {
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Đã di chuyển ${entityName} từ "${oldFolder}" sang "${newFolder}"`;
+        return `Moved the ${entityName} from "${oldFolder}" to "${newFolder}"`;
       }
-      return `Đã di chuyển ${entityName}`;
+      return `Moved the ${entityName}`;
     }
 
     if (action === "updated") {
       if (field === "isDeleted" || DELETE_TIMESTAMP_FIELDS.has(field)) {
         if (isTrashDeleteActivity(log)) {
-          return `Đã di chuyển ${entityName} vào Thùng rác`;
+          return `Moved the ${entityName} to Trash`;
         } else {
-          return `Đã khôi phục ${entityName} từ Thùng rác`;
+          return `Restored the ${entityName} from Trash`;
         }
       }
       if (field === "name" || field === "title") {
         if (oldV && newV) {
-          return `Đã đổi tên ${entityName}: "${oldV}" → "${newV}"`;
+          return `Renamed the ${entityName}: "${oldV}" → "${newV}"`;
         }
-        return `Đã đổi tên ${entityName} thành "${newV}"`;
+        return `Renamed the ${entityName} to "${newV}"`;
       }
       if (field === "folderId" || field === "parentId") {
         const getFolderName = (id) => {
           if (!id || id === "root" || id === "0" || id === 0)
-            return "Thư mục gốc";
+            return "Root folder";
           const f = foldersList.find(
             (item) => String(extractId(item.id)) === String(id),
           );
-          return f ? f.name : `Thư mục #${id}`;
+          return f ? f.name : `Folder #${id}`;
         };
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Đã di chuyển từ "${oldFolder}" sang "${newFolder}"`;
+        return `Moved from "${oldFolder}" to "${newFolder}"`;
       }
 
       const fieldLabel = FIELD_LABELS[field] || field;
-      return `Cập nhật ${fieldLabel} của ${entityName}`;
+      return `Updated ${fieldLabel} of the ${entityName}`;
     }
 
     const actionLabel = ACTION_LABELS[action] || action;
-    return `Thao tác [${actionLabel}] trên ${entityName}`;
+    return `[${actionLabel}] action on ${entityName}`;
   }, []);
 
   const filteredActivityLogs = useMemo(() => {
@@ -4467,12 +4783,15 @@ const InternalTemplates = () => {
 
       if (activitySearchQuery.trim()) {
         const q = activitySearchQuery.toLowerCase();
-        const userName = (log.changedByName || "Hệ thống").toLowerCase();
+        const userName = (log.changedByName || "System").toLowerCase();
+        // isDeleted chỉ phục vụ việc phân loại action (Xóa vào Thùng rác/Khôi
+        // phục) — giá trị "true"/"false" của nó không phải tên để tìm kiếm.
+        const isBooleanFlagField = log.fieldName === "isDeleted";
         const name = (
           log.resolvedTitle ||
           log.recordTitle ||
-          log.newValue ||
-          log.oldValue ||
+          (!isBooleanFlagField && log.newValue) ||
+          (!isBooleanFlagField && log.oldValue) ||
           ""
         ).toLowerCase();
         const desc = resolveActivityDesc(log, folders, documents).toLowerCase();
@@ -4538,6 +4857,39 @@ const InternalTemplates = () => {
     [documents, activeCompanyId],
   );
 
+  const legalStudyById = useMemo(() => {
+    const map = new Map();
+    legalStudies.forEach((s) => map.set(String(extractId(s)), s));
+    return map;
+  }, [legalStudies]);
+
+  // Per-entity lawyerId → role lookups built once from the raw Legal
+  // Member rows, consumed by resolveLegalEntityFolderPerms to bridge
+  // Reference member roles into folder/document permission resolution
+  // (getFolderPermissions/getVisibleFolderIds).
+  const legalMemberRoleByStudy = useMemo(() => {
+    const map = new Map();
+    legalMemberRows.forEach((row) => {
+      const studyId = extractId(row?.legalStudyId);
+      if (!studyId) return;
+      const lawyerId = getEntityMemberRowLawyerId(row);
+      if (!lawyerId) return;
+      const key = String(studyId);
+      if (!map.has(key)) map.set(key, new Map());
+      map.get(key).set(String(lawyerId), row.role);
+    });
+    return map;
+  }, [legalMemberRows]);
+
+  // Passed as the 5th arg to getFolderPermissions/getVisibleFolderIds so
+  // they can resolve Reference folder access from the entity's manager/
+  // Legal Member role instead of folderManager/folderMembers (which stay
+  // empty for these folders — see resolveLegalEntityFolderPerms).
+  const entityPermissionContext = useMemo(
+    () => ({ legalStudyById, legalMemberRoleByStudy }),
+    [legalStudyById, legalMemberRoleByStudy],
+  );
+
   const caseFolders = useMemo(
     () =>
       folders.filter((folder) => matchesCaseFolder(folder, activeCaseIdValue)),
@@ -4559,9 +4911,7 @@ const InternalTemplates = () => {
       const parentId = normalizeParentId(folder?.parentId);
       // A folder counts as "root" if it has no parent, OR its parent isn't
       // itself one of this case's own folders (e.g. a dangling/legacy
-      // parentId pointing outside this case's fetched folder scope) — same
-      // boundary caseSidebarRootFolders already uses for its own fallback,
-      // so both stay in sync instead of disagreeing on what "root" means.
+      // parentId pointing outside this case's fetched folder scope).
       return !parentId || !caseFolderIdSet.has(String(parentId));
     });
     if (!rootCandidates.length) return null;
@@ -4605,12 +4955,16 @@ const InternalTemplates = () => {
   const orphanRepairAttemptedRef = useRef(new Set());
   const orphanRepairRunningRef = useRef(false);
 
+  // Scans ALL folders (not just the active case's) so folders orphaned by a
+  // deletion made in Case Reference / Legal Reference / Legal Study spaces
+  // self-heal the same way Cases already does — the repair itself is
+  // scope-agnostic (it just walks parentId chains via folderById).
   useEffect(() => {
     if (orphanRepairRunningRef.current) return;
-    if (!activeCaseIdValue || caseFolders.length === 0) return;
+    if (folders.length === 0) return;
 
     const groups = new Map();
-    caseFolders.forEach((folder) => {
+    folders.forEach((folder) => {
       if (folder.isDeleted) return;
       const folderId = extractId(folder);
       const folderKey = String(folderId || "");
@@ -4622,13 +4976,19 @@ const InternalTemplates = () => {
         groups.set(ancestorKey, { ancestor, folderIds: [] });
       }
       groups.get(ancestorKey).folderIds.push(folderId);
-      orphanRepairAttemptedRef.current.add(folderKey);
+      // Do NOT mark as "attempted" here — only after the repair request is
+      // confirmed to have actually succeeded (see below). Marking eagerly
+      // meant a failed/dropped request (network blip, permission error)
+      // permanently gave up on that folder for the rest of the session,
+      // silently leaving it orphaned with no way to retry short of a full
+      // page reload.
     });
 
     if (groups.size === 0) return;
 
     orphanRepairRunningRef.current = true;
     const run = async () => {
+      let anySucceeded = false;
       try {
         for (const { ancestor, folderIds } of groups.values()) {
           const payload = {
@@ -4639,6 +4999,8 @@ const InternalTemplates = () => {
               ? { updatedById: extractId(ancestor.updatedById) }
               : {}),
           };
+          let folderUpdateOk = true;
+          let documentUpdateOk = true;
           await ctx.api
             .request({
               url: "folders:update",
@@ -4648,7 +5010,9 @@ const InternalTemplates = () => {
               },
               data: payload,
             })
-            .catch(() => {});
+            .catch(() => {
+              folderUpdateOk = false;
+            });
           await requestDocumentApi({
             url: "documents:update",
             method: "POST",
@@ -4658,15 +5022,28 @@ const InternalTemplates = () => {
               }),
             },
             data: payload,
-          }).catch(() => {});
+          }).catch(() => {
+            documentUpdateOk = false;
+          });
+          if (folderUpdateOk && documentUpdateOk) {
+            folderIds.forEach((id) =>
+              orphanRepairAttemptedRef.current.add(String(id)),
+            );
+            anySucceeded = true;
+          } else {
+            console.warn(
+              "[CaseDocument] Orphan repair failed for folder group — will retry on next data load",
+              { ancestorId: extractId(ancestor), folderIds },
+            );
+          }
         }
       } finally {
         orphanRepairRunningRef.current = false;
-        loadData();
+        if (anySucceeded) loadData();
       }
     };
     run();
-  }, [caseFolders, activeCaseIdValue, findNearestDeletedAncestor, loadData]);
+  }, [folders, findNearestDeletedAncestor, loadData]);
 
   const caseReferenceFolders = useMemo(
     () =>
@@ -4709,58 +5086,21 @@ const InternalTemplates = () => {
 
   const activeCaseReferenceRootFolder = useMemo(() => {
     if (!caseReferenceFolders.length || !activeCaseReferenceId) return null;
-    const caseRecord = activeCaseReferenceRecord || {};
-    const caseNames = [
-      getCaseDisplayName(caseRecord),
-      caseRecord.caseCode,
-      caseRecord.caseNumber,
-      caseRecord.projectCode,
-      caseRecord.code,
-      caseRecord.projectName,
-      caseRecord.title,
-      caseRecord.name,
-    ]
-      .map(normalizeKey)
-      .filter(Boolean);
-    if (!caseNames.length) return null;
-    const outsideParent = (folder) => {
-      const parentId = getFolderParentId(folder);
+    const rootCandidates = caseReferenceFolders.filter((folder) => {
+      if (folder.isDeleted) return false;
+      const parentId = normalizeParentId(folder?.parentId);
+      // Same caseFolderIdSet-relative boundary as activeCaseRootFolder: root
+      // if parentId is empty OR points outside this case reference's own
+      // fetched folder scope (dangling/legacy parentId). No name-matching,
+      // no "must already have children" requirement — both of those caused
+      // the exact same root/trash desync bugs in the Cases space that were
+      // fixed earlier (a deleted folder could still match by name; a
+      // freshly-created empty root folder wouldn't be recognized at all).
       return !parentId || !caseReferenceFolderIdSet.has(String(parentId));
-    };
-    const hasCaseChild = (folder) =>
-      caseReferenceFolders.some(
-        (child) =>
-          String(getFolderParentId(child) || "") === String(extractId(folder)),
-      ) ||
-      documents.some(
-        (doc) =>
-          String(extractId(doc.folderId) || "") === String(extractId(folder)) &&
-          matchesCaseDocument(
-            doc,
-            activeCaseReferenceId,
-            caseReferenceFolderIdSet,
-          ),
-      );
-    return (
-      caseReferenceFolders.find((folder) => {
-        if (!outsideParent(folder)) return false;
-        const folderName = normalizeKey(folder?.name);
-        return (
-          folderName && caseNames.includes(folderName) && hasCaseChild(folder)
-        );
-      }) ||
-      caseReferenceFolders.find(
-        (folder) => outsideParent(folder) && hasCaseChild(folder),
-      ) ||
-      null
-    );
-  }, [
-    caseReferenceFolders,
-    caseReferenceFolderIdSet,
-    activeCaseReferenceRecord,
-    documents,
-    activeCaseReferenceId,
-  ]);
+    });
+    if (!rootCandidates.length) return null;
+    return [...rootCandidates].sort(sortByCreatedAt)[0];
+  }, [caseReferenceFolders, activeCaseReferenceId, caseReferenceFolderIdSet]);
 
   const activeCaseReferenceRootFolderId = useMemo(
     () => extractId(activeCaseReferenceRootFolder),
@@ -4884,7 +5224,10 @@ const InternalTemplates = () => {
       return [];
     }
     if (activeSpace === "cases") {
-      return caseVisibleFolders.filter((f) => !f.isDeleted);
+      // Root-inclusive: the case's own root folder is now a real tree node
+      // (shown alone at the "root" sentinel, its children only surface once
+      // navigated into) rather than being pre-flattened away — see tableData.
+      return caseFolders.filter((f) => !f.isDeleted);
     }
     if (activeSpace === "legal_reference") {
       return folders.filter((f) => {
@@ -4932,10 +5275,79 @@ const InternalTemplates = () => {
     folders,
     activeSpace,
     activeLegalReferenceId,
-    caseVisibleFolders,
+    caseFolders,
     quickScopeFolders,
     activeCaseReferenceId,
     caseReferenceVisibleFolders,
+    activeLegalStudyId,
+  ]);
+
+  // Same branches as visibleFolders, but using the root-INCLUSIVE folder
+  // lists (caseFolders / caseReferenceFolders) for the "cases"/"case_reference"
+  // spaces instead of their root-excluded *VisibleFolders siblings.
+  // getFolderPermissions/getVisibleFolderIds walk up to the tree root to
+  // resolve permissions (root-only model) — handing them a list that's
+  // missing the root folder record makes that walk stop one level too low.
+  const permissionAllFolders = useMemo(() => {
+    if (activeSpace === "trash") {
+      return quickScopeFolders.filter((f) => f.isDeleted === true);
+    }
+    if (activeSpace === "recent") {
+      return [];
+    }
+    if (activeSpace === "cases") {
+      return caseFolders.filter((f) => !f.isDeleted);
+    }
+    if (activeSpace === "legal_reference") {
+      return folders.filter((f) => {
+        if (f.isDeleted) return false;
+        return (
+          f.storageType === "legal_reference" &&
+          String(f.legalReferenceId) === String(activeLegalReferenceId)
+        );
+      });
+    }
+    if (activeSpace === "case_reference") {
+      return caseReferenceFolders.filter((f) => !f.isDeleted);
+    }
+    if (activeSpace === "legal_study") {
+      return folders.filter((f) => {
+        if (f.isDeleted) return false;
+        return (
+          f.storageType === "legal_study" &&
+          String(f.legalStudyId) === String(activeLegalStudyId)
+        );
+      });
+    }
+
+    const activeFolders = companyFolders.filter((f) => !f.isDeleted);
+
+    if (activeSpace === "company_shared") {
+      return activeFolders.filter((f) => {
+        const isShared =
+          f.storageType === "company_shared" ||
+          (!f.storageType &&
+            !getRecordDocumentType(f) &&
+            !getInternalTemplateRelationId(f) &&
+            !getRecordLegalReferenceId(f));
+        return isShared && f.storageType !== "legal_reference";
+      });
+    }
+    if (activeSpace === "personal") {
+      return folders.filter(
+        (f) => f.storageType === "personal" && !f.isDeleted,
+      );
+    }
+    return activeFolders;
+  }, [
+    companyFolders,
+    folders,
+    activeSpace,
+    activeLegalReferenceId,
+    caseFolders,
+    quickScopeFolders,
+    activeCaseReferenceId,
+    caseReferenceFolders,
     activeLegalStudyId,
   ]);
 
@@ -4945,22 +5357,34 @@ const InternalTemplates = () => {
     if (!currentUser) return visibleFolders; // not yet loaded → show all (will re-filter after loadData)
     if (isAdminUser(currentUser)) return visibleFolders;
     const { accessible } = getVisibleFolderIds(
-      visibleFolders,
+      permissionAllFolders,
       currentUser,
       currentLawyerId,
+      entityPermissionContext,
     );
     return visibleFolders.filter((f) => accessible.has(extractId(f.id)));
-  }, [visibleFolders, currentUserState, currentLawyerId]);
+  }, [visibleFolders, permissionAllFolders, currentUserState, currentLawyerId, entityPermissionContext]);
 
   // Permission-filtered docs: only show docs whose folder is accessible (or root-level docs)
   const permissionFilteredDocs = useMemo(() => {
     const currentUser = currentUserState;
     if (!currentUser) return visibleDocs;
     if (isAdminUser(currentUser)) return visibleDocs;
+    const uid = String(extractId(currentUser?.id) || "");
     const accessibleFolderIds = new Set(
       permissionFilteredFolders.map((f) => String(extractId(f.id))),
     );
     return visibleDocs.filter((doc) => {
+      // Creator/uploader can always see their own document, even when the
+      // containing folder (e.g. a shared Case root folder they don't own)
+      // isn't in their accessible set — otherwise a user's own upload
+      // silently disappears from their own view right after uploading.
+      if (
+        uid &&
+        (String(extractId(doc.createdById) || "") === uid ||
+          String(extractId(doc.uploadedById) || "") === uid)
+      )
+        return true;
       const fId = String(extractId(doc.folderId) || "");
       // Root-level docs (no folder) are visible to all company members
       if (!fId) return true;
@@ -4977,19 +5401,106 @@ const InternalTemplates = () => {
         return activeCaseIdValue ? roleToPerms("owner") : roleToPerms("viewer");
       }
       if (activeSpace === "personal") return roleToPerms("owner");
+      // Reference (legal_study): resolve straight from the entity's own
+      // Manager/Legal Member role instead of falling through to the
+      // hardcoded viewer below — the sidebar sets selectedFolderId to the
+      // "root" sentinel on click (not the entity's real root folder id),
+      // so without this branch a genuine Manager reads as View Only until
+      // they navigate into a subfolder.
+      if (activeSpace === "legal_study" && activeLegalStudyId) {
+        return (
+          resolveLegalEntityFolderPerms(
+            activeLegalStudyId,
+            extractId(currentLawyerId),
+            entityPermissionContext,
+          ) || roleToPerms(null)
+        );
+      }
       return isAdminUser(currentUser) ? roleToPerms("admin") : roleToPerms("viewer");
     }
     const folder = visibleFolders.find(
       (f) => String(extractId(f.id)) === String(selectedFolderId),
     );
-    return getFolderPermissions(folder || null, currentUser, visibleFolders, currentLawyerId);
+    return getFolderPermissions(folder || null, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext);
   }, [
     selectedFolderId,
     visibleFolders,
+    permissionAllFolders,
     currentUserState,
     currentLawyerId,
     activeSpace,
     activeCaseIdValue,
+    activeLegalStudyId,
+    entityPermissionContext,
+  ]);
+
+  // "Manager: ... / Member: ..." summary shown below the breadcrumb,
+  // matching Library.js's currentRootFolderPermissionSummary — always
+  // resolved from the TREE ROOT's own data (never the currently-browsed
+  // subfolder's), since permission now lives exclusively at the root.
+  const currentRootFolderPermissionSummary = useMemo(() => {
+    if (["personal", "trash", "recent"].includes(activeSpace)) return null;
+
+    // Current Case: selectedFolderId sits at the "root" sentinel by
+    // default, or at the case's own root folder's real id (now a normal
+    // tree node — see visibleFolders' cases branch) once navigated into —
+    // resolve straight from the already-known activeCaseRootFolder either
+    // way, since it's always the tree root for this space.
+    if (activeSpace === "cases") {
+      if (!activeCaseRootFolder) return null;
+      const managerNames = getFolderManagerRows(activeCaseRootFolder)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      const memberNames = getFolderMemberRows(activeCaseRootFolder)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }
+
+    // Reference (legal_study): governed by the entity's own manager/
+    // members fields (see resolveLegalEntityFolderPerms), never by
+    // folderManager/folderMembers (which stay empty for these folders) —
+    // its "root" is also a virtual sentinel until a subfolder exists, so
+    // resolve straight from the entity record.
+    if (activeSpace === "legal_study" && activeLegalStudyId) {
+      const study = legalStudyById.get(String(activeLegalStudyId));
+      if (!study) return null;
+      const managerId = getLegalEntityManagerId(study);
+      const managerNames = managerId
+        ? [getLawyerDisplayName(getRelationLawyerRecord(study.manager))].filter(Boolean)
+        : [];
+      // The Legal Member table backs BOTH the Manager row and every
+      // regular Member row, so the manager's own row resurfaces inside
+      // study.members too — exclude it to avoid double-listing.
+      const memberNames = asArray(study.members)
+        .filter((m) => String(getPermissionLawyerId(m)) !== String(managerId))
+        .map((m) => getLawyerDisplayName(getRelationLawyerRecord(m)))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }
+
+    if (selectedFolderId === "root") return null;
+    const folder =
+      visibleFolders.find((f) => String(extractId(f)) === String(selectedFolderId)) ||
+      permissionAllFolders.find((f) => String(extractId(f)) === String(selectedFolderId));
+    if (!folder) return null;
+    const root = resolveFolderTreeRoot(folder, permissionAllFolders) || folder;
+
+    const managerNames = getFolderManagerRows(root)
+      .map((row) => getLawyerDisplayName(row))
+      .filter(Boolean);
+    const memberNames = getFolderMemberRows(root)
+      .map((row) => getLawyerDisplayName(row))
+      .filter(Boolean);
+    return { managerNames, memberNames };
+  }, [
+    activeSpace,
+    activeCaseRootFolder,
+    activeLegalStudyId,
+    legalStudyById,
+    selectedFolderId,
+    visibleFolders,
+    permissionAllFolders,
   ]);
 
   const folderMap = useMemo(() => {
@@ -5039,17 +5550,17 @@ const InternalTemplates = () => {
     } else if (activeSpace === "company_shared") {
       rootName = activeCompany
         ? getCompanyName(activeCompany)
-        : "Thư mục chung";
+        : "Shared Folder";
     } else if (activeSpace === "legal_reference") {
       const items = activeLegalReference
         ? [
-            { id: "legal_reference_root", name: "Tham chiếu" },
+            { id: "legal_reference_root", name: "Reference" },
             {
               id: "root",
               name: getLegalReferenceDisplayName(activeLegalReference),
             },
           ]
-        : [{ id: "root", name: "Tham chiếu" }];
+        : [{ id: "root", name: "Reference" }];
       if (selectedFolderId === "root") return items;
       const path = [];
       let current = folderMap.get(String(selectedFolderId));
@@ -5058,42 +5569,47 @@ const InternalTemplates = () => {
           id: String(extractId(current)),
           name: current.name || "Folder",
         });
-        current = folderMap.get(String(getFolderParentId(current)));
+        const parentId = String(getFolderParentId(current));
+        // Fall back to the unfiltered folderById map when an intermediate
+        // ancestor was excluded from folderMap (ACL-hidden or trashed) —
+        // otherwise the breadcrumb chain silently truncates mid-path instead
+        // of continuing up to root.
+        current = folderMap.get(parentId) || folderById.get(parentId);
       }
       return items.concat(path);
     } else if (activeSpace === "recent") {
-      rootName = "Lịch sử hoạt động";
+      rootName = "Activity History";
     } else if (activeSpace === "trash") {
-      rootName = "Thùng rác";
+      rootName = "Trash";
     }
 
     const items = [{ id: "root", name: rootName }];
-    const selectedIsCaseRoot =
-      activeSpace === "cases" &&
-      activeCaseRootFolderId &&
-      String(selectedFolderId) === String(activeCaseRootFolderId);
-    if (selectedFolderId === "root" || selectedIsCaseRoot) return items;
+    if (selectedFolderId === "root") return items;
+    // The case's own root folder is a real tree node now (see
+    // visibleFolders' cases branch) — it appears in the path like any other
+    // folder instead of being hidden, matching the tree it actually belongs to.
     const path = [];
-    let current = folderMap.get(String(selectedFolderId));
+    let current =
+      folderMap.get(String(selectedFolderId)) ||
+      folderById.get(String(selectedFolderId));
     while (current) {
       const currentId = String(extractId(current));
-      if (
-        activeSpace !== "cases" ||
-        !activeCaseRootFolderId ||
-        currentId !== String(activeCaseRootFolderId)
-      ) {
-        path.unshift({ id: currentId, name: current.name || "Folder" });
-      }
-      current = folderMap.get(String(getFolderParentId(current)));
+      path.unshift({ id: currentId, name: current.name || "Folder" });
+      const parentId = String(getFolderParentId(current));
+      // Fall back to the unfiltered folderById map when an intermediate
+      // ancestor was excluded from folderMap (ACL-hidden or trashed) —
+      // otherwise the breadcrumb chain silently truncates mid-path instead
+      // of continuing up to root.
+      current = folderMap.get(parentId) || folderById.get(parentId);
     }
     return items.concat(path);
   }, [
     folderMap,
+    folderById,
     selectedFolderId,
     activeSpace,
     activeCompany,
     activeLegalReference,
-    activeCaseRootFolderId,
   ]);
 
   const handleBreadcrumbClick = useCallback((item) => {
@@ -5135,12 +5651,16 @@ const InternalTemplates = () => {
 
   const tableData = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // "cases" deliberately has NO logicalRootFolderId — the case's root
+    // folder is a real tree node now (see visibleFolders/permissionAllFolders,
+    // both root-inclusive), so it must show alone at the "root" sentinel and
+    // its children only when navigated into (selectedFolderId === its real
+    // id) via the generic parentId branches below, instead of being
+    // pre-flattened into the sentinel view like case_reference still is.
     const logicalRootFolderId =
-      activeSpace === "cases" && activeCaseRootFolderId
-        ? String(activeCaseRootFolderId)
-        : activeSpace === "case_reference" && activeCaseReferenceRootFolderId
-          ? String(activeCaseReferenceRootFolderId)
-          : null;
+      activeSpace === "case_reference" && activeCaseReferenceRootFolderId
+        ? String(activeCaseReferenceRootFolderId)
+        : null;
     const currentFolderKey =
       selectedFolderId === "root" ||
       (logicalRootFolderId && String(selectedFolderId) === logicalRootFolderId)
@@ -5299,7 +5819,6 @@ const InternalTemplates = () => {
     query,
     selectedFolderId,
     activeSpace,
-    activeCaseRootFolderId,
     activeCaseReferenceRootFolderId,
     permissionFilteredFolders,
     permissionFilteredDocs,
@@ -5356,6 +5875,7 @@ const InternalTemplates = () => {
         folders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       return accessible.has(extractId(f.id));
     }).length;
@@ -5370,7 +5890,7 @@ const InternalTemplates = () => {
     }).length;
 
     return { folders: fCount, files: dCount };
-  }, [folders, documents, currentUserState, currentLawyerId]);
+  }, [folders, documents, currentUserState, currentLawyerId, entityPermissionContext]);
 
   const personalRootFolders = useMemo(() => {
     return folders.filter((f) => {
@@ -5385,36 +5905,11 @@ const InternalTemplates = () => {
         folders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       return accessible.has(extractId(f.id));
     });
-  }, [folders, currentUserState, currentLawyerId]);
-
-  const caseSidebarRootFolders = useMemo(() => {
-    return caseVisibleFolders.filter((folder) => {
-      if (folder.isDeleted) return false;
-      const parentId = getFolderParentId(folder);
-      const isRootChild = activeCaseRootFolderId
-        ? String(parentId || "") === String(activeCaseRootFolderId)
-        : !parentId || !caseFolderIdSet.has(String(parentId));
-      if (!isRootChild) return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        caseVisibleFolders,
-        currentUser,
-        currentLawyerId,
-      );
-      return accessible.has(extractId(folder.id));
-    });
-  }, [
-    caseVisibleFolders,
-    activeCaseRootFolderId,
-    caseFolderIdSet,
-    currentUserState,
-    currentLawyerId,
-  ]);
+  }, [folders, currentUserState, currentLawyerId, entityPermissionContext]);
 
   const companyRootFolders = useMemo(() => {
     return folders.filter((f) => {
@@ -5436,10 +5931,11 @@ const InternalTemplates = () => {
         folders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       return accessible.has(extractId(f.id));
     });
-  }, [folders, activeCompanyId, currentUserState, currentLawyerId]);
+  }, [folders, activeCompanyId, currentUserState, currentLawyerId, entityPermissionContext]);
 
   const legalReferenceRootFolders = useMemo(() => {
     return folders.filter((f) => {
@@ -5457,58 +5953,72 @@ const InternalTemplates = () => {
         folders,
         currentUser,
         currentLawyerId,
+        entityPermissionContext,
       );
       return accessible.has(extractId(f.id));
     });
-  }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId]);
+  }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId, entityPermissionContext]);
 
-  const caseReferenceRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (String(getLinkedCaseId(f)) !== String(activeCaseReferenceId))
-        return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root" && caseReferenceFolderIdSet.has(String(pId)))
-        return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
+  // Sidebar for Linked Cases / Reference no longer drills into subfolders —
+  // each entry shows its own root folder directly instead of the entity's
+  // name (matching the Current Case entry). Resolved per-entity (not just
+  // the active one) since the sidebar lists every linked case/reference.
+  const linkedCaseRootFolderById = useMemo(() => {
+    const map = new Map();
+    const currentUser = currentUserState;
+    const isAdmin = isAdminUser(currentUser);
+    const accessible =
+      currentUser && !isAdmin
+        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
+        : null;
+    caseReferences.forEach((ref) => {
+      const refId = String(extractId(ref));
+      const scoped = folders.filter(
+        (f) => !f.isDeleted && String(getLinkedCaseId(f)) === refId,
       );
-      return accessible.has(extractId(f.id));
+      if (!scoped.length) return;
+      const idSet = new Set(scoped.map((f) => String(extractId(f))));
+      const rootCandidates = scoped.filter((f) => {
+        const parentId = normalizeParentId(f.parentId);
+        return !parentId || !idSet.has(String(parentId));
+      });
+      if (!rootCandidates.length) return;
+      const root = [...rootCandidates].sort(sortByCreatedAt)[0];
+      if (accessible && !accessible.has(extractId(root.id))) return;
+      map.set(refId, root);
     });
-  }, [
-    folders,
-    activeCaseReferenceId,
-    currentUserState,
-    currentLawyerId,
-    caseReferenceFolderIdSet,
-  ]);
+    return map;
+  }, [folders, caseReferences, currentUserState, currentLawyerId, entityPermissionContext]);
 
-  const legalStudyRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (
-        f.storageType !== "legal_study" ||
-        String(f.legalStudyId) !== String(activeLegalStudyId)
-      )
-        return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root") return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
+  const legalStudyRootFolderById = useMemo(() => {
+    const map = new Map();
+    const currentUser = currentUserState;
+    const isAdmin = isAdminUser(currentUser);
+    const accessible =
+      currentUser && !isAdmin
+        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
+        : null;
+    legalStudies.forEach((ref) => {
+      const refId = String(extractId(ref));
+      const scoped = folders.filter(
+        (f) =>
+          !f.isDeleted &&
+          f.storageType === "legal_study" &&
+          String(f.legalStudyId) === refId,
       );
-      return accessible.has(extractId(f.id));
+      if (!scoped.length) return;
+      const idSet = new Set(scoped.map((f) => String(extractId(f))));
+      const rootCandidates = scoped.filter((f) => {
+        const parentId = normalizeParentId(f.parentId);
+        return !parentId || !idSet.has(String(parentId));
+      });
+      if (!rootCandidates.length) return;
+      const root = [...rootCandidates].sort(sortByCreatedAt)[0];
+      if (accessible && !accessible.has(extractId(root.id))) return;
+      map.set(refId, root);
     });
-  }, [folders, activeLegalStudyId, currentUserState, currentLawyerId]);
+    return map;
+  }, [folders, legalStudies, currentUserState, currentLawyerId, entityPermissionContext]);
 
   const treeData = useMemo(() => {
     const build = (parentId) =>
@@ -5535,11 +6045,11 @@ const InternalTemplates = () => {
     } else if (activeSpace === "company_shared") {
       dynamicRootTitle = activeCompany
         ? getCompanyName(activeCompany)
-        : "Thư mục chung";
+        : "Shared Folder";
     } else if (activeSpace === "legal_reference") {
       dynamicRootTitle = activeLegalReference
         ? getLegalReferenceDisplayName(activeLegalReference)
-        : DASHBOARD_CONFIG.label?.sidebar || "Tham chiếu";
+        : DASHBOARD_CONFIG.label?.sidebar || "Reference";
     }
 
     const buildRootId =
@@ -5746,29 +6256,29 @@ const InternalTemplates = () => {
   const requireCompany = () => {
     if (activeSpace === "cases") {
       if (activeCaseIdValue) return true;
-      message.warning("Không tìm thấy case hiện tại");
+      message.warning("Current case not found");
       return false;
     }
     if (activeSpace === "case_reference") {
       if (activeCaseReferenceId) return true;
-      message.warning("Vui lòng chọn case tham chiếu trước");
+      message.warning("Please select a reference case first");
       return false;
     }
     if (activeSpace === "legal_study") {
       if (activeLegalStudyId) return true;
-      message.warning("Vui lòng chọn nghiên cứu pháp lý trước");
+      message.warning("Please select a Reference first");
       return false;
     }
     if (activeSpace === "personal") return true;
     if (activeCompanyId) return true;
-    message.warning("Vui lòng chọn công ty nội bộ trước");
+    message.warning("Please select an internal company first");
     return false;
   };
 
   const requireCaseRootFolderForUpload = (targetFolderId) => {
     if (activeSpace !== "cases") return true;
     if (getEffectiveFolderId(targetFolderId)) return true;
-    message.warning("Vui lòng tạo folder Case trước khi tải tài liệu lên");
+    message.warning("Please create the Case folder before uploading documents");
     return false;
   };
 
@@ -5900,13 +6410,13 @@ const InternalTemplates = () => {
         ...(userId ? { createdById: userId, updatedById: userId } : {}),
       };
       await createLegalReferenceRecord(payload);
-      message.success("Tạo case tham chiếu thành công!");
+      message.success("Reference case created successfully!");
       setIsCreateTemplateOpen(false);
       createTemplateForm.resetFields();
       loadData();
     } catch (e) {
       console.error(e);
-      message.error("Tạo case tham chiếu thất bại");
+      message.error("Failed to create reference case");
     } finally {
       setCreateTemplateLoading(false);
     }
@@ -5941,12 +6451,12 @@ const InternalTemplates = () => {
       if (!success) {
         throw lastError || new Error("Failed to update case title");
       }
-      message.success("Cập nhật case tham chiếu thành công!");
+      message.success("Reference case updated successfully!");
       setEditTemplateRecord(null);
       editTemplateForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Cập nhật thất bại");
+      message.error("Update failed");
     } finally {
       setEditTemplateLoading(false);
     }
@@ -5981,7 +6491,7 @@ const InternalTemplates = () => {
         extractId(linkCaseRecord) || activeLegalReferenceId || "",
       );
       if (!targetLegalReferenceId) {
-        message.warning("Vui lòng chọn Case Tham Chiếu cần liên kết");
+        message.warning("Please select a Reference Case to link");
         return;
       }
       const payload = {
@@ -6010,22 +6520,24 @@ const InternalTemplates = () => {
       if (!success) {
         throw lastError || new Error("Failed to update case links");
       }
-      message.success("Cập nhật liên kết case thành công");
+      message.success("Case link updated successfully");
       setIsLinkCaseOpen(false);
       setLinkCaseRecord(null);
       linkCaseForm.resetFields();
       loadData();
     } catch (e) {
-      console.error("Lỗi liên kết case:", e);
-      message.error("Lỗi liên kết case");
+      console.error("Case link error:", e);
+      message.error("Failed to link case");
     } finally {
       setLinkCaseLoading(false);
     }
   };
 
   const handleCreateFolder = async (values) => {
-    if (activeSpace !== "personal" && !requireCompany()) return;
-    let templateRecord = null;
+    if (!currentFolderPerms.canCreate) {
+      message.warning("You do not have permission to create a folder at this location");
+      return;
+    }
     if (activeSpace !== "personal" && !requireCompany()) return;
     setFolderLoading(true);
     try {
@@ -6046,71 +6558,149 @@ const InternalTemplates = () => {
       applySpaceFolderPayload(payload);
 
       await createFolderRecord(payload);
-      message.success("Tạo thư mục thành công!");
+      message.success("Folder created successfully!");
       setIsFolderOpen(false);
       folderForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Tạo thư mục thất bại");
+      message.error("Failed to create folder");
     } finally {
       setFolderLoading(false);
     }
   };
 
+  // Ported from Library.js's uploadFilesToTarget/DocumentUploadFieldsModal:
+  // supports multiple files in one submit, sharing the metadata fields
+  // below across all of them; the Document Name field only overrides the
+  // record title when uploading exactly 1 file (Library's applyTitleOverride
+  // rule), otherwise each record keeps its own file name. The Google Drive
+  // URL field is CaseDocument-only (no file attached, single link record)
+  // and isn't part of Library's flow.
   const handleUploadSubmit = async () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
     if (!requireCaseRootFolderForUpload(selectedFolderId)) return;
+    if (!currentFolderPerms.canCreate) {
+      message.warning("You do not have permission to upload documents to this folder");
+      return;
+    }
     try {
       await uploadForm.validateFields();
     } catch {
       return;
     }
     const values = uploadForm.getFieldsValue();
-    const hasFile = uploadFileList.length > 0;
+    const hasFiles = uploadFileList.length > 0;
     const hasUrl = !!values.googleDriveUrl?.trim();
-    if (!hasFile && !hasUrl) {
-      message.error("Vui lòng chọn file hoặc nhập Google Drive URL");
+    if (!hasFiles && !hasUrl) {
+      message.error("Please select file(s) or enter a Google Drive URL");
       return;
     }
 
     setUploadLoading(true);
     try {
-      const folderId = getEffectiveFolderId(selectedFolderId);
-      const attachment = hasFile
-        ? await uploadAttachment(uploadFileList[0].originFileObj)
-        : null;
-      const title = hasFile ? uploadFileList[0].name : "Google Drive Link";
+      let folderId = getEffectiveFolderId(selectedFolderId);
       const userId = getCurrentUserId();
-      const nowIso = new Date().toISOString();
-      const payload = {
-        name: title,
-        title,
-        documentCode: "",
+
+      if (uploadMode === "grouped" && hasFiles) {
+        const nowIso = new Date().toISOString();
+        const folderPayload = {
+          name: values.groupFolderName.trim(),
+          type: "custom",
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          storageType: activeSpace,
+          ...(folderId ? { parentId: folderId } : {}),
+          ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        };
+        applySpaceFolderPayload(folderPayload);
+
+        let folderRes;
+        try {
+          folderRes = await createFolderRecord(folderPayload);
+        } catch (e) {
+          message.error("Failed to create folder");
+          return;
+        }
+        const newFolderId = extractId(folderRes?.data?.data);
+        if (!newFolderId) {
+          message.error("Failed to create folder");
+          return;
+        }
+        folderId = newFolderId;
+      }
+
+      const applyTitleOverride = !!values.title?.trim() && uploadFileList.length === 1;
+      const sharedFields = {
+        documentType: values.documentType?.trim() || "",
+        documentCode: values.documentCode?.trim() || "",
+        openingDate: values.openingDate || null,
+        signedAt: values.signedAt || null,
+        effectiveAt: values.effectiveAt || null,
+        senderName: values.senderName?.trim() || "",
+        recipientName: values.recipientName?.trim() || "",
         description: values.description?.trim() || "",
-        googleDriveUrl: values.googleDriveUrl?.trim() || "",
-        fileIndex: await getNextFileIndex(folderId),
-        createdAt: nowIso,
-        updatedAt: nowIso,
-        uploadedAt: nowIso,
-        uploaded_at: nowIso,
-        storageType: activeSpace,
-        ...(folderId ? { folderId } : {}),
-        ...(attachment ? { fileAttachment: [{ id: attachment.id }] } : {}),
-        ...(userId
-          ? { uploadedById: userId, createdById: userId, updatedById: userId }
-          : {}),
       };
 
-      applySpaceDocumentPayload(payload);
+      if (hasFiles) {
+        let nextIndex = await getNextFileIndex(folderId);
+        for (const item of uploadFileList) {
+          const attachment = await uploadAttachment(item.originFileObj);
+          const title = applyTitleOverride ? values.title.trim() : item.name;
+          const nowIso = new Date().toISOString();
+          const payload = {
+            name: item.name,
+            title,
+            fileIndex: nextIndex,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            uploadedAt: nowIso,
+            uploaded_at: nowIso,
+            storageType: activeSpace,
+            ...sharedFields,
+            ...(folderId ? { folderId } : {}),
+            ...(attachment ? { fileAttachment: [{ id: attachment.id }] } : {}),
+            ...(userId
+              ? { uploadedById: userId, createdById: userId, updatedById: userId }
+              : {}),
+          };
+          applySpaceDocumentPayload(payload);
+          await createDocumentRecord(payload);
+          nextIndex += 1;
+        }
+      } else {
+        const title = values.title?.trim() || "Google Drive Link";
+        const nowIso = new Date().toISOString();
+        const payload = {
+          name: title,
+          title,
+          googleDriveUrl: values.googleDriveUrl.trim(),
+          fileIndex: await getNextFileIndex(folderId),
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          uploadedAt: nowIso,
+          uploaded_at: nowIso,
+          storageType: activeSpace,
+          ...sharedFields,
+          ...(folderId ? { folderId } : {}),
+          ...(userId
+            ? { uploadedById: userId, createdById: userId, updatedById: userId }
+            : {}),
+        };
+        applySpaceDocumentPayload(payload);
+        await createDocumentRecord(payload);
+      }
 
-      await createDocumentRecord(payload);
-      message.success("Upload thành công!");
+      message.success(
+        hasFiles
+          ? `Upload ${uploadFileList.length} file(s) successfully!`
+          : "Link added successfully!",
+      );
       setIsUploadOpen(false);
       setUploadFileList([]);
       uploadForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Upload thất bại");
+      message.error("Upload failed");
     } finally {
       setUploadLoading(false);
     }
@@ -6129,7 +6719,7 @@ const InternalTemplates = () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
     if (!requireCaseRootFolderForUpload(bulkTargetId)) return;
     setBulkUploading(true);
-    setBulkProgress("Đang phân tích cấu trúc thư mục...");
+    setBulkProgress("Analyzing folder structure...");
     setBulkPercent(5);
     try {
       const rootParentId = getEffectiveFolderId(bulkTargetId);
@@ -6150,7 +6740,7 @@ const InternalTemplates = () => {
         (a, b) => a.split("/").length - b.split("/").length,
       );
       const userId = getCurrentUserId();
-      setBulkProgress(`Đang tạo ${sortedPaths.length} thư mục...`);
+      setBulkProgress(`Creating ${sortedPaths.length} folders...`);
 
       const nowIso = new Date().toISOString();
       for (
@@ -6200,7 +6790,7 @@ const InternalTemplates = () => {
       for (let index = 0; index < pendingFolderFiles.length; index++) {
         const file = pendingFolderFiles[index];
         setBulkProgress(
-          `Đang tải file ${index + 1}/${pendingFolderFiles.length}...`,
+          `Uploading file ${index + 1}/${pendingFolderFiles.length}...`,
         );
         setBulkPercent(
           30 +
@@ -6237,13 +6827,13 @@ const InternalTemplates = () => {
         await createDocumentRecord(filePayload);
       }
 
-      message.success("Upload thư mục hoàn tất!");
+      message.success("Folder upload complete!");
       setBulkPercent(100);
       setBulkConfirmOpen(false);
       setPendingFolderFiles([]);
       loadData();
     } catch (e) {
-      message.error("Upload thư mục thất bại");
+      message.error("Folder upload failed");
     } finally {
       setBulkUploading(false);
       setBulkProgress("");
@@ -6258,11 +6848,11 @@ const InternalTemplates = () => {
       if (record._type === "folder") {
         const folderId = String(extractId(record));
         if (targetId && String(targetId) === folderId) {
-          message.warning("Không thể di chuyển thư mục vào chính nó");
+          message.warning("Cannot move a folder into itself");
           return;
         }
         if (targetId && getDescendantIds(folderId).includes(String(targetId))) {
-          message.warning("Không thể di chuyển thư mục vào thư mục con của nó");
+          message.warning("Cannot move a folder into its own subfolder");
           return;
         }
         await ctx.api.request({
@@ -6270,7 +6860,7 @@ const InternalTemplates = () => {
           method: "POST",
           data: { parentId: targetId },
         });
-        message.success("Đã di chuyển thư mục");
+        message.success("Folder moved");
       } else {
         const oldFolderId = normalizeParentId(record.folderId);
         await requestDocumentApi({
@@ -6285,25 +6875,28 @@ const InternalTemplates = () => {
           reindexFolderFiles(oldFolderId),
           reindexFolderFiles(targetId),
         ]);
-        message.success("Đã di chuyển tài liệu");
+        message.success("Document moved");
       }
       setMoveRecord(null);
       loadData();
     } catch (e) {
-      message.error("Di chuyển thất bại");
+      message.error("Move failed");
     }
   };
 
   const handleBulkRestore = async () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
-      title: `Khôi phục ${selectedRowKeys.length} mục đã chọn?`,
+      title: `Restore ${selectedRowKeys.length} selected item(s)?`,
       content:
-        "Các thư mục và tài liệu sẽ được đưa trở lại không gian ban đầu.",
-      okText: "Khôi phục",
-      cancelText: "Hủy",
+        "Folders and documents will be restored to their original space.",
+      okText: "Restore",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
+          const recordsToRestore = selectedRowKeys
+            .map((key) => tableData.find((record) => record._key === key))
+            .filter(Boolean);
           await Promise.all(
             selectedRowKeys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
@@ -6323,13 +6916,18 @@ const InternalTemplates = () => {
                 : requestDocumentApi(requestOptions));
             }),
           );
+          await Promise.all(
+            recordsToRestore.map((record) =>
+              createTrashActivityLog(record, "restored"),
+            ),
+          );
           message.success(
-            `Đã khôi phục ${selectedRowKeys.length} mục thành công!`,
+            `Restored ${selectedRowKeys.length} item(s) successfully!`,
           );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Khôi phục thất bại");
+          message.error("Restore failed");
         }
       },
     });
@@ -6338,14 +6936,17 @@ const InternalTemplates = () => {
   const handleBulkPermanentDelete = async () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
-      title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
+      title: `Permanently delete ${selectedRowKeys.length} selected item(s)?`,
       content:
-        "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa khỏi hệ thống.",
-      okText: "Xóa",
+        "This action cannot be undone. Files and folders will be permanently removed from the system.",
+      okText: "Permanently Delete",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
+          const recordsToDelete = selectedRowKeys
+            .map((key) => tableData.find((record) => record._key === key))
+            .filter(Boolean);
           await Promise.all(
             selectedRowKeys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
@@ -6361,11 +6962,23 @@ const InternalTemplates = () => {
               });
             }),
           );
-          message.success(`Đã xóa ${selectedRowKeys.length} mục thành công!`);
+          await Promise.all(
+            recordsToDelete.map((record) =>
+              createManualActivityLog(record, "deleted", {
+                fieldName: "permanentDelete",
+                newValue:
+                  record._type === "folder"
+                    ? record.name || record.title || "Folder"
+                    : getDocTitle(record),
+                dataId: extractId(activeCaseIdValue),
+              }),
+            ),
+          );
+          message.success(`Deleted ${selectedRowKeys.length} item(s) successfully!`);
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
@@ -6373,18 +6986,42 @@ const InternalTemplates = () => {
 
   const handleBulkDelete = async () => {
     if (selectedRowKeys.length === 0) return;
+    // Defense in depth — the bulk bar's "Delete" button is already hidden
+    // for non-admins outside Personal (see canBulkMoveToTrashSelected).
+    if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
+      message.warning("Only administrators can delete these items.");
+      return;
+    }
+    // A root folder (Case root, Personal root, Company Shared root, ...)
+    // can never be deleted, single or in bulk — same rule as the
+    // per-record canDelete gate in renderContextMenuItems/row actions.
+    const deletableKeys = selectedRowKeys.filter((key) => {
+      const record = tableData.find((r) => r._key === key);
+      if (!record) return false;
+      if (record._type === "folder" && isFolderTreeRoot(record, permissionAllFolders)) {
+        return false;
+      }
+      return true;
+    });
+    if (deletableKeys.length === 0) {
+      message.warning("Root folders can't be deleted.");
+      return;
+    }
     Modal.confirm({
-      title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
-      content: "Các mục bị xóa sẽ được chuyển vào Thùng rác.",
-      okText: "Xóa",
+      title: `Move ${deletableKeys.length} selected item(s) to Trash?`,
+      content: "Selected items will be moved to Trash.",
+      okText: "Move to Trash",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           const nowIso = new Date().toISOString();
           const userId = extractId(currentUserState) || getCurrentUserId();
+          const recordsToTrash = deletableKeys
+            .map((key) => tableData.find((record) => record._key === key))
+            .filter(Boolean);
           await Promise.all(
-            selectedRowKeys.map(async (key) => {
+            deletableKeys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
               const rId = Number(
                 key.replace("folder_", "").replace("file_", ""),
@@ -6406,13 +7043,18 @@ const InternalTemplates = () => {
                 : requestDocumentApi(requestOptions));
             }),
           );
+          await Promise.all(
+            recordsToTrash.map((record) =>
+              createTrashActivityLog(record, "trash_deleted"),
+            ),
+          );
           message.success(
-            `Đã di chuyển ${selectedRowKeys.length} mục vào Thùng rác!`,
+            `Moved ${deletableKeys.length} item(s) to Trash!`,
           );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
@@ -6465,12 +7107,12 @@ const InternalTemplates = () => {
       if (targetId) {
         await reindexFolderFiles(targetId);
       }
-      message.success(`Đã di chuyển ${selectedRowKeys.length} mục thành công!`);
+      message.success(`Moved ${selectedRowKeys.length} item(s) successfully!`);
       setIsBulkMoveOpen(false);
       setSelectedRowKeys([]);
       loadData();
     } catch (e) {
-      message.error("Di chuyển thất bại");
+      message.error("Move failed");
     }
   };
 
@@ -6543,7 +7185,7 @@ const InternalTemplates = () => {
         ),
       );
     }
-    message.success("Đã sắp xếp tài liệu");
+    message.success("Document reordered");
     loadData();
     return true;
   };
@@ -6681,6 +7323,11 @@ const InternalTemplates = () => {
   };
 
   const handleSaveFileTitle = async (record) => {
+    if (isRenameLockedFolder(record)) {
+      message.error("System template folders cannot be renamed.");
+      cancelEditTitle();
+      return;
+    }
     const safeTitle = editingTitleValue.trim();
     if (!safeTitle) {
       cancelEditTitle();
@@ -6698,7 +7345,7 @@ const InternalTemplates = () => {
             ...(userId ? { updatedById: userId } : {}),
           },
         });
-        message.success("Đã cập nhật tên thư mục");
+        message.success("Folder name updated");
       } else {
         await requestDocumentApi({
           url: `documents:update?filterByTk=${extractId(record)}`,
@@ -6719,20 +7366,31 @@ const InternalTemplates = () => {
             })
             .catch(() => {});
         }
-        message.success("Đã cập nhật tên tài liệu và file");
+        message.success("Document and file name updated");
       }
       cancelEditTitle();
       loadData();
     } catch (e) {
       message.error(
         record._type === "folder"
-          ? "Cập nhật tên thư mục thất bại"
-          : "Cập nhật tên tài liệu thất bại",
+          ? "Failed to update folder name"
+          : "Failed to update document name",
       );
     }
   };
 
   const showDeleteConfirm = (folder) => {
+    // Defense in depth — the Move-to-Trash trigger (context menu / inline
+    // action) is already hidden for locked system folders and for
+    // non-admins outside Personal.
+    if (isRenameLockedFolder(folder)) {
+      message.error("System template folders cannot be deleted.");
+      return;
+    }
+    if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
+      message.warning("Only administrators can delete this item.");
+      return;
+    }
     const fId = extractId(folder);
     const folderIdsToDelete = getDescendantIds(fId);
     // Include the folder itself
@@ -6744,11 +7402,11 @@ const InternalTemplates = () => {
 
     let contentElements = [];
     if (subFoldersCount > 0)
-      contentElements.push(`- ${subFoldersCount} thư mục con`);
-    if (filesCount > 0) contentElements.push(`- ${filesCount} tệp tin`);
+      contentElements.push(`- ${subFoldersCount} subfolder(s)`);
+    if (filesCount > 0) contentElements.push(`- ${filesCount} file(s)`);
 
     Modal.confirm({
-      title: `Xác nhận xóa thư mục "${folder.name}"?`,
+      title: `Confirm delete folder "${folder.name}"?`,
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
@@ -6756,7 +7414,7 @@ const InternalTemplates = () => {
       ),
       content: (
         <div style={{ fontFamily: FONT, marginTop: 8 }}>
-          <p>Bạn sắp xóa thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:</p>
+          <p>You are about to delete this folder. The following data will also be deleted:</p>
           {contentElements.length > 0 ? (
             <div
               style={{
@@ -6776,15 +7434,15 @@ const InternalTemplates = () => {
             </div>
           ) : (
             <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>
-              (Thư mục đang trống)
+              (This folder is empty)
             </p>
           )}
-          <p>Bạn có chắc chắn muốn xóa?</p>
+          <p>Are you sure you want to delete it?</p>
         </div>
       ),
-      okText: "Xóa",
+      okText: "Move to Trash",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           if (folderIdsToDelete.length > 0) {
@@ -6818,7 +7476,8 @@ const InternalTemplates = () => {
               })
               .catch(() => {});
           }
-          message.success("Đã xóa thư mục và dữ liệu bên trong");
+          await createTrashActivityLog(folder, "trash_deleted");
+          message.success("Folder and its contents moved to Trash");
           if (
             selectedFolderId !== "root" &&
             folderIdsToDelete.includes(String(selectedFolderId))
@@ -6827,24 +7486,30 @@ const InternalTemplates = () => {
           }
           loadData();
         } catch (e) {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
   };
 
   const handleDeleteFile = (record) => {
+    // Defense in depth — the Move-to-Trash trigger (context menu) is
+    // already hidden for non-admins outside Personal.
+    if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
+      message.warning("Only administrators can delete this item.");
+      return;
+    }
     Modal.confirm({
-      title: "Xóa file này?",
+      title: "Delete this file?",
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
         WarningIcon,
       ),
-      content: "Hành động này sẽ xóa file khỏi hệ thống.",
-      okText: "Xóa",
+      content: "This file will be moved to Trash.",
+      okText: "Move to Trash",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           const userId = extractId(currentUserState) || getCurrentUserId();
@@ -6857,10 +7522,11 @@ const InternalTemplates = () => {
               ...(userId ? { updatedById: userId } : {}),
             },
           });
-          message.success("Đã xóa file");
+          await createTrashActivityLog(record, "trash_deleted");
+          message.success("File moved to Trash");
           loadData();
         } catch {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
@@ -6881,26 +7547,27 @@ const InternalTemplates = () => {
           data: { isDeleted: false, deletedAt: null },
         });
       }
-      message.success("Đã khôi phục thành công");
+      await createTrashActivityLog(record, "restored");
+      message.success("Restored successfully");
       loadData();
     } catch (e) {
-      message.error("Khôi phục thất bại");
+      message.error("Restore failed");
     }
   };
 
   const handlePermanentDelete = (record) => {
     Modal.confirm({
-      title: record._type === "folder" ? "Xóa thư mục này?" : "Xóa file này?",
+      title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
       icon: React.createElement(
         "span",
         { style: { color: "#ff4d4f", marginRight: 16 } },
         WarningIcon,
       ),
       content:
-        "Cảnh báo: Hành động này không thể hoàn tác, dữ liệu sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.",
-      okText: "Xóa",
+        "Warning: this action cannot be undone — the data will be permanently removed from the database.",
+      okText: "Delete",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           if (record._type === "folder") {
@@ -6914,10 +7581,18 @@ const InternalTemplates = () => {
               method: "POST",
             });
           }
-          message.success("Đã xóa");
+          await createManualActivityLog(record, "deleted", {
+            fieldName: "permanentDelete",
+            newValue:
+              record._type === "folder"
+                ? record.name || record.title || "Folder"
+                : getDocTitle(record),
+            dataId: extractId(activeCaseIdValue),
+          });
+          message.success("Deleted");
           loadData();
         } catch {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
@@ -6925,13 +7600,13 @@ const InternalTemplates = () => {
 
   const handleCreateFolderFromSidebar = (spaceType, companyId = null) => {
     if (spaceType === "cases" && !activeCaseIdValue) {
-      message.warning("Khong tim thay case hien tai");
+      message.warning("Current case not found");
       return;
     }
     if (spaceType === "company_shared") {
       const targetCompanyId = companyId || activeCompanyId;
       if (!targetCompanyId) {
-        message.warning("Vui lòng chọn công ty nội bộ trước");
+        message.warning("Please select an internal company first");
         return;
       }
       setActiveCompanyId(String(targetCompanyId));
@@ -6950,19 +7625,19 @@ const InternalTemplates = () => {
     );
     Modal.confirm({
       title: isLegalRef
-        ? `Xác nhận xóa Case Tham Chiếu "${templateRecord.title || templateRecord.name}"?`
-        : `Xác nhận xóa loại tài liệu "${templateRecord.title || templateRecord.name}"?`,
+        ? `Confirm delete Reference Case "${templateRecord.title || templateRecord.name}"?`
+        : `Confirm delete document type "${templateRecord.title || templateRecord.name}"?`,
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
         WarningIcon,
       ),
       content: isLegalRef
-        ? "Bạn có chắc chắn muốn xóa Case Tham Chiếu này? Các tài liệu và thư mục thuộc Case này vẫn sẽ được lưu trữ trong Thùng rác hoặc không còn liên kết."
-        : "Bạn có chắc chắn muốn xóa mục phân loại tài liệu này? Các tài liệu thuộc phân loại này vẫn được lưu trữ nhưng sẽ không còn liên kết.",
-      okText: "Xóa",
+        ? "Are you sure you want to delete this Reference Case? Its documents and folders will remain in Trash or become unlinked."
+        : "Are you sure you want to delete this document type? Documents under this type will remain but become unlinked.",
+      okText: "Delete",
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: "Cancel",
       onOk: async () => {
         try {
           if (isLegalRef) {
@@ -6990,7 +7665,7 @@ const InternalTemplates = () => {
             });
           }
           message.success(
-            isLegalRef ? "Đã xóa Case Tham Chiếu" : "Đã xóa loại tài liệu",
+            isLegalRef ? "Reference Case deleted" : "Document type deleted",
           );
           if (
             isLegalRef &&
@@ -7000,7 +7675,7 @@ const InternalTemplates = () => {
           }
           loadData();
         } catch (e) {
-          message.error("Xóa thất bại");
+          message.error("Delete failed");
         }
       },
     });
@@ -7008,6 +7683,10 @@ const InternalTemplates = () => {
 
   const handleRenameSubmit = async () => {
     try {
+      if (isRenameLockedFolder(renameRecord)) {
+        message.error("System template folders cannot be renamed.");
+        return;
+      }
       const values = await renameForm.validateFields();
       const newName = values.name.trim();
       const rType = renameRecord._type;
@@ -7042,14 +7721,14 @@ const InternalTemplates = () => {
         if (!success) {
           throw lastError || new Error("Failed to rename");
         }
-        message.success("Đã đổi tên Case Tham Chiếu");
+        message.success("Reference Case renamed");
       } else if (rType === "template" || rType === "document_type") {
         await ctx.api.request({
           url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
           method: "POST",
           data: { title: newName },
         });
-        message.success("Đã đổi tên loại tài liệu");
+        message.success("Document type renamed");
       } else {
         if (rType === "folder") {
           await ctx.api.request({
@@ -7057,7 +7736,7 @@ const InternalTemplates = () => {
             method: "POST",
             data: { name: newName },
           });
-          message.success("Đã đổi tên thư mục");
+          message.success("Folder renamed");
         } else {
           await requestDocumentApi({
             url: `documents:update?filterByTk=${rId}`,
@@ -7074,21 +7753,21 @@ const InternalTemplates = () => {
               })
               .catch(() => {});
           }
-          message.success("Đã đổi tên tài liệu");
+          message.success("Document renamed");
         }
       }
       setRenameRecord(null);
       renameForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Đổi tên thất bại");
+      message.error("Rename failed");
     }
   };
 
   const openRecordFile = (record) => {
     const fileUrl = getRecordFileUrl(record);
     if (!fileUrl) {
-      message.warning("Tài liệu chưa có file hoặc URL");
+      message.warning("This document has no file or URL");
       return;
     }
     window.open(fileUrl, "_blank");
@@ -7096,7 +7775,7 @@ const InternalTemplates = () => {
 
   const previewRecordFile = (record) => {
     if (!getRecordFileUrl(record)) {
-      message.warning("Tài liệu chưa có file hoặc URL để xem trước");
+      message.warning("This document has no file or URL to preview");
       return;
     }
     setPreviewDoc(record);
@@ -7198,7 +7877,7 @@ const InternalTemplates = () => {
               marginLeft: 8,
             }}
           >
-            ({folderSubFolderCount} Thư mục - {folderFileCount} file)
+            ({folderSubFolderCount} folders - {folderFileCount} files)
           </span>
         </div>
       );
@@ -7212,7 +7891,7 @@ const InternalTemplates = () => {
       attachment?.filename ||
       record.googleDriveUrl ||
       record.description ||
-      "Chưa có file đính kèm";
+      "No file attached";
     const hasFile = !!getRecordFileUrl(record);
 
     if (isEditing) {
@@ -7245,7 +7924,7 @@ const InternalTemplates = () => {
         style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
       >
         {hasFile ? (
-          <Tooltip title="Nhấn để xem trước" placement="topLeft">
+          <Tooltip title="Click to preview" placement="topLeft">
             <span
               onClick={(e) => {
                 e.stopPropagation();
@@ -7377,17 +8056,17 @@ const InternalTemplates = () => {
       if (!currentUser) return roleToPerms("admin");
       if (isAdminUser(currentUser)) return roleToPerms("admin");
       if (record._type === "folder") {
-        return getFolderPermissions(record, currentUser, visibleFolders, currentLawyerId);
+        return getFolderPermissions(record, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext);
       }
       const parentFolder = visibleFolders.find(
         (f) => String(extractId(f.id)) === String(extractId(record.folderId) || ""),
       );
       const fp = parentFolder
-        ? getFolderPermissions(parentFolder, currentUser, visibleFolders, currentLawyerId)
+        ? getFolderPermissions(parentFolder, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext)
         : roleToPerms(null);
       return fp;
     },
-    [currentUserState, currentLawyerId, visibleFolders],
+    [currentUserState, currentLawyerId, visibleFolders, permissionAllFolders, entityPermissionContext],
   );
 
   const renderContextMenuItems = useCallback(
@@ -7402,7 +8081,7 @@ const InternalTemplates = () => {
       if (isLegalReferenceRecord) {
         items.push({
           key: "open_detail",
-          label: renderContextMenuItemLabel(EYE_ICON, "Mở chi tiết"),
+          label: renderContextMenuItemLabel(EYE_ICON, "Open Detail"),
           onClick: () => {
             closeContextMenu();
             openLegalReferenceDetail(record);
@@ -7410,7 +8089,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "link_case",
-          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Liên kết Case"),
+          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Link Case"),
           onClick: () => {
             closeContextMenu();
             openLinkCaseModal(record);
@@ -7418,7 +8097,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -7429,7 +8108,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -7441,7 +8120,7 @@ const InternalTemplates = () => {
       if (isTemplate) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -7452,7 +8131,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -7464,7 +8143,7 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         items.push({
           key: "restore",
-          label: renderContextMenuItemLabel(RESTORE_ICON, "Khôi phục"),
+          label: renderContextMenuItemLabel(RESTORE_ICON, "Restore"),
           onClick: () => {
             closeContextMenu();
             handleRestoreRecord(record);
@@ -7472,7 +8151,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "permanent_delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handlePermanentDelete(record);
@@ -7481,12 +8160,44 @@ const InternalTemplates = () => {
         return items;
       }
 
-      const { canRename, canMove, canDelete, canManagePermissions } = getRecordPerms(record);
+      const {
+        canRename: rawCanRename,
+        canMove,
+        canDelete: rawCanDelete,
+        canManagePermissions: rawCanManagePermissions,
+      } = getRecordPerms(record);
+      const isLocked = isRenameLockedFolder(record);
+      const canRename = rawCanRename && !isLocked;
+      // Same lock as rename — the 5 system template folders can never be
+      // deleted regardless of role. Move to Trash is also admin-only
+      // outside Personal — a Manager/Editor with role-based canDelete can
+      // still move/edit, but only an admin can delete a shared
+      // record/folder, so an accidental delete by a collaborator can't
+      // happen. Personal space keeps role-based canDelete since only the
+      // owner themselves ever holds it there.
+      // A folder that IS its own tree root (Case root, Personal root,
+      // Company Shared root, ...) can never be deleted, including by an
+      // admin — only subfolders inside it can. Non-folder records resolve
+      // isFolderTreeRoot to false, so this never touches file deletion.
+      const canDelete =
+        rawCanDelete &&
+        !isLocked &&
+        !isFolderTreeRoot(record, permissionAllFolders) &&
+        (activeSpace === "personal" || isAdminUser(currentUserState));
+      // Reference (legalStudyId) folders are governed by the entity's own
+      // Manager/Legal Member role (legalMembers table), never by
+      // folderManagers/folderMembers — FolderPermissionsModal only knows
+      // how to edit the latter, so it must never be offered there. And
+      // permissions is root-folder-only now — never offered on a subfolder.
+      const canManagePermissions =
+        rawCanManagePermissions &&
+        !extractId(record.legalStudyId) &&
+        isFolderTreeRoot(record, permissionAllFolders);
 
       if (!isFolder) {
         items.push({
           key: "preview",
-          label: renderContextMenuItemLabel(EYE_ICON, "Xem trước"),
+          label: renderContextMenuItemLabel(EYE_ICON, "Preview"),
           onClick: () => {
             closeContextMenu();
             previewRecordFile(record);
@@ -7494,7 +8205,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "download",
-          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Tải về"),
+          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Download"),
           onClick: () => {
             closeContextMenu();
             openRecordFile(record);
@@ -7505,7 +8216,7 @@ const InternalTemplates = () => {
       if (canRename) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -7519,7 +8230,7 @@ const InternalTemplates = () => {
       if (canMove) {
         items.push({
           key: "move",
-          label: renderContextMenuItemLabel(MOVE_ICON, "Di chuyển"),
+          label: renderContextMenuItemLabel(MOVE_ICON, "Move"),
           onClick: () => {
             closeContextMenu();
             setMoveRecord(record);
@@ -7531,7 +8242,7 @@ const InternalTemplates = () => {
       if (isFolder && canManagePermissions) {
         items.push({
           key: "permission",
-          label: renderContextMenuItemLabel(LOCK_ICON, "Phân quyền"),
+          label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
           onClick: () => {
             closeContextMenu();
             setPermissionFolder(record);
@@ -7542,7 +8253,7 @@ const InternalTemplates = () => {
       if (canDelete) {
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             if (isFolder) showDeleteConfirm(record);
@@ -7557,6 +8268,7 @@ const InternalTemplates = () => {
       getRecordPerms,
       currentUserState,
       activeSpace,
+      permissionAllFolders,
       openLegalReferenceDetail,
       openLinkCaseModal,
     ],
@@ -7573,18 +8285,17 @@ const InternalTemplates = () => {
       }
 
       let currentId = parentFolderId;
-      while (
-        currentId &&
-        currentId !== "root" &&
-        folderMap.has(String(currentId))
-      ) {
-        const folder = folderMap.get(String(currentId));
-        if (
-          !activeCaseRootFolderId ||
-          String(currentId) !== String(activeCaseRootFolderId)
-        ) {
-          pathItems.unshift(folder.name || "Folder");
-        }
+      while (currentId && currentId !== "root") {
+        // Same folderById fallback as breadcrumbs: folderMap is scoped to
+        // the active space/company, so an ancestor outside that scope (or
+        // hidden by ACL) would otherwise stop the walk early and hide the
+        // rest of the source path shown in Trash.
+        const folder =
+          folderMap.get(String(currentId)) || folderById.get(String(currentId));
+        if (!folder) break;
+        // The case's root folder is a real tree node now (see visibleFolders'
+        // cases branch) — include its name in the path like any other folder.
+        pathItems.unshift(folder.name || "Folder");
         currentId = getFolderParentId(folder);
       }
 
@@ -7599,11 +8310,11 @@ const InternalTemplates = () => {
       ) {
         rootName = "Cases";
       } else if (storage === "personal") {
-        rootName = "Workspace cá nhân";
+        rootName = "My Workspace";
       } else if (storage === "company_shared") {
         rootName = activeCompany
           ? getCompanyName(activeCompany)
-          : "Thư mục chung";
+          : "Shared Folder";
       } else {
         const typeId =
           getRecordDocumentType(record) ||
@@ -7611,9 +8322,9 @@ const InternalTemplates = () => {
             getRecordDocumentType(folderMap.get(String(parentFolderId))));
         if (typeId) {
           const type = documentTypes.find((t) => t.id === String(typeId));
-          rootName = type ? `Thư viện / ${type.label}` : "Thư viện";
+          rootName = type ? `Library / ${type.label}` : "Library";
         } else {
-          rootName = "Thư mục chung";
+          rootName = "Shared Folder";
         }
       }
 
@@ -7622,12 +8333,12 @@ const InternalTemplates = () => {
     },
     [
       folderMap,
+      folderById,
       activeCompany,
       documentTypes,
       getRecordDocumentType,
       activeCaseIdValue,
       caseFolderIdSet,
-      activeCaseRootFolderId,
     ],
   );
 
@@ -7649,7 +8360,7 @@ const InternalTemplates = () => {
               gap: 6,
             }}
           >
-            <Tooltip title="Khôi phục">
+            <Tooltip title="Restore">
               <Button
                 size="small"
                 icon={RESTORE_ICON}
@@ -7664,7 +8375,7 @@ const InternalTemplates = () => {
                 }}
               />
             </Tooltip>
-            <Tooltip title="Xóa">
+            <Tooltip title="Delete">
               <Button
                 size="small"
                 danger
@@ -7678,12 +8389,31 @@ const InternalTemplates = () => {
           </div>
         );
       }
-      const { canRename, canMove, canDelete, canManagePermissions } = getRecordPerms(record);
+      const {
+        canRename: rawCanRename,
+        canMove,
+        canDelete: rawCanDelete,
+        canManagePermissions: rawCanManagePermissions,
+      } = getRecordPerms(record);
+      const isLocked = isRenameLockedFolder(record);
+      const canRename = rawCanRename && !isLocked;
+      // Same lock as rename + admin-only-outside-Personal + root-folder
+      // block as the context menu — see renderContextMenuItems for the
+      // full reasoning.
+      const canDelete =
+        rawCanDelete &&
+        !isLocked &&
+        !isFolderTreeRoot(record, permissionAllFolders) &&
+        (activeSpace === "personal" || isAdminUser(currentUser));
+      const canManagePermissions =
+        rawCanManagePermissions &&
+        !extractId(record.legalStudyId) &&
+        isFolderTreeRoot(record, permissionAllFolders);
       if (!canRename && !canMove && !canDelete && !canManagePermissions) return null;
       return (
         <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
           {canManagePermissions && (
-            <Tooltip title="Phân quyền">
+            <Tooltip title="Permissions">
               <Button
                 size="small"
                 icon={LOCK_ICON}
@@ -7692,7 +8422,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canRename && (
-            <Tooltip title="Sửa tên">
+            <Tooltip title="Rename">
               <Button
                 size="small"
                 icon={EDIT_ICON}
@@ -7701,7 +8431,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canMove && (
-            <Tooltip title="Di chuyển">
+            <Tooltip title="Move">
               <Button
                 size="small"
                 icon={MOVE_ICON}
@@ -7710,7 +8440,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canDelete && (
-            <Tooltip title="Xóa vào Thùng rác">
+            <Tooltip title="Move to Trash">
               <Button
                 size="small"
                 danger
@@ -7734,7 +8464,7 @@ const InternalTemplates = () => {
               gap: 6,
             }}
           >
-            <Tooltip title="Khôi phục">
+            <Tooltip title="Restore">
               <Button
                 size="small"
                 icon={RESTORE_ICON}
@@ -7749,7 +8479,7 @@ const InternalTemplates = () => {
                 }}
               />
             </Tooltip>
-            <Tooltip title="Xóa">
+            <Tooltip title="Delete">
               <Button
                 size="small"
                 danger
@@ -7767,17 +8497,17 @@ const InternalTemplates = () => {
         <div
           style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}
         >
-          <Tooltip title="Xem trước">
+          <Tooltip title="Rename">
             <Button
               size="small"
-              icon={EYE_ICON}
+              icon={EDIT_ICON}
               onClick={(event) => {
                 event.stopPropagation();
-                previewRecordFile(record);
+                startEditTitle(record);
               }}
             />
           </Tooltip>
-          <Tooltip title="Tải về">
+          <Tooltip title="Download">
             <Button
               size="small"
               icon={DOWNLOAD_ICON}
@@ -7801,7 +8531,7 @@ const InternalTemplates = () => {
           render: (_, __, index) => index + 1,
         },
         {
-          title: "Mã tham chiếu",
+          title: "Reference Code",
           key: "referenceCode",
           width: 150,
           sorter: (a, b) =>
@@ -7813,7 +8543,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Tên tham chiếu",
+          title: "Reference Name",
           key: "title",
           minWidth: 250,
           sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
@@ -7848,7 +8578,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Cases liên kết",
+          title: "Linked Cases",
           key: "linkedCases",
           minWidth: 200,
           render: (_, record) => (
@@ -7868,7 +8598,7 @@ const InternalTemplates = () => {
                     fontStyle: "italic",
                   }}
                 >
-                  Chưa liên kết
+                  Not linked
                 </span>
               ) : (
                 (() => {
@@ -7927,7 +8657,7 @@ const InternalTemplates = () => {
                               fontWeight: 600,
                             }}
                           >
-                            +{extraItems.length} khác
+                            +{extraItems.length} more
                           </Tag>
                         </Tooltip>
                       )}
@@ -7939,7 +8669,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Thao tác",
+          title: "Actions",
           key: "actions",
           width: 100,
           align: "right",
@@ -7952,7 +8682,7 @@ const InternalTemplates = () => {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <Tooltip title="Liên kết Case">
+              <Tooltip title="Link Case">
                 <Button
                   size="small"
                   icon={LINK_CASE_ICON}
@@ -7962,7 +8692,7 @@ const InternalTemplates = () => {
                   }}
                 />
               </Tooltip>
-              <Tooltip title="Xóa">
+              <Tooltip title="Delete">
                 <Button
                   size="small"
                   danger
@@ -7983,14 +8713,14 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         return [
           {
-            title: "Tên folder",
+            title: "Folder Name",
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, false),
             sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
           },
           {
-            title: "Mô tả",
+            title: "Description",
             key: "description",
             minWidth: 200,
             render: (_, record) => (
@@ -8010,7 +8740,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Người upload",
+            title: "Uploaded By",
             key: "createdBy",
             width: 180,
             render: (_, record) => (
@@ -8018,7 +8748,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Ngày upload",
+            title: "Uploaded At",
             key: "createdAt",
             width: 150,
             sorter: (a, b) =>
@@ -8028,7 +8758,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Người xoá",
+            title: "Deleted By",
             key: "deletedBy",
             width: 180,
             render: (_, record) => (
@@ -8036,7 +8766,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Ngày xoá",
+            title: "Deleted At",
             key: "deletedAt",
             width: 160,
             sorter: (a, b) =>
@@ -8051,7 +8781,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Thao tác",
+            title: "Actions",
             key: "actions",
             width: 120,
             align: "right",
@@ -8062,14 +8792,14 @@ const InternalTemplates = () => {
 
       return [
         {
-          title: "Tên folder",
+          title: "Folder Name",
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, false),
           sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
         },
         {
-          title: "Mô tả",
+          title: "Description",
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -8089,7 +8819,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Ngày tạo",
+          title: "Created At",
           key: "createdAt",
           width: 150,
           sorter: (a, b) =>
@@ -8099,7 +8829,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Người tạo",
+          title: "Created By",
           key: "createdBy",
           width: 180,
           render: (_, record) => (
@@ -8107,7 +8837,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Thao tác",
+          title: "Actions",
           key: "actions",
           width: 120,
           align: "right",
@@ -8120,7 +8850,7 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         return [
           {
-            title: "Tên file",
+            title: "File Name",
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, true),
@@ -8131,7 +8861,7 @@ const InternalTemplates = () => {
               ),
           },
           {
-            title: "Mô tả",
+            title: "Description",
             key: "description",
             minWidth: 200,
             render: (_, record) => (
@@ -8151,7 +8881,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Người upload",
+            title: "Uploaded By",
             key: "uploadedBy",
             width: 180,
             render: (_, record) => (
@@ -8159,7 +8889,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Ngày upload",
+            title: "Uploaded At",
             key: "uploadedAt",
             width: 160,
             sorter: (a, b) =>
@@ -8171,7 +8901,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Người xoá",
+            title: "Deleted By",
             key: "deletedBy",
             width: 180,
             render: (_, record) => (
@@ -8179,7 +8909,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Ngày xoá",
+            title: "Deleted At",
             key: "deletedAt",
             width: 160,
             sorter: (a, b) =>
@@ -8194,7 +8924,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Thao tác",
+            title: "Actions",
             key: "actions",
             width: 120,
             align: "right",
@@ -8205,7 +8935,7 @@ const InternalTemplates = () => {
 
       return [
         {
-          title: "Tên file",
+          title: "File Name",
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, true),
@@ -8216,7 +8946,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Mô tả",
+          title: "Description",
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -8236,7 +8966,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Ngày upload",
+          title: "Uploaded At",
           key: "uploadedAt",
           width: 160,
           sorter: (a, b) =>
@@ -8246,7 +8976,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Người upload",
+          title: "Uploaded By",
           key: "uploadedBy",
           width: 180,
           render: (_, record) => (
@@ -8254,7 +8984,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Thao tác",
+          title: "Actions",
           key: "actions",
           width: 120,
           align: "right",
@@ -8267,7 +8997,7 @@ const InternalTemplates = () => {
     if (activeSpace === "trash") {
       return [
         {
-          title: "Tên",
+          title: "Name",
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, true),
@@ -8278,7 +9008,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Mô tả",
+          title: "Description",
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -8309,7 +9039,7 @@ const InternalTemplates = () => {
           },
         },
         {
-          title: "Ngày tạo",
+          title: "Created At",
           key: "createdAt",
           width: 120,
           sorter: (a, b) =>
@@ -8322,7 +9052,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Người upload",
+          title: "Uploaded By",
           key: "uploadedBy",
           width: 150,
           render: (_, record) =>
@@ -8333,7 +9063,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Ngày upload",
+          title: "Uploaded At",
           key: "uploadedAt",
           width: 150,
           sorter: (a, b) =>
@@ -8348,7 +9078,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Người xoá",
+          title: "Deleted By",
           key: "deletedBy",
           width: 150,
           render: (_, record) => (
@@ -8356,7 +9086,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Ngày xoá",
+          title: "Deleted At",
           key: "deletedAt",
           width: 150,
           sorter: (a, b) =>
@@ -8371,7 +9101,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Thao tác",
+          title: "Actions",
           key: "actions",
           width: 120,
           align: "right",
@@ -8385,7 +9115,7 @@ const InternalTemplates = () => {
 
     return [
       {
-        title: "Tên",
+        title: "Name",
         key: "name",
         minWidth: 250,
         render: (_, record) => renderNameCell(record, true),
@@ -8396,7 +9126,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Mô tả",
+        title: "Description",
         key: "description",
         minWidth: 200,
         render: (_, record) => (
@@ -8427,7 +9157,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Ngày tạo",
+        title: "Created At",
         key: "createdAt",
         width: 120,
         sorter: (a, b) =>
@@ -8440,7 +9170,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Ngày upload",
+        title: "Uploaded At",
         key: "uploadedAt",
         width: 150,
         sorter: (a, b) =>
@@ -8453,7 +9183,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Người upload",
+        title: "Uploaded By",
         key: "uploadedBy",
         width: 150,
         render: (_, record) =>
@@ -8464,7 +9194,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Thao tác",
+        title: "Actions",
         key: "actions",
         width: 120,
         align: "right",
@@ -8520,6 +9250,10 @@ const InternalTemplates = () => {
   });
 
   const handleNewActionClick = ({ key }) => {
+    if (!currentFolderPerms.canCreate) {
+      message.warning("You only have view access to this folder");
+      return;
+    }
     if (!requireCompany()) return;
     if (key === "folder") {
       folderForm.resetFields();
@@ -8530,6 +9264,7 @@ const InternalTemplates = () => {
       uploadForm.resetFields();
       uploadForm.setFieldsValue({ documentType: activeTypeId });
       setUploadFileList([]);
+      setUploadMode("separate");
       setIsUploadOpen(true);
       return;
     }
@@ -8542,12 +9277,12 @@ const InternalTemplates = () => {
     items: [
       {
         key: "folder",
-        label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo thư mục"),
+        label: renderNewMenuLabel(TYPE_ICONS.folder, "New Folder"),
       },
-      { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload") },
+      { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload File") },
       {
         key: "upload_folder",
-        label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload thư mục"),
+        label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload Folder"),
       },
     ],
     onClick: handleNewActionClick,
@@ -8556,7 +9291,7 @@ const InternalTemplates = () => {
   const activityColumns = useMemo(
     () => [
       {
-        title: "Loại hoạt động",
+        title: "Activity Type",
         dataIndex: "action",
         key: "action",
         width: 170,
@@ -8585,12 +9320,12 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Người thực hiện",
+        title: "Performed By",
         dataIndex: "changedByName",
         key: "changedByName",
         width: 200,
         render: (name) => {
-          const displayName = name || "Hệ thống";
+          const displayName = name || "System";
           const initials =
             displayName
               .split(" ")
@@ -8635,22 +9370,34 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Tài liệu",
+        title: "Document",
         key: "file",
         width: 320,
         render: (text, log) => {
           const isFolder = log.collectionName === "Folder";
-          const name =
-            log.resolvedTitle ||
-            log.recordTitle ||
-            log.newValue ||
-            log.oldValue ||
-            "—";
           const docRecord = !isFolder
             ? documents.find(
                 (d) => String(extractId(d.id)) === String(log.recordId),
               )
             : null;
+          const folderRecord = isFolder
+            ? folders.find(
+                (f) => String(extractId(f.id)) === String(log.recordId),
+              )
+            : null;
+          // isDeleted chỉ chứa "true"/"false" — không phải tên file/folder,
+          // nên không được dùng làm fallback hiển thị tên.
+          const isBooleanFlagField = log.fieldName === "isDeleted";
+          const name =
+            log.resolvedTitle ||
+            log.recordTitle ||
+            folderRecord?.name ||
+            docRecord?.title ||
+            (!isBooleanFlagField && log.newValue) ||
+            (!isBooleanFlagField && log.oldValue) ||
+            (isFolder
+              ? `Folder #${log.recordId}`
+              : `Document #${log.recordId}`);
 
           let icon = isFolder ? TYPE_ICONS.folder : TYPE_ICONS.default;
           if (!isFolder && docRecord) {
@@ -8711,7 +9458,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Mô tả thay đổi",
+        title: "Change Description",
         key: "desc",
         width: 420,
         render: (text, log) => {
@@ -8735,7 +9482,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Thời gian",
+        title: "Time",
         dataIndex: "changedAt",
         key: "changedAt",
         width: 160,
@@ -8829,7 +9576,7 @@ const InternalTemplates = () => {
                   marginBottom: 12,
                 }}
               >
-                <Tooltip title="Đóng sidebar">
+                <Tooltip title="Close sidebar">
                   <Button
                     type="text"
                     icon={SIDEBAR_ICON}
@@ -8848,7 +9595,7 @@ const InternalTemplates = () => {
               {/* ══ SEARCH BOX ══ */}
               <div style={{ marginBottom: 16 }}>
                 <Input
-                  placeholder="Tìm kiếm tài liệu..."
+                  placeholder="Search file..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   allowClear
@@ -8883,7 +9630,7 @@ const InternalTemplates = () => {
                 />
               </div>
 
-              {/* Case hiện tại */}
+              {/* Current Case */}
               <div style={{ marginBottom: 8 }}>
                 <div
                   style={{
@@ -8930,25 +9677,9 @@ const InternalTemplates = () => {
                         fontFamily: FONT,
                       }}
                     >
-                      Current Case
+                      Case
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCreateFolderFromSidebar("cases")}
-                    style={{
-                      fontSize: 11,
-                      color: "#185FA5",
-                      fontWeight: 500,
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      padding: "0 2px",
-                      fontFamily: FONT,
-                    }}
-                  >
-                    + Tạo
-                  </button>
                 </div>
                 {spacesExpanded && (
                   <div
@@ -8962,6 +9693,22 @@ const InternalTemplates = () => {
                           setActiveLegalReferenceId(null);
                           setSelectedFolderId("root");
                         }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const items = renderContextMenuItems({
+                            ...activeCaseRootFolder,
+                            _type: "folder",
+                          });
+                          if (items.length > 0) {
+                            setContextMenuState({
+                              open: true,
+                              x: e.clientX,
+                              y: e.clientY,
+                              record: { ...activeCaseRootFolder, _type: "folder" },
+                            });
+                          }
+                        }}
                         style={{
                           width: "100%",
                           display: "flex",
@@ -8971,14 +9718,17 @@ const InternalTemplates = () => {
                           border: "0",
                           borderRadius: 8,
                           cursor: "pointer",
+                          // No more sidebar sub-navigation into this folder's
+                          // children (see the removed subfolder list below) —
+                          // this is the sole "Current Case" entry point now,
+                          // so it stays highlighted for the whole space rather
+                          // than only at the bare "root" sentinel.
                           borderLeft:
-                            activeSpace === "cases" && selectedFolderId === "root"
+                            activeSpace === "cases"
                               ? "2px solid #185FA5"
                               : "2px solid transparent",
                           background:
-                            activeSpace === "cases" && selectedFolderId === "root"
-                              ? "#E6F1FB"
-                              : "transparent",
+                            activeSpace === "cases" ? "#E6F1FB" : "transparent",
                           color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
                           fontWeight: activeSpace === "cases" ? 600 : 400,
                           fontFamily: FONT,
@@ -9049,402 +9799,9 @@ const InternalTemplates = () => {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Chưa có folder — bấm để tạo
+                          No folder yet — click to create
                         </span>
                       </button>
-                    )}
-
-                    {activeSpace === "cases" && activeCaseRootFolderId && (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 1,
-                          paddingLeft: 12,
-                          marginTop: 2,
-                        }}
-                      >
-                        {caseSidebarRootFolders.length === 0 ? (
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: "#9CA3AF",
-                              padding: "4px 10px",
-                              display: "block",
-                              fontStyle: "italic",
-                            }}
-                          >
-                            Chưa có thư mục con
-                          </Text>
-                        ) : (
-                          caseSidebarRootFolders.map((folder) => {
-                            const fid = String(extractId(folder.id));
-                            const isFolderActive = selectedFolderId === fid;
-                            return (
-                              <button
-                                key={fid}
-                                type="button"
-                                onClick={() => {
-                                  setActiveSpace("cases");
-                                  setSelectedFolderId(fid);
-                                }}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setContextMenuState({
-                                    open: true,
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                    record: { ...folder, _type: "folder" },
-                                  });
-                                }}
-                                style={{
-                                  width: "100%",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 6,
-                                  padding: "5px 10px",
-                                  border: "0",
-                                  borderRadius: 8,
-                                  cursor: "pointer",
-                                  background: isFolderActive
-                                    ? "#E6F1FB"
-                                    : "transparent",
-                                  color: isFolderActive ? "#185FA5" : "#6B7280",
-                                  fontWeight: isFolderActive ? 600 : 400,
-                                  fontFamily: FONT,
-                                  fontSize: 12,
-                                  transition: "background 0.15s",
-                                  minWidth: 0,
-                                  textAlign: "left",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {React.cloneElement(TYPE_ICONS.folder, {
-                                    size: 13,
-                                  })}
-                                </span>
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {folder.name}
-                                </span>
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* ══ SECTION 2: LEGAL REFERENCE ══ */}
-              <div
-                style={{
-                  borderTop: "0.5px solid #E5E7EB",
-                  paddingTop: 12,
-                  marginTop: 4,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "0 2px 6px 2px",
-                  }}
-                >
-                  <div
-                    onClick={() => {
-                      setActiveSpace("legal_reference");
-                      setActiveLegalReferenceId(null);
-                      setSelectedFolderId("root");
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      cursor: "pointer",
-                      userSelect: "none",
-                    }}
-                  >
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLegalReferenceExpanded(!legalReferenceExpanded);
-                      }}
-                      style={{
-                        color: "#9CA3AF",
-                        display: "inline-flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      {legalReferenceExpanded ? ChevronDown : ChevronRight}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color:
-                          activeSpace === "legal_reference" &&
-                          !activeLegalReferenceId
-                            ? "#185FA5"
-                            : "#9CA3AF",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      Legal Reference
-                    </span>
-                  </div>
-                </div>
-                {legalReferenceExpanded && (
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
-                  >
-                    {legalReferences.length === 0 ? (
-                      <div style={{ padding: "4px 10px" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "#9CA3AF",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          Chưa có tham chiếu
-                        </span>
-                      </div>
-                    ) : (
-                      legalReferences.map((ref) => {
-                        const refId = String(extractId(ref));
-                        const isActive =
-                          activeSpace === "legal_reference" &&
-                          refId === activeLegalReferenceId;
-                        return (
-                          <div
-                            key={refId}
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              width: "100%",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSpace("legal_reference");
-                                setActiveLegalReferenceId(refId);
-                                setSelectedFolderId("root");
-                              }}
-                              style={{
-                                flex: 1,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                padding: "7px 10px",
-                                border: "0",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                borderLeft:
-                                  isActive && selectedFolderId === "root"
-                                    ? "2px solid #185FA5"
-                                    : "2px solid transparent",
-                                background:
-                                  isActive && selectedFolderId === "root"
-                                    ? "#E6F1FB"
-                                    : "transparent",
-                                color: isActive ? "#185FA5" : "#6B7280",
-                                fontFamily: FONT,
-                                minWidth: 0,
-                                transition: "background 0.15s",
-                                textAlign: "left",
-                              }}
-                              onMouseEnter={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background = "#F3F4F6";
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background =
-                                    "transparent";
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setContextMenuState({
-                                  open: true,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                  record: {
-                                    ...ref,
-                                    _type: "legal_reference_record",
-                                  },
-                                });
-                              }}
-                            >
-                              <span
-                                style={{
-                                  width: 15,
-                                  height: 15,
-                                  flexShrink: 0,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: isActive ? "#185FA5" : "#6B7280",
-                                }}
-                              >
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20M4 19.5V3.5A2.5 2.5 0 0 1 6.5 1H20v21H6.5" />
-                                </svg>
-                              </span>
-                              <Tooltip
-                                title={
-                                  ref.title ||
-                                  ref.name ||
-                                  getLegalReferenceDisplayName(ref)
-                                }
-                                placement="right"
-                                mouseEnterDelay={0.5}
-                              >
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {ref.title ||
-                                    ref.name ||
-                                    getLegalReferenceDisplayName(ref)}
-                                </span>
-                              </Tooltip>
-                            </button>
-
-                            {/* Render root folders of this legal reference when active */}
-                            {isActive && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 1,
-                                  paddingLeft: 12,
-                                  marginTop: 2,
-                                }}
-                              >
-                                {legalReferenceRootFolders.map((folder) => {
-                                  const fid = String(extractId(folder.id));
-                                  const isFolderActive =
-                                    selectedFolderId === fid;
-                                  return (
-                                    <button
-                                      key={fid}
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveSpace("legal_reference");
-                                        setActiveLegalReferenceId(refId);
-                                        setSelectedFolderId(fid);
-                                      }}
-                                      onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setContextMenuState({
-                                          open: true,
-                                          x: e.clientX,
-                                          y: e.clientY,
-                                          record: {
-                                            ...folder,
-                                            _type: "folder",
-                                          },
-                                        });
-                                      }}
-                                      style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        padding: "5px 10px",
-                                        border: "0",
-                                        borderRadius: 8,
-                                        cursor: "pointer",
-                                        background: isFolderActive
-                                          ? "#E6F1FB"
-                                          : "transparent",
-                                        color: isFolderActive
-                                          ? "#185FA5"
-                                          : "#6B7280",
-                                        fontWeight: isFolderActive ? 600 : 400,
-                                        fontFamily: FONT,
-                                        fontSize: 12,
-                                        transition: "background 0.15s",
-                                        minWidth: 0,
-                                        textAlign: "left",
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "#F3F4F6";
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "transparent";
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          flexShrink: 0,
-                                        }}
-                                      >
-                                        {React.cloneElement(TYPE_ICONS.folder, {
-                                          size: 13,
-                                        })}
-                                      </span>
-                                      <span
-                                        style={{
-                                          flex: 1,
-                                          minWidth: 0,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {folder.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
                     )}
                   </div>
                 )}
@@ -9507,7 +9864,7 @@ const InternalTemplates = () => {
                         fontFamily: FONT,
                       }}
                     >
-                      Case Reference
+                      Linked Cases
                     </span>
                   </div>
                 </div>
@@ -9524,7 +9881,7 @@ const InternalTemplates = () => {
                             fontStyle: "italic",
                           }}
                         >
-                          Chưa có case liên kết
+                          No linked cases yet
                         </span>
                       </div>
                     ) : (
@@ -9533,215 +9890,96 @@ const InternalTemplates = () => {
                         const isActive =
                           activeSpace === "case_reference" &&
                           refId === activeCaseReferenceId;
+                        const rootFolder = linkedCaseRootFolderById.get(refId);
+                        const displayLabel =
+                          rootFolder?.name ||
+                          ref.projectName ||
+                          ref.title ||
+                          getCaseDisplayName(ref);
                         return (
-                          <div
+                          <button
                             key={refId}
+                            type="button"
+                            onClick={() => {
+                              setActiveSpace("case_reference");
+                              setActiveCaseReferenceId(refId);
+                              setSelectedFolderId("root");
+                            }}
                             style={{
-                              display: "flex",
-                              flexDirection: "column",
                               width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "7px 10px",
+                              border: "0",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              borderLeft: isActive
+                                ? "2px solid #185FA5"
+                                : "2px solid transparent",
+                              background: isActive ? "#E6F1FB" : "transparent",
+                              color: isActive ? "#185FA5" : "#6B7280",
+                              fontFamily: FONT,
+                              minWidth: 0,
+                              transition: "background 0.15s",
+                              textAlign: "left",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isActive)
+                                e.currentTarget.style.background = "#F3F4F6";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isActive)
+                                e.currentTarget.style.background =
+                                  "transparent";
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const record = rootFolder
+                                ? { ...rootFolder, _type: "folder" }
+                                : { ...ref, _type: "case_reference_record" };
+                              setContextMenuState({
+                                open: true,
+                                x: e.clientX,
+                                y: e.clientY,
+                                record,
+                              });
                             }}
                           >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSpace("case_reference");
-                                setActiveCaseReferenceId(refId);
-                                setSelectedFolderId("root");
-                              }}
+                            <span
                               style={{
-                                flex: 1,
-                                display: "flex",
+                                width: 15,
+                                height: 15,
+                                flexShrink: 0,
+                                display: "inline-flex",
                                 alignItems: "center",
-                                gap: 8,
-                                padding: "7px 10px",
-                                border: "0",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                borderLeft:
-                                  isActive && selectedFolderId === "root"
-                                    ? "2px solid #185FA5"
-                                    : "2px solid transparent",
-                                background:
-                                  isActive && selectedFolderId === "root"
-                                    ? "#E6F1FB"
-                                    : "transparent",
+                                justifyContent: "center",
                                 color: isActive ? "#185FA5" : "#6B7280",
-                                fontFamily: FONT,
-                                minWidth: 0,
-                                transition: "background 0.15s",
-                                textAlign: "left",
                               }}
-                              onMouseEnter={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background = "#F3F4F6";
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background =
-                                    "transparent";
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setContextMenuState({
-                                  open: true,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                  record: {
-                                    ...ref,
-                                    _type: "case_reference_record",
-                                  },
-                                });
-                              }}
+                            >
+                              {React.cloneElement(TYPE_ICONS.folder, {
+                                size: 14,
+                              })}
+                            </span>
+                            <Tooltip
+                              title={displayLabel}
+                              placement="right"
+                              mouseEnterDelay={0.5}
                             >
                               <span
                                 style={{
-                                  width: 15,
-                                  height: 15,
-                                  flexShrink: 0,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: isActive ? "#185FA5" : "#6B7280",
+                                  flex: 1,
+                                  minWidth: 0,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
                                 }}
                               >
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                                </svg>
+                                {displayLabel}
                               </span>
-                              <Tooltip
-                                title={
-                                  ref.projectName ||
-                                  ref.title ||
-                                  getCaseDisplayName(ref)
-                                }
-                                placement="right"
-                                mouseEnterDelay={0.5}
-                              >
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {ref.projectName ||
-                                    ref.title ||
-                                    getCaseDisplayName(ref)}
-                                </span>
-                              </Tooltip>
-                            </button>
-
-                            {/* Render root folders of this case reference when active */}
-                            {isActive && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 1,
-                                  paddingLeft: 12,
-                                  marginTop: 2,
-                                }}
-                              >
-                                {caseReferenceRootFolders.map((folder) => {
-                                  const fid = String(extractId(folder.id));
-                                  const isFolderActive =
-                                    selectedFolderId === fid;
-                                  return (
-                                    <button
-                                      key={fid}
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveSpace("case_reference");
-                                        setActiveCaseReferenceId(refId);
-                                        setSelectedFolderId(fid);
-                                      }}
-                                      onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setContextMenuState({
-                                          open: true,
-                                          x: e.clientX,
-                                          y: e.clientY,
-                                          record: {
-                                            ...folder,
-                                            _type: "folder",
-                                          },
-                                        });
-                                      }}
-                                      style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        padding: "5px 10px",
-                                        border: "0",
-                                        borderRadius: 8,
-                                        cursor: "pointer",
-                                        background: isFolderActive
-                                          ? "#E6F1FB"
-                                          : "transparent",
-                                        color: isFolderActive
-                                          ? "#185FA5"
-                                          : "#6B7280",
-                                        fontWeight: isFolderActive ? 600 : 400,
-                                        fontFamily: FONT,
-                                        fontSize: 12,
-                                        transition: "background 0.15s",
-                                        minWidth: 0,
-                                        textAlign: "left",
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "#F3F4F6";
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "transparent";
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          flexShrink: 0,
-                                        }}
-                                      >
-                                        {React.cloneElement(TYPE_ICONS.folder, {
-                                          size: 13,
-                                        })}
-                                      </span>
-                                      <span
-                                        style={{
-                                          flex: 1,
-                                          minWidth: 0,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {folder.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
+                            </Tooltip>
+                          </button>
                         );
                       })
                     )}
@@ -9805,7 +10043,7 @@ const InternalTemplates = () => {
                         fontFamily: FONT,
                       }}
                     >
-                      Legal Study
+                      {REFERENCE_LABEL}
                     </span>
                   </div>
                 </div>
@@ -9822,7 +10060,7 @@ const InternalTemplates = () => {
                             fontStyle: "italic",
                           }}
                         >
-                          Chưa có hồ sơ nghiên cứu
+                          No Reference records yet
                         </span>
                       </div>
                     ) : (
@@ -9831,217 +10069,97 @@ const InternalTemplates = () => {
                         const isActive =
                           activeSpace === "legal_study" &&
                           refId === activeLegalStudyId;
+                        const rootFolder = legalStudyRootFolderById.get(refId);
+                        const displayLabel =
+                          rootFolder?.name ||
+                          ref.title ||
+                          ref.name ||
+                          ref.projectName ||
+                          REFERENCE_LABEL;
                         return (
-                          <div
+                          <button
                             key={refId}
+                            type="button"
+                            onClick={() => {
+                              setActiveSpace("legal_study");
+                              setActiveLegalStudyId(refId);
+                              setSelectedFolderId("root");
+                            }}
                             style={{
-                              display: "flex",
-                              flexDirection: "column",
                               width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "7px 10px",
+                              border: "0",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              borderLeft: isActive
+                                ? "2px solid #185FA5"
+                                : "2px solid transparent",
+                              background: isActive ? "#E6F1FB" : "transparent",
+                              color: isActive ? "#185FA5" : "#6B7280",
+                              fontFamily: FONT,
+                              minWidth: 0,
+                              transition: "background 0.15s",
+                              textAlign: "left",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isActive)
+                                e.currentTarget.style.background = "#F3F4F6";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isActive)
+                                e.currentTarget.style.background =
+                                  "transparent";
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const record = rootFolder
+                                ? { ...rootFolder, _type: "folder" }
+                                : { ...ref, _type: "legal_study_record" };
+                              setContextMenuState({
+                                open: true,
+                                x: e.clientX,
+                                y: e.clientY,
+                                record,
+                              });
                             }}
                           >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveSpace("legal_study");
-                                setActiveLegalStudyId(refId);
-                                setSelectedFolderId("root");
-                              }}
+                            <span
                               style={{
-                                flex: 1,
-                                display: "flex",
+                                width: 15,
+                                height: 15,
+                                flexShrink: 0,
+                                display: "inline-flex",
                                 alignItems: "center",
-                                gap: 8,
-                                padding: "7px 10px",
-                                border: "0",
-                                borderRadius: 8,
-                                cursor: "pointer",
-                                borderLeft:
-                                  isActive && selectedFolderId === "root"
-                                    ? "2px solid #185FA5"
-                                    : "2px solid transparent",
-                                background:
-                                  isActive && selectedFolderId === "root"
-                                    ? "#E6F1FB"
-                                    : "transparent",
+                                justifyContent: "center",
                                 color: isActive ? "#185FA5" : "#6B7280",
-                                fontFamily: FONT,
-                                minWidth: 0,
-                                transition: "background 0.15s",
-                                textAlign: "left",
                               }}
-                              onMouseEnter={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background = "#F3F4F6";
-                              }}
-                              onMouseLeave={(e) => {
-                                if (!(isActive && selectedFolderId === "root"))
-                                  e.currentTarget.style.background =
-                                    "transparent";
-                              }}
-                              onContextMenu={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setContextMenuState({
-                                  open: true,
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                  record: {
-                                    ...ref,
-                                    _type: "legal_study_record",
-                                  },
-                                });
-                              }}
+                            >
+                              {React.cloneElement(TYPE_ICONS.folder, {
+                                size: 14,
+                              })}
+                            </span>
+                            <Tooltip
+                              title={displayLabel}
+                              placement="right"
+                              mouseEnterDelay={0.5}
                             >
                               <span
                                 style={{
-                                  width: 15,
-                                  height: 15,
-                                  flexShrink: 0,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: isActive ? "#185FA5" : "#6B7280",
+                                  flex: 1,
+                                  minWidth: 0,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
                                 }}
                               >
-                                <svg
-                                  width="14"
-                                  height="14"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                </svg>
+                                {displayLabel}
                               </span>
-                              <Tooltip
-                                title={
-                                  ref.title ||
-                                  ref.name ||
-                                  ref.projectName ||
-                                  "Legal Study"
-                                }
-                                placement="right"
-                                mouseEnterDelay={0.5}
-                              >
-                                <span
-                                  style={{
-                                    flex: 1,
-                                    minWidth: 0,
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {ref.title ||
-                                    ref.name ||
-                                    ref.projectName ||
-                                    "Legal Study"}
-                                </span>
-                              </Tooltip>
-                            </button>
-
-                            {/* Render root folders of this legal study when active */}
-                            {isActive && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 1,
-                                  paddingLeft: 12,
-                                  marginTop: 2,
-                                }}
-                              >
-                                {legalStudyRootFolders.map((folder) => {
-                                  const fid = String(extractId(folder.id));
-                                  const isFolderActive =
-                                    selectedFolderId === fid;
-                                  return (
-                                    <button
-                                      key={fid}
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveSpace("legal_study");
-                                        setActiveLegalStudyId(refId);
-                                        setSelectedFolderId(fid);
-                                      }}
-                                      onContextMenu={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setContextMenuState({
-                                          open: true,
-                                          x: e.clientX,
-                                          y: e.clientY,
-                                          record: {
-                                            ...folder,
-                                            _type: "folder",
-                                          },
-                                        });
-                                      }}
-                                      style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        padding: "5px 10px",
-                                        border: "0",
-                                        borderRadius: 8,
-                                        cursor: "pointer",
-                                        background: isFolderActive
-                                          ? "#E6F1FB"
-                                          : "transparent",
-                                        color: isFolderActive
-                                          ? "#185FA5"
-                                          : "#6B7280",
-                                        fontWeight: isFolderActive ? 600 : 400,
-                                        fontFamily: FONT,
-                                        fontSize: 12,
-                                        transition: "background 0.15s",
-                                        minWidth: 0,
-                                        textAlign: "left",
-                                      }}
-                                      onMouseEnter={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "#F3F4F6";
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (!isFolderActive)
-                                          e.currentTarget.style.background =
-                                            "transparent";
-                                      }}
-                                    >
-                                      <span
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          flexShrink: 0,
-                                        }}
-                                      >
-                                        {React.cloneElement(TYPE_ICONS.folder, {
-                                          size: 13,
-                                        })}
-                                      </span>
-                                      <span
-                                        style={{
-                                          flex: 1,
-                                          minWidth: 0,
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {folder.name}
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
+                            </Tooltip>
+                          </button>
                         );
                       })
                     )}
@@ -10072,7 +10190,7 @@ const InternalTemplates = () => {
                   </span>
                 </div>
 
-                {/* ① Lịch sử hoạt động */}
+                {/* ① Recent Activity */}
                 {(() => {
                   const isActive = activeSpace === "recent";
                   return (
@@ -10135,13 +10253,13 @@ const InternalTemplates = () => {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        Lịch sử hoạt động
+                        Activity History
                       </span>
                     </button>
                   );
                 })()}
 
-                {/* ② Thùng rác */}
+                {/* ② Trash */}
                 {(() => {
                   const isActive = activeSpace === "trash";
                   const trashCount = quickTrashCount;
@@ -10204,7 +10322,7 @@ const InternalTemplates = () => {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        Thùng rác
+                        Trash
                       </span>
                     </button>
                   );
@@ -10230,11 +10348,11 @@ const InternalTemplates = () => {
             }}
           >
             {sidebarCollapsed && (
-              <Tooltip title="Mở sidebar">
+              <Tooltip title="Open sidebar">
                 <Button
                   icon={SIDEBAR_ICON}
                   onClick={() => setSidebarCollapsed(false)}
-                  aria-label="Mở sidebar"
+                  aria-label="Open sidebar"
                   style={{
                     width: 32,
                     height: 32,
@@ -10264,7 +10382,7 @@ const InternalTemplates = () => {
                 }}
               >
                 <Input.Search
-                  placeholder="Tìm kiếm hoạt động..."
+                  placeholder="Search activity..."
                   value={activitySearchQuery}
                   onChange={(e) => {
                     setActivitySearchQuery(e.target.value);
@@ -10281,20 +10399,20 @@ const InternalTemplates = () => {
                   }}
                   style={{ width: 180, borderRadius: 8 }}
                   options={[
-                    { value: "all", label: "Tất cả hoạt động" },
-                    { value: "uploaded", label: "Tải lên tài liệu" },
-                    { value: "previewed", label: "Xem trước" },
-                    { value: "downloaded", label: "Tải về" },
-                    { value: "linked_legal_study", label: "Đưa vào Legal Study" },
-                    { value: "shared_file", label: "Chia sẻ tài liệu" },
-                    { value: "unshared_file", label: "Hủy chia sẻ" },
-                    { value: "permission_updated", label: "Cập nhật phân quyền" },
-                    { value: "created", label: "Tạo mới thư mục" },
-                    { value: "updated", label: "Cập nhật khác" },
-                    { value: "moved", label: "Di chuyển" },
-                    { value: "trash_deleted", label: "Xóa vào Thùng rác" },
-                    { value: "restored", label: "Khôi phục" },
-                    { value: "deleted", label: "Xóa vĩnh viễn" },
+                    { value: "all", label: "All Activity" },
+                    { value: "uploaded", label: "Uploaded File" },
+                    { value: "previewed", label: "Preview" },
+                    { value: "downloaded", label: "Download" },
+                    { value: "linked_legal_study", label: `Added to ${REFERENCE_LABEL}` },
+                    { value: "shared_file", label: "Shared File" },
+                    { value: "unshared_file", label: "Unshared" },
+                    { value: "permission_updated", label: "Updated Permissions" },
+                    { value: "created", label: "Created Folder" },
+                    { value: "updated", label: "Other Update" },
+                    { value: "moved", label: "Moved" },
+                    { value: "trash_deleted", label: "Moved to Trash" },
+                    { value: "restored", label: "Restored" },
+                    { value: "deleted", label: "Permanently Deleted" },
                   ]}
                 />
               </div>
@@ -10310,7 +10428,7 @@ const InternalTemplates = () => {
                 }}
               >
                 <Input.Search
-                  placeholder="Tìm kiếm..."
+                  placeholder="Search..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   style={{ width: 180, borderRadius: 8 }}
@@ -10345,7 +10463,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Mới nhất
+                          Newest
                         </span>
                       ),
                     },
@@ -10359,7 +10477,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Cũ nhất
+                          Oldest
                         </span>
                       ),
                     },
@@ -10373,7 +10491,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Tên A-Z
+                          Name A-Z
                         </span>
                       ),
                     },
@@ -10381,7 +10499,7 @@ const InternalTemplates = () => {
                 />
                 <Select
                   allowClear
-                  placeholder="Định dạng"
+                  placeholder="Format"
                   style={{ width: 120, borderRadius: 8 }}
                   value={selectedExt}
                   onChange={setSelectedExt}
@@ -10397,9 +10515,9 @@ const InternalTemplates = () => {
                     background: "#FAFAFA",
                   }}
                 >
-                  <Tooltip title="Lưới">
+                  <Tooltip title="Grid">
                     <Button
-                      aria-label="Lưới"
+                      aria-label="Grid"
                       icon={GRID_ICON}
                       onClick={() => setViewMode("grid")}
                       style={{
@@ -10413,9 +10531,9 @@ const InternalTemplates = () => {
                       }}
                     />
                   </Tooltip>
-                  <Tooltip title="Bảng">
+                  <Tooltip title="Table">
                     <Button
-                      aria-label="Bảng"
+                      aria-label="Table"
                       icon={TABLE_ICON}
                       onClick={() => setViewMode("table")}
                       style={{
@@ -10486,7 +10604,7 @@ const InternalTemplates = () => {
                                     key: "create_reference",
                                     label: renderNewMenuLabel(
                                       TYPE_ICONS.folder,
-                                      "Tạo Case Tham Chiếu",
+                                      "Create Reference Case",
                                     ),
                                   },
                                 ],
@@ -10573,13 +10691,13 @@ const InternalTemplates = () => {
                     showSizeChanger: false,
                     total: filteredActivityLogs.length,
                     showTotal: (total, range) =>
-                      `${range[0]}–${range[1]} / ${total} hoạt động`,
+                      `${range[0]}–${range[1]} of ${total} activities`,
                   }}
                   locale={{
                     emptyText: (
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="Không tìm thấy lịch sử hoạt động nào"
+                        description="No activity history found"
                         style={{ padding: "40px 0" }}
                       />
                     ),
@@ -10652,6 +10770,39 @@ const InternalTemplates = () => {
                   })}
                 </div>
 
+                {currentRootFolderPermissionSummary && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 16,
+                      flexWrap: "wrap",
+                      marginBottom: 16,
+                      marginTop: -8,
+                      fontFamily: FONT,
+                      fontSize: 12,
+                      color: "#6B7280",
+                    }}
+                  >
+                    <span>
+                      <span style={{ color: "#9CA3AF" }}>Manager: </span>
+                      <strong style={{ color: "#374151", fontWeight: 500 }}>
+                        {currentRootFolderPermissionSummary.managerNames.length
+                          ? currentRootFolderPermissionSummary.managerNames.join(", ")
+                          : "—"}
+                      </strong>
+                    </span>
+                    <span>
+                      <span style={{ color: "#9CA3AF" }}>Member: </span>
+                      <strong style={{ color: "#374151", fontWeight: 500 }}>
+                        {currentRootFolderPermissionSummary.memberNames.length
+                          ? currentRootFolderPermissionSummary.memberNames.join(", ")
+                          : "—"}
+                      </strong>
+                    </span>
+                  </div>
+                )}
+
                 {selectedRowKeys.length > 0 && !isLegalReferenceRoot && (
                   <div
                     style={{
@@ -10675,11 +10826,11 @@ const InternalTemplates = () => {
                           fontSize: 13,
                         }}
                       >
-                        Đã chọn{" "}
+                        Selected{" "}
                         <strong style={{ color: "#111827", fontWeight: 600 }}>
                           {selectedRowKeys.length}
                         </strong>{" "}
-                        mục
+                        item(s)
                       </span>
                     </div>
                     <div
@@ -10697,7 +10848,7 @@ const InternalTemplates = () => {
                           padding: "4px 8px",
                         }}
                       >
-                        Bỏ chọn
+                        Clear selection
                       </Button>
                       <div
                         style={{ width: 1, height: 16, background: "#E5E7EB" }}
@@ -10719,7 +10870,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Khôi phục
+                            Restore
                           </Button>
                           <Button
                             size="small"
@@ -10736,7 +10887,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Xóa
+                            Delete
                           </Button>
                         </React.Fragment>
                       ) : (
@@ -10756,25 +10907,28 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Di chuyển
+                            Move
                           </Button>
-                          <Button
-                            size="small"
-                            icon={DELETE_ICON}
-                            onClick={handleBulkDelete}
-                            style={{
-                              borderRadius: 6,
-                              fontSize: 12,
-                              background: "#FEF2F2",
-                              color: "#991B1B",
-                              borderColor: "#FEE2E2",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              fontFamily: FONT,
-                            }}
-                          >
-                            Xóa
-                          </Button>
+                          {(activeSpace === "personal" ||
+                            isAdminUser(currentUserState)) && (
+                            <Button
+                              size="small"
+                              icon={DELETE_ICON}
+                              onClick={handleBulkDelete}
+                              style={{
+                                borderRadius: 6,
+                                fontSize: 12,
+                                background: "#FEF2F2",
+                                color: "#991B1B",
+                                borderColor: "#FEE2E2",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                fontFamily: FONT,
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </React.Fragment>
                       )}
                     </div>
@@ -10819,15 +10973,15 @@ const InternalTemplates = () => {
                           {activeSpace === "cases" &&
                           selectedFolderId === "root" &&
                           !activeCaseRootFolderId
-                            ? "Case chưa có folder gốc"
+                            ? "This case has no root folder yet"
                             : activeSpace === "legal_reference" &&
                               !activeLegalReferenceId
-                              ? "Chưa có Case Tham Chiếu nào"
+                              ? "No Reference Cases yet"
                               : activeSpace === "trash"
-                                ? "Thùng rác trống"
+                                ? "Trash is empty"
                                 : query
-                                  ? "Không tìm thấy kết quả"
-                                  : "Thư mục trống"}
+                                  ? "No results found"
+                                  : "This folder is empty"}
                         </div>
                         <div
                           style={{
@@ -10839,15 +10993,15 @@ const InternalTemplates = () => {
                           {activeSpace === "cases" &&
                           selectedFolderId === "root" &&
                           !activeCaseRootFolderId
-                            ? "Hãy tạo folder gốc cho case trước khi tải tài liệu lên"
+                            ? "Please create the case's root folder before uploading documents"
                             : activeSpace === "legal_reference" &&
                               !activeLegalReferenceId
-                              ? "Nhấn + Tạo Case Tham Chiếu bên dưới để bắt đầu"
+                              ? "Click + Create Reference Case below to get started"
                               : activeSpace === "trash"
-                                ? "Không có file hay thư mục nào bị xóa"
+                                ? "No deleted files or folders"
                                 : query
-                                  ? "Thử tìm với từ khóa khác"
-                                  : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"}
+                                  ? "Try a different search term"
+                                  : "Click + New to create a folder or upload your first document"}
                         </div>
                         {activeSpace === "legal_reference" &&
                         !activeLegalReferenceId ? (
@@ -10870,7 +11024,7 @@ const InternalTemplates = () => {
                               marginTop: 4,
                             }}
                           >
-                            + Tạo Case Tham Chiếu
+                            + Create Reference Case
                           </button>
                         ) : (
                           activeSpace !== "trash" &&
@@ -10880,7 +11034,12 @@ const InternalTemplates = () => {
                             >
                               <button
                                 type="button"
-                                onClick={() => setIsUploadOpen(true)}
+                                onClick={() => {
+                                  uploadForm.resetFields();
+                                  setUploadFileList([]);
+                                  setUploadMode("separate");
+                                  setIsUploadOpen(true);
+                                }}
                                 style={{
                                   padding: "8px 18px",
                                   background: "#185FA5",
@@ -10893,7 +11052,7 @@ const InternalTemplates = () => {
                                   cursor: "pointer",
                                 }}
                               >
-                                + Thêm tài liệu
+                                + Add Document
                               </button>
                               <button
                                 type="button"
@@ -10910,7 +11069,7 @@ const InternalTemplates = () => {
                                   cursor: "pointer",
                                 }}
                               >
-                                + Thêm thư mục
+                                + Add Folder
                               </button>
                             </div>
                           )
@@ -10918,7 +11077,7 @@ const InternalTemplates = () => {
                       </div>
                     ) : (
                       <React.Fragment>
-                        {/* ── Section: Case Tham Chiếu ── */}
+                        {/* ── Section: Reference Cases ── */}
                         {tableData.some(
                           (r) => r._type === "legal_reference_record",
                         ) && (
@@ -11005,17 +11164,17 @@ const InternalTemplates = () => {
                                       >
                                         <div>
                                           <span style={{ color: "#9CA3AF" }}>
-                                            Người tạo:{" "}
+                                            Created by:{" "}
                                           </span>
                                           <strong>
                                             {record.createdBy?.nickname ||
                                               record.createdBy?.username ||
-                                              "Hệ thống"}
+                                              "System"}
                                           </strong>
                                         </div>
                                         <div>
                                           <span style={{ color: "#9CA3AF" }}>
-                                            Ngày tạo:{" "}
+                                            Created:{" "}
                                           </span>
                                           <span>
                                             {record.createdAt
@@ -11048,7 +11207,7 @@ const InternalTemplates = () => {
                                             color: "#9CA3AF",
                                           }}
                                         >
-                                          Tài nguyên:
+                                          Resources:
                                         </span>
                                         <span
                                           style={{
@@ -11057,7 +11216,7 @@ const InternalTemplates = () => {
                                             color: "#185FA5",
                                           }}
                                         >
-                                          {foldersCount} Thư mục · {filesCount}{" "}
+                                          {foldersCount} Folders · {filesCount}{" "}
                                           file
                                         </span>
                                       </div>
@@ -11068,7 +11227,7 @@ const InternalTemplates = () => {
                           </Row>
                         )}
 
-                        {/* ── Section: Thư mục ── */}
+                        {/* ── Section: Folders ── */}
                         {tableData.some((r) => r._type === "folder") && (
                           <div
                             style={{
@@ -11079,7 +11238,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Thư mục
+                            Folders
                           </div>
                         )}
                         <Row
@@ -11289,7 +11448,7 @@ const InternalTemplates = () => {
                                               }}
                                               title={getRecordPathString(record)}
                                             >
-                                              Nguồn: {getRecordPathString(record)}
+                                              Source: {getRecordPathString(record)}
                                             </span>
                                             <span
                                               style={{
@@ -11301,7 +11460,7 @@ const InternalTemplates = () => {
                                               }}
                                               title={getDeletedUserName(record)}
                                             >
-                                              Người xoá: {getDeletedUserName(record)}
+                                              Deleted by: {getDeletedUserName(record)}
                                             </span>
                                             <span
                                               style={{
@@ -11310,7 +11469,7 @@ const InternalTemplates = () => {
                                                 fontFamily: FONT,
                                               }}
                                             >
-                                              Ngày xoá:{" "}
+                                              Deleted:{" "}
                                               {formatDate(
                                                 record.deletedAt ||
                                                   record.updatedAt ||
@@ -11333,12 +11492,15 @@ const InternalTemplates = () => {
                                                     fontFamily: FONT,
                                                   }}
                                                 >
-                                                  Chưa có tài liệu
+                                                  No documents yet
                                                 </div>
                                                 <button
                                                   type="button"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
+                                                    uploadForm.resetFields();
+                                                    setUploadFileList([]);
+                                                    setUploadMode("separate");
                                                     setIsUploadOpen(true);
                                                   }}
                                                   style={{
@@ -11351,7 +11513,7 @@ const InternalTemplates = () => {
                                                     fontFamily: FONT,
                                                   }}
                                                 >
-                                                  + Tải lên file đầu tiên
+                                                  + Upload file
                                                 </button>
                                               </div>
                                             ) : (
@@ -11362,7 +11524,7 @@ const InternalTemplates = () => {
                                                   color: "#185FA5",
                                                 }}
                                               >
-                                                {folderSubFolderCount} Thư mục ·{" "}
+                                                {folderSubFolderCount} Folders ·{" "}
                                                 {folderFileCount} file
                                               </span>
                                             )}
@@ -11380,7 +11542,7 @@ const InternalTemplates = () => {
                                                   fontFamily: FONT,
                                                 }}
                                               >
-                                                Ngày tạo:{" "}
+                                                Created:{" "}
                                                 {formatDate(
                                                   record.createdAt ||
                                                     record.updatedAt,
@@ -11397,7 +11559,7 @@ const InternalTemplates = () => {
                                                 }}
                                                 title={getUploadUserName(record)}
                                               >
-                                                Người tạo:{" "}
+                                                Created by:{" "}
                                                 {getUploadUserName(record)}
                                               </span>
                                             </div>
@@ -11411,7 +11573,7 @@ const InternalTemplates = () => {
                             })}
                         </Row>
 
-                        {/* ── Section: Tài liệu ── */}
+                        {/* ── Section: Documents ── */}
                         {tableData.some((r) => r._type === "file") && (
                           <div
                             style={{
@@ -11422,7 +11584,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Tài liệu
+                            Documents
                           </div>
                         )}
                         <Row gutter={[10, 10]}>
@@ -11436,7 +11598,7 @@ const InternalTemplates = () => {
                                 attachment?.title ||
                                 attachment?.filename ||
                                 record.googleDriveUrl ||
-                                "Chưa có file đính kèm";
+                                "No file attached";
                               const cardHasFile = !!getRecordFileUrl(record);
                               const ext = getFileExtension(record);
 
@@ -11500,7 +11662,7 @@ const InternalTemplates = () => {
                                     }}
                                     style={{
                                       position: "relative",
-                                      height: 172,
+                                      height: 192,
                                       background: "#FFFFFF",
                                       border: "0.5px solid #E5E7EB",
                                       borderRadius: 12,
@@ -11633,21 +11795,31 @@ const InternalTemplates = () => {
                                           />
                                         </div>
                                       ) : (
-                                        <div
-                                          style={{
-                                            fontSize: 12,
-                                            fontWeight: 600,
-                                            color: cardHasFile
-                                              ? "#111827"
-                                              : "#6B7280",
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                            lineHeight: "16px",
-                                          }}
+                                        <Tooltip
+                                          title={cardFileName}
+                                          placement="top"
                                         >
-                                          {cardFileName}
-                                        </div>
+                                          <div
+                                            style={{
+                                              fontSize: 12,
+                                              fontWeight: 600,
+                                              color: cardHasFile
+                                                ? "#111827"
+                                                : "#6B7280",
+                                              display: "-webkit-box",
+                                              WebkitLineClamp: 2,
+                                              WebkitBoxOrient: "vertical",
+                                              overflow: "hidden",
+                                              wordBreak: "break-word",
+                                              overflowWrap: "anywhere",
+                                              lineHeight: "16px",
+                                              minHeight: 32,
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            {cardFileName}
+                                          </div>
+                                        </Tooltip>
                                       )}
                                       {activeSpace === "trash" ? (
                                         <div
@@ -11655,6 +11827,7 @@ const InternalTemplates = () => {
                                             fontSize: 10,
                                             color: "#9CA3AF",
                                             lineHeight: 1.5,
+                                            flexShrink: 0,
                                           }}
                                         >
                                           <div
@@ -11665,11 +11838,11 @@ const InternalTemplates = () => {
                                             }}
                                             title={getDeletedUserName(record)}
                                           >
-                                            Người xoá:{" "}
+                                            Deleted by:{" "}
                                             {getDeletedUserName(record)}
                                           </div>
                                           <div>
-                                            Ngày xoá:{" "}
+                                            Deleted:{" "}
                                             {formatDate(
                                               record.deletedAt ||
                                                 record.updatedAt,
@@ -11683,6 +11856,7 @@ const InternalTemplates = () => {
                                               fontSize: 10,
                                               color: "#9CA3AF",
                                               lineHeight: 1.5,
+                                              flexShrink: 0,
                                             }}
                                           >
                                             <div>
@@ -11748,10 +11922,10 @@ const InternalTemplates = () => {
                         <div style={{ padding: "40px 0", textAlign: "center" }}>
                           <div style={{ fontSize: 14, color: "#9CA3AF" }}>
                             {query
-                              ? "Không tìm thấy kết quả"
+                              ? "No results found"
                               : activeSpace === "trash"
-                                ? "Thùng rác trống"
-                                : "Thư mục trống"}
+                                ? "Trash is empty"
+                                : "This folder is empty"}
                           </div>
                         </div>
                       ),
@@ -11775,7 +11949,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Tạo thư mục
+            New Folder
           </span>
         }
         open={isFolderOpen}
@@ -11787,7 +11961,7 @@ const InternalTemplates = () => {
         destroyOnClose
       >
         <Text type="secondary">
-          Vị trí: {breadcrumbs.map((item) => item.name).join(" / ")}
+          Location: {breadcrumbs.map((item) => item.name).join(" / ")}
         </Text>
         <Form
           form={folderForm}
@@ -11797,13 +11971,13 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="name"
-            label="Tên thư mục"
-            rules={[{ required: true, message: "Vui lòng nhập tên thư mục" }]}
+            label="Folder Name"
+            rules={[{ required: true, message: "Please enter a folder name" }]}
           >
-            <Input placeholder="Nhập tên thư mục..." />
+            <Input placeholder="Enter folder name..." />
           </Form.Item>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={3} placeholder="Mô tả ngắn..." />
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="Short description..." />
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Button
@@ -11814,7 +11988,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               type="primary"
@@ -11826,7 +12000,7 @@ const InternalTemplates = () => {
                 borderColor: "#111827",
               }}
             >
-              Tạo thư mục
+              Create Folder
             </Button>
           </div>
         </Form>
@@ -11842,7 +12016,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Upload tài liệu
+            Upload File
           </span>
         }
         open={isUploadOpen}
@@ -11862,7 +12036,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Hủy
+            Cancel
           </Button>,
           <Button
             key="submit"
@@ -11880,80 +12054,130 @@ const InternalTemplates = () => {
         ]}
         destroyOnClose
       >
-        <Form
-          form={uploadForm}
-          layout="vertical"
-          initialValues={{ documentType: activeTypeId }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                activeSpace === "document_type" ? "1fr 1fr" : "1fr",
-              gap: 12,
-            }}
-          >
-            {activeSpace === "document_type" && (
-              <Form.Item
-                name="documentType"
-                label="Loại tài liệu"
-                rules={[
-                  { required: true, message: "Vui lòng chọn loại tài liệu" },
-                ]}
-              >
-                <Select optionLabelProp="label">
-                  {documentTypes.map((type) => (
-                    <Select.Option
-                      key={type.id}
-                      value={type.id}
-                      label={type.label}
-                    >
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 8,
-                          paddingTop: 1,
-                        }}
-                      >
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            color: type.color,
-                          }}
-                        >
-                          {type.svgIcon}
-                        </span>
-                        <span>{type.label}</span>
-                      </div>
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            )}
-            <Form.Item
-              name="googleDriveUrl"
-              label="Google Drive URL"
-              style={{ width: "100%" }}
+        <Form form={uploadForm} layout="vertical">
+          {uploadFileList.length > 1 && (
+            <div
+              style={{
+                fontFamily: FONT,
+                marginBottom: 12,
+                fontSize: 12,
+                color: "#6B7280",
+              }}
             >
-              <Input placeholder="Dán URL nếu không upload file" />
-            </Form.Item>
-          </div>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={2} placeholder="Mô tả ngắn..." />
-          </Form.Item>
-          <Form.Item label="File đính kèm">
+              The information below will be applied to all {uploadFileList.length}{" "}
+              files (each file keeps its own name; Document Name is ignored
+              when uploading more than one file).
+            </div>
+          )}
+          {uploadFileList.length > 1 && (
+            <div style={{ marginBottom: 16 }}>
+              <Radio.Group
+                value={uploadMode}
+                onChange={(e) => setUploadMode(e.target.value)}
+              >
+                <Radio value="separate">Upload as separate files</Radio>
+                <Radio value="grouped">Group into a new folder</Radio>
+              </Radio.Group>
+              {uploadMode === "grouped" && (
+                <Form.Item
+                  name="groupFolderName"
+                  label="Folder Name"
+                  style={{ marginTop: 8, marginBottom: 0 }}
+                  rules={[
+                    { required: true, message: "Please enter a folder name" },
+                  ]}
+                >
+                  <Input
+                    allowClear
+                    placeholder="Enter the new folder's name..."
+                  />
+                </Form.Item>
+              )}
+            </div>
+          )}
+          {uploadMode !== "grouped" && (
+            <React.Fragment>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentType" label="Document Type">
+                    <Input
+                      allowClear
+                      placeholder="e.g. Contract, Meeting Minutes..."
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="title" label="Document Name">
+                    <Input
+                      allowClear
+                      placeholder="Leave blank to use file name"
+                      disabled={uploadFileList.length > 1}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentCode" label="Document Code">
+                    <Input allowClear placeholder="e.g. 123/2024/CT" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="openingDate" label="Opening/Issue Date">
+                    <Input type="date" style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="signedAt" label="Signed Date">
+                    <Input type="date" style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="effectiveAt" label="Effective Date">
+                    <Input type="date" style={{ width: "100%" }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="senderName" label="Sender">
+                    <Input allowClear placeholder="Sender name/organization" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="recipientName" label="Recipient">
+                    <Input allowClear placeholder="Recipient name/organization" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="description" label="Description">
+                <Input.TextArea rows={2} placeholder="Short description..." />
+              </Form.Item>
+              <Form.Item
+                name="googleDriveUrl"
+                label="Google Drive URL"
+                tooltip="Only used when no file is attached below"
+              >
+                <Input
+                  placeholder="Paste a URL if not uploading a file"
+                  disabled={uploadFileList.length > 0}
+                />
+              </Form.Item>
+            </React.Fragment>
+          )}
+          <Form.Item label="Attached File(s)">
             <Dragger
               fileList={uploadFileList}
               beforeUpload={() => false}
-              onChange={({ fileList }) => setUploadFileList(fileList.slice(-1))}
-              maxCount={1}
+              onChange={({ fileList }) => setUploadFileList(fileList)}
+              multiple
             >
               <p style={{ fontSize: 22, margin: "4px 0", color: "#6b7280" }}>
                 {TYPE_ICONS.upload}
               </p>
-              <p style={{ margin: 0 }}>Kéo thả hoặc click để chọn file</p>
+              <p style={{ margin: 0 }}>Drag & drop or click to select file(s)</p>
             </Dragger>
           </Form.Item>
         </Form>
@@ -11969,7 +12193,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Upload thư mục
+            Upload Folder
           </span>
         }
         open={bulkConfirmOpen}
@@ -11989,7 +12213,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Hủy
+            Cancel
           </Button>,
           <Button
             key="submit"
@@ -12002,15 +12226,15 @@ const InternalTemplates = () => {
               borderColor: "#111827",
             }}
           >
-            Xác nhận Upload
+            Confirm Upload
           </Button>,
         ]}
       >
         <Text>
-          Đã chọn {pendingFolderFiles.length} file từ thư mục bên ngoài.
+          Selected {pendingFolderFiles.length} file(s) from an external folder.
         </Text>
         <div style={{ marginTop: 16 }}>
-          <Text strong>Upload vào:</Text>
+          <Text strong>Upload to:</Text>
           <TreeSelect
             value={bulkTargetId}
             onChange={setBulkTargetId}
@@ -12037,7 +12261,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Di chuyển
+            Move
           </span>
         }
         open={!!moveRecord}
@@ -12052,7 +12276,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Hủy
+            Cancel
           </Button>,
           <Button
             key="submit"
@@ -12064,12 +12288,12 @@ const InternalTemplates = () => {
               borderColor: "#111827",
             }}
           >
-            Di chuyển
+            Move
           </Button>,
         ]}
       >
         <Text>
-          Chọn thư mục đích cho{" "}
+          Choose the destination folder for{" "}
           <b>
             {moveRecord?._type === "folder"
               ? moveRecord?.name
@@ -12095,7 +12319,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Tạo Case Tham Chiếu
+            Create Reference Case
           </span>
         }
         open={isCreateTemplateOpen}
@@ -12113,21 +12337,21 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="title"
-            label="Tiêu đề"
-            rules={[{ required: true, message: "Vui lòng nhập tiêu đề" }]}
+            label="Title"
+            rules={[{ required: true, message: "Please enter a title" }]}
           >
-            <Input placeholder="Nhập tiêu đề..." />
+            <Input placeholder="Enter title..." />
           </Form.Item>
-          <Form.Item name="description" label="Mô tả">
-            <Input.TextArea rows={3} placeholder="Mô tả ngắn..." />
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} placeholder="Short description..." />
           </Form.Item>
           <Form.Item
             name="sourceCaseId"
-            label="Case nguồn / Case gốc"
-            extra="Chọn case/dự án nguồn sinh ra case tham chiếu này (chỉ hiện các case chưa liên kết)."
+            label="Source Case / Origin Case"
+            extra="Select the source case/project this reference case is generated from (only unlinked cases are shown)."
           >
             <Select
-              placeholder="Chọn case nguồn..."
+              placeholder="Select source case..."
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -12181,12 +12405,12 @@ const InternalTemplates = () => {
           </Form.Item>
           <Form.Item
             name="caseIds"
-            label="Các case liên kết hiện tại"
-            extra="Chọn các case đang chạy trong hệ thống để liên kết với case tham chiếu này (chỉ hiện các case chưa liên kết)."
+            label="Currently Linked Cases"
+            extra="Select active cases in the system to link with this reference case (only unlinked cases are shown)."
           >
             <Select
               mode="multiple"
-              placeholder="Chọn case liên kết..."
+              placeholder="Select cases to link..."
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -12215,7 +12439,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               type="primary"
@@ -12227,7 +12451,7 @@ const InternalTemplates = () => {
                 borderColor: "#185FA5",
               }}
             >
-              Tạo
+              Create
             </Button>
           </div>
         </Form>
@@ -12243,7 +12467,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Chỉnh sửa mục tài liệu
+            Edit Document Entry
           </span>
         }
         open={!!editTemplateRecord}
@@ -12261,10 +12485,10 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="title"
-            label="Tiêu đề"
-            rules={[{ required: true, message: "Vui lòng nhập tiêu đề" }]}
+            label="Title"
+            rules={[{ required: true, message: "Please enter a title" }]}
           >
-            <Input placeholder="Nhập tiêu đề..." />
+            <Input placeholder="Enter title..." />
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Button
@@ -12275,7 +12499,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               type="primary"
@@ -12287,7 +12511,7 @@ const InternalTemplates = () => {
                 borderColor: "#111827",
               }}
             >
-              Lưu
+              Save
             </Button>
           </div>
         </Form>
@@ -12303,7 +12527,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Đổi tên
+            Rename
           </span>
         }
         open={!!renameRecord}
@@ -12312,17 +12536,17 @@ const InternalTemplates = () => {
           renameForm.resetFields();
         }}
         onOk={handleRenameSubmit}
-        okText="Lưu"
-        cancelText="Hủy"
+        okText="Save"
+        cancelText="Cancel"
         destroyOnClose
       >
         <Form form={renameForm} layout="vertical">
           <Form.Item
             name="name"
-            label="Tên mới"
-            rules={[{ required: true, message: "Vui lòng nhập tên" }]}
+            label="New Name"
+            rules={[{ required: true, message: "Please enter a name" }]}
           >
-            <Input placeholder="Nhập tên mới..." />
+            <Input placeholder="Enter new name..." />
           </Form.Item>
         </Form>
       </Modal>
@@ -12337,7 +12561,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Liên kết Case Tham Chiếu
+            Link Reference Case
           </span>
         }
         open={isLinkCaseOpen}
@@ -12360,7 +12584,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Hủy
+            Cancel
           </Button>,
           <Button
             key="submit"
@@ -12373,7 +12597,7 @@ const InternalTemplates = () => {
               borderColor: "#185FA5",
             }}
           >
-            Lưu liên kết
+            Save Link
           </Button>,
         ]}
         destroyOnClose
@@ -12385,12 +12609,12 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="caseIds"
-            label="Chọn các Case/Dự án đang chạy liên kết"
-            extra="Danh sách được lấy từ các dự án hiện có trong hệ thống."
+            label="Select Active Cases/Projects to Link"
+            extra="This list is populated from the projects currently in the system."
           >
             <Select
               mode="multiple"
-              placeholder="Chọn case..."
+              placeholder="Select case..."
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -12427,7 +12651,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Di chuyển nhiều mục
+            Move Multiple Items
           </span>
         }
         open={isBulkMoveOpen}
@@ -12442,7 +12666,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Hủy
+            Cancel
           </Button>,
           <Button
             key="submit"
@@ -12454,12 +12678,12 @@ const InternalTemplates = () => {
               borderColor: "#185FA5",
             }}
           >
-            Di chuyển
+            Move
           </Button>,
         ]}
       >
         <Text>
-          Chọn thư mục đích cho <b>{selectedRowKeys.length} mục đã chọn</b>
+          Choose the destination folder for <b>{selectedRowKeys.length} selected item(s)</b>
         </Text>
         <TreeSelect
           value={bulkMoveTargetId}
@@ -12475,6 +12699,12 @@ const InternalTemplates = () => {
       <FolderPermissionsModal
         open={!!permissionFolder}
         folder={permissionFolder}
+        isCaseRootFolder={
+          !!permissionFolder &&
+          !!activeCaseRootFolderId &&
+          String(extractId(permissionFolder)) === String(activeCaseRootFolderId)
+        }
+        caseId={activeCaseIdValue}
         onClose={() => setPermissionFolder(null)}
         onSuccess={() => {
           setPermissionFolder(null);
