@@ -1962,6 +1962,38 @@ const getLegalEntityManagerId = (record) =>
 const getEntityMemberRowLawyerId = (row) =>
   extractId(row?.memberId) || extractRelationId(row?.member);
 
+// legalMembers table rows use member/memberId (not lawyer/lawyerId like
+// folderManager/folderMembers rows) — getRelationLawyerRecord doesn't know
+// that shape, so entity-permission code needs its own accessor.
+const getEntityMemberRowLawyerRecord = (row) => {
+  if (!row || typeof row !== "object") return {};
+  if (row.member && typeof row.member === "object") return row.member;
+  if (row.memberId && typeof row.memberId === "object") return row.memberId;
+  return row;
+};
+
+// Role options offered for a legalMembers row in PermissionManagerModal —
+// no "manager" here since Manager is a separate single-value field on the
+// legalStudy record itself (see loadEntityPermissions/saveEntityPermissions),
+// matching Library.js's ENTITY_MEMBER_ROLE_OPTIONS exactly.
+const ENTITY_MEMBER_ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "editor", label: "Editor" },
+  { value: "contributed", label: "Contributed" },
+];
+
+// Endpoint candidates for writing the legalStudy record's own manager/
+// managerId field (tried in order, first success wins) — matches
+// Library.js's ENTITY_PERMISSION_UPDATE_CANDIDATES. Only "legal_study" is
+// a permission-editable entity kind in this file (legal_reference/case
+// gallery records don't carry a Manager/Members concept).
+const ENTITY_PERMISSION_UPDATE_CANDIDATES = {
+  legal_study: (id) => [
+    `legalStudy:update?filterByTk=${id}`,
+    `legalStudies:update?filterByTk=${id}`,
+  ],
+};
+
 // Capability tiers for the Member role (viewer/editor/contributed) —
 // shared by BOTH the Reference's entity-level Members (this file's
 // resolveLegalEntityFolderPerms) AND regular folder Members
@@ -2541,6 +2573,52 @@ const fetchAllLegalMemberRows = async () => {
     }
   }
   return [];
+};
+
+// Scoped legalMembers fetch for PermissionManagerModal's entity adapter —
+// unlike fetchAllLegalMemberRows (unfiltered, used once at load time for
+// entityPermissionContext), this re-fetches fresh on every modal open,
+// matching Library.js's fetchEntityMemberRows.
+const fetchEntityMemberRows = async (fkField, recordId) => {
+  if (!fkField || !recordId) return [];
+  const filter = JSON.stringify({ [fkField]: { $eq: recordId } });
+  for (const url of ["legalMembers:list", "legalMember:list"]) {
+    try {
+      return await fetchAllList(url, { pageSize: 1000, filter, appends: ["member"] });
+    } catch (e) {
+      try {
+        return await fetchAllList(url, { pageSize: 1000, filter });
+      } catch (e2) {}
+    }
+  }
+  return [];
+};
+
+const destroyEntityMemberRows = async (fkField, recordId) => {
+  for (const url of ["legalMembers:destroy", "legalMember:destroy"]) {
+    try {
+      await ctx.api.request({
+        url,
+        method: "POST",
+        params: { filter: JSON.stringify({ [fkField]: { $eq: recordId } }) },
+      });
+      return true;
+    } catch {}
+  }
+  return false;
+};
+
+const createEntityMemberRow = async (fkField, recordId, memberId, role) => {
+  const payload = { [fkField]: recordId, memberId: Number(memberId), role };
+  let lastError = null;
+  for (const url of ["legalMembers:create", "legalMember:create"]) {
+    try {
+      return await ctx.api.request({ url, method: "POST", data: payload });
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error("Failed to create legal member row");
 };
 
 const fetchFoldersForInternalTemplates = async () => {
@@ -3230,163 +3308,113 @@ const PreviewModal = ({ doc, onClose }) => {
 // ============================================================
 // Folder Permissions Modal
 // ============================================================
-const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClose, onSuccess }) => {
+// Generic Manager (single) + Members (viewer/editor/contributed) editor —
+// reused for every "Permissions" entry point in this file: Case root
+// folders (folderManagers/folderMembers tables) and Reference/Legal Study
+// entities (legalStudy's own manager field + legalMembers table). The
+// caller supplies loadPermissions/savePermissions adapters (see
+// loadFolderPermissions/saveFolderPermissions and
+// loadEntityPermissions/saveEntityPermissions below); this component owns
+// only the shared UI + local editing state. Matches Library.js's
+// PermissionManagerModal exactly — Manager is its own Select (not mixed
+// into the Members role list), and "Add members" accepts multiple people
+// in one go instead of one at a time.
+const PermissionManagerModal = ({
+  open,
+  title,
+  loadPermissions,
+  savePermissions,
+  onClose,
+  onSuccess,
+}) => {
   const [saving, setSaving] = useState(false);
   const [availableLawyers, setAvailableLawyers] = useState([]);
+  const [managerId, setManagerId] = useState(null);
   const [shares, setShares] = useState([]);
+  const [pendingLawyerIds, setPendingLawyerIds] = useState([]);
 
   useEffect(() => {
     if (!open) {
+      setManagerId(null);
       setShares([]);
+      setPendingLawyerIds([]);
       return;
     }
-    if (!folder) return;
-
-    const folderId = extractId(folder.id || folder);
     Promise.all([
       ctx.api
         .request({ url: "lawyers:list", params: { pageSize: 1000 } })
         .catch(() => ({ data: { data: [] } })),
-      ctx.api
-        .request({
-          url: `folders/${folderId}/folderManager:list`,
-          params: { pageSize: 1000 },
-        })
-        .catch(() => ({ data: { data: [] } })),
-      ctx.api
-        .request({
-          url: "folderMembers:list",
-          params: {
-            pageSize: 1000,
-            filter: JSON.stringify({ folderId: { $eq: folderId } }),
-          },
-        })
-        .catch(() => ({ data: { data: [] } })),
-    ]).then(([lwRes, mgRes, mbRes]) => {
+      loadPermissions(),
+    ]).then(([lwRes, perms]) => {
       setAvailableLawyers(lwRes?.data?.data || []);
-      const initialShares = [];
-      const managerRows = mgRes?.data?.data || [];
-      const memberRows = mbRes?.data?.data || [];
-      managerRows.forEach((row) => {
-        const lawyerId = getPermissionLawyerId(row);
-        if (!lawyerId) return;
-        initialShares.push({
-          id: String(lawyerId),
-          role: "manager",
-          lawyerData: getRelationLawyerRecord(row),
-        });
-      });
-      memberRows.forEach((row) => {
-        const lawyerId = getPermissionLawyerId(row);
-        if (!lawyerId) return;
-        initialShares.push({
-          id: String(lawyerId),
-          role: getPermissionRole(row),
-          lawyerData: getRelationLawyerRecord(row),
-        });
-      });
-      setShares(initialShares);
+      setManagerId(perms?.managerId || null);
+      setShares(perms?.members || []);
+      setPendingLawyerIds([]);
     });
-  }, [open, folder]);
+    // Intentionally keyed only on `open` — loadPermissions is a fresh
+    // closure per render (see permissionModalConfig), but the target it
+    // points at only ever changes together with `open` flipping to true.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
-  const handleSave = async () => {
-    const managers = shares.filter((s) => s.role === "manager");
-    const members = shares.filter((s) => s.role !== "manager");
+  const lawyerOptions = availableLawyers.map((l) => ({
+    value: String(extractId(l.id)),
+    label: getLawyerDisplayName(l),
+  }));
 
-    // The Case record only has a single managerId slot — matches
-    // Library.js's saveFolderPermissions guard (see
-    // [[nocobase_single_file_constraint]] for why this is duplicated here
-    // instead of shared).
-    if (isCaseRootFolder && managers.length > 1) {
-      message.error("A Case can only have 1 Manager — please keep only one person.");
-      return;
+  const buildAccessSummary = () => {
+    const parts = [];
+    if (managerId) {
+      const mgr = availableLawyers.find(
+        (l) => String(extractId(l.id)) === String(managerId),
+      );
+      parts.push(
+        `${mgr ? getLawyerDisplayName(mgr) : `Lawyer #${managerId}`} - Manager`,
+      );
     }
-
-    setSaving(true);
-    try {
-      const folderId = extractId(folder.id);
-
-      await Promise.all([
-        ctx.api
-          .request({
-            url: "folderManagers:destroy",
-            method: "POST",
-            params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-          })
-          .catch(() => {}),
-        ctx.api
-          .request({
-            url: "folderMembers:destroy",
-            method: "POST",
-            params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
-          })
-          .catch(() => {}),
-      ]);
-
-      const createPromises = [];
-      managers.forEach((s) => {
-        createPromises.push(
-          ctx.api.request({
-            url: "folderManagers:create",
-            method: "POST",
-            data: { folderId, lawyerId: Number(s.id), role: "manager" },
-          }),
-        );
-      });
-      members.forEach((s) => {
-        createPromises.push(
-          ctx.api.request({
-            url: "folderMembers:create",
-            method: "POST",
-            data: { folderId, lawyerId: Number(s.id), role: s.role },
-          }),
-        );
-      });
-
-      await Promise.all(createPromises);
-
-      // Editing Manager/Members here only updates the folder permission
-      // tables — push it back onto the Case record too (managerId/assignees,
-      // the source of truth read elsewhere, e.g. LegalReferenceWorkspace.js's
-      // canManageCurrentCase) so the two stay in sync. Only when saving on
-      // the case's own root folder — CaseCreateForm.js only syncs this once,
-      // at case creation, so later edits here had no way to flow back.
-      if (isCaseRootFolder && caseId) {
-        try {
-          await ctx.api.request({
-            url: "projects:update",
-            method: "POST",
-            params: { filterByTk: parseInt(caseId) },
-            data: {
-              managerId: managers[0] ? parseInt(managers[0].id) : null,
-              assignees: members.map((m) => ({ id: parseInt(m.id) })),
-            },
-          });
-        } catch (syncError) {
-          console.warn(
-            "Could not sync case manager/assignees from folder permissions:",
-            syncError,
-          );
-          message.warning(
-            "Folder permissions saved, but Manager/Members could not be synced to the Case.",
-          );
-        }
-      }
-
-      message.success("Permissions updated successfully");
-      onSuccess();
-    } catch (e) {
-      message.error("Failed to update permissions");
-    }
-    setSaving(false);
+    shares.forEach((s) => {
+      const lw =
+        availableLawyers.find(
+          (l) => String(extractId(l.id)) === String(s.id),
+        ) ||
+        s.lawyerData ||
+        {};
+      const displayName = getLawyerDisplayName(
+        lw.id ? lw : s.lawyerData || s,
+        "User",
+      );
+      const roleLabel =
+        ENTITY_MEMBER_ROLE_OPTIONS.find((o) => o.value === s.role)?.label ||
+        s.role;
+      parts.push(`${displayName} - ${roleLabel}`);
+    });
+    return parts.length ? parts.join("; ") : "No one has been granted access";
   };
 
-  const handleAddLawyer = (lawyerId) => {
-    if (!lawyerId) return;
-    const safeLawyerId = String(extractId(lawyerId));
-    if (!safeLawyerId || shares.some((s) => String(s.id) === safeLawyerId))
-      return;
-    setShares([...shares, { id: safeLawyerId, role: "viewer" }]);
+  const handleAddLawyers = (selectedIds = pendingLawyerIds) => {
+    const ids = Array.isArray(selectedIds)
+      ? selectedIds
+      : [selectedIds].filter(Boolean);
+    if (!ids.length) return;
+    const existingIds = new Set(shares.map((s) => String(s.id)));
+    const nextShares = [...shares];
+    ids.forEach((lawyerId) => {
+      const safeLawyerId = String(extractId(lawyerId));
+      if (
+        !safeLawyerId ||
+        safeLawyerId === String(managerId) ||
+        existingIds.has(safeLawyerId)
+      )
+        return;
+      existingIds.add(safeLawyerId);
+      const lawyerData =
+        availableLawyers.find(
+          (l) => String(extractId(l.id)) === safeLawyerId,
+        ) || {};
+      nextShares.push({ id: safeLawyerId, role: "viewer", lawyerData });
+    });
+    setShares(nextShares);
+    setPendingLawyerIds([]);
   };
 
   const handleChangeRole = (lawyerId, newRole) => {
@@ -3401,24 +3429,25 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
     setShares(shares.filter((s) => String(s.id) !== String(lawyerId)));
   };
 
-  const lawyerOptions = availableLawyers
-    .filter(
-      (l) => !shares.some((s) => String(s.id) === String(extractId(l.id))),
-    )
-    .map((l) => ({
-      value: String(extractId(l.id)),
-      label: getLawyerDisplayName(l),
-    }));
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await savePermissions(managerId, shares);
+      message.success("Permissions updated successfully");
+      onSuccess({ accessSummary: buildAccessSummary() });
+    } catch (e) {
+      console.error("[CaseDocument] update permissions failed", e);
+      message.error("An error occurred while updating permissions");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Modal
       open={open}
       onCancel={onClose}
-      title={
-        <span style={{ fontFamily: FONT }}>
-          Folder Permissions: {folder?.name || ""}
-        </span>
-      }
+      title={<span style={{ fontFamily: FONT }}>{title}</span>}
       width={520}
       destroyOnClose
       footer={[
@@ -3437,27 +3466,52 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
       ]}
     >
       <div style={{ marginBottom: 16, fontFamily: FONT }}>
-        <div style={{ marginBottom: 8, fontWeight: 600 }}>Add Person</div>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>Manager</div>
         <Select
+          allowClear
           showSearch
           style={{ width: "100%" }}
-          placeholder="Search and add people..."
+          placeholder="Select manager..."
           options={lawyerOptions}
-          value={null}
-          onChange={handleAddLawyer}
+          value={managerId}
+          onChange={(val) => {
+            setManagerId(val || null);
+            if (val)
+              setShares((prev) =>
+                prev.filter((s) => String(s.id) !== String(val)),
+              );
+          }}
+          filterOption={(input, option) =>
+            (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+          }
+        />
+      </div>
+      <div style={{ marginBottom: 16, fontFamily: FONT }}>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
+        <Select
+          mode="multiple"
+          showSearch
+          allowClear
+          style={{ width: "100%" }}
+          placeholder="Search and select multiple people..."
+          options={lawyerOptions.filter(
+            (o) =>
+              o.value !== managerId &&
+              !shares.some((s) => String(s.id) === o.value),
+          )}
+          value={pendingLawyerIds}
+          onChange={handleAddLawyers}
           filterOption={(input, option) =>
             (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
           }
         />
       </div>
       <div style={{ fontFamily: FONT }}>
-        <div style={{ marginBottom: 12, fontWeight: 600 }}>
-          People with access
-        </div>
+        <div style={{ marginBottom: 12, fontWeight: 600 }}>Members</div>
         {shares.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Not shared with anyone yet"
+            description="No members added yet"
           />
         ) : (
           shares.map((s) => {
@@ -3470,7 +3524,6 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
             const displayName = getLawyerDisplayName(
               lw.id ? lw : s.lawyerData || s,
             );
-            const initials = displayName.charAt(0).toUpperCase();
             return (
               <div
                 key={s.id}
@@ -3482,50 +3535,14 @@ const FolderPermissionsModal = ({ open, folder, isCaseRootFolder, caseId, onClos
                   borderBottom: "1px solid #f0f0f0",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: "50%",
-                      background: "#1890ff",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "bold",
-                      fontSize: 16,
-                    }}
-                  >
-                    {initials}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 500, lineHeight: 1.2 }}>
-                      {displayName}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                      {s.role === "manager"
-                        ? "Manager"
-                        : s.role === "contributed"
-                          ? "Contributed"
-                          : s.role === "editor"
-                            ? "Editor"
-                            : "Viewer"}
-                    </div>
-                  </div>
-                </div>
+                <span style={{ fontWeight: 500 }}>{displayName}</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Select
                     value={s.role}
                     onChange={(val) => handleChangeRole(s.id, val)}
                     bordered={false}
                     style={{ width: 150, fontFamily: FONT }}
-                    options={[
-                      { value: "viewer", label: "Viewer" },
-                      { value: "editor", label: "Editor" },
-                      { value: "contributed", label: "Contributed" },
-                      { value: "manager", label: "Manager" },
-                    ]}
+                    options={ENTITY_MEMBER_ROLE_OPTIONS}
                   />
                   <Button
                     type="text"
@@ -4002,7 +4019,10 @@ const InternalTemplates = () => {
   const currentUserRef = useRef(null);
   const activeLegalReferenceIdRef = useRef(null);
   const [lawyers, setLawyers] = useState([]);
-  const [permissionFolder, setPermissionFolder] = useState(null);
+  // { kind: "folder", folder } | { kind: "legal_study", record } | null —
+  // drives PermissionManagerModal via permissionModalConfig below. Matches
+  // Library.js's permissionTarget (generic across folder + entity kinds).
+  const [permissionTarget, setPermissionTarget] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityPage, setActivityPage] = useState(1);
@@ -8436,6 +8456,26 @@ const InternalTemplates = () => {
     [currentUserState, currentLawyerId, visibleFolders, permissionAllFolders, entityPermissionContext],
   );
 
+  // Routes a "Permissions" click to the right permissionTarget kind — a
+  // Reference (legalStudyId) root folder is governed by its entity's own
+  // Manager/Legal Member role, so it must open the entity adapter (its
+  // legalStudy record), not the folderManagers/folderMembers adapter that
+  // every other root folder uses. Matches Library.js's entityContextMenu
+  // "permission" entry point for Legal Study gallery cards.
+  const openPermissionsForFolder = (record) => {
+    const entityStudyId = extractId(record.legalStudyId);
+    if (entityStudyId) {
+      const study = legalStudyById.get(String(entityStudyId));
+      if (!study) {
+        message.warning("Could not find this Reference's data.");
+        return;
+      }
+      setPermissionTarget({ kind: "legal_study", record: study });
+      return;
+    }
+    setPermissionTarget({ kind: "folder", folder: record });
+  };
+
   const renderContextMenuItems = useCallback(
     (record) => {
       if (!record) return [];
@@ -8552,13 +8592,14 @@ const InternalTemplates = () => {
         !isFolderTreeRoot(record, permissionAllFolders) &&
         (activeSpace === "personal" || isAdminUser(currentUserState));
       // Reference (legalStudyId) folders are governed by the entity's own
-      // Manager/Legal Member role (legalMembers table), never by
-      // folderManagers/folderMembers — FolderPermissionsModal only knows
-      // how to edit the latter, so it must never be offered there. And
-      // permissions is root-folder-only now — never offered on a subfolder.
+      // Manager/Legal Member role — resolveLegalEntityFolderPerms already
+      // folds that into rawCanManagePermissions (true only when this user
+      // IS that entity's Manager), so no separate legalStudyId exclusion
+      // is needed here; openPermissionsForFolder below routes the click to
+      // the right adapter. Permissions is root-folder-only — never offered
+      // on a subfolder.
       const canManagePermissions =
         rawCanManagePermissions &&
-        !extractId(record.legalStudyId) &&
         isFolderTreeRoot(record, permissionAllFolders);
 
       if (!isFolder) {
@@ -8612,7 +8653,7 @@ const InternalTemplates = () => {
           label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
           onClick: () => {
             closeContextMenu();
-            setPermissionFolder(record);
+            openPermissionsForFolder(record);
           },
         });
       }
@@ -8638,6 +8679,7 @@ const InternalTemplates = () => {
       permissionAllFolders,
       openLegalReferenceDetail,
       openLinkCaseModal,
+      legalStudyById,
     ],
   );
 
@@ -8774,7 +8816,6 @@ const InternalTemplates = () => {
         (activeSpace === "personal" || isAdminUser(currentUser));
       const canManagePermissions =
         rawCanManagePermissions &&
-        !extractId(record.legalStudyId) &&
         isFolderTreeRoot(record, permissionAllFolders);
       if (!canRename && !canMove && !canDelete && !canManagePermissions) return null;
       return (
@@ -8784,7 +8825,7 @@ const InternalTemplates = () => {
               <Button
                 size="small"
                 icon={LOCK_ICON}
-                onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
+                onClick={(event) => { event.stopPropagation(); openPermissionsForFolder(record); }}
               />
             </Tooltip>
           )}
@@ -9726,6 +9767,7 @@ const InternalTemplates = () => {
     openLegalReferenceDetail,
     openLinkCaseModal,
     saveRecordField,
+    legalStudyById,
   ]);
 
   const rowDragProps = (record) => ({
@@ -10014,6 +10056,189 @@ const InternalTemplates = () => {
       previewRecordFile,
     ],
   );
+
+  // Load/save adapters consumed by PermissionManagerModal (via
+  // permissionModalConfig below) — matches Library.js's
+  // loadFolderPermissions/saveFolderPermissions exactly.
+  const loadFolderPermissions = async (folder) => {
+    const folderId = extractId(folder.id || folder);
+    const [mgRes, mbRes] = await Promise.all([
+      ctx.api
+        .request({
+          url: `folders/${folderId}/folderManager:list`,
+          params: { pageSize: 1000 },
+        })
+        .catch(() => ({ data: { data: [] } })),
+      ctx.api
+        .request({
+          url: "folderMembers:list",
+          params: {
+            pageSize: 1000,
+            filter: JSON.stringify({ folderId: { $eq: folderId } }),
+          },
+        })
+        .catch(() => ({ data: { data: [] } })),
+    ]);
+    const managerRow = (mgRes?.data?.data || [])[0];
+    const memberRows = mbRes?.data?.data || [];
+    return {
+      managerId: managerRow ? String(getPermissionLawyerId(managerRow)) : null,
+      members: memberRows
+        .map((row) => ({
+          id: String(getPermissionLawyerId(row)),
+          role: getPermissionRole(row, "viewer"),
+          lawyerData: getRelationLawyerRecord(row),
+        }))
+        .filter((s) => s.id && s.id !== "undefined"),
+    };
+  };
+
+  // Case-root sync (push Manager/Members back onto the Case record's own
+  // managerId/assignees) uses this file's own activeCaseRootFolderId/
+  // activeCaseIdValue directly — CaseDocument.js is single-Case-scoped, so
+  // it doesn't need Library.js's generic isCaseRootFolder/
+  // getFolderCaseProjectId (which scan allFolders to find the Case a
+  // folder belongs to, needed there because Library.js's galleries span
+  // many Cases at once).
+  const saveFolderPermissions = async (folder, managerId, members) => {
+    const folderId = extractId(folder.id);
+    const isCaseRootFolderTarget =
+      !!activeCaseRootFolderId &&
+      String(extractId(folder)) === String(activeCaseRootFolderId);
+
+    await Promise.all([
+      ctx.api
+        .request({
+          url: "folderManagers:destroy",
+          method: "POST",
+          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+        })
+        .catch(() => {}),
+      ctx.api
+        .request({
+          url: "folderMembers:destroy",
+          method: "POST",
+          params: { filter: JSON.stringify({ folderId: { $eq: folderId } }) },
+        })
+        .catch(() => {}),
+    ]);
+
+    const createPromises = [];
+    if (managerId) {
+      createPromises.push(
+        ctx.api.request({
+          url: "folderManagers:create",
+          method: "POST",
+          data: { folderId, lawyerId: Number(managerId), role: "manager" },
+        }),
+      );
+    }
+    members.forEach((s) => {
+      createPromises.push(
+        ctx.api.request({
+          url: "folderMembers:create",
+          method: "POST",
+          data: { folderId, lawyerId: Number(s.id), role: s.role },
+        }),
+      );
+    });
+    await Promise.all(createPromises);
+
+    // Editing Manager/Members here only updates the folder permission
+    // tables — push it back onto the Case record too (managerId/assignees,
+    // the source of truth read elsewhere) so the two stay in sync.
+    // CaseCreateForm.js only syncs this once, at case creation, so later
+    // edits here had no way to flow back otherwise.
+    if (isCaseRootFolderTarget && activeCaseIdValue) {
+      try {
+        await ctx.api.request({
+          url: "projects:update",
+          method: "POST",
+          params: { filterByTk: parseInt(activeCaseIdValue) },
+          data: {
+            managerId: managerId ? parseInt(managerId) : null,
+            assignees: members.map((m) => ({ id: parseInt(m.id) })),
+          },
+        });
+      } catch (syncError) {
+        console.warn(
+          "Could not sync case manager/assignees from folder permissions:",
+          syncError,
+        );
+        message.warning(
+          "Folder permissions saved, but Manager/Members could not be synced to the Case.",
+        );
+      }
+    }
+  };
+
+  const loadEntityPermissions = async (record, fkField) => {
+    const recordId = extractId(record);
+    const memberRows = await fetchEntityMemberRows(fkField, recordId);
+    const recordManagerId = getLegalEntityManagerId(record);
+    return {
+      managerId: recordManagerId ? String(recordManagerId) : null,
+      members: memberRows
+        .filter((r) => r.role !== "manager")
+        .map((r) => ({
+          id: String(getEntityMemberRowLawyerId(r)),
+          role: r.role || "viewer",
+          lawyerData: getEntityMemberRowLawyerRecord(r),
+        }))
+        .filter((s) => s.id && s.id !== "undefined"),
+    };
+  };
+
+  const saveEntityPermissions = async (record, kind, fkField, managerId, members) => {
+    const recordId = extractId(record);
+    const numericManagerId = managerId ? Number(managerId) : null;
+    // Keep the parent record's own single-value "manager" field in sync
+    // (still a plain belongsTo column, separate from the role-tracking
+    // Legal Member table below).
+    const parentPayload = { manager: numericManagerId, managerId: numericManagerId };
+    const updateCandidates = ENTITY_PERMISSION_UPDATE_CANDIDATES[kind] || (() => []);
+    for (const url of updateCandidates(recordId)) {
+      try {
+        await ctx.api.request({ url, method: "POST", data: parentPayload });
+        break;
+      } catch (e) {
+        // try next candidate
+      }
+    }
+
+    // Role-tracking table: destroy + recreate, same pattern as
+    // folderManagers/folderMembers. The manager is intentionally NOT
+    // written here — this table also backs the `members` belongsToMany
+    // association, so a manager row would resurface as a duplicate entry
+    // under Members (both in this modal and in the raw Nocobase admin
+    // grid). Manager identity lives solely in the parent record's own
+    // manager/managerId field, written above.
+    await destroyEntityMemberRows(fkField, recordId);
+    await Promise.all(
+      members.map((s) => createEntityMemberRow(fkField, recordId, s.id, s.role)),
+    );
+  };
+
+  const permissionModalConfig = useMemo(() => {
+    if (!permissionTarget) return null;
+    if (permissionTarget.kind === "folder") {
+      const folder = permissionTarget.folder;
+      return {
+        title: `Folder permissions: ${folder?.name || ""}`,
+        loadPermissions: () => loadFolderPermissions(folder),
+        savePermissions: (managerId, members) =>
+          saveFolderPermissions(folder, managerId, members),
+      };
+    }
+    const { record } = permissionTarget;
+    const fkField = "legalStudyId";
+    return {
+      title: `${REFERENCE_LABEL} permissions: ${record?.title || record?.name || ""}`,
+      loadPermissions: () => loadEntityPermissions(record, fkField),
+      savePermissions: (managerId, members) =>
+        saveEntityPermissions(record, "legal_study", fkField, managerId, members),
+    };
+  }, [permissionTarget, activeCaseRootFolderId, activeCaseIdValue]);
 
   if (loading && companies.length === 0 && documents.length === 0) {
     return (
@@ -12483,9 +12708,7 @@ const InternalTemplates = () => {
           >
             <Input placeholder="Enter folder name..." />
           </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} placeholder="Short description..." />
-          </Form.Item>
+          
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Button
               onClick={() => setIsFolderOpen(false)}
@@ -12507,7 +12730,7 @@ const InternalTemplates = () => {
                 borderColor: "#111827",
               }}
             >
-              Create Folder
+              Submit
             </Button>
           </div>
         </Form>
@@ -13040,18 +13263,19 @@ const InternalTemplates = () => {
 
       <PreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
 
-      <FolderPermissionsModal
-        open={!!permissionFolder}
-        folder={permissionFolder}
-        isCaseRootFolder={
-          !!permissionFolder &&
-          !!activeCaseRootFolderId &&
-          String(extractId(permissionFolder)) === String(activeCaseRootFolderId)
+      <PermissionManagerModal
+        open={!!permissionTarget}
+        title={permissionModalConfig?.title || ""}
+        loadPermissions={
+          permissionModalConfig?.loadPermissions ||
+          (() => Promise.resolve({ managerId: null, members: [] }))
         }
-        caseId={activeCaseIdValue}
-        onClose={() => setPermissionFolder(null)}
+        savePermissions={
+          permissionModalConfig?.savePermissions || (() => Promise.resolve())
+        }
+        onClose={() => setPermissionTarget(null)}
         onSuccess={() => {
-          setPermissionFolder(null);
+          setPermissionTarget(null);
           loadData();
         }}
       />

@@ -398,6 +398,43 @@ map action → label/màu/icon/mô tả tiếng Việt-Anh lẫn. Lọc trùng: 
 - `roleToPerms`/permission tier cho folder Member — xem mục 3.1/3.3, giờ
   khớp byte-for-byte, cả 2 file cùng dùng capability tier
   viewer/editor/contributed/manager.
+- Modal phân quyền — **2026-08-05: thay `FolderPermissionsModal` (bespoke,
+  chỉ biết sửa folderManagers/folderMembers) bằng `PermissionManagerModal`
+  generic y hệt Library.js**:
+  - Manager tách thành 1 `Select` riêng (không còn gộp chung 1 list với
+    Members rồi chọn role "manager" như trước).
+  - "Add members" cho chọn nhiều người 1 lần (`Select mode="multiple"`),
+    thay vì thêm từng người một.
+  - Role list của Members chỉ còn viewer/editor/contributed
+    (`ENTITY_MEMBER_ROLE_OPTIONS`) — không còn "manager" lẫn trong đó.
+  - Component nhận `title`/`loadPermissions`/`savePermissions` qua props
+    (`permissionModalConfig` useMemo), dùng chung cho 2 loại target qua
+    `permissionTarget = { kind: "folder", folder } | { kind: "legal_study",
+    record }`:
+    - `kind: "folder"` → `loadFolderPermissions`/`saveFolderPermissions`
+      (folderManagers/folderMembers, đồng bộ ngược Manager/Members lên
+      `projects.managerId/assignees` khi target là root folder của Case
+      hiện tại — dùng thẳng `activeCaseRootFolderId`/`activeCaseIdValue`
+      đã có sẵn thay vì hàm `isCaseRootFolder`/`getFolderCaseProjectId`
+      generic quét `allFolders` như Library.js, vì CaseDocument.js chỉ
+      scope 1 Case nên không cần).
+    - `kind: "legal_study"` → `loadEntityPermissions`/`saveEntityPermissions`
+      (bảng `legalMembers` + field `manager`/`managerId` trên chính record
+      legalStudy) — **tính năng mới**, trước đây CaseDocument.js hoàn toàn
+      không có UI sửa quyền cho Reference/Legal Study entity (mục
+      `canManagePermissions` luôn bị ép `!extractId(record.legalStudyId)`
+      để loại trừ hẳn, dù phần đọc quyền — `resolveLegalEntityFolderPerms`
+      — đã có sẵn từ trước). Entry point: menu "Permissions" trên context
+      menu / row action của 1 folder Reference khi nó là tree root của
+      chính nó (`isFolderTreeRoot`) — `rawCanManagePermissions` từ
+      `getRecordPerms` đã tự đúng (chỉ true khi user là Manager của đúng
+      entity đó, qua `resolveLegalEntityFolderPerms` → `roleToPerms
+      ("manager")`), nên chỉ cần bỏ điều kiện loại trừ
+      `!extractId(record.legalStudyId)` là đủ — không cần thêm check
+      isManager riêng. `openPermissionsForFolder(record)` route: nếu
+      record có `legalStudyId` → tra `legalStudyById` lấy record legalStudy
+      rồi mở `{kind: "legal_study", ...}`; ngược lại mở `{kind: "folder",
+      ...}` như cũ.
 
 **Bẫy thực tế lặp lại y hệt khi port sang CaseDocument.js** (đã có ở
 Library.js, gặp lại lần 2): `replace_all` trên block Description giống hệt
