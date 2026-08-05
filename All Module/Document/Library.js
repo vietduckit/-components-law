@@ -8637,8 +8637,46 @@
     const handleConfirmUploadFields = async (metadata) => {
       const target = uploadFieldsTarget;
       if (!target) return;
+
+      let targetFolderId = target.folderId;
+
+      if (metadata.uploadMode === "grouped") {
+        if (!getFolderPermsById(targetFolderId).canCreate) {
+          message.warning(
+            "You do not have permission to create a folder at this location",
+          );
+          return;
+        }
+        const userId = getCurrentUserId();
+        const nowIso = new Date().toISOString();
+        const parentId = normalizeParentId(targetFolderId);
+        const folderPayload = {
+          name: metadata.groupFolderName.trim(),
+          type: "custom",
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          storageType: activeSpace,
+          ...(parentId ? { parentId } : {}),
+          ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        };
+        applyFolderSpacePayload(folderPayload);
+
+        let folderRes;
+        try {
+          folderRes = await createFolderRecord(folderPayload);
+        } catch (e) {
+          message.error("Failed to create folder");
+          return;
+        }
+        targetFolderId = extractId(folderRes?.data?.data);
+        if (!targetFolderId) {
+          message.error("Failed to create folder");
+          return;
+        }
+      }
+
       const ok = await uploadFilesToTarget(target.files, {
-        folderId: target.folderId,
+        folderId: targetFolderId,
         metadata,
       });
       if (ok) setUploadFieldsTarget(null);
