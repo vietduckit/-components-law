@@ -30,7 +30,8 @@ be scoped to exactly the linked folder.
 
 ## 2. Scope
 
-**In scope** (all within `CaseDocument.js` only):
+**In scope** (link-creation UI is `CaseDocument.js`-only; the permission
+resolution change also touches `Library.js` — see the last bullet below):
 - UI to create all three link kinds: Case↔Case (`caseReferences`),
   Case↔Reference/Legal Study entity (`legalStudy`), Case↔specific folder
   (`caseLegalStudyLinks`).
@@ -48,12 +49,23 @@ be scoped to exactly the linked folder.
   Case root.
 - Relaxing the "Permissions" action's `isFolderTreeRoot` gate so it is also
   offered on level-2 folders.
+- **Applying the same permission-resolution change to `Library.js`.** A
+  linked folder is a real physical folder inside the target Case's own
+  tree, and `Library.js` already lets any user browse to it directly via
+  Customer → Case → folder (no "link" concept needed there — it's the same
+  underlying folder data). If `Library.js` keeps the old root-only
+  resolution while `CaseDocument.js` moves to level-2-aware resolution, a
+  member granted only the level-2 grant would see the linked folder inside
+  `CaseDocument.js`'s "Legal Study" link space but be denied it when
+  browsing the identical folder through `Library.js` — an inconsistent,
+  confusing result. So `resolveFolderTreeRoot`, `getFolderPermissions`,
+  `getVisibleFolderIds`, and the `isFolderTreeRoot` gate in `Library.js`
+  get the identical level-2-aware algorithm (§4) as `CaseDocument.js`. Only
+  the resolution algorithm changes in `Library.js` — no link-creation UI,
+  no "Link" button, and no new sidebar space are added there; it keeps its
+  existing Customer/Case navigation as the way to reach the folder.
 
 **Out of scope** (explicitly deferred):
-- Mirroring the permission-resolution change into `Library.js`. The two
-  files currently implement the same root-only model independently and will
-  temporarily diverge — `Library.js` keeps its current root-only behavior.
-  This is tracked as follow-up work, not part of this change.
 - Any approval/veto workflow for the linked-to Case. Links take effect
   immediately on creation, matching the existing `caseLegalStudyLinks`
   behavior. (Read-only visibility for the linked-to Case's Manager, so they
@@ -94,8 +106,10 @@ inherits from the nearest permission-bearing ancestor.
 
 ### 4.2 New resolution algorithm
 
-Replaces the current "walk to absolute root, always" behavior in
-`resolveFolderTreeRoot` / `getFolderPermissions` / `getVisibleFolderIds`:
+Replaces the current "walk to absolute root, always" behavior in each
+file's own `resolveFolderTreeRoot` / `getFolderPermissions` /
+`getVisibleFolderIds` (`CaseDocument.js` and `Library.js` each implement
+these independently today and both get this same algorithm):
 
 1. From the folder being checked, walk up to find its level-2 ancestor
    (the child of the Case root that contains it), if any.
@@ -171,9 +185,6 @@ appear there automatically.
 
 ## 6. Open questions / follow-ups (not blocking this design)
 
-- Whether `Library.js` should later receive the same level-2 permission
-  resolution change, to keep the two files' folder-permission behavior in
-  sync (currently deferred — tracked as a separate future task).
 - Whether the linked-to Case's Manager should get any read-only visibility
   of which other Cases have linked into their folders (raised during
   brainstorming, not required for this design to ship).
