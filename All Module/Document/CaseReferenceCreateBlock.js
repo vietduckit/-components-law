@@ -1,1035 +1,1049 @@
-const { React } = ctx;
-const { useCallback, useEffect, useMemo, useRef, useState } = React;
-const {
-  Button,
-  Card,
-  Col,
-  Form,
-  Input,
-  Modal,
-  Row,
-  Select,
-  Spin,
-  Tag,
-  Typography,
-  message,
-} = ctx.antd;
+  const { React } = ctx;
+  const { useCallback, useEffect, useMemo, useRef, useState } = React;
+  const {
+    Button,
+    Card,
+    Col,
+    Form,
+    Input,
+    Modal,
+    Row,
+    Select,
+    Spin,
+    Tag,
+    Typography,
+    message,
+  } = ctx.antd;
 
-const FONT =
-  "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-const LEGAL_REFERENCE_STORAGE_TYPE = "legal_reference";
-const LEGAL_REFERENCE_MODULE_SCOPE = "legal_reference";
-const LEGAL_REFERENCE_RESOURCES = [
-  "legalReference",
-  "legalReferences",
-  "LegalReference",
-];
-const LEGAL_STUDY_BLOCK_UID = "ql8tgdq5no2";
-const CASE_REFERENCE_BLOCK_UID = "5cyaa66tjwi";
-// Library.js is a custom JS block, not a resolvable Nocobase data block, so
-// refreshNocoBaseDataBlocks() (ctx.getModel/resource.refresh) can't reach it.
-// Broadcast this window event too so it (or anything else) can reload itself.
-const LIBRARY_DATA_CHANGED_EVENT = "law-library:data-changed";
-const COMPANY_RESOURCES = ["internalCompany", "internalCompanies"];
-const PROJECT_RESOURCES = ["projects"];
-const PROJECT_SERVICE_RESOURCES = ["projectServices"];
-
-const compact = (items) =>
-  items
-    .map((item) => (item === undefined || item === null ? "" : String(item).trim()))
-    .filter(Boolean);
-
-const extractId = (value) => {
-  if (Array.isArray(value)) return extractId(value[0]);
-  const raw = value && typeof value === "object" ? value.id || value._id : value;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-};
-
-const firstPresent = (record, fields = []) => {
-  for (const field of fields) {
-    const value = record?.[field];
-    if (value !== undefined && value !== null && String(value).trim() !== "") return value;
-  }
-  return "";
-};
-
-const relationRecord = (value) => {
-  if (Array.isArray(value)) return value.find((item) => item && typeof item === "object") || null;
-  return value && typeof value === "object" ? value : null;
-};
-
-const removeKeys = (record, keys = []) => {
-  const next = { ...(record || {}) };
-  keys.forEach((key) => delete next[key]);
-  return next;
-};
-
-const cleanPayload = (record) => {
-  const next = { ...(record || {}) };
-  Object.keys(next).forEach((key) => {
-    if (next[key] === undefined || next[key] === null || next[key] === "") {
-      delete next[key];
-    }
-  });
-  return next;
-};
-
-const unwrapRecord = (res) => res?.data?.data || res?.data || null;
-const unwrapList = (res) => {
-  const data = res?.data?.data ?? res?.data ?? [];
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
-  return [];
-};
-
-const getUrlInput = () => {
-  const params = {};
-  try {
-    const search =
-      ctx.location?.search ||
-      ctx.view?.location?.search ||
-      (typeof window !== "undefined" ? window.location?.search : "");
-    if (!search) return params;
-
-    const query = String(search).startsWith("?") ? String(search) : `?${search}`;
-    new URLSearchParams(query).forEach((value, key) => {
-      params[key] = value;
-    });
-  } catch {}
-  return params;
-};
-
-const getRuntimeInput = () => {
-  try {
-    const inputArgs = ctx.view?.inputArgs || ctx.inputArgs || {};
-    return {
-      ...getUrlInput(),
-      ...(inputArgs || {}),
-      ...(inputArgs.params || {}),
-      ...(ctx.action?.params || {}),
-      ...(ctx.modal?.params || {}),
-      ...(ctx.view?.params || {}),
-      ...(ctx.popup?.params || {}),
-      ...(ctx.params || {}),
-    };
-  } catch {
-    return {};
-  }
-};
-
-const getCurrentUserId = () =>
-  extractId(ctx.currentUser) ||
-  extractId(ctx.user) ||
-  extractId(ctx.state?.currentUser) ||
-  extractId(ctx.app?.currentUser) ||
-  null;
-
-const currentRecord =
-  ctx.record ||
-  ctx.popup?.record ||
-  ctx.state?.record ||
-  ctx.data?.record ||
-  ctx.recordData ||
-  null;
-
-const defaultInternalCompanyId = () => {
-  const input = getRuntimeInput();
-  return (
-    extractId(input.internalCompanyId) ||
-    extractId(input.activeCompanyId) ||
-    extractId(input.companyId) ||
-    extractId(currentRecord?.internalCompanyId) ||
-    extractId(currentRecord?.internalCompany) ||
-    ""
-  );
-};
-
-const apiRequestAny = async (resources, action, options = {}) => {
-  let lastError = null;
-  for (const resource of resources) {
-    try {
-      return await ctx.api.request({ url: `${resource}:${action}`, ...options });
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error(`No resource available for ${action}`);
-};
-
-const fetchAllList = async (resources, params = {}) => {
-  let all = [];
-  let page = 1;
-  const pageSize = params.pageSize || 200;
-  while (true) {
-    const res = await apiRequestAny(resources, "list", {
-      params: { ...params, page, pageSize },
-    });
-    const data = unwrapList(res);
-    all = all.concat(data);
-    const meta = res?.data?.meta || {};
-    if (!meta.count || all.length >= meta.count || data.length < pageSize) break;
-    page += 1;
-  }
-  return all;
-};
-
-const createWithFallback = async (resources, payloadVariants = []) => {
-  let lastError = null;
-  for (const payload of payloadVariants) {
-    try {
-      const res = await apiRequestAny(resources, "create", {
-        method: "POST",
-        data: cleanPayload(payload),
-      });
-      return unwrapRecord(res);
-    } catch (error) {
-      lastError = error;
-      console.warn("[CaseReferenceCreateBlock] create fallback failed", error);
-    }
-  }
-  throw lastError || new Error("Create failed");
-};
-
-const legalReferenceScopeVariants = (payload) => {
-  const referenceId = extractId(payload?.legalReferenceId);
-  if (!referenceId) return [payload];
-  const base = removeKeys(payload, ["legalReference", "legalReferences"]);
-  const withoutId = removeKeys(base, ["legalReferenceId"]);
-  return [
-    payload,
-    { ...withoutId, legalReference: { id: referenceId } },
-    { ...withoutId, legalReferences: [{ id: referenceId }] },
-    withoutId,
+  const FONT =
+    "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const LEGAL_REFERENCE_STORAGE_TYPE = "legal_reference";
+  const LEGAL_REFERENCE_MODULE_SCOPE = "legal_reference";
+  const LEGAL_REFERENCE_RESOURCES = [
+    "legalReference",
+    "legalReferences",
+    "LegalReference",
   ];
-};
+  const LEGAL_STUDY_BLOCK_UID = "ql8tgdq5no2";
+  const CASE_REFERENCE_BLOCK_UID = "5cyaa66tjwi";
+  // Library.js is a custom JS block, not a resolvable Nocobase data block, so
+  // refreshNocoBaseDataBlocks() (ctx.getModel/resource.refresh) can't reach it.
+  // Broadcast this window event too so it (or anything else) can reload itself.
+  const LIBRARY_DATA_CHANGED_EVENT = "law-library:data-changed";
+  const COMPANY_RESOURCES = ["internalCompany", "internalCompanies"];
+  const PROJECT_RESOURCES = ["projects"];
+  const PROJECT_SERVICE_RESOURCES = ["projectServices"];
 
-const createScopedRecord = async (url, payload) => {
-  let lastError = null;
-  for (const variant of legalReferenceScopeVariants(payload)) {
+  const compact = (items) =>
+    items
+      .map((item) => (item === undefined || item === null ? "" : String(item).trim()))
+      .filter(Boolean);
+
+  const extractId = (value) => {
+    if (Array.isArray(value)) return extractId(value[0]);
+    const raw = value && typeof value === "object" ? value.id || value._id : value;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const firstPresent = (record, fields = []) => {
+    for (const field of fields) {
+      const value = record?.[field];
+      if (value !== undefined && value !== null && String(value).trim() !== "") return value;
+    }
+    return "";
+  };
+
+  const relationRecord = (value) => {
+    if (Array.isArray(value)) return value.find((item) => item && typeof item === "object") || null;
+    return value && typeof value === "object" ? value : null;
+  };
+
+  const removeKeys = (record, keys = []) => {
+    const next = { ...(record || {}) };
+    keys.forEach((key) => delete next[key]);
+    return next;
+  };
+
+  const cleanPayload = (record) => {
+    const next = { ...(record || {}) };
+    Object.keys(next).forEach((key) => {
+      if (next[key] === undefined || next[key] === null || next[key] === "") {
+        delete next[key];
+      }
+    });
+    return next;
+  };
+
+  const unwrapRecord = (res) => res?.data?.data || res?.data || null;
+  const unwrapList = (res) => {
+    const data = res?.data?.data ?? res?.data ?? [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  };
+
+  const getUrlInput = () => {
+    const params = {};
     try {
-      const res = await ctx.api.request({
-        url,
-        method: "POST",
-        data: cleanPayload(variant),
+      const search =
+        ctx.location?.search ||
+        ctx.view?.location?.search ||
+        (typeof window !== "undefined" ? window.location?.search : "");
+      if (!search) return params;
+
+      const query = String(search).startsWith("?") ? String(search) : `?${search}`;
+      new URLSearchParams(query).forEach((value, key) => {
+        params[key] = value;
       });
-      return unwrapRecord(res);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError || new Error(`Create failed: ${url}`);
-};
+    } catch {}
+    return params;
+  };
 
-const createDocumentRecord = async (payload) =>
-  createScopedRecord("documents:create", payload);
-
-const createFolderRecord = async (payload) =>
-  createScopedRecord("folders:create", payload);
-
-const uploadAttachment = async (file, fileName = null) => {
-  const formData = new window.FormData();
-  formData.append("file", file, fileName || file.name);
-  const uploadRes = await ctx.api.request({
-    url: "attachments:create",
-    method: "POST",
-    params: { attachmentField: "documents.fileAttachment" },
-    data: formData,
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  const attachment = uploadRes?.data?.data;
-  if (!attachment?.id) throw new Error("Upload file failed");
-  return attachment;
-};
-
-const normalizeParentId = (parentId) => (parentId === "root" || !parentId ? null : extractId(parentId));
-
-const getUploadRelativePath = (file) =>
-  String(file?._dropRelativePath || file?.webkitRelativePath || file?.name || "")
-    .replace(/^\/+/, "")
-    .replace(/\\/g, "/");
-
-const companyLabel = (record) =>
-  firstPresent(record, ["shortName", "name", "legalName", "companyName", "title"]) ||
-  (record?.id ? `Company #${record.id}` : "Company");
-
-const customerLabel = (record) =>
-  firstPresent(record, ["shortName", "customerName", "name", "fullName"]) ||
-  (record?.id ? `Customer #${record.id}` : "");
-
-const projectLabel = (record) => {
-  const customer = record?.customer || record?.customers;
-  return (
-    compact([
-      firstPresent(record, ["caseCode", "projectCode", "code"]),
-      customer ? customerLabel(customer) : "",
-      firstPresent(record, ["projectName", "caseName", "name", "title"]),
-    ]).join(" - ") || (record?.id ? `Case #${record.id}` : "Case")
-  );
-};
-
-const getProjectCompanyId = (record) =>
-  extractId(record?.internalCompanyId) ||
-  extractId(record?.internalCompany) ||
-  extractId(record?.companyId) ||
-  extractId(record?.companies);
-
-const getProjectServiceName = (row) =>
-  firstPresent(row, ["serviceName"]) ||
-  firstPresent(row?.service || row?.services || {}, ["serviceName", "name"]);
-
-const buildServiceNamesByProjectMap = (rows = []) => {
-  const map = {};
-  rows.forEach((row) => {
-    const projectId = extractId(row?.projectId ?? row?.projects ?? row?.project);
-    const serviceName = getProjectServiceName(row);
-    if (!projectId || !serviceName) return;
-    if (!map[projectId]) map[projectId] = [];
-    map[projectId].push(serviceName);
-  });
-  return map;
-};
-
-const getBlockModelByUid = (uid) => {
-  const engine = ctx.engine || ctx.app;
-  try {
-    return (
-      ctx.getModel?.(uid, true) ||
-      ctx.getModel?.(uid) ||
-      engine?.getModel?.(uid) ||
-      (ctx.app && ctx.app !== engine ? ctx.app?.getModel?.(uid) : null)
-    );
-  } catch (error) {
-    console.warn("[CaseReferenceCreateBlock] get model failed", uid, error);
-    return null;
-  }
-};
-
-const refreshBlockModel = async (blockModel) => {
-  if (!blockModel) return false;
-  const resource = blockModel.resource;
-  try {
-    if (resource && typeof resource.refresh === "function") {
-      await resource.refresh();
-      return true;
-    }
-    if (typeof blockModel.refresh === "function") {
-      await blockModel.refresh();
-      return true;
-    }
-  } catch (error) {
-    console.warn("[CaseReferenceCreateBlock] refresh failed", error);
-  }
-  return false;
-};
-
-// Creating a Case Study can change what the Case Study list block
-// and the Legal Study list block show, so refresh both, not just the first
-// block we manage to resolve.
-const refreshNocoBaseDataBlocks = async () => {
-  const input = getRuntimeInput();
-  const uidCandidates = Array.from(
-    new Set(
-      compact([
-        input.targetBlockUid,
-        input.sourceBlockUid,
-        input.blockUid,
-        input.dataBlockUid,
-        LEGAL_STUDY_BLOCK_UID,
-        CASE_REFERENCE_BLOCK_UID,
-      ]),
-    ),
-  );
-
-  let refreshedAny = false;
-  for (const uid of uidCandidates) {
-    const refreshed = await refreshBlockModel(getBlockModelByUid(uid));
-    refreshedAny = refreshedAny || refreshed;
-  }
-
-  if (!refreshedAny) {
-    refreshedAny = await refreshBlockModel(ctx.blockModel || ctx.model);
-  }
-
-  if (!refreshedAny && typeof ctx.refresh === "function") {
+  const getRuntimeInput = () => {
     try {
-      await ctx.refresh();
-      refreshedAny = true;
-    } catch (error) {
-      console.warn("[CaseReferenceCreateBlock] ctx.refresh fallback failed", error);
-    }
-  }
-
-  return refreshedAny;
-};
-
-const emitLibraryDataChanged = (detail = {}) => {
-  const targets = [];
-  try {
-    if (window?.dispatchEvent) targets.push(window);
-    if (window?.parent && window.parent !== window && window.parent.dispatchEvent) {
-      targets.push(window.parent);
-    }
-  } catch {}
-
-  targets.forEach((target) => {
-    try {
-      const EventCtor = target.CustomEvent || window.CustomEvent || CustomEvent;
-      target.dispatchEvent(new EventCtor(LIBRARY_DATA_CHANGED_EVENT, { detail }));
+      const inputArgs = ctx.view?.inputArgs || ctx.inputArgs || {};
+      return {
+        ...getUrlInput(),
+        ...(inputArgs || {}),
+        ...(inputArgs.params || {}),
+        ...(ctx.action?.params || {}),
+        ...(ctx.modal?.params || {}),
+        ...(ctx.view?.params || {}),
+        ...(ctx.popup?.params || {}),
+        ...(ctx.params || {}),
+      };
     } catch {
-      try {
-        const event = new Event(LIBRARY_DATA_CHANGED_EVENT);
-        event.detail = detail;
-        target.dispatchEvent(event);
-      } catch {}
+      return {};
     }
-  });
-};
+  };
 
-const closeCurrentPopup = () => {
-  const calls = [
-    [ctx.view, "close", []],
-    [ctx, "onClose", []],
-    [ctx, "close", []],
-    [ctx.popup, "onClose", []],
-    [ctx.popup, "close", []],
-    [ctx.popup, "closeModal", []],
-    [ctx.modal, "onClose", []],
-    [ctx.modal, "close", []],
-    [ctx.drawer, "onClose", []],
-    [ctx.drawer, "close", []],
-    [ctx.action, "onClose", []],
-    [ctx.action, "close", []],
-    [ctx.popup, "setVisible", [false]],
-    [ctx.modal, "setVisible", [false]],
-    [ctx.modal, "setOpen", [false]],
-    [ctx.drawer, "setOpen", [false]],
-  ];
+  const getCurrentUserId = () =>
+    extractId(ctx.currentUser) ||
+    extractId(ctx.user) ||
+    extractId(ctx.state?.currentUser) ||
+    extractId(ctx.app?.currentUser) ||
+    null;
 
-  for (const [target, method, args] of calls) {
-    if (target && typeof target[method] === "function") {
+  const currentRecord =
+    ctx.record ||
+    ctx.popup?.record ||
+    ctx.state?.record ||
+    ctx.data?.record ||
+    ctx.recordData ||
+    null;
+
+  const defaultInternalCompanyId = () => {
+    const input = getRuntimeInput();
+    return (
+      extractId(input.internalCompanyId) ||
+      extractId(input.activeCompanyId) ||
+      extractId(input.companyId) ||
+      extractId(currentRecord?.internalCompanyId) ||
+      extractId(currentRecord?.internalCompany) ||
+      ""
+    );
+  };
+
+  const apiRequestAny = async (resources, action, options = {}) => {
+    let lastError = null;
+    for (const resource of resources) {
       try {
-        target[method](...(args || []));
-        return true;
+        return await ctx.api.request({ url: `${resource}:${action}`, ...options });
       } catch (error) {
-        console.warn("[CaseReferenceCreateBlock] close popup failed", error);
+        lastError = error;
       }
     }
-  }
-  return false;
-};
-
-const showDiscardConfirm = (onOk) => {
-  if (showDiscardConfirm._open) return;
-  const run = async () => {
-    try {
-      await onOk?.();
-    } finally {
-      showDiscardConfirm._open = false;
-    }
+    throw lastError || new Error(`No resource available for ${action}`);
   };
 
-  if (Modal?.confirm) {
-    showDiscardConfirm._open = true;
-    Modal.confirm({
-      title: "Discard changes?",
-      content: "Your unsaved case study input will be lost.",
-      okText: "Discard",
-      cancelText: "Keep editing",
-      okButtonProps: { danger: true },
-      maskClosable: false,
-      onCancel: () => {
-        showDiscardConfirm._open = false;
-      },
-      onOk: run,
-    });
-    return;
-  }
-  run();
-};
-
-const configureGuardedModalClose = (requestClose) => {
-  if (typeof requestClose !== "function") return;
-  const restoreFns = [];
-  const props = {
-    maskClosable: true,
-    keyboard: false,
-    onCancel: requestClose,
-    onClose: requestClose,
+  const fetchAllList = async (resources, params = {}) => {
+    let all = [];
+    let page = 1;
+    const pageSize = params.pageSize || 200;
+    while (true) {
+      const res = await apiRequestAny(resources, "list", {
+        params: { ...params, page, pageSize },
+      });
+      const data = unwrapList(res);
+      all = all.concat(data);
+      const meta = res?.data?.meta || {};
+      if (!meta.count || all.length >= meta.count || data.length < pageSize) break;
+      page += 1;
+    }
+    return all;
   };
 
-  [
-    [ctx.view, "setProps"],
-    [ctx.view, "setOptions"],
-    [ctx.popup, "setProps"],
-    [ctx.popup, "setOptions"],
-    [ctx.modal, "setProps"],
-    [ctx.modal, "setOptions"],
-    [ctx.drawer, "setProps"],
-    [ctx.drawer, "setOptions"],
-    [ctx.action, "setProps"],
-  ].forEach(([target, method]) => {
-    if (!target || typeof target[method] !== "function") return;
-    try {
-      target[method](props);
-    } catch (error) {
-      console.warn("[CaseReferenceCreateBlock] configure close failed", error);
-    }
-  });
-
-  const patchMethod = (target, method) => {
-    if (!target || typeof target[method] !== "function") return;
-    const original = target[method];
-    const patchedClose = function patchedClose(...args) {
-      const isSetter = method === "setVisible" || method === "setOpen";
-      if (isSetter && args[0] !== false) return original.apply(this, args);
-      requestClose(() => original.apply(this, args));
-      return undefined;
-    };
-    try {
-      target[method] = patchedClose;
-    } catch {
-      return;
-    }
-    restoreFns.push(() => {
-      if (target[method] !== patchedClose) return;
+  const createWithFallback = async (resources, payloadVariants = []) => {
+    let lastError = null;
+    for (const payload of payloadVariants) {
       try {
-        target[method] = original;
-      } catch {}
-    });
+        const res = await apiRequestAny(resources, "create", {
+          method: "POST",
+          data: cleanPayload(payload),
+        });
+        return unwrapRecord(res);
+      } catch (error) {
+        lastError = error;
+        console.warn("[CaseReferenceCreateBlock] create fallback failed", error);
+      }
+    }
+    throw lastError || new Error("Create failed");
   };
 
-  [ctx.view, ctx.popup, ctx.modal, ctx.drawer, ctx.action, ctx].forEach((target) => {
-    ["onClose", "close", "closeModal", "setVisible", "setOpen"].forEach((method) => patchMethod(target, method));
-  });
+  const legalReferenceScopeVariants = (payload) => {
+    const referenceId = extractId(payload?.legalReferenceId);
+    if (!referenceId) return [payload];
+    const base = removeKeys(payload, ["legalReference", "legalReferences"]);
+    const withoutId = removeKeys(base, ["legalReferenceId"]);
+    return [
+      payload,
+      { ...withoutId, legalReference: { id: referenceId } },
+      { ...withoutId, legalReferences: [{ id: referenceId }] },
+      withoutId,
+    ];
+  };
 
-  return () => {
-    restoreFns.forEach((restore) => {
+  const createScopedRecord = async (url, payload) => {
+    let lastError = null;
+    for (const variant of legalReferenceScopeVariants(payload)) {
       try {
-        restore();
-      } catch {}
-    });
+        const res = await ctx.api.request({
+          url,
+          method: "POST",
+          data: cleanPayload(variant),
+        });
+        return unwrapRecord(res);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error(`Create failed: ${url}`);
   };
-};
 
-const legalReferencePayloadVariants = (payload) => {
-  const caseIds = Array.isArray(payload.cases) ? payload.cases : [];
-  const relationKeys = ["internalCompany", "cases"];
-  return [
-    payload,
-    { ...payload, cases: caseIds.map((id) => ({ id: Number(id) })) },
-    removeKeys(payload, relationKeys),
-  ];
-};
+  const createDocumentRecord = async (payload) =>
+    createScopedRecord("documents:create", payload);
 
-const buildDocumentScopePayload = ({ internalCompanyId, legalReferenceId }) => ({
-  storageType: LEGAL_REFERENCE_STORAGE_TYPE,
-  moduleScope: LEGAL_REFERENCE_MODULE_SCOPE,
-  internalCompanyId: extractId(internalCompanyId),
-  legalReferenceId: extractId(legalReferenceId),
-});
+  const createFolderRecord = async (payload) =>
+    createScopedRecord("folders:create", payload);
 
-const getNextFileIndex = async ({ folderId, internalCompanyId, legalReferenceId }) => {
-  const parentId = normalizeParentId(folderId);
-  try {
-    const filter = {
-      storageType: { $eq: LEGAL_REFERENCE_STORAGE_TYPE },
-      moduleScope: { $eq: LEGAL_REFERENCE_MODULE_SCOPE },
-      internalCompanyId: { $eq: extractId(internalCompanyId) },
-      legalReferenceId: { $eq: extractId(legalReferenceId) },
-      ...(parentId ? { folderId: { $eq: parentId } } : {}),
-    };
-    const res = await ctx.api.request({
-      url: "documents:list",
-      params: {
-        pageSize: 2000,
-        filter: JSON.stringify(filter),
-        sort: ["-fileIndex", "-createdAt"],
-      },
+  const uploadAttachment = async (file, fileName = null) => {
+    const formData = new window.FormData();
+    formData.append("file", file, fileName || file.name);
+    const uploadRes = await ctx.api.request({
+      url: "attachments:create",
+      method: "POST",
+      params: { attachmentField: "documents.fileAttachment" },
+      data: formData,
+      headers: { "Content-Type": "multipart/form-data" },
     });
-    const rows = unwrapList(res).filter(
-      (doc) => String(extractId(doc.folderId) || "") === String(parentId || ""),
+    const attachment = uploadRes?.data?.data;
+    if (!attachment?.id) throw new Error("Upload file failed");
+    return attachment;
+  };
+
+  const normalizeParentId = (parentId) => (parentId === "root" || !parentId ? null : extractId(parentId));
+
+  const getUploadRelativePath = (file) =>
+    String(file?._dropRelativePath || file?.webkitRelativePath || file?.name || "")
+      .replace(/^\/+/, "")
+      .replace(/\\/g, "/");
+
+  const companyLabel = (record) =>
+    firstPresent(record, ["shortName", "name", "legalName", "companyName", "title"]) ||
+    (record?.id ? `Company #${record.id}` : "Company");
+
+  const customerLabel = (record) =>
+    firstPresent(record, ["shortName", "customerName", "name", "fullName"]) ||
+    (record?.id ? `Customer #${record.id}` : "");
+
+  const projectLabel = (record) => {
+    const customer = record?.customer || record?.customers;
+    return (
+      compact([
+        firstPresent(record, ["caseCode", "projectCode", "code"]),
+        customer ? customerLabel(customer) : "",
+        firstPresent(record, ["projectName", "caseName", "name", "title"]),
+      ]).join(" - ") || (record?.id ? `Case #${record.id}` : "Case")
     );
-    return rows.reduce((max, doc) => Math.max(max, Number(doc.fileIndex) || 0), 0) + 1;
-  } catch {
-    return 1;
-  }
-};
-
-const uploadFilesToReference = async (files, context) => {
-  const rows = Array.from(files || []).filter(Boolean);
-  if (!rows.length) return true;
-  let nextIndex = await getNextFileIndex({ ...context, folderId: null });
-  const userId = getCurrentUserId();
-
-  for (const file of rows) {
-    const attachment = await uploadAttachment(file, file.name);
-    const nowIso = new Date().toISOString();
-    await createDocumentRecord({
-      name: file.name,
-      title: file.name,
-      documentCode: "",
-      fileIndex: nextIndex,
-      fileAttachment: [{ id: attachment.id }],
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      uploadedAt: nowIso,
-      uploaded_at: nowIso,
-      ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
-      ...buildDocumentScopePayload(context),
-    });
-    nextIndex += 1;
-  }
-  return true;
-};
-
-const uploadFolderFilesToReference = async (files, context) => {
-  const rows = Array.from(files || []).filter(Boolean);
-  if (!rows.length) return true;
-  const folderIdMap = { "": null };
-  const folderPaths = new Set();
-
-  rows.forEach((file) => {
-    const relativePath = getUploadRelativePath(file);
-    const parts = relativePath.split("/");
-    parts.pop();
-    let currentPath = "";
-    parts.forEach((part) => {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-      if (currentPath) folderPaths.add(currentPath);
-    });
-  });
-
-  const userId = getCurrentUserId();
-  const nowIso = new Date().toISOString();
-  const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
-
-  for (const path of sortedPaths) {
-    const parts = path.split("/");
-    const folderName = parts.pop();
-    const parentPath = parts.join("/");
-    const parentId = folderIdMap[parentPath] || null;
-    const folder = await createFolderRecord({
-      name: folderName,
-      type: "custom",
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      ...(parentId ? { parentId } : {}),
-      ...(userId ? { createdById: userId, updatedById: userId } : {}),
-      ...buildDocumentScopePayload(context),
-    });
-    folderIdMap[path] = extractId(folder);
-  }
-
-  const fileIndexCache = {};
-  const nextIndexForFolder = async (folderId) => {
-    const key = String(folderId || "root");
-    if (fileIndexCache[key] === undefined) {
-      fileIndexCache[key] = await getNextFileIndex({ ...context, folderId });
-      return fileIndexCache[key];
-    }
-    fileIndexCache[key] += 1;
-    return fileIndexCache[key];
   };
 
-  for (const file of rows) {
-    const relativePath = getUploadRelativePath(file);
-    const parts = relativePath.split("/");
-    const fileName = parts.pop();
-    const parentPath = parts.join("/");
-    const folderId = folderIdMap[parentPath] || null;
-    const attachment = await uploadAttachment(file, fileName);
-    const fileNowIso = new Date().toISOString();
-    await createDocumentRecord({
-      name: fileName,
-      title: fileName,
-      documentCode: "",
-      fileIndex: await nextIndexForFolder(folderId),
-      fileAttachment: [{ id: attachment.id }],
-      createdAt: fileNowIso,
-      updatedAt: fileNowIso,
-      uploadedAt: fileNowIso,
-      uploaded_at: fileNowIso,
-      ...(folderId ? { folderId } : {}),
-      ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
-      ...buildDocumentScopePayload(context),
+  const getProjectCompanyId = (record) =>
+    extractId(record?.internalCompanyId) ||
+    extractId(record?.internalCompany) ||
+    extractId(record?.companyId) ||
+    extractId(record?.companies);
+
+  const getProjectServiceName = (row) =>
+    firstPresent(row, ["serviceName"]) ||
+    firstPresent(row?.service || row?.services || {}, ["serviceName", "name"]);
+
+  const buildServiceNamesByProjectMap = (rows = []) => {
+    const map = {};
+    rows.forEach((row) => {
+      const projectId = extractId(row?.projectId ?? row?.projects ?? row?.project);
+      const serviceName = getProjectServiceName(row);
+      if (!projectId || !serviceName) return;
+      if (!map[projectId]) map[projectId] = [];
+      map[projectId].push(serviceName);
     });
-  }
-  return true;
-};
+    return map;
+  };
 
-const CaseReferenceCreateBlock = () => {
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [companies, setCompanies] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [serviceNamesByProject, setServiceNamesByProject] = useState({});
-  const [files, setFiles] = useState([]);
-  const [folderFiles, setFolderFiles] = useState([]);
-  const fileInputRef = useRef(null);
-  const folderInputRef = useRef(null);
-  const isDirtyRef = useRef(false);
-  const savingRef = useRef(false);
+  const getBlockModelByUid = (uid) => {
+    const engine = ctx.engine || ctx.app;
+    try {
+      return (
+        ctx.getModel?.(uid, true) ||
+        ctx.getModel?.(uid) ||
+        engine?.getModel?.(uid) ||
+        (ctx.app && ctx.app !== engine ? ctx.app?.getModel?.(uid) : null)
+      );
+    } catch (error) {
+      console.warn("[CaseReferenceCreateBlock] get model failed", uid, error);
+      return null;
+    }
+  };
 
-  const markDirty = useCallback(() => {
-    isDirtyRef.current = true;
-  }, []);
+  const refreshBlockModel = async (blockModel) => {
+    if (!blockModel) return false;
+    const resource = blockModel.resource;
+    try {
+      if (resource && typeof resource.refresh === "function") {
+        await resource.refresh();
+        return true;
+      }
+      if (typeof blockModel.refresh === "function") {
+        await blockModel.refresh();
+        return true;
+      }
+    } catch (error) {
+      console.warn("[CaseReferenceCreateBlock] refresh failed", error);
+    }
+    return false;
+  };
 
-  const setSavingState = useCallback((value) => {
-    savingRef.current = value;
-    setSaving(value);
-  }, []);
+  // Creating a Case Study can change what the Case Study list block
+  // and the Legal Study list block show, so refresh both, not just the first
+  // block we manage to resolve.
+  const refreshNocoBaseDataBlocks = async () => {
+    const input = getRuntimeInput();
+    const uidCandidates = Array.from(
+      new Set(
+        compact([
+          input.targetBlockUid,
+          input.sourceBlockUid,
+          input.blockUid,
+          input.dataBlockUid,
+          LEGAL_STUDY_BLOCK_UID,
+          CASE_REFERENCE_BLOCK_UID,
+        ]),
+      ),
+    );
 
-  const forceClose = useCallback((nativeClose) => {
-    isDirtyRef.current = false;
-    if (typeof nativeClose === "function") {
-      nativeClose();
+    let refreshedAny = false;
+    for (const uid of uidCandidates) {
+      const refreshed = await refreshBlockModel(getBlockModelByUid(uid));
+      refreshedAny = refreshedAny || refreshed;
+    }
+
+    if (!refreshedAny) {
+      refreshedAny = await refreshBlockModel(ctx.blockModel || ctx.model);
+    }
+
+    if (!refreshedAny && typeof ctx.refresh === "function") {
+      try {
+        await ctx.refresh();
+        refreshedAny = true;
+      } catch (error) {
+        console.warn("[CaseReferenceCreateBlock] ctx.refresh fallback failed", error);
+      }
+    }
+
+    return refreshedAny;
+  };
+
+  const emitLibraryDataChanged = (detail = {}) => {
+    const targets = [];
+    try {
+      if (window?.dispatchEvent) targets.push(window);
+      if (window?.parent && window.parent !== window && window.parent.dispatchEvent) {
+        targets.push(window.parent);
+      }
+    } catch {}
+
+    targets.forEach((target) => {
+      try {
+        const EventCtor = target.CustomEvent || window.CustomEvent || CustomEvent;
+        target.dispatchEvent(new EventCtor(LIBRARY_DATA_CHANGED_EVENT, { detail }));
+      } catch {
+        try {
+          const event = new Event(LIBRARY_DATA_CHANGED_EVENT);
+          event.detail = detail;
+          target.dispatchEvent(event);
+        } catch {}
+      }
+    });
+
+    // window/window.parent only reach a listener in the SAME browsing
+    // context (or a direct iframe parent). ctx.openView may render this
+    // popup in a context Library.js's window can't see at all (separate
+    // window, sibling iframe...), so also write to localStorage —
+    // changing it fires a `storage` event in every OTHER same-origin
+    // tab/window/iframe automatically, which is the one channel guaranteed
+    // to reach Library.js regardless of how the popup was rendered.
+    try {
+      window.localStorage.setItem(
+        LIBRARY_DATA_CHANGED_EVENT,
+        JSON.stringify({ ...detail, _t: Date.now() }),
+      );
+    } catch {}
+  };
+
+  const closeCurrentPopup = () => {
+    const calls = [
+      [ctx.view, "close", []],
+      [ctx, "onClose", []],
+      [ctx, "close", []],
+      [ctx.popup, "onClose", []],
+      [ctx.popup, "close", []],
+      [ctx.popup, "closeModal", []],
+      [ctx.modal, "onClose", []],
+      [ctx.modal, "close", []],
+      [ctx.drawer, "onClose", []],
+      [ctx.drawer, "close", []],
+      [ctx.action, "onClose", []],
+      [ctx.action, "close", []],
+      [ctx.popup, "setVisible", [false]],
+      [ctx.modal, "setVisible", [false]],
+      [ctx.modal, "setOpen", [false]],
+      [ctx.drawer, "setOpen", [false]],
+    ];
+
+    for (const [target, method, args] of calls) {
+      if (target && typeof target[method] === "function") {
+        try {
+          target[method](...(args || []));
+          return true;
+        } catch (error) {
+          console.warn("[CaseReferenceCreateBlock] close popup failed", error);
+        }
+      }
+    }
+    return false;
+  };
+
+  const showDiscardConfirm = (onOk) => {
+    if (showDiscardConfirm._open) return;
+    const run = async () => {
+      try {
+        await onOk?.();
+      } finally {
+        showDiscardConfirm._open = false;
+      }
+    };
+
+    if (Modal?.confirm) {
+      showDiscardConfirm._open = true;
+      Modal.confirm({
+        title: "Discard changes?",
+        content: "Your unsaved case study input will be lost.",
+        okText: "Discard",
+        cancelText: "Keep editing",
+        okButtonProps: { danger: true },
+        maskClosable: false,
+        onCancel: () => {
+          showDiscardConfirm._open = false;
+        },
+        onOk: run,
+      });
       return;
     }
-    closeCurrentPopup();
-  }, []);
+    run();
+  };
 
-  // Reads savingRef (not the `saving` state) so that when we flip it to
-  // false right before auto-closing on a successful submit, this guarded
-  // close path (patched onto ctx.view/popup/modal by
-  // configureGuardedModalClose) sees the up-to-date value immediately
-  // instead of a stale closure that still thinks we're saving.
-  const requestClose = useCallback(
-    (nativeClose) => {
-      if (savingRef.current) return;
-      if (!isDirtyRef.current) {
-        forceClose(nativeClose);
+  const configureGuardedModalClose = (requestClose) => {
+    if (typeof requestClose !== "function") return;
+    const restoreFns = [];
+    const props = {
+      maskClosable: true,
+      keyboard: false,
+      onCancel: requestClose,
+      onClose: requestClose,
+    };
+
+    [
+      [ctx.view, "setProps"],
+      [ctx.view, "setOptions"],
+      [ctx.popup, "setProps"],
+      [ctx.popup, "setOptions"],
+      [ctx.modal, "setProps"],
+      [ctx.modal, "setOptions"],
+      [ctx.drawer, "setProps"],
+      [ctx.drawer, "setOptions"],
+      [ctx.action, "setProps"],
+    ].forEach(([target, method]) => {
+      if (!target || typeof target[method] !== "function") return;
+      try {
+        target[method](props);
+      } catch (error) {
+        console.warn("[CaseReferenceCreateBlock] configure close failed", error);
+      }
+    });
+
+    const patchMethod = (target, method) => {
+      if (!target || typeof target[method] !== "function") return;
+      const original = target[method];
+      const patchedClose = function patchedClose(...args) {
+        const isSetter = method === "setVisible" || method === "setOpen";
+        if (isSetter && args[0] !== false) return original.apply(this, args);
+        requestClose(() => original.apply(this, args));
+        return undefined;
+      };
+      try {
+        target[method] = patchedClose;
+      } catch {
         return;
       }
-      showDiscardConfirm(() => forceClose(nativeClose));
-    },
-    [forceClose],
-  );
-
-  useEffect(() => configureGuardedModalClose(requestClose), [requestClose]);
-
-  useEffect(() => {
-    let mounted = true;
-    Promise.all([
-      fetchAllList(COMPANY_RESOURCES, { sort: ["createdAt"] }).catch(() => []),
-      fetchAllList(PROJECT_RESOURCES, {
-        pageSize: 1000,
-        sort: ["-createdAt"],
-        appends: ["internalCompany", "customer"],
-      }).catch(() => []),
-      fetchAllList(PROJECT_SERVICE_RESOURCES, { pageSize: 2000, sort: ["id"] }).catch(() => []),
-    ])
-      .then(([companyRows, projectRows, projectServiceRows]) => {
-        if (!mounted) return;
-        setCompanies(companyRows || []);
-        setProjects(projectRows || []);
-        setServiceNamesByProject(buildServiceNamesByProjectMap(projectServiceRows || []));
-        const companyId = defaultInternalCompanyId() || extractId((companyRows || [])[0]) || "";
-        if (companyId) form.setFieldsValue({ internalCompanyId: String(companyId) });
-      })
-      .catch((error) => {
-        console.error("[CaseReferenceCreateBlock] load failed", error);
-        message.error("Could not load create form data.");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
+      restoreFns.push(() => {
+        if (target[method] !== patchedClose) return;
+        try {
+          target[method] = original;
+        } catch {}
       });
-    return () => {
-      mounted = false;
     };
-  }, []);
 
-  const selectedCompanyId = Form.useWatch ? Form.useWatch("internalCompanyId", form) : "";
-  const filteredProjects = useMemo(() => {
-    const companyId = extractId(selectedCompanyId);
-    if (!companyId) return projects;
-    return projects.filter((project) => {
-      const projectCompanyId = getProjectCompanyId(project);
-      return !projectCompanyId || String(projectCompanyId) === String(companyId);
+    [ctx.view, ctx.popup, ctx.modal, ctx.drawer, ctx.action, ctx].forEach((target) => {
+      ["onClose", "close", "closeModal", "setVisible", "setOpen"].forEach((method) => patchMethod(target, method));
     });
-  }, [projects, selectedCompanyId]);
 
-  const resetDraft = () => {
-    form.resetFields();
-    const companyId = defaultInternalCompanyId() || extractId(companies[0]) || "";
-    if (companyId) form.setFieldsValue({ internalCompanyId: String(companyId) });
-    setFiles([]);
-    setFolderFiles([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (folderInputRef.current) folderInputRef.current.value = "";
-    isDirtyRef.current = false;
+    return () => {
+      restoreFns.forEach((restore) => {
+        try {
+          restore();
+        } catch {}
+      });
+    };
   };
 
-  const handleCancel = () => {
-    requestClose(() => {
-      resetDraft();
-      closeCurrentPopup();
-    });
+  const legalReferencePayloadVariants = (payload) => {
+    const caseIds = Array.isArray(payload.cases) ? payload.cases : [];
+    const relationKeys = ["internalCompany", "cases"];
+    return [
+      payload,
+      { ...payload, cases: caseIds.map((id) => ({ id: Number(id) })) },
+      removeKeys(payload, relationKeys),
+    ];
   };
 
-  const handleSubmit = async (values) => {
-    setSavingState(true);
+  const buildDocumentScopePayload = ({ internalCompanyId, legalReferenceId }) => ({
+    storageType: LEGAL_REFERENCE_STORAGE_TYPE,
+    moduleScope: LEGAL_REFERENCE_MODULE_SCOPE,
+    internalCompanyId: extractId(internalCompanyId),
+    legalReferenceId: extractId(legalReferenceId),
+  });
+
+  const getNextFileIndex = async ({ folderId, internalCompanyId, legalReferenceId }) => {
+    const parentId = normalizeParentId(folderId);
     try {
-      const userId = getCurrentUserId();
-      const caseIds = Array.from(new Set((values.caseIds || []).map((id) => Number(id)).filter(Boolean)));
-      const basePayload = {
-        title: values.title?.trim(),
-        description: values.description?.trim() || "",
-        internalCompanyId: extractId(values.internalCompanyId),
-        cases: caseIds,
-        ...(userId ? { createdById: userId, updatedById: userId } : {}),
+      const filter = {
+        storageType: { $eq: LEGAL_REFERENCE_STORAGE_TYPE },
+        moduleScope: { $eq: LEGAL_REFERENCE_MODULE_SCOPE },
+        internalCompanyId: { $eq: extractId(internalCompanyId) },
+        legalReferenceId: { $eq: extractId(legalReferenceId) },
+        ...(parentId ? { folderId: { $eq: parentId } } : {}),
       };
-
-      const createdReference = await createWithFallback(
-        LEGAL_REFERENCE_RESOURCES,
-        legalReferencePayloadVariants(basePayload),
+      const res = await ctx.api.request({
+        url: "documents:list",
+        params: {
+          pageSize: 2000,
+          filter: JSON.stringify(filter),
+          sort: ["-fileIndex", "-createdAt"],
+        },
+      });
+      const rows = unwrapList(res).filter(
+        (doc) => String(extractId(doc.folderId) || "") === String(parentId || ""),
       );
-      const referenceId = extractId(createdReference);
-      let uploadFailed = false;
-
-      if ((files.length || folderFiles.length) && !referenceId) {
-        uploadFailed = true;
-        message.warning("Created Case Study, but could not detect its ID for document upload.");
-      }
-
-      const uploadContext = {
-        internalCompanyId: extractId(values.internalCompanyId),
-        legalReferenceId: referenceId,
-      };
-      if (referenceId && files.length) {
-        await uploadFilesToReference(files, uploadContext).catch((error) => {
-          uploadFailed = true;
-          console.error("[CaseReferenceCreateBlock] upload files failed", error);
-        });
-      }
-      if (referenceId && folderFiles.length) {
-        await uploadFolderFilesToReference(folderFiles, uploadContext).catch((error) => {
-          uploadFailed = true;
-          console.error("[CaseReferenceCreateBlock] upload folder failed", error);
-        });
-      }
-
-      if (uploadFailed) {
-        message.warning("Case Study created, but some documents failed to upload.");
-      } else {
-        message.success("Case Study created successfully.");
-      }
-
-      // Flip savingRef before closing so the guarded close patch (which
-      // otherwise bails out while a submit is in flight) lets this
-      // successful-submit close through immediately.
-      setSavingState(false);
-      resetDraft();
-      await refreshNocoBaseDataBlocks();
-      emitLibraryDataChanged({ scope: "caseReference", id: referenceId });
-      closeCurrentPopup();
-    } catch (error) {
-      console.error("[CaseReferenceCreateBlock] submit failed", error);
-      message.error(error?.message || "Create Case Study failed.");
-    } finally {
-      setSavingState(false);
+      return rows.reduce((max, doc) => Math.max(max, Number(doc.fileIndex) || 0), 0) + 1;
+    } catch {
+      return 1;
     }
   };
 
-  const companyOptions = companies.map((company) => ({
-    value: String(extractId(company)),
-    label: companyLabel(company),
-  }));
-  const projectOptions = filteredProjects.map((project) => {
-    const plainLabel = projectLabel(project);
-    const serviceNames = serviceNamesByProject[extractId(project)] || [];
-    return {
-      value: String(extractId(project)),
-      searchText: compact([plainLabel, ...serviceNames]).join(" "),
-      label: React.createElement(
-        "div",
-        { style: { lineHeight: 1.4, padding: "2px 0" } },
-        React.createElement("div", null, plainLabel),
-        serviceNames.map((name, index) =>
-          React.createElement(
-            "div",
-            { key: index, style: { fontSize: 12, color: "#6B7280", paddingLeft: 10 } },
-            `- ${name}`,
+  const uploadFilesToReference = async (files, context) => {
+    const rows = Array.from(files || []).filter(Boolean);
+    if (!rows.length) return true;
+    let nextIndex = await getNextFileIndex({ ...context, folderId: null });
+    const userId = getCurrentUserId();
+
+    for (const file of rows) {
+      const attachment = await uploadAttachment(file, file.name);
+      const nowIso = new Date().toISOString();
+      await createDocumentRecord({
+        name: file.name,
+        title: file.name,
+        documentCode: "",
+        fileIndex: nextIndex,
+        fileAttachment: [{ id: attachment.id }],
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        uploadedAt: nowIso,
+        uploaded_at: nowIso,
+        ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+        ...buildDocumentScopePayload(context),
+      });
+      nextIndex += 1;
+    }
+    return true;
+  };
+
+  const uploadFolderFilesToReference = async (files, context) => {
+    const rows = Array.from(files || []).filter(Boolean);
+    if (!rows.length) return true;
+    const folderIdMap = { "": null };
+    const folderPaths = new Set();
+
+    rows.forEach((file) => {
+      const relativePath = getUploadRelativePath(file);
+      const parts = relativePath.split("/");
+      parts.pop();
+      let currentPath = "";
+      parts.forEach((part) => {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        if (currentPath) folderPaths.add(currentPath);
+      });
+    });
+
+    const userId = getCurrentUserId();
+    const nowIso = new Date().toISOString();
+    const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
+
+    for (const path of sortedPaths) {
+      const parts = path.split("/");
+      const folderName = parts.pop();
+      const parentPath = parts.join("/");
+      const parentId = folderIdMap[parentPath] || null;
+      const folder = await createFolderRecord({
+        name: folderName,
+        type: "custom",
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        ...(parentId ? { parentId } : {}),
+        ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        ...buildDocumentScopePayload(context),
+      });
+      folderIdMap[path] = extractId(folder);
+    }
+
+    const fileIndexCache = {};
+    const nextIndexForFolder = async (folderId) => {
+      const key = String(folderId || "root");
+      if (fileIndexCache[key] === undefined) {
+        fileIndexCache[key] = await getNextFileIndex({ ...context, folderId });
+        return fileIndexCache[key];
+      }
+      fileIndexCache[key] += 1;
+      return fileIndexCache[key];
+    };
+
+    for (const file of rows) {
+      const relativePath = getUploadRelativePath(file);
+      const parts = relativePath.split("/");
+      const fileName = parts.pop();
+      const parentPath = parts.join("/");
+      const folderId = folderIdMap[parentPath] || null;
+      const attachment = await uploadAttachment(file, fileName);
+      const fileNowIso = new Date().toISOString();
+      await createDocumentRecord({
+        name: fileName,
+        title: fileName,
+        documentCode: "",
+        fileIndex: await nextIndexForFolder(folderId),
+        fileAttachment: [{ id: attachment.id }],
+        createdAt: fileNowIso,
+        updatedAt: fileNowIso,
+        uploadedAt: fileNowIso,
+        uploaded_at: fileNowIso,
+        ...(folderId ? { folderId } : {}),
+        ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+        ...buildDocumentScopePayload(context),
+      });
+    }
+    return true;
+  };
+
+  const CaseReferenceCreateBlock = () => {
+    const [form] = Form.useForm();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [companies, setCompanies] = useState([]);
+    const [projects, setProjects] = useState([]);
+    const [serviceNamesByProject, setServiceNamesByProject] = useState({});
+    const [files, setFiles] = useState([]);
+    const [folderFiles, setFolderFiles] = useState([]);
+    const fileInputRef = useRef(null);
+    const folderInputRef = useRef(null);
+    const isDirtyRef = useRef(false);
+    const savingRef = useRef(false);
+
+    const markDirty = useCallback(() => {
+      isDirtyRef.current = true;
+    }, []);
+
+    const setSavingState = useCallback((value) => {
+      savingRef.current = value;
+      setSaving(value);
+    }, []);
+
+    const forceClose = useCallback((nativeClose) => {
+      isDirtyRef.current = false;
+      if (typeof nativeClose === "function") {
+        nativeClose();
+        return;
+      }
+      closeCurrentPopup();
+    }, []);
+
+    // Reads savingRef (not the `saving` state) so that when we flip it to
+    // false right before auto-closing on a successful submit, this guarded
+    // close path (patched onto ctx.view/popup/modal by
+    // configureGuardedModalClose) sees the up-to-date value immediately
+    // instead of a stale closure that still thinks we're saving.
+    const requestClose = useCallback(
+      (nativeClose) => {
+        if (savingRef.current) return;
+        if (!isDirtyRef.current) {
+          forceClose(nativeClose);
+          return;
+        }
+        showDiscardConfirm(() => forceClose(nativeClose));
+      },
+      [forceClose],
+    );
+
+    useEffect(() => configureGuardedModalClose(requestClose), [requestClose]);
+
+    useEffect(() => {
+      let mounted = true;
+      Promise.all([
+        fetchAllList(COMPANY_RESOURCES, { sort: ["createdAt"] }).catch(() => []),
+        fetchAllList(PROJECT_RESOURCES, {
+          pageSize: 1000,
+          sort: ["-createdAt"],
+          appends: ["internalCompany", "customer"],
+        }).catch(() => []),
+        fetchAllList(PROJECT_SERVICE_RESOURCES, { pageSize: 2000, sort: ["id"] }).catch(() => []),
+      ])
+        .then(([companyRows, projectRows, projectServiceRows]) => {
+          if (!mounted) return;
+          setCompanies(companyRows || []);
+          setProjects(projectRows || []);
+          setServiceNamesByProject(buildServiceNamesByProjectMap(projectServiceRows || []));
+          const companyId = defaultInternalCompanyId() || extractId((companyRows || [])[0]) || "";
+          if (companyId) form.setFieldsValue({ internalCompanyId: String(companyId) });
+        })
+        .catch((error) => {
+          console.error("[CaseReferenceCreateBlock] load failed", error);
+          message.error("Could not load create form data.");
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+      return () => {
+        mounted = false;
+      };
+    }, []);
+
+    const selectedCompanyId = Form.useWatch ? Form.useWatch("internalCompanyId", form) : "";
+    const filteredProjects = useMemo(() => {
+      const companyId = extractId(selectedCompanyId);
+      if (!companyId) return projects;
+      return projects.filter((project) => {
+        const projectCompanyId = getProjectCompanyId(project);
+        return !projectCompanyId || String(projectCompanyId) === String(companyId);
+      });
+    }, [projects, selectedCompanyId]);
+
+    const resetDraft = () => {
+      form.resetFields();
+      const companyId = defaultInternalCompanyId() || extractId(companies[0]) || "";
+      if (companyId) form.setFieldsValue({ internalCompanyId: String(companyId) });
+      setFiles([]);
+      setFolderFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
+      isDirtyRef.current = false;
+    };
+
+    const handleCancel = () => {
+      requestClose(() => {
+        resetDraft();
+        closeCurrentPopup();
+      });
+    };
+
+    const handleSubmit = async (values) => {
+      setSavingState(true);
+      try {
+        const userId = getCurrentUserId();
+        const caseIds = Array.from(new Set((values.caseIds || []).map((id) => Number(id)).filter(Boolean)));
+        const basePayload = {
+          title: values.title?.trim(),
+          description: values.description?.trim() || "",
+          internalCompanyId: extractId(values.internalCompanyId),
+          cases: caseIds,
+          ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        };
+
+        const createdReference = await createWithFallback(
+          LEGAL_REFERENCE_RESOURCES,
+          legalReferencePayloadVariants(basePayload),
+        );
+        const referenceId = extractId(createdReference);
+        let uploadFailed = false;
+
+        if ((files.length || folderFiles.length) && !referenceId) {
+          uploadFailed = true;
+          message.warning("Created Case Study, but could not detect its ID for document upload.");
+        }
+
+        const uploadContext = {
+          internalCompanyId: extractId(values.internalCompanyId),
+          legalReferenceId: referenceId,
+        };
+        if (referenceId && files.length) {
+          await uploadFilesToReference(files, uploadContext).catch((error) => {
+            uploadFailed = true;
+            console.error("[CaseReferenceCreateBlock] upload files failed", error);
+          });
+        }
+        if (referenceId && folderFiles.length) {
+          await uploadFolderFilesToReference(folderFiles, uploadContext).catch((error) => {
+            uploadFailed = true;
+            console.error("[CaseReferenceCreateBlock] upload folder failed", error);
+          });
+        }
+
+        if (uploadFailed) {
+          message.warning("Case Study created, but some documents failed to upload.");
+        } else {
+          message.success("Case Study created successfully.");
+        }
+
+        // Flip savingRef before closing so the guarded close patch (which
+        // otherwise bails out while a submit is in flight) lets this
+        // successful-submit close through immediately.
+        setSavingState(false);
+        resetDraft();
+        await refreshNocoBaseDataBlocks();
+        emitLibraryDataChanged({ scope: "caseReference", id: referenceId });
+        closeCurrentPopup();
+      } catch (error) {
+        console.error("[CaseReferenceCreateBlock] submit failed", error);
+        message.error(error?.message || "Create Case Study failed.");
+      } finally {
+        setSavingState(false);
+      }
+    };
+
+    const companyOptions = companies.map((company) => ({
+      value: String(extractId(company)),
+      label: companyLabel(company),
+    }));
+    const projectOptions = filteredProjects.map((project) => {
+      const plainLabel = projectLabel(project);
+      const serviceNames = serviceNamesByProject[extractId(project)] || [];
+      return {
+        value: String(extractId(project)),
+        searchText: compact([plainLabel, ...serviceNames]).join(" "),
+        label: React.createElement(
+          "div",
+          { style: { lineHeight: 1.4, padding: "2px 0" } },
+          React.createElement("div", null, plainLabel),
+          serviceNames.map((name, index) =>
+            React.createElement(
+              "div",
+              { key: index, style: { fontSize: 12, color: "#6B7280", paddingLeft: 10 } },
+              `- ${name}`,
+            ),
           ),
         ),
-      ),
-    };
-  });
+      };
+    });
 
-  if (loading) {
+    if (loading) {
+      return React.createElement(
+        "div",
+        { style: { padding: 32, textAlign: "center" } },
+        React.createElement(Spin, null),
+      );
+    }
+
     return React.createElement(
-      "div",
-      { style: { padding: 32, textAlign: "center" } },
-      React.createElement(Spin, null),
-    );
-  }
-
-  return React.createElement(
-    Card,
-    {
-      title: "Create Case Study",
-      bordered: false,
-      style: { width: "100%", fontFamily: FONT },
-    },
-    React.createElement(
-      Form,
+      Card,
       {
-        form,
-        layout: "vertical",
-        onFinish: handleSubmit,
-        onValuesChange: markDirty,
+        // title: "Create Case Study",
+        bordered: false,
+        style: { width: "100%", fontFamily: FONT },
       },
       React.createElement(
-        Row,
-        { gutter: 16 },
-        React.createElement(
-          Col,
-          { xs: 24, md: 12 },
-          React.createElement(
-            Form.Item,
-            {
-              name: "title",
-              label: "Case Study Name",
-              rules: [{ required: true, message: "Please enter a name" }],
-            },
-            React.createElement(Input, { placeholder: "Enter case study name..." }),
-          ),
-        ),
-        React.createElement(
-          Col,
-          { xs: 24, md: 12 },
-          React.createElement(
-            Form.Item,
-            {
-              name: "internalCompanyId",
-              label: "Internal Company",
-              rules: [{ required: true, message: "Please select an internal company" }],
-            },
-            React.createElement(Select, {
-              showSearch: true,
-              allowClear: true,
-              placeholder: "Select company...",
-              optionFilterProp: "label",
-              options: companyOptions,
-            }),
-          ),
-        ),
-      ),
-      React.createElement(
-        Form.Item,
-        { name: "description", label: "Case Study Summary" },
-        React.createElement(Input.TextArea, {
-          rows: 4,
-          placeholder: "Summarize the case study content...",
-        }),
-      ),
-      React.createElement(
-        Form.Item,
+        Form,
         {
-          name: "caseIds",
-          label: "Linked Cases",
-          extra: "Link this case study to active cases in the system.",
+          form,
+          layout: "vertical",
+          onFinish: handleSubmit,
+          onValuesChange: markDirty,
         },
-        React.createElement(Select, {
-          mode: "multiple",
-          showSearch: true,
-          allowClear: true,
-          placeholder: "Select linked cases...",
-          filterOption: (input, option) =>
-            (option?.searchText || "").toLowerCase().includes(String(input).toLowerCase()),
-          options: projectOptions,
-        }),
-      ),
-      React.createElement(
-        "div",
-        {
-          style: {
-            border: "1px dashed #D1D5DB",
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 16,
-            background: "#F9FAFB",
+        React.createElement(
+          Row,
+          { gutter: 16 },
+          React.createElement(
+            Col,
+            { xs: 24, md: 12 },
+            React.createElement(
+              Form.Item,
+              {
+                name: "title",
+                label: "Title",
+                rules: [{ required: true, message: "Please enter a title" }],
+              },
+              React.createElement(Input, { placeholder: "Enter case study title..." }),
+            ),
+          ),
+          React.createElement(
+            Col,
+            { xs: 24, md: 12 },
+            React.createElement(
+              Form.Item,
+              {
+                name: "internalCompanyId",
+                label: "Internal Company",
+                rules: [{ required: true, message: "Please select an internal company" }],
+              },
+              React.createElement(Select, {
+                showSearch: true,
+                allowClear: true,
+                placeholder: "Select company...",
+                optionFilterProp: "label",
+                options: companyOptions,
+              }),
+            ),
+          ),
+        ),
+        React.createElement(
+          Form.Item,
+          { name: "description", label: "Summary" },
+          React.createElement(Input.TextArea, {
+            rows: 4,
+            placeholder: "Summarize the case study content...",
+          }),
+        ),
+        React.createElement(
+          Form.Item,
+          {
+            name: "caseIds",
+            label: "Linked Cases",
+            extra: "Link this case study to active cases in the system.",
           },
-        },
-        React.createElement(
-          Typography.Text,
-          { strong: true, style: { display: "block", marginBottom: 10, color: "#374151" } },
-          "Upload documents (optional)",
+          React.createElement(Select, {
+            mode: "multiple",
+            showSearch: true,
+            allowClear: true,
+            placeholder: "Select linked cases...",
+            filterOption: (input, option) =>
+              (option?.searchText || "").toLowerCase().includes(String(input).toLowerCase()),
+            options: projectOptions,
+          }),
         ),
         React.createElement(
           "div",
-          { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+          {
+            style: {
+              border: "1px dashed #D1D5DB",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 16,
+              background: "#F9FAFB",
+            },
+          },
           React.createElement(
-            Button,
-            { onClick: () => fileInputRef.current?.click() },
-            "Choose file",
+            Typography.Text,
+            { strong: true, style: { display: "block", marginBottom: 10, color: "#374151" } },
+            "Upload documents (optional)",
           ),
           React.createElement(
-            Button,
-            { onClick: () => folderInputRef.current?.click() },
-            "Choose folder",
+            "div",
+            { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+            React.createElement(
+              Button,
+              { onClick: () => fileInputRef.current?.click() },
+              "Choose file",
+            ),
+            React.createElement(
+              Button,
+              { onClick: () => folderInputRef.current?.click() },
+              "Choose folder",
+            ),
+            files.length || folderFiles.length
+              ? React.createElement(
+                  Button,
+                  {
+                    type: "text",
+                    onClick: () => {
+                      markDirty();
+                      setFiles([]);
+                      setFolderFiles([]);
+                    },
+                  },
+                  "Clear selection",
+                )
+              : null,
           ),
           files.length || folderFiles.length
             ? React.createElement(
-                Button,
-                {
-                  type: "text",
-                  onClick: () => {
-                    markDirty();
-                    setFiles([]);
-                    setFolderFiles([]);
-                  },
-                },
-                "Clear selection",
+                "div",
+                { style: { marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" } },
+                files.length ? React.createElement(Tag, { color: "blue" }, `${files.length} file`) : null,
+                folderFiles.length
+                  ? React.createElement(Tag, { color: "green" }, `folder with ${folderFiles.length} files`)
+                  : null,
               )
             : null,
+          React.createElement("input", {
+            ref: fileInputRef,
+            type: "file",
+            multiple: true,
+            style: { display: "none" },
+            onChange: (event) => {
+              markDirty();
+              setFiles(Array.from(event.target.files || []));
+            },
+          }),
+          React.createElement("input", {
+            ref: folderInputRef,
+            type: "file",
+            multiple: true,
+            webkitdirectory: "true",
+            directory: "true",
+            style: { display: "none" },
+            onChange: (event) => {
+              markDirty();
+              setFolderFiles(Array.from(event.target.files || []));
+            },
+          }),
         ),
-        files.length || folderFiles.length
-          ? React.createElement(
-              "div",
-              { style: { marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" } },
-              files.length ? React.createElement(Tag, { color: "blue" }, `${files.length} file`) : null,
-              folderFiles.length
-                ? React.createElement(Tag, { color: "green" }, `${folderFiles.length} folder files`)
-                : null,
-            )
-          : null,
-        React.createElement("input", {
-          ref: fileInputRef,
-          type: "file",
-          multiple: true,
-          style: { display: "none" },
-          onChange: (event) => {
-            markDirty();
-            setFiles(Array.from(event.target.files || []));
-          },
-        }),
-        React.createElement("input", {
-          ref: folderInputRef,
-          type: "file",
-          multiple: true,
-          webkitdirectory: "true",
-          directory: "true",
-          style: { display: "none" },
-          onChange: (event) => {
-            markDirty();
-            setFolderFiles(Array.from(event.target.files || []));
-          },
-        }),
-      ),
-      React.createElement(
-        "div",
-        { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
-        React.createElement(Button, { onClick: handleCancel, disabled: saving }, "Cancel"),
         React.createElement(
-          Button,
-          { type: "primary", htmlType: "submit", loading: saving },
-          "Create",
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
+          React.createElement(Button, { onClick: handleCancel, disabled: saving }, "Cancel"),
+          React.createElement(
+            Button,
+            { type: "primary", htmlType: "submit", loading: saving },
+            "Submit",
+          ),
         ),
       ),
-    ),
-  );
-};
+    );
+  };
 
-ctx.render(React.createElement(CaseReferenceCreateBlock));
+  ctx.render(React.createElement(CaseReferenceCreateBlock));

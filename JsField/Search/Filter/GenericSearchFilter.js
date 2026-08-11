@@ -1,52 +1,19 @@
 /**
  * Generic Search/Filter block (Nocobase JS Field/Action block).
- * Deployment: Project Internal module (collection "projectInternal").
- *
- * This is JsField/GenericSearchFilter.js with CONFIG filled in for the
- * Project Internal module. Field names confirmed from two sources:
- *   - pgsql/log_activity_project_internal.sql's header comment, which
- *     documents "Exact Project Internal fields from the collection
- *     settings" verbatim (not the SQL logic itself, just that comment).
- *   - All Module/Task/ProjectInternalTask.js's actual field usage.
- *
- * STILL NEEDED before this is deployable — see the TODOs below:
- *   1. `targetBlockUid` is empty — fill it in from the block's designer menu.
- *   2. `status` and `priority` options are placeholders. The SQL trigger's
- *      generic value-display mapping (resolve_project_internal_activity_value
- *      in that same file) lists a broad set of possible status/priority
- *      strings shared across multiple modules — it is NOT a declaration of
- *      this field's actual configured Select options, so those values are
- *      NOT used here. Open "Project Internal - Configure fields" > Status /
- *      Priority > Edit field and share the real Option value/label list
- *      (same as done for Lead/Case).
- *   3. `projectAssignees` (relation, per the SQL comment's field list) is
- *      ASSUMED to target `lawyers` — by strong precedent (every other
- *      "assignees"-style field in this app — Lead's Assignees, Quotation's
- *      lawyers/approvalLawyers, Case's assignees — targets `lawyers`), but
- *      this was NOT directly confirmed in JS code for this specific field
- *      (unlike Case's `assignees`, which had a direct payload reference).
- *      Verify once deployed.
- *
- * Field notes (confirmed):
- *   - `projectCode`, `projectName`, `description`, `internalCompanyId` are
- *     real fields (confirmed via
- *     All Module/Document/ProjectDocument.js:2076's
- *     `fields: ["id", "projectCode", "projectName", "description", "internalCompanyId"]`
- *     and the SQL trigger comment).
- *   - `projectManagerId` is a flat FK, but — unlike `projects.projectManagerId`
- *     (which targets `users`, see JsField/CaseSearchFilter.js) —
- *     `projectInternal.projectManagerId` targets `lawyers`. Confirmed by
- *     ProjectInternalTask.js:13403-13404, which compares
- *     `projectManagerId === myLawyer.id` where `myLawyer` is resolved from
- *     `lawyers.find(l => l.userId === currentUser.id)` — a direct lawyer-id
- *     comparison, not a user-id one. Do not copy Case's `users` target here.
  *
  * HOW TO USE THIS FILE:
- * 1. Fill in the 3 TODOs above.
- * 2. Copy this entire file into the Project Internal module's JS
- *    Field/Action block in Nocobase.
- * 3. Do not edit anything below the "ENGINE" marker except to keep it in
- *    sync with JsField/GenericSearchFilter.js if that template changes.
+ * 1. Copy this entire file into a new JS Field/Action block in Nocobase,
+ *    attached to the page of the module you want to filter.
+ * 2. Edit ONLY the CONFIG object below — set targetBlockUid, tableName, and
+ *    the `filters` array for that module.
+ * 3. Do not edit anything below the "ENGINE" marker. It is identical across
+ *    every module deployment.
+ *
+ * Supported filter types (set via `filters[].type`):
+ *   - 'status'    : buttons/select over an enum field, with per-option counts
+ *   - 'relation'  : dropdown sourced from another collection (company, user...)
+ *   - 'search'    : free-text search across one or more fields ($iLike)
+ *   - 'dateRange' : from/to date range on one field
  *
  * See docs/superpowers/specs/2026-07-08-generic-search-filter-design.md for
  * the full design.
@@ -56,88 +23,73 @@
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
 const CONFIG = {
-  targetBlockUid: '', // TODO: fill in — see file header note 1
-  tableName: 'projectInternal',
-  extraFilter: {},
+  targetBlockUid: '',   // UID of the table/kanban/list block to filter
+  tableName: '',          // collection name, e.g. "cases", "contracts"
+  extraFilter: {},        // always-applied filter (optional), e.g. {}
 
-  filters: [
-    {
-      type: 'status',
-      key: 'status',
-      field: 'status',
-      label: 'Status',
-      options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
-      ],
-      showCounts: true,
-    },
-    {
-      type: 'status',
-      key: 'priority',
-      field: 'priority',
-      label: 'Priority',
-      options: [
-        // TODO: fill in real Option value/label pairs — see file header note 2
-        // (do NOT assume this matches projects.priority's low/medium/high)
-      ],
-      showCounts: true,
-    },
-    {
-      type: 'relation',
-      key: 'company',
-      field: 'internalCompanyId',
-      label: 'Internal Company',
-      placeholder: 'All',
-      source: {
-        collection: 'internalCompany',
-        labelFields: ['shortName', 'name'],
-        sort: 'createdAt',
-      },
-    },
-    {
-      type: 'relation',
-      key: 'projectManager',
-      field: 'projectManagerId',
-      label: 'Project Manager',
-      placeholder: 'All',
-      source: {
-        collection: 'lawyers', // confirmed — see file header note on projectManagerId
-        labelFields: ['lawyerName'],
-        sort: 'createdAt',
-      },
-    },
-    {
-      type: 'relation',
-      key: 'assignees',
-      field: 'projectAssignees',
-      relationKey: 'id', // assumed no flat FK column, only the association — see file header note 3
-      label: 'Members',
-      placeholder: 'All',
-      source: {
-        collection: 'lawyers', // ASSUMED target — verify, see file header note 3
-        labelFields: ['lawyerName'],
-        sort: 'createdAt',
-      },
-    },
-    {
-      type: 'search',
-      key: 'search',
-      label: 'Search',
-      fields: ['projectCode', 'projectName', 'description'],
-      placeholder: 'Search by project code, name, description...',
-    },
-  ],
+  // Example filters array (replace with real config for the target module):
+  // filters: [
+  //   {
+  //     type: 'status',
+  //     key: 'status',
+  //     field: 'status',
+  //     label: 'Trạng thái',
+  //     options: [
+  //       { value: 'toDo', label: 'Chưa làm' },
+  //       { value: 'inProgress', label: 'Đang làm' },
+  //       { value: 'done', label: 'Hoàn thành' },
+  //     ],
+  //     showCounts: true,
+  //   },
+  //   {
+  //     type: 'relation',
+  //     key: 'company',
+  //     field: 'internalCompanyId',
+  //     label: 'Công ty',
+  //     placeholder: 'Tất cả',
+  //     // width: 180,      // optional override; each filter fills its grid cell (100%) by default
+  //     source: {
+  //       collection: 'internalCompany',
+  //       labelFields: ['shortName', 'name'],
+  //       excludeValues: [],
+  //       sort: 'createdAt',
+  //     },
+  //   },
+  //   {
+  //     type: 'search',
+  //     key: 'search',
+  //     label: 'Tìm kiếm',
+  //     fields: ['title', 'code', 'description'],
+  //     placeholder: 'Tìm theo tên, mã...',
+  //   },
+  //   {
+  //     type: 'dateRange',
+  //     key: 'signedDate',
+  //     field: 'signedDate',
+  //     label: 'Ngày ký',
+  //   },
+  // ],
+  filters: [],
 
   currentUserScope: {
     enable: false,
-    userFields: ['createdById'],
+    userFields: ['createdById'],       // flat FK-to-users columns, compared directly
+    // relationFields: [               // optional — associations with no flat FK column
+    //   { field: 'assignees', targetKey: 'userId' }, // compares assignees.userId
+    //   // IMPORTANT: use the association's field NAME (as configured in
+    //   // Nocobase's collection field list), not a raw FK column name that
+    //   // happens to back it — e.g. a belongsTo field named `manager` backed
+    //   // by foreign key `managerId` must use `manager` here, not
+    //   // `managerId`. Nested filtering only resolves through the
+    //   // association name; using the column name 500s.
+    // ],
     emptyWhenUnknown: true,
     validateFields: true,
   },
 };
 
 // ===================================================================
-// ENGINE — DO NOT EDIT BELOW THIS LINE
+// ENGINE — KHÔNG SỬA BÊN DƯỚI DÒNG NÀY
 // ===================================================================
 
 // ---- id / filter-key helpers (pure, no ctx access) ----
@@ -215,7 +167,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'Tất cả' }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -328,7 +280,7 @@ function useCurrentUserScope() {
               });
               return field;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope field: ${field}`, e);
+              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope field không hợp lệ: ${field}`, e);
               return null;
             }
           }),
@@ -351,7 +303,7 @@ function useCurrentUserScope() {
               });
               return rel;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope relation field: ${rel.field}`, e);
+              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope relation field không hợp lệ: ${rel.field}`, e);
               return null;
             }
           }),
@@ -450,7 +402,7 @@ function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
         }));
         if (!cancelled) setCounts(Object.fromEntries(entries));
       } catch (e) {
-        console.error('[GenericSearchFilter] Error fetching counts:', e);
+        console.error('[GenericSearchFilter] Lỗi lấy counts:', e);
         if (!cancelled) setCounts({});
       }
       if (!cancelled) setLoading(false);
@@ -500,7 +452,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'All',
+        placeholder: filterDef.placeholder || 'Tất cả',
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -518,7 +470,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Search...',
+        placeholder: filterDef.placeholder || 'Tìm kiếm...',
         allowClear: true,
         enterButton: true,
         size: 'small',
@@ -584,13 +536,13 @@ const GenericSearchFilter = () => {
     try {
       const target = ctx.engine?.getModel(CONFIG.targetBlockUid);
       if (!target) {
-        console.warn('[GenericSearchFilter] targetBlockUid could not resolve a model:', CONFIG.targetBlockUid);
+        console.warn('[GenericSearchFilter] targetBlockUid không resolve được model:', CONFIG.targetBlockUid);
         return;
       }
       target.resource.addFilterGroup(filterKey, filter);
       await target.resource.refresh();
     } catch (e) {
-      console.error('[GenericSearchFilter] Failed to apply filter:', filterKey, e);
+      console.error('[GenericSearchFilter] Áp filter thất bại:', filterKey, e);
     }
   }, []);
 

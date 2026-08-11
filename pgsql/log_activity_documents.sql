@@ -196,7 +196,7 @@ BEGIN
 
         IF v_is_deleted_new IS TRUE AND v_is_deleted_old IS FALSE THEN
             PERFORM public.log_activity('Document', v_record_id, 'deleted', 'id', v_title, NULL, user_name, false, v_changed_at, v_batch_id, NULL);
-            
+
             -- Mirror soft delete
             BEGIN
                 SELECT p.collection_name, p.record_id
@@ -255,7 +255,14 @@ BEGIN
             SELECT column_name FROM information_schema.columns 
             WHERE table_name = 'documents' AND table_schema = 'public' 
             AND column_name <> ALL(skip_cols)
-            AND column_name NOT IN ('folderId', 'isDeleted', 'updatedAt', 'updatedById', 'batchId', 'fileIndex', 'folderIndex')
+            AND column_name NOT IN (
+                'folderId', 'isDeleted', 'updatedAt', 'updatedById', 'batchId',
+                'fileIndex', 'folderIndex',
+                'moduleScope', 'storageType',
+                'originScope', 'originFolderId', 'legalStudyLinkedAt', 'legalStudySource',
+                'sourceCollectionName', 'sourceTaskId', 'sourceSubTaskId',
+                'sourceRecordId', 'sourceProjectId', 'sourceFolderId', 'sourceLegalReferenceId'
+            )
         LOOP
             BEGIN
                 EXECUTE format('SELECT ($1).%I::TEXT, ($2).%I::TEXT', col_name, col_name) INTO old_val, new_val USING OLD, NEW;

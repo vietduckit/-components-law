@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SRS - Calendar Meetings & Tasks</title>
+  <style>
+    :root {
+      --text: #1f2933;
+      --muted: #667085;
+      --line: #d9d9d9;
+      --soft: #f7f8fa;
+      --blue: #1677ff;
+      --green: #389e0d;
+      --orange: #d46b08;
+      --red: #cf1322;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font: 13px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: #fff;
+    }
+    main {
+      width: min(1040px, calc(100% - 48px));
+      margin: 28px auto 56px;
+    }
+    h1, h2, h3 { margin: 0; font-weight: 650; line-height: 1.25; }
+    h1 { font-size: 28px; }
+    h2 {
+      margin-top: 30px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 18px;
+    }
+    h3 { margin-top: 18px; font-size: 15px; }
+    p { margin: 8px 0; }
+    ul { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 4px 0; }
+    code {
+      padding: 1px 5px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--soft);
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+    }
+    table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+    }
+    th, td {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: var(--soft); font-weight: 650; }
+    .cover {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #fff, #fafafa);
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .box {
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .box span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+    .note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-left: 3px solid var(--blue);
+      background: #f5f9ff;
+    }
+    .ok { border-left-color: var(--green); background: #f6ffed; }
+    .warn { border-left-color: var(--orange); background: #fff8ed; }
+    .risk { border-left-color: var(--red); background: #fff1f0; }
+    .muted { color: var(--muted); }
+    .page-break { break-before: page; }
+    @media print {
+      body { font-size: 12px; }
+      main { width: auto; margin: 0; }
+      h2 { break-after: avoid; }
+      table, .box, .note { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    
+    <h2>1. Executive Summary</h2>
+    <p>
+      Calendar block cung cấp một workspace lịch làm việc cá nhân cho user hiện tại. Dữ liệu hiển thị gồm:
+      meeting mà user là host hoặc attendee, và task được assign cho lawyer record liên kết với current user.
+      Người dùng có thể xem lịch theo Month, Week, Day, List; filter theo loại record, trạng thái, case,
+      keyword và date range; tạo nhanh Meeting hoặc Task từ calendar.
+    </p>
+    <div class="note warn">
+      <strong>Không phải Google Calendar sync production:</strong> block hiện tại là UI calendar nội bộ trong NocoBase.
+      Chưa có OAuth sync với Google/Microsoft và chưa có recurring events production.
+    </div>
+
+    <h2>2. Current Business Scope</h2>
+    <table>
+      <tr><th>Area</th><th>Requirement</th></tr>
+      <tr>
+        <td>Calendar workspace</td>
+        <td>Hiển thị Meeting và Task trong cùng một calendar, mặc định view Month. User đổi được Month/Week/Day/List.</td>
+      </tr>
+      <tr>
+        <td>Personal data scope</td>
+        <td>Meeting scope: user là <code>hostId</code> hoặc có record trong <code>meetingAttendees</code>. Task scope: task có <code>lawyerId</code> thuộc lawyer liên kết với current user.</td>
+      </tr>
+      <tr>
+        <td>Quick create meeting</td>
+        <td>Tạo meeting với title, datetime range, host, attendees, case, contract, quotation, type, location/link, status, agenda/description.</td>
+      </tr>
+      <tr>
+        <td>Quick create task</td>
+        <td>Tạo task với title, datetime range, assignee, case, service, status, description, approval flag và approver lawyer khi cần phê duyệt. Assignee mặc định là lawyer của current user.</td>
+      </tr>
+      <tr>
+        <td>Meeting detail open</td>
+        <td>Click meeting item mở Meeting Detail popup bằng <code>ctx.openView</code> và route filterByTk.</td>
+      </tr>
+      <tr>
+        <td>Task detail open</td>
+        <td>Click task item mở Task Detail popup bằng <code>ctx.openView</code> và route filterByTk.</td>
+      </tr>
+      <tr>
+        <td>Agenda panel</td>
+        <td>Panel bên phải hiển thị agenda ngày đang chọn và upcoming records.</td>
+      </tr>
+    </table>
+
+    <h2>3. Views And Navigation</h2>
+    <table>
+      <tr><th>View</th><th>Behavior</th></tr>
+      <tr><td>Month</td><td>Grid 42 ô ngày, hiển thị tối đa 3 records mỗi ngày và số lượng còn lại dạng <code>+N more</code>.</td></tr>
+      <tr><td>Week</td><td>Hiển thị 7 ngày từ Monday đến Sunday, mỗi ngày có danh sách records và quick create.</td></tr>
+      <tr><td>Day</td><td>Hiển thị timeline theo giờ với slot 15 phút, event được render theo start/end time và có thể drag-drop để reschedule theo mốc thời gian user chọn.</td></tr>
+      <tr><td>List</td><td>Danh sách records đã filter, sort theo date/time, dùng khi cần scan nhanh.</td></tr>
+      <tr><td>Navigation</td><td>Nút previous/next thay đổi tháng, tuần hoặc ngày tùy view; nút Today đưa cursor về ngày hiện tại.</td></tr>
+      <tr><td>Drag-drop reschedule</td><td>Month/Week drop theo ngày và giữ duration. Day drop theo timeline slot 15 phút, giữ duration và offset vị trí kéo trong event.</td></tr>
+    </table>
+
+    <h2>4. Filters</h2>
+    <table>
+      <tr><th>Filter</th><th>Values</th><th>Rule</th></tr>
+      <tr><td>Keyword</td><td>Free text</td><td>Tìm trong title, caseName, customerName, serviceName, ownerName.</td></tr>
+      <tr><td>Record type</td><td>All records, Meetings, Tasks</td><td>Lọc theo <code>kind</code>: meeting/task.</td></tr>
+      <tr><td>Status</td><td>Meeting + Task statuses</td><td>Meeting: Scheduled/Ongoing/Completed/Cancelled. Task: To do/In progress/Pending approval/Blocked/Overdue.</td></tr>
+      <tr><td>Case</td><td>All cases hoặc một case cụ thể</td><td>Lọc theo <code>caseId</code> đã map từ projects.</td></tr>
+      <tr><td>Date range</td><td>RangePicker</td><td>Chỉ hiển thị record có date nằm trong range.</td></tr>
+      <tr><td>Reset</td><td>-</td><td>Clear keyword, kind, status, case và date range về mặc định.</td></tr>
+    </table>
+
+    <h2>5. Quick Create Modal</h2>
+    <h3>5.1 Shared Fields</h3>
+    <table>
+      <tr><th>Field</th><th>Applies to</th><th>Rule</th></tr>
+      <tr><td>Record type</td><td>Meeting, Task</td><td>Segmented control. Khi đổi type, form reset các field chỉ thuộc type cũ.</td></tr>
+      <tr><td>Title</td><td>Meeting, Task</td><td>Required.</td></tr>
+      <tr><td>Date time</td><td>Meeting, Task</td><td>Required datetime range. End time phải sau start time.</td></tr>
+      <tr><td>Case</td><td>Meeting, Task</td><td>Optional, dùng list projects. Nếu có case, task có thể chọn service thuộc case đó.</td></tr>
+      <tr><td>Status</td><td>Meeting, Task</td><td>Options khác nhau theo record type.</td></tr>
+      <tr><td>Description</td><td>Meeting, Task</td><td>Meeting label là Agenda / Description; Task label là Description.</td></tr>
+    </table>
+
+    <h3>5.2 Meeting Fields</h3>
+    <table>
+      <tr><th>Field</th><th>Rule</th></tr>
+      <tr><td>Host</td><td>Required. Mặc định là current user nếu user hợp lệ và không phải system user <code>id = 1</code>.</td></tr>
+      <tr><td>Attendees</td><td>Multiple select. Host hiện tại bị ẩn khỏi options và bị loại khỏi selected values nếu đổi host.</td></tr>
+      <tr><td>Contract</td><td>Optional related contract, có search/select đầy đủ. Lưu bằng post-create update vào <code>meetings.contractId</code> nếu schema có field.</td></tr>
+      <tr><td>Quotation</td><td>Optional related quotation, có search/select đầy đủ. Lưu bằng post-create update vào <code>meetings.quotationId</code> nếu schema có field.</td></tr>
+      <tr><td>Type</td><td>Internal, Case review, Strategy, Training, Other. Default là Internal.</td></tr>
+      <tr><td>Location / Link</td><td>Optional. Dùng cho phòng họp, địa chỉ hoặc online meeting link.</td></tr>
+    </table>
+
+    <h3>5.3 Task Fields</h3>
+    <table>
+      <tr><th>Field</th><th>Rule</th></tr>
+      <tr><td>Assignee</td><td>Required. Mặc định là lawyer liên kết với current user nếu có.</td></tr>
+      <tr><td>Service</td><td>Optional. Chỉ enable sau khi chọn Case; options lấy từ <code>projectServices</code> của case.</td></tr>
+      <tr><td>Priority</td><td>Tạo mới mặc định <code>medium</code>.</td></tr>
+      <tr><td>Approval</td><td>Mặc định No approval. Khi chọn Require approval, form hiển thị Approver lawyer và lưu <code>isRequiredApproval</code>, <code>approvedById</code>.</td></tr>
+    </table>
+
+    <h2 class="page-break">6. Collections And Fields</h2>
+    <h3>6.1 <code>meetings</code></h3>
+    <table>
+      <tr><th>Field</th><th>Usage</th></tr>
+      <tr><td><code>id</code></td><td>Primary key.</td></tr>
+      <tr><td><code>title</code></td><td>Tên meeting.</td></tr>
+      <tr><td><code>meetingDate</code></td><td>Datetime bắt đầu meeting, lấy từ start của Date time range.</td></tr>
+      <tr><td><code>startTime</code>, <code>endTime</code></td><td>Giờ bắt đầu/kết thúc, lưu dạng HH:mm:ss.</td></tr>
+      <tr><td><code>location</code></td><td>Địa điểm hoặc meeting link.</td></tr>
+      <tr><td><code>status</code></td><td>scheduled, ongoing, completed, cancelled.</td></tr>
+      <tr><td><code>type</code></td><td>internal, case_review, strategy, training, other.</td></tr>
+      <tr><td><code>description</code></td><td>Agenda hoặc mô tả meeting.</td></tr>
+      <tr><td><code>hostId</code></td><td>User chủ trì meeting.</td></tr>
+      <tr><td><code>caseId</code></td><td>Case/project liên quan.</td></tr>
+      <tr><td><code>contractId</code></td><td>Optional. Được update sau create nếu user chọn contract và schema hỗ trợ.</td></tr>
+      <tr><td><code>quotationId</code></td><td>Optional. Được update sau create nếu user chọn quotation và schema hỗ trợ.</td></tr>
+    </table>
+
+    <h3>6.2 <code>meetingAttendees</code></h3>
+    <table>
+      <tr><th>Field</th><th>Usage</th></tr>
+      <tr><td><code>meetingId</code></td><td>Meeting được tham dự.</td></tr>
+      <tr><td><code>userId</code></td><td>User tham dự. UI không hiển thị user id = 1.</td></tr>
+      <tr><td><code>isHost</code></td><td>Host attendee record có <code>true</code>; attendees còn lại là <code>false</code>.</td></tr>
+      <tr><td><code>attendanceStatus</code></td><td>Host mặc định confirmed; attendees khác mặc định pending.</td></tr>
+    </table>
+
+    <h3>6.3 <code>tasks</code></h3>
+    <table>
+      <tr><th>Field</th><th>Usage</th></tr>
+      <tr><td><code>title</code></td><td>Tên task.</td></tr>
+      <tr><td><code>status</code></td><td>todo, in_progress, pending_approval, blocked. Có mapping sang storage status nội bộ.</td></tr>
+      <tr><td><code>lawyerId</code></td><td>Assignee lawyer.</td></tr>
+      <tr><td><code>projectId</code></td><td>Case/project liên quan.</td></tr>
+      <tr><td><code>serviceId</code></td><td>Project service hoặc service liên quan.</td></tr>
+      <tr><td><code>startDate</code>, <code>dueDate</code></td><td>Lấy từ datetime range. Calendar dùng startDate, fallback dueDate/updatedAt/createdAt.</td></tr>
+      <tr><td><code>description</code></td><td>Mô tả task nếu có.</td></tr>
+      <tr><td><code>priority</code></td><td>Mặc định medium khi tạo từ calendar.</td></tr>
+      <tr><td><code>isRequiredApproval</code></td><td>Boolean cho biết task có cần phê duyệt hay không.</td></tr>
+      <tr><td><code>approvedById</code></td><td>Approver lawyer được chọn khi task cần approval.</td></tr>
+    </table>
+
+    <h3>6.4 Lookup collections</h3>
+    <table>
+      <tr><th>Collection</th><th>Usage</th></tr>
+      <tr><td><code>users</code></td><td>Host/attendees labels và options.</td></tr>
+      <tr><td><code>lawyers</code></td><td>Task assignee và xác định scope task của current user.</td></tr>
+      <tr><td><code>projects</code></td><td>Case options, case labels, customer context.</td></tr>
+      <tr><td><code>customers</code></td><td>Customer label trong case/contract/quotation.</td></tr>
+      <tr><td><code>projectServices</code>, <code>services</code></td><td>Service options cho task theo case.</td></tr>
+      <tr><td><code>contracts</code></td><td>Related contract options trong meeting quick create.</td></tr>
+      <tr><td><code>quotations</code></td><td>Related quotation options trong meeting quick create.</td></tr>
+    </table>
+
+    <h2>7. API And Runtime Behavior</h2>
+    <table>
+      <tr><th>Behavior</th><th>Description</th></tr>
+      <tr><td>Fetch current user</td><td>Ưu tiên current user từ <code>ctx</code>; fallback <code>auth:check</code>.</td></tr>
+      <tr><td>Fetch limit</td><td>Meetings/tasks tối đa 500 rows; lookup tối đa 1000 rows.</td></tr>
+      <tr><td>Meeting scope fetch</td><td>Fetch host meetings theo <code>hostId = currentUserId</code>, sau đó fetch meetings mà user là attendee.</td></tr>
+      <tr><td>Task scope fetch</td><td>Fetch lawyers theo <code>userId = currentUserId</code>, rồi fetch tasks có <code>lawyerId</code> thuộc các lawyer đó.</td></tr>
+      <tr><td>Optional links</td><td><code>contractId</code>/<code>quotationId</code> được update sau khi meeting đã create. Nếu field thiếu, hiển thị warning nhưng meeting vẫn tạo thành công.</td></tr>
+      <tr><td>Drag-drop update</td><td>Reschedule meeting update <code>meetingDate</code>, <code>startTime</code>, <code>endTime</code>. Reschedule task update <code>startDate</code>, <code>dueDate</code>. Day view parse datetime theo local time để tránh lệch UTC.</td></tr>
+      <tr><td>Event bus</td><td>Sau create meeting emit <code>law-meeting:changed</code>; sau create task emit <code>law-task-detail:changed</code>.</td></tr>
+      <tr><td>Detail popup UID</td><td>Lấy từ runtime input nếu có, fallback Meeting UID <code>5ffaa21d255</code>, Task UID <code>1a280d823ef</code>.</td></tr>
+    </table>
+
+    <h2>8. Permission And Data Rules</h2>
+    <table>
+      <tr><th>Rule</th><th>Description</th></tr>
+      <tr><td>System user hidden</td><td>User <code>id = 1</code> không được hiển thị trong Host/Attendees options.</td></tr>
+      <tr><td>Host-attendee conflict</td><td>Host không được nằm trong attendees. Khi đổi host, host mới bị loại khỏi attendees đang chọn.</td></tr>
+      <tr><td>Meeting visibility</td><td>User chỉ thấy meeting mà user là host hoặc attendee.</td></tr>
+      <tr><td>Task visibility</td><td>User chỉ thấy task assign cho lawyer record liên kết với user hiện tại.</td></tr>
+      <tr><td>Overdue task</td><td>Task có dueDate trước hôm nay và chưa closed/completed được map status thành overdue.</td></tr>
+      <tr><td>Date validation</td><td>Không cho submit khi thiếu datetime range hoặc end time trước start time.</td></tr>
+    </table>
+
+    <h2>9. Out Of Scope</h2>
+    <ul>
+      <li>Không đồng bộ Google Calendar/Microsoft Outlook production bằng OAuth.</li>
+      <li>Không tạo ICS file trong block hiện tại.</li>
+      <li>Không hỗ trợ recurring meetings/tasks.</li>
+      <li>Không resize duration trực tiếp bằng kéo cạnh event.</li>
+      <li>Không edit/delete trực tiếp trong calendar item; người dùng mở detail popup để xử lý chi tiết.</li>
+      <li>Không quản lý meeting action items hoặc convert action item thành task trong block này.</li>
+      <li>Không xử lý approval workflow nhiều bước; calendar chỉ lưu cờ yêu cầu phê duyệt và approver lawyer khi tạo task.</li>
+    </ul>
+
+    <h2>10. Acceptance Criteria</h2>
+    <div class="note ok">Calendar block đạt khi các tiêu chí sau đúng trong môi trường NocoBase hiện tại.</div>
+    <ul>
+      <li>User mở Calendar thấy records của chính mình: meeting host/attendee và task assign cho lawyer của user.</li>
+      <li>Month, Week, Day, List view hiển thị đúng số records sau filter.</li>
+      <li>Filter keyword/type/status/case/date range hoạt động và Reset đưa về mặc định.</li>
+      <li>Tạo meeting thành công với host mặc định là current user, attendees không chứa host.</li>
+      <li>Khi đổi host, host mới bị loại khỏi attendees đã chọn.</li>
+      <li>Tạo meeting có thể chọn related Contract và Quotation; nếu schema hỗ trợ thì links được lưu vào meetings.</li>
+      <li>Tạo meeting có Location / Link và Type.</li>
+      <li>Tạo task từ calendar có assignee mặc định là lawyer của current user.</li>
+      <li>Task có thể chọn Case và Service thuộc Case đó.</li>
+      <li>Task có thể bật Require approval và bắt buộc chọn Approver lawyer.</li>
+      <li>Month/Week view cho phép drag-drop meeting/task sang ngày khác và giữ duration.</li>
+      <li>Day view cho phép drag-drop meeting/task theo timeline slot 15 phút; sau reload không lệch giờ local/UTC.</li>
+      <li>Click meeting/task item mở đúng detail popup.</li>
+      <li>Sau create meeting/task, calendar reload và record mới xuất hiện ở ngày tương ứng.</li>
+      <li><code>MeetingCalendarDemoBlock.js</code> qua syntax check.</li>
+    </ul>
+
+    <h2>11. Test Cases</h2>
+    <div class="note ok">Danh sách test case tập trung vào luồng chức năng chính của Calendar Meetings & Tasks.</div>
+    <table>
+      <tr><th>ID</th><th>Feature</th><th>Precondition</th><th>Steps</th><th>Expected Result</th></tr>
+      <tr>
+        <td>TC-CAL-01</td>
+        <td>Load calendar scope</td>
+        <td>Current user có meeting host, meeting attendee và task assign cho lawyer của user.</td>
+        <td>Mở Calendar block.</td>
+        <td>Hiển thị đúng meeting/task thuộc scope của user; không hiển thị record ngoài scope.</td>
+      </tr>
+      <tr>
+        <td>TC-CAL-02</td>
+        <td>Switch views</td>
+        <td>Có records trong tháng hiện tại.</td>
+        <td>Chuyển Month, Week, Day, List.</td>
+        <td>Mỗi view hiển thị cùng tập dữ liệu sau filter, đúng layout tương ứng.</td>
+      </tr>
+      <tr>
+        <td>TC-CAL-03</td>
+        <td>Filters</td>
+        <td>Có meeting/task khác type, status, case và keyword.</td>
+        <td>Lọc theo keyword, record type, status, case, date range; bấm Reset.</td>
+        <td>Kết quả lọc đúng; Reset đưa filter về mặc định.</td>
+      </tr>
+      <tr>
+        <td>TC-MTG-01</td>
+        <td>Create meeting required fields</td>
+        <td>User mở Create new và chọn Meeting.</td>
+        <td>Nhập title, datetime hợp lệ, host, status; submit.</td>
+        <td>Tạo record trong <code>meetings</code>, tạo host attendee confirmed, calendar reload và hiển thị meeting mới.</td>
+      </tr>
+      <tr>
+        <td>TC-MTG-02</td>
+        <td>Host default and attendee conflict</td>
+        <td>Current user hợp lệ và không phải user id 1.</td>
+        <td>Mở form Meeting, chọn attendees, đổi host sang một attendee đang được chọn.</td>
+        <td>Host mặc định là current user; host mới bị loại khỏi attendees và bị ẩn khỏi attendee options.</td>
+      </tr>
+      <tr>
+        <td>TC-MTG-03</td>
+        <td>System user hidden</td>
+        <td>Collection users có user id 1.</td>
+        <td>Mở Host và Attendees picker.</td>
+        <td>User id 1 không xuất hiện trong picker nghiệp vụ.</td>
+      </tr>
+      <tr>
+        <td>TC-MTG-04</td>
+        <td>Related contract and quotation</td>
+        <td>Có contract và quotation trong lookup.</td>
+        <td>Tạo Meeting, search và chọn Contract/Quotation, submit.</td>
+        <td>Meeting tạo thành công; nếu schema có field, <code>contractId</code>/<code>quotationId</code> được lưu.</td>
+      </tr>
+      <tr>
+        <td>TC-MTG-05</td>
+        <td>Location and type</td>
+        <td>User tạo Meeting.</td>
+        <td>Chọn Type, nhập Location / Link, submit.</td>
+        <td><code>type</code> và <code>location</code> lưu đúng vào meeting.</td>
+      </tr>
+      <tr>
+        <td>TC-TASK-01</td>
+        <td>Create task default assignee</td>
+        <td>Current user có lawyer record.</td>
+        <td>Mở Create new, chọn Task.</td>
+        <td>Assignee mặc định là lawyer của current user.</td>
+      </tr>
+      <tr>
+        <td>TC-TASK-02</td>
+        <td>Task case and service</td>
+        <td>Case có projectServices.</td>
+        <td>Chọn Task, chọn Case, mở Service picker.</td>
+        <td>Service picker chỉ hiển thị service thuộc case đã chọn; đổi Case sẽ clear Service.</td>
+      </tr>
+      <tr>
+        <td>TC-TASK-03</td>
+        <td>Task approval not required</td>
+        <td>User tạo Task từ calendar.</td>
+        <td>Để Approval = No approval, submit.</td>
+        <td>Task tạo thành công với <code>isRequiredApproval = false</code>; không yêu cầu approver.</td>
+      </tr>
+      <tr>
+        <td>TC-TASK-04</td>
+        <td>Task approval required</td>
+        <td>Có lawyer options.</td>
+        <td>Chọn Approval = Require approval, không chọn Approver lawyer, submit; sau đó chọn approver và submit lại.</td>
+        <td>Lần 1 bị chặn với message required; lần 2 task lưu <code>isRequiredApproval = true</code> và <code>approvedById</code>.</td>
+      </tr>
+      <tr>
+        <td>TC-VAL-01</td>
+        <td>Date validation</td>
+        <td>User tạo Meeting hoặc Task.</td>
+        <td>Để thiếu datetime hoặc chọn end time trước start time, submit.</td>
+        <td>Form bị chặn và hiển thị lỗi thời gian.</td>
+      </tr>
+      <tr>
+        <td>TC-OPEN-01</td>
+        <td>Open detail popup</td>
+        <td>Có meeting và task trên calendar.</td>
+        <td>Click meeting item; click task item.</td>
+        <td>Meeting mở Meeting Detail popup; Task mở Task Detail popup với filterByTk đúng.</td>
+      </tr>
+      <tr>
+        <td>TC-DD-01</td>
+        <td>Month drag-drop</td>
+        <td>Meeting hoặc task có duration 1 giờ ở ngày A.</td>
+        <td>Kéo event trong Month view sang ngày B.</td>
+        <td>Record chuyển sang ngày B, giữ start/end time và duration.</td>
+      </tr>
+      <tr>
+        <td>TC-DD-02</td>
+        <td>Week drag-drop</td>
+        <td>Meeting hoặc task có duration 1 giờ ở ngày A.</td>
+        <td>Kéo event trong Week view sang ngày B.</td>
+        <td>Record chuyển sang ngày B, giữ start/end time và duration.</td>
+      </tr>
+      <tr>
+        <td>TC-DD-03</td>
+        <td>Day timeline drag-drop exact time</td>
+        <td>Task hoặc meeting từ 13:00 đến 14:00 trong Day view.</td>
+        <td>Kéo event sang slot 15:00 trên timeline.</td>
+        <td>Record được reschedule thành 15:00 - 16:00, không nhảy sang timeline ngẫu nhiên.</td>
+      </tr>
+      <tr>
+        <td>TC-DD-04</td>
+        <td>Day drag offset</td>
+        <td>Event duration 1 giờ trong Day view.</td>
+        <td>Nắm event ở giữa/thấp của card và kéo sang mốc giờ khác.</td>
+        <td>Giờ bắt đầu mới được tính theo đầu event, không lấy sai vị trí con trỏ làm start time.</td>
+      </tr>
+      <tr>
+        <td>TC-DD-05</td>
+        <td>Local timezone after reload</td>
+        <td>Task được reschedule trong Day view.</td>
+        <td>Kéo task sang 15:00 - 16:00, chờ reload hoặc bấm Refresh.</td>
+        <td>Sau reload task vẫn hiển thị 15:00 - 16:00 theo local time, không lệch UTC.</td>
+      </tr>
+      <tr>
+        <td>TC-PANEL-01</td>
+        <td>Agenda and upcoming panel</td>
+        <td>Có records hôm nay và records tương lai.</td>
+        <td>Chọn ngày trên calendar, tạo hoặc reschedule record.</td>
+        <td>Agenda panel và Upcoming panel cập nhật đúng records tương ứng.</td>
+      </tr>
+    </table>
+  </main>
+</body>
+</html>

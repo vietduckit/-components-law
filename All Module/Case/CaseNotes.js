@@ -333,19 +333,19 @@ const loadQuillAsync = () => {
         QuillLib && typeof QuillLib === "function"
           ? QuillLib
           : (QuillLib && QuillLib.default) ||
-            (QuillLib && QuillLib.Quill) ||
-            QuillLib;
+          (QuillLib && QuillLib.Quill) ||
+          QuillLib;
       if (!Q) throw new Error("Quill constructor not found in UMD export");
       try {
         const SizeStyle = Q.import("attributors/style/size");
         SizeStyle.whitelist = QUILL_FONT_SIZES;
         Q.register(SizeStyle, true);
-      } catch {}
+      } catch { }
       return Q;
     });
   return _quillLoadPromise;
 };
-loadQuillAsync().catch(() => {});
+loadQuillAsync().catch(() => { });
 
 const QUILL_CUSTOM_CSS = `
     .ql-container.ql-snow { border: none !important; font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; border-radius: 0 0 8px 8px !important; }
@@ -509,30 +509,30 @@ const QuillEditor = ({
     React.createElement("style", null, QUILL_CUSTOM_CSS),
     error
       ? React.createElement(
+        "div",
+        {
+          style: {
+            padding: "12px 16px",
+            color: "#ff4d4f",
+            fontSize: 13,
+            fontFamily: FONT,
+          },
+        },
+        error,
+      )
+      : !ready
+        ? React.createElement(
           "div",
           {
             style: {
               padding: "12px 16px",
-              color: "#ff4d4f",
+              color: "#bfbfbf",
               fontSize: 13,
               fontFamily: FONT,
             },
           },
-          error,
+          "Đang tải editor...",
         )
-      : !ready
-        ? React.createElement(
-            "div",
-            {
-              style: {
-                padding: "12px 16px",
-                color: "#bfbfbf",
-                fontSize: 13,
-                fontFamily: FONT,
-              },
-            },
-            "Đang tải editor...",
-          )
         : null,
     React.createElement("div", { ref: containerRef }),
   );
@@ -624,28 +624,28 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
             padding: "6px 0",
           },
         },
-      React.createElement(
-        "div",
-        { style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" } },
-        React.createElement("input", {
-          autoFocus: true,
-          value: search,
-          onChange: (e) => setSearch(e.target.value),
-          placeholder: "Tìm tên luật sư...",
-          style: {
-            width: "100%",
-            boxSizing: "border-box",
-            border: "1px solid #e0e0e0",
-            borderRadius: 8,
-            padding: "5px 10px",
-            fontSize: 12,
-            fontFamily: FONT,
-            outline: "none",
-          },
-        }),
-      ),
-      filtered.length === 0
-        ? React.createElement(
+        React.createElement(
+          "div",
+          { style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" } },
+          React.createElement("input", {
+            autoFocus: true,
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            placeholder: "Tìm tên luật sư...",
+            style: {
+              width: "100%",
+              boxSizing: "border-box",
+              border: "1px solid #e0e0e0",
+              borderRadius: 8,
+              padding: "5px 10px",
+              fontSize: 12,
+              fontFamily: FONT,
+              outline: "none",
+            },
+          }),
+        ),
+        filtered.length === 0
+          ? React.createElement(
             "div",
             {
               style: {
@@ -658,7 +658,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
             },
             "Không tìm thấy",
           )
-        : filtered.map((l) => {
+          : filtered.map((l) => {
             const lId = extractId(l.id);
             const selected = assignedIds.includes(lId);
             return React.createElement(
@@ -698,18 +698,18 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
                   l.lawyerName,
                 ),
                 l.lawyerType &&
-                  React.createElement(
-                    "div",
-                    { style: { fontSize: 11, color: "#8c8c8c" } },
-                    l.lawyerType,
-                  ),
+                React.createElement(
+                  "div",
+                  { style: { fontSize: 11, color: "#8c8c8c" } },
+                  l.lawyerType,
+                ),
               ),
               selected &&
-                React.createElement(
-                  "span",
-                  { style: { fontSize: 16, color: "#1890ff", fontWeight: 700 } },
-                  "✓",
-                ),
+              React.createElement(
+                "span",
+                { style: { fontSize: 16, color: "#1890ff", fontWeight: 700 } },
+                "✓",
+              ),
             );
           }),
       ),
@@ -922,18 +922,46 @@ const PreviewModal = ({ doc, onClose }) => {
       bodyStyle: { padding: 0 },
       footer: [
         fullUrl &&
-          React.createElement(
-            Button,
-            { key: "dl", onClick: () => window.open(fullUrl, "_blank") },
-            "⬇️ Tải về",
-          ),
+        React.createElement(
+          Button,
+          { key: "dl", onClick: () => window.open(fullUrl, "_blank") },
+          "⬇️ Tải về",
+        ),
         React.createElement(Button, { key: "cl", onClick: onClose }, "Đóng"),
       ].filter(Boolean),
     },
     isPdf &&
-      fullUrl &&
+    fullUrl &&
+    React.createElement("iframe", {
+      src: fullUrl,
+      style: {
+        width: "100%",
+        height: "80vh",
+        border: "none",
+        display: "block",
+      },
+      title: displayName,
+    }),
+    isImage &&
+    fullUrl &&
+    React.createElement("img", {
+      src: fullUrl,
+      alt: displayName,
+      style: {
+        maxWidth: "100%",
+        maxHeight: "80vh",
+        display: "block",
+        margin: "0 auto",
+        padding: 16,
+      },
+    }),
+    isOffice &&
+    officeViewerUrl &&
+    React.createElement(
+      "div",
+      { style: { padding: 0 } },
       React.createElement("iframe", {
-        src: fullUrl,
+        src: officeViewerUrl,
         style: {
           width: "100%",
           height: "80vh",
@@ -941,48 +969,20 @@ const PreviewModal = ({ doc, onClose }) => {
           display: "block",
         },
         title: displayName,
+        frameBorder: "0",
       }),
-    isImage &&
-      fullUrl &&
-      React.createElement("img", {
-        src: fullUrl,
-        alt: displayName,
-        style: {
-          maxWidth: "100%",
-          maxHeight: "80vh",
-          display: "block",
-          margin: "0 auto",
-          padding: 16,
-        },
-      }),
-    isOffice &&
-      officeViewerUrl &&
-      React.createElement(
-        "div",
-        { style: { padding: 0 } },
-        React.createElement("iframe", {
-          src: officeViewerUrl,
-          style: {
-            width: "100%",
-            height: "80vh",
-            border: "none",
-            display: "block",
-          },
-          title: displayName,
-          frameBorder: "0",
-        }),
-      ),
+    ),
     !isPdf &&
-      !isImage &&
-      !isOffice &&
-      React.createElement(
-        "div",
-        { style: { padding: 32, textAlign: "center" } },
-        React.createElement(Empty, {
-          description:
-            "Không thể xem trước định dạng này — vui lòng tải về để mở",
-        }),
-      ),
+    !isImage &&
+    !isOffice &&
+    React.createElement(
+      "div",
+      { style: { padding: 32, textAlign: "center" } },
+      React.createElement(Empty, {
+        description:
+          "Không thể xem trước định dạng này — vui lòng tải về để mở",
+      }),
+    ),
   );
 };
 
@@ -1015,7 +1015,7 @@ const FileUploadModal = ({
       form.setFieldsValue({
         documentType: editDoc.documentType || "",
         documentCode: editDoc.documentCode || "",
-        title: editDoc.title || "",
+        title: editDoc.title || editDoc.name || "",
         openingDate: editDoc.openingDate
           ? editDoc.openingDate.slice(0, 10)
           : "",
@@ -1112,7 +1112,7 @@ const FileUploadModal = ({
                 ? d.fileAttachment[0]
                 : d.fileAttachment;
               nodeMap[fId].children.push({
-                title: `📄 ${d.title || d.documentCode || "Untitled"} (${att.title || att.filename})`,
+                title: `📄 ${d.title || d.name || d.documentCode || "Untitled"} (${att.title || att.filename})`,
                 value: `doc_${fileId}`,
                 key: `doc_${fileId}`,
                 isLeaf: true,
@@ -1179,7 +1179,7 @@ const FileUploadModal = ({
       const currentTitle = form.getFieldValue("title");
       if (!currentTitle) {
         form.setFieldsValue({
-          title: found.docData.title || found.attData.filename,
+          title: found.docData.title || found.docData.name || found.attData.filename,
         });
       }
     } else {
@@ -1334,27 +1334,27 @@ const FileUploadModal = ({
       ],
     },
     currentUser &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            background: "#f6ffed",
-            border: "1px solid #b7eb8f",
-            borderRadius: 6,
-            padding: "6px 12px",
-            marginBottom: 12,
-            fontSize: 12,
-            color: "#595959",
-            fontFamily: FONT,
-          },
+    React.createElement(
+      "div",
+      {
+        style: {
+          background: "#f6ffed",
+          border: "1px solid #b7eb8f",
+          borderRadius: 6,
+          padding: "6px 12px",
+          marginBottom: 12,
+          fontSize: 12,
+          color: "#595959",
+          fontFamily: FONT,
         },
-        `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
-        React.createElement(
-          "strong",
-          null,
-          userName(currentUser) || currentUser.email,
-        ),
+      },
+      `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
+      React.createElement(
+        "strong",
+        null,
+        userName(currentUser) || currentUser.email,
       ),
+    ),
     React.createElement(
       Form,
       { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
@@ -1528,33 +1528,33 @@ const FileUploadModal = ({
               { style: { padding: "8px 0" } },
               libraryLoading
                 ? React.createElement(
+                  "div",
+                  { style: { textAlign: "center", padding: 20 } },
+                  React.createElement(ctx.antd.Spin, { size: "small" }),
+                  React.createElement(
                     "div",
-                    { style: { textAlign: "center", padding: 20 } },
-                    React.createElement(ctx.antd.Spin, { size: "small" }),
-                    React.createElement(
-                      "div",
-                      {
-                        style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
-                      },
-                      "Đang tải thư viện...",
-                    ),
-                  )
-                : React.createElement(
-                    "div",
-                    null,
-                    React.createElement(TreeSelect, {
-                      style: { width: "100%" },
-                      treeData,
-                      placeholder: "Tìm kiếm và chọn file từ thư viện...",
-                      treeDefaultExpandAll: true,
-                      allowClear: true,
-                      showSearch: true,
-                      treeNodeFilterProp: "title",
-                      onChange: handleTreeSelect,
-                      value: selectedLibDoc ? selectedLibDoc.value : undefined,
-                      dropdownStyle: { maxHeight: 400, overflow: "auto" },
-                    }),
+                    {
+                      style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
+                    },
+                    "Đang tải thư viện...",
                   ),
+                )
+                : React.createElement(
+                  "div",
+                  null,
+                  React.createElement(TreeSelect, {
+                    style: { width: "100%" },
+                    treeData,
+                    placeholder: "Tìm kiếm và chọn file từ thư viện...",
+                    treeDefaultExpandAll: true,
+                    allowClear: true,
+                    showSearch: true,
+                    treeNodeFilterProp: "title",
+                    onChange: handleTreeSelect,
+                    value: selectedLibDoc ? selectedLibDoc.value : undefined,
+                    dropdownStyle: { maxHeight: 400, overflow: "auto" },
+                  }),
+                ),
             ),
           },
         ],
@@ -1649,12 +1649,12 @@ const UnifiedNoteThread = ({
           filter: JSON.stringify({
             $and: [
               { collectionName: { $eq: collectionName } },
-              { recordId: { $eq: parseInt(recordId) } },
+              { caseId: { $eq: parseInt(recordId) } },
               { isDeleted: { $ne: true } },
             ],
           }),
           fields:
-            "id,title,documentCode,documentType,batchId,collectionName,recordId,googleDriveUrl,note,description,openingDate,signedAt,effectiveAt,senderName,recipientName,language,docFormat,folderId,fileAttachment,createdAt,updatedAt,createdById,isDeleted",
+            "id,title,documentCode,documentType,batchId,collectionName,caseId,googleDriveUrl,note,description,openingDate,signedAt,effectiveAt,senderName,recipientName,language,docFormat,folderId,fileAttachment,createdAt,updatedAt,createdById,isDeleted",
           appends: ["fileAttachment", "createdBy", "updatedBy"],
         },
       });
@@ -1788,24 +1788,24 @@ const UnifiedNoteThread = ({
         ? getCommentText(replyingTo.note.body)
         : "";
       await apiReq("notes:create", "POST", {
-          collectionName,
-          recordId,
-          title: "Bình luận",
-          body: hasText ? body.trim() : null,
-          linkedUrl,
-          assignees: assigneeIds,
-          assignedLawyerId: assigneeIds[0] || null,
-          parentId: replyingTo
-            ? replyingTo.note?.id || replyingTo.files?.[0]?.id
+        collectionName,
+        recordId,
+        title: "Bình luận",
+        body: hasText ? body.trim() : null,
+        linkedUrl,
+        assignees: assigneeIds,
+        assignedLawyerId: assigneeIds[0] || null,
+        parentId: replyingTo
+          ? replyingTo.note?.id || replyingTo.files?.[0]?.id
+          : null,
+        replyText: replySourceText
+          ? replySourceText.substring(0, 150) +
+          (replySourceText.length > 150 ? "..." : "")
+          : replyingTo
+            ? "Tài liệu đính kèm"
             : null,
-          replyText: replySourceText
-            ? replySourceText.substring(0, 150) +
-              (replySourceText.length > 150 ? "..." : "")
-            : replyingTo
-              ? "Tài liệu đính kèm"
-              : null,
-          batchId,
-          createdAt: currentTime,
+        batchId,
+        createdAt: currentTime,
       });
       if (hasFiles) {
         const toISO = (val) => {
@@ -1828,10 +1828,11 @@ const UnifiedNoteThread = ({
             if (uploadRes?.data?.data?.id)
               attIds = [{ id: uploadRes.data.data.id }];
           }
+          const docTitle = pDoc.metadata.title?.trim() || pDoc.fileName;
           const payload = {
+            title: docTitle,
             documentType: pDoc.metadata.documentType?.trim() || "",
             documentCode: pDoc.metadata.documentCode?.trim() || "",
-            title: pDoc.metadata.title?.trim() || pDoc.fileName,
             openingDate: toISO(pDoc.metadata.openingDate),
             signedAt: toISO(pDoc.metadata.signedAt),
             effectiveAt: toISO(pDoc.metadata.effectiveAt),
@@ -1845,8 +1846,10 @@ const UnifiedNoteThread = ({
             updatedById: extractId(currentUser?.id) || null,
             updatedAt: new Date().toISOString(),
             collectionName,
-            recordId: parseInt(recordId),
+            caseId: parseInt(recordId),
             folderId: projectFolderId ? parseInt(projectFolderId) : null,
+            moduleScope: "case_document",
+            storageType: "cases",
             createdById: extractId(currentUser?.id) || null,
             createdAt: new Date().toISOString(),
             batchId,
@@ -1970,7 +1973,7 @@ const UnifiedNoteThread = ({
           ...item,
           files: item.files.map((file) =>
             extractId(file.id) === extractId(f.id)
-              ? { ...file, title: newTitle }
+              ? { ...file, name: newTitle, title: newTitle }
               : file,
           ),
         })),
@@ -1993,7 +1996,7 @@ const UnifiedNoteThread = ({
         : "." + att.extname.toLowerCase()
       : "";
     const rawFilename = att?.filename || "File";
-    const displayTitle = f.title || att?.title || rawFilename;
+    const displayTitle = f.title || f.name || att?.title || rawFilename;
     const fullUrl = getFullUrl(att?.url || att?.preview);
     const isPdf = ext === ".pdf";
     const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(
@@ -2042,244 +2045,244 @@ const UnifiedNoteThread = ({
         getFileIcon(ext),
         isEditingThisFile
           ? React.createElement("input", {
-              autoFocus: true,
-              value: editFileTitle,
-              onChange: (e) => setEditFileTitle(e.target.value),
-              onKeyDown: (e) => {
-                if (e.key === "Enter") handleSaveFileTitle(f);
-                if (e.key === "Escape") {
-                  setEditingFileId(null);
-                  setEditFileTitle("");
-                }
-              },
+            autoFocus: true,
+            value: editFileTitle,
+            onChange: (e) => setEditFileTitle(e.target.value),
+            onKeyDown: (e) => {
+              if (e.key === "Enter") handleSaveFileTitle(f);
+              if (e.key === "Escape") {
+                setEditingFileId(null);
+                setEditFileTitle("");
+              }
+            },
+            style: {
+              flex: 1,
+              fontSize: 13,
+              fontFamily: FONT,
+              border: "1px solid #1890ff",
+              borderRadius: 4,
+              padding: "3px 8px",
+              outline: "none",
+            },
+          })
+          : React.createElement(
+            "span",
+            {
+              onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
+              title: `File gốc: ${rawFilename}`,
               style: {
-                flex: 1,
                 fontSize: 13,
                 fontFamily: FONT,
-                border: "1px solid #1890ff",
-                borderRadius: 4,
-                padding: "3px 8px",
-                outline: "none",
+                fontWeight: 600,
+                color: fullUrl ? "#096dd9" : "#595959",
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                cursor: fullUrl ? "pointer" : "default",
+                textDecoration: fullUrl ? "underline" : "none",
+                textUnderlineOffset: 3,
               },
-            })
-          : React.createElement(
-              "span",
-              {
-                onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
-                title: `File gốc: ${rawFilename}`,
-                style: {
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  fontWeight: 600,
-                  color: fullUrl ? "#096dd9" : "#595959",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  cursor: fullUrl ? "pointer" : "default",
-                  textDecoration: fullUrl ? "underline" : "none",
-                  textUnderlineOffset: 3,
-                },
-              },
-              displayTitle,
-            ),
+            },
+            displayTitle,
+          ),
         isEditingThisFile
           ? React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "span",
-                {
-                  onClick: () => handleSaveFileTitle(f),
-                  style: {
-                    fontSize: 12,
-                    padding: "2px 10px",
-                    cursor: "pointer",
-                    color: "#fff",
-                    background: "#1890ff",
-                    borderRadius: 4,
-                    fontWeight: 600,
-                    flexShrink: 0,
-                  },
+            React.Fragment,
+            null,
+            React.createElement(
+              "span",
+              {
+                onClick: () => handleSaveFileTitle(f),
+                style: {
+                  fontSize: 12,
+                  padding: "2px 10px",
+                  cursor: "pointer",
+                  color: "#fff",
+                  background: "#1890ff",
+                  borderRadius: 4,
+                  fontWeight: 600,
+                  flexShrink: 0,
                 },
-                "Lưu",
-              ),
-              React.createElement(
-                "span",
-                {
-                  onClick: () => {
-                    setEditingFileId(null);
-                    setEditFileTitle("");
-                  },
-                  style: {
-                    fontSize: 12,
-                    padding: "2px 8px",
-                    cursor: "pointer",
-                    color: "#595959",
-                    border: "1px solid #d9d9d9",
-                    borderRadius: 4,
-                    flexShrink: 0,
-                  },
-                },
-                "Hủy",
-              ),
-            )
-          : React.createElement(
-              React.Fragment,
-              null,
-              canIframe &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () =>
-                      setExpandedPreviews((prev) => ({
-                        ...prev,
-                        [f.id]: !prev[f.id],
-                      })),
-                    title: isExpanded ? "Ẩn preview" : "Xem preview",
-                    style: {
-                      fontSize: 12,
-                      padding: "2px 8px",
-                      cursor: "pointer",
-                      color: "#595959",
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 4,
-                      flexShrink: 0,
-                      fontWeight: 500,
-                    },
-                  },
-                  isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
-                ),
-              fullUrl &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      window.open(fullUrl, "_blank");
-                    },
-                    style: {
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "#531dab",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      padding: "2px 8px",
-                      background: "#f9f0ff",
-                      borderRadius: 4,
-                      border: "1px solid #d3adf7",
-                    },
-                  },
-                  "Tải về",
-                ),
-              canRenameFile &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => {
-                      setEditingFileId(f.id);
-                      setEditFileTitle(displayTitle);
-                    },
-                    title: "Đổi tên tài liệu",
-                    style: {
-                      fontSize: 12,
-                      padding: "2px 8px",
-                      cursor: "pointer",
-                      color: "#8c8c8c",
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 4,
-                      flexShrink: 0,
-                    },
-                  },
-                  "✏️",
-                ),
+              },
+              "Lưu",
             ),
+            React.createElement(
+              "span",
+              {
+                onClick: () => {
+                  setEditingFileId(null);
+                  setEditFileTitle("");
+                },
+                style: {
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  cursor: "pointer",
+                  color: "#595959",
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  flexShrink: 0,
+                },
+              },
+              "Hủy",
+            ),
+          )
+          : React.createElement(
+            React.Fragment,
+            null,
+            canIframe &&
+            React.createElement(
+              "span",
+              {
+                onClick: () =>
+                  setExpandedPreviews((prev) => ({
+                    ...prev,
+                    [f.id]: !prev[f.id],
+                  })),
+                title: isExpanded ? "Ẩn preview" : "Xem preview",
+                style: {
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  cursor: "pointer",
+                  color: "#595959",
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  flexShrink: 0,
+                  fontWeight: 500,
+                },
+              },
+              isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
+            ),
+            fullUrl &&
+            React.createElement(
+              "span",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  window.open(fullUrl, "_blank");
+                },
+                style: {
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#531dab",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  padding: "2px 8px",
+                  background: "#f9f0ff",
+                  borderRadius: 4,
+                  border: "1px solid #d3adf7",
+                },
+              },
+              "Tải về",
+            ),
+            canRenameFile &&
+            React.createElement(
+              "span",
+              {
+                onClick: () => {
+                  setEditingFileId(f.id);
+                  setEditFileTitle(displayTitle);
+                },
+                title: "Đổi tên tài liệu",
+                style: {
+                  fontSize: 12,
+                  padding: "2px 8px",
+                  cursor: "pointer",
+                  color: "#8c8c8c",
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  flexShrink: 0,
+                },
+              },
+              "✏️",
+            ),
+          ),
       ),
       (f.description || f.note) &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "0 12px 8px 42px",
+            fontSize: 12,
+            fontFamily: FONT,
+            color: "#595959",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          },
+        },
+        f.description &&
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "span",
+            { style: { fontWeight: 600, color: "#8c8c8c", marginRight: 4 } },
+            "Tóm tắt:",
+          ),
+          f.description,
+        ),
+        f.note &&
         React.createElement(
           "div",
           {
             style: {
-              padding: "0 12px 8px 42px",
-              fontSize: 12,
-              fontFamily: FONT,
-              color: "#595959",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
+              padding: "6px 10px",
+              background: "#fafafa",
+              borderRadius: 4,
+              border: "1px dashed #d9d9d9",
             },
           },
-          f.description &&
-            React.createElement(
-              "div",
-              null,
-              React.createElement(
-                "span",
-                { style: { fontWeight: 600, color: "#8c8c8c", marginRight: 4 } },
-                "Tóm tắt:",
-              ),
-              f.description,
-            ),
-          f.note &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  padding: "6px 10px",
-                  background: "#fafafa",
-                  borderRadius: 4,
-                  border: "1px dashed #d9d9d9",
-                },
-              },
-              React.createElement(
-                "span",
-                { style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 } },
-                "Nội dung ghi chú:",
-              ),
-              f.note,
-            ),
+          React.createElement(
+            "span",
+            { style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 } },
+            "Nội dung ghi chú:",
+          ),
+          f.note,
         ),
+      ),
       isExpanded &&
-        fullUrl &&
-        React.createElement(
-          "div",
-          { style: { borderTop: "1px solid #f0f0f0", background: "#f8f9fa" } },
-          isPdf
-            ? React.createElement("iframe", {
-                src: fullUrl,
+      fullUrl &&
+      React.createElement(
+        "div",
+        { style: { borderTop: "1px solid #f0f0f0", background: "#f8f9fa" } },
+        isPdf
+          ? React.createElement("iframe", {
+            src: fullUrl,
+            style: {
+              width: "100%",
+              height: 420,
+              border: "none",
+              display: "block",
+            },
+            title: displayTitle,
+          })
+          : isImage
+            ? React.createElement("img", {
+              src: fullUrl,
+              alt: displayTitle,
+              style: {
+                width: "100%",
+                maxHeight: 400,
+                objectFit: "contain",
+                display: "block",
+                background: "#fff",
+              },
+            })
+            : isOffice
+              ? React.createElement("iframe", {
+                src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`,
                 style: {
                   width: "100%",
-                  height: 420,
+                  height: 600,
                   border: "none",
                   display: "block",
                 },
                 title: displayTitle,
               })
-            : isImage
-              ? React.createElement("img", {
-                  src: fullUrl,
-                  alt: displayTitle,
-                  style: {
-                    width: "100%",
-                    maxHeight: 400,
-                    objectFit: "contain",
-                    display: "block",
-                    background: "#fff",
-                  },
-                })
-              : isOffice
-                ? React.createElement("iframe", {
-                    src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`,
-                    style: {
-                      width: "100%",
-                      height: 600,
-                      border: "none",
-                      display: "block",
-                    },
-                    title: displayTitle,
-                  })
-                : null,
-        ),
+              : null,
+      ),
     );
   };
 
@@ -2297,10 +2300,10 @@ const UnifiedNoteThread = ({
     const hasAssignees = hasAssigneeValue(note?.assignees);
     const isMyItem = note
       ? currentUser &&
-        extractId(note.createdById) === extractId(currentUser.id)
+      extractId(note.createdById) === extractId(currentUser.id)
       : firstFile &&
-        currentUser &&
-        extractId(firstFile.createdById) === extractId(currentUser.id);
+      currentUser &&
+      extractId(firstFile.createdById) === extractId(currentUser.id);
     const isEditing = note && editingNoteId === note.id;
     const replies =
       note && replyMap[extractId(note.id)] ? replyMap[extractId(note.id)] : [];
@@ -2447,147 +2450,147 @@ const UnifiedNoteThread = ({
           )
         ),
         hasFiles &&
-          React.createElement(
-            "div",
-            { style: { display: "flex", flexDirection: "column", gap: 8 } },
-            ...files.map(renderFileRow),
-          ),
+        React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: 8 } },
+          ...files.map(renderFileRow),
+        ),
         (note || files.length > 0) &&
-          (canEdit || isMyItem) &&
-          !isEditing &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                marginTop: 2,
-                paddingLeft: 4,
-              },
-            },
-            React.createElement(
-              "span",
-              {
-                onClick: () => setReplyingTo(item),
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#52c41a",
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                  textUnderlineOffset: "2px",
-                },
-                onMouseEnter: (e) =>
-                  (e.currentTarget.style.color = "#389e0d"),
-                onMouseLeave: (e) =>
-                  (e.currentTarget.style.color = "#52c41a"),
-              },
-              "Phản hồi",
-            ),
-            isMyItem &&
-              note &&
-              React.createElement(
-                "span",
-                {
-                  onClick: () => {
-                    setEditingNoteId(note.id);
-                    setEditBody(note.body || "");
-                    setEditAssignedIds(
-                      (note.assignees || [])
-                        .map((a) =>
-                          typeof a === "object"
-                            ? extractId(a.id)
-                            : extractId(a),
-                        )
-                        .filter(Boolean),
-                    );
-                  },
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#595959",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    textUnderlineOffset: "2px",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.color = "#1890ff"),
-                  onMouseLeave: (e) =>
-                    (e.currentTarget.style.color = "#595959"),
-                },
-                "Chỉnh sửa",
-              ),
-            isMyItem &&
-              React.createElement(
-                "span",
-                {
-                  onClick: () => handleDeleteNote(item),
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#ff4d4f",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    textUnderlineOffset: "2px",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.color = "#cf1322"),
-                  onMouseLeave: (e) =>
-                    (e.currentTarget.style.color = "#ff4d4f"),
-                },
-                "Xóa",
-              ),
-          )
-      )
-      ,
-      isReplyingToThis ? renderComposerBlock(true) : null,
-      hasReplies &&
+        (canEdit || isMyItem) &&
+        !isEditing &&
         React.createElement(
           "div",
           {
             style: {
-              marginLeft: 36,
-              padding: "0 14px 12px 0",
-              marginTop: -4,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 2,
+              paddingLeft: 4,
             },
           },
           React.createElement(
-            "div",
+            "span",
             {
-              onClick: () =>
-                setExpandedThreads((p) => ({
-                  ...p,
-                  [note.id]: !p[note.id],
-                })),
+              onClick: () => setReplyingTo(item),
               style: {
                 fontSize: 12,
-                color: "#1890ff",
+                fontFamily: FONT,
+                color: "#52c41a",
                 cursor: "pointer",
-                fontWeight: 600,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 12px",
-                background: "#f0f8ff",
-                borderRadius: 4,
-                border: "1px dashed #91caff",
-                userSelect: "none",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px",
               },
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.color = "#389e0d"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.color = "#52c41a"),
             },
-            isExpanded
-              ? "▲ Thu gọn phản hồi"
-              : `▼ Xem ${replies.length} phản hồi`,
+            "Phản hồi",
           ),
-          isExpanded &&
-            React.createElement(
-              "div",
-              { style: { marginTop: 8 } },
-              ...replies.map((child, idx) =>
-                renderItem(child, `${key}-child-${idx}`, true),
-              ),
-            ),
+          isMyItem &&
+          note &&
+          React.createElement(
+            "span",
+            {
+              onClick: () => {
+                setEditingNoteId(note.id);
+                setEditBody(note.body || "");
+                setEditAssignedIds(
+                  (note.assignees || [])
+                    .map((a) =>
+                      typeof a === "object"
+                        ? extractId(a.id)
+                        : extractId(a),
+                    )
+                    .filter(Boolean),
+                );
+              },
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#595959",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px",
+              },
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.color = "#1890ff"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.color = "#595959"),
+            },
+            "Chỉnh sửa",
+          ),
+          isMyItem &&
+          React.createElement(
+            "span",
+            {
+              onClick: () => handleDeleteNote(item),
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#ff4d4f",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px",
+              },
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.color = "#cf1322"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.color = "#ff4d4f"),
+            },
+            "Xóa",
+          ),
         )
+      )
+      ,
+      isReplyingToThis ? renderComposerBlock(true) : null,
+      hasReplies &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            marginLeft: 36,
+            padding: "0 14px 12px 0",
+            marginTop: -4,
+          },
+        },
+        React.createElement(
+          "div",
+          {
+            onClick: () =>
+              setExpandedThreads((p) => ({
+                ...p,
+                [note.id]: !p[note.id],
+              })),
+            style: {
+              fontSize: 12,
+              color: "#1890ff",
+              cursor: "pointer",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 12px",
+              background: "#f0f8ff",
+              borderRadius: 4,
+              border: "1px dashed #91caff",
+              userSelect: "none",
+            },
+          },
+          isExpanded
+            ? "▲ Thu gọn phản hồi"
+            : `▼ Xem ${replies.length} phản hồi`,
+        ),
+        isExpanded &&
+        React.createElement(
+          "div",
+          { style: { marginTop: 8 } },
+          ...replies.map((child, idx) =>
+            renderItem(child, `${key}-child-${idx}`, true),
+          ),
+        ),
+      )
     );
   };
 
@@ -2605,10 +2608,10 @@ const UnifiedNoteThread = ({
     const hasAssignees = hasAssigneeValue(note?.assignees);
     const isMyItem = note
       ? currentUser &&
-        extractId(note.createdById) === extractId(currentUser.id)
+      extractId(note.createdById) === extractId(currentUser.id)
       : firstFile &&
-        currentUser &&
-        extractId(firstFile.createdById) === extractId(currentUser.id);
+      currentUser &&
+      extractId(firstFile.createdById) === extractId(currentUser.id);
     const isEditing = note && editingNoteId === note.id;
     const noteId = extractId(note?.id);
     const replies = noteId && replyMap[noteId] ? replyMap[noteId] : [];
@@ -2686,295 +2689,295 @@ const UnifiedNoteThread = ({
           ),
           isEditing
             ? React.createElement(
+              "div",
+              { style: { marginTop: 10 } },
+              React.createElement(CommentComposer, {
+                value: editBody,
+                onChange: setEditBody,
+                onAssignMultiple: setEditAssignedIds,
+                assignedIds: editAssignedIds,
+                lawyers,
+                onSubmit: () => handleSaveEdit(note.id),
+              }),
+              React.createElement(
                 "div",
-                { style: { marginTop: 10 } },
-                React.createElement(CommentComposer, {
-                  value: editBody,
-                  onChange: setEditBody,
-                  onAssignMultiple: setEditAssignedIds,
-                  assignedIds: editAssignedIds,
-                  lawyers,
-                  onSubmit: () => handleSaveEdit(note.id),
-                }),
+                {
+                  style: {
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                    marginTop: 8,
+                  },
+                },
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => {
+                      setEditingNoteId(null);
+                      setEditBody("");
+                      setEditAssignedIds([]);
+                    },
+                    style: {
+                      fontSize: 12,
+                      padding: "4px 12px",
+                      cursor: "pointer",
+                      color: "#595959",
+                      border: "1px solid #d9d9d9",
+                      borderRadius: 4,
+                      fontFamily: FONT,
+                    },
+                  },
+                  "Hủy",
+                ),
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => handleSaveEdit(note.id),
+                    style: {
+                      fontSize: 12,
+                      padding: "4px 16px",
+                      cursor: "pointer",
+                      color: "#fff",
+                      background: "#1890ff",
+                      borderRadius: 4,
+                      fontWeight: 600,
+                      fontFamily: FONT,
+                    },
+                  },
+                  "Lưu thay đổi",
+                ),
+              ),
+            )
+            : (hasBody || hasFiles || hasAssignees) &&
+            React.createElement(
+              "div",
+              null,
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    fontSize: 13,
+                    fontFamily: FONT,
+                    color: "#262626",
+                    lineHeight: 1.7,
+                    background: "#f8f9fa",
+                    borderRadius: 8,
+                    padding: "12px 14px",
+                    borderLeft: "3px solid #1890ff",
+                  },
+                },
+                !isChild &&
+                note?.replyText &&
                 React.createElement(
                   "div",
                   {
                     style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#595959",
+                      background: "#fff",
+                      border: "1px solid #e8e8e8",
+                      borderLeft: "3px solid #bfbfbf",
+                      borderRadius: 4,
+                      padding: "6px 10px",
+                      marginBottom: 8,
+                      whiteSpace: "pre-wrap",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    },
+                  },
+                  React.createElement(
+                    "b",
+                    { style: { color: "#8c8c8c", marginRight: 4 } },
+                    "Trích dẫn:",
+                  ),
+                  " ",
+                  note.replyText,
+                ),
+                hasBody &&
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      marginBottom:
+                        hasFiles || hasAssignees ? 8 : 0,
+                    },
+                  },
+                  renderRichText(note.body, lawyers),
+                ),
+                hasAssignees &&
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      marginTop: hasBody ? 8 : 0,
+                      marginBottom: hasFiles ? 8 : 0,
                       display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 8,
-                      marginTop: 8,
+                      gap: 6,
+                      flexWrap: "wrap",
+                      alignItems: "center",
                     },
                   },
                   React.createElement(
                     "span",
                     {
-                      onClick: () => {
-                        setEditingNoteId(null);
-                        setEditBody("");
-                        setEditAssignedIds([]);
-                      },
                       style: {
                         fontSize: 12,
-                        padding: "4px 12px",
-                        cursor: "pointer",
-                        color: "#595959",
-                        border: "1px solid #d9d9d9",
-                        borderRadius: 4,
+                        color: "#8c8c8c",
                         fontFamily: FONT,
                       },
                     },
-                    "Hủy",
+                    "Đã nhắc đến:",
                   ),
-                  React.createElement(
-                    "span",
-                    {
-                      onClick: () => handleSaveEdit(note.id),
-                      style: {
-                        fontSize: 12,
-                        padding: "4px 16px",
-                        cursor: "pointer",
-                        color: "#fff",
-                        background: "#1890ff",
-                        borderRadius: 4,
-                        fontWeight: 600,
-                        fontFamily: FONT,
-                      },
-                    },
-                    "Lưu thay đổi",
-                  ),
+                  renderAssigneeTags(note?.assignees),
                 ),
-              )
-            : (hasBody || hasFiles || hasAssignees) &&
+                ...files.map((f) => renderFileRow(f)),
+              ),
+              (note || files.length > 0) &&
+              (canEdit || isMyItem) &&
+              !isEditing &&
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    marginTop: 6,
+                    paddingLeft: 4,
+                  },
+                },
                 React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 13,
-                        fontFamily: FONT,
-                        color: "#262626",
-                        lineHeight: 1.7,
-                        background: "#f8f9fa",
-                        borderRadius: 8,
-                        padding: "12px 14px",
-                        borderLeft: "3px solid #1890ff",
-                      },
+                  "span",
+                  {
+                    onClick: () => setReplyingTo(item),
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#52c41a",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
                     },
-                    !isChild &&
-                      note?.replyText &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#595959",
-                            background: "#fff",
-                            border: "1px solid #e8e8e8",
-                            borderLeft: "3px solid #bfbfbf",
-                            borderRadius: 4,
-                            padding: "6px 10px",
-                            marginBottom: 8,
-                            whiteSpace: "pre-wrap",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          },
-                        },
-                        React.createElement(
-                          "b",
-                          { style: { color: "#8c8c8c", marginRight: 4 } },
-                          "Trích dẫn:",
-                        ),
-                        " ",
-                        note.replyText,
-                      ),
-                    hasBody &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            marginBottom:
-                              hasFiles || hasAssignees ? 8 : 0,
-                          },
-                        },
-                        renderRichText(note.body, lawyers),
-                      ),
-                    hasAssignees &&
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            marginTop: hasBody ? 8 : 0,
-                            marginBottom: hasFiles ? 8 : 0,
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            alignItems: "center",
-                          },
-                        },
-                        React.createElement(
-                          "span",
-                          {
-                            style: {
-                              fontSize: 12,
-                              color: "#8c8c8c",
-                              fontFamily: FONT,
-                            },
-                          },
-                          "Đã nhắc đến:",
-                        ),
-                        renderAssigneeTags(note?.assignees),
-                      ),
-                    ...files.map((f) => renderFileRow(f)),
-                  ),
-                  (note || files.length > 0) &&
-                    (canEdit || isMyItem) &&
-                    !isEditing &&
-                    React.createElement(
-                      "div",
-                      {
-                        style: {
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          marginTop: 6,
-                          paddingLeft: 4,
-                        },
-                      },
-                      React.createElement(
-                        "span",
-                        {
-                          onClick: () => setReplyingTo(item),
-                          style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#52c41a",
-                            cursor: "pointer",
-                            textDecoration: "underline",
-                            textUnderlineOffset: "2px",
-                          },
-                          onMouseEnter: (e) =>
-                            (e.currentTarget.style.color = "#389e0d"),
-                          onMouseLeave: (e) =>
-                            (e.currentTarget.style.color = "#52c41a"),
-                        },
-                        "Phản hồi",
-                      ),
-                      isMyItem &&
-                        note &&
-                        React.createElement(
-                          "span",
-                          {
-                            onClick: () => {
-                              setEditingNoteId(note.id);
-                              setEditBody(note.body || "");
-                              setEditAssignedIds(
-                                (note.assignees || [])
-                                  .map((a) =>
-                                    typeof a === "object"
-                                      ? extractId(a.id)
-                                      : extractId(a),
-                                  )
-                                  .filter(Boolean),
-                              );
-                            },
-                            style: {
-                              fontSize: 12,
-                              fontFamily: FONT,
-                              color: "#595959",
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                              (e.currentTarget.style.color = "#1890ff"),
-                            onMouseLeave: (e) =>
-                              (e.currentTarget.style.color = "#595959"),
-                          },
-                          "Chỉnh sửa",
-                        ),
-                      isMyItem &&
-                        React.createElement(
-                          "span",
-                          {
-                            onClick: () => handleDeleteNote(item),
-                            style: {
-                              fontSize: 12,
-                              fontFamily: FONT,
-                              color: "#ff4d4f",
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                              (e.currentTarget.style.color = "#cf1322"),
-                            onMouseLeave: (e) =>
-                              (e.currentTarget.style.color = "#ff4d4f"),
-                          },
-                          "Xóa",
-                        ),
-                    ),
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#389e0d"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#52c41a"),
+                  },
+                  "Phản hồi",
                 ),
+                isMyItem &&
+                note &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => {
+                      setEditingNoteId(note.id);
+                      setEditBody(note.body || "");
+                      setEditAssignedIds(
+                        (note.assignees || [])
+                          .map((a) =>
+                            typeof a === "object"
+                              ? extractId(a.id)
+                              : extractId(a),
+                          )
+                          .filter(Boolean),
+                      );
+                    },
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#595959",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#1890ff"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#595959"),
+                  },
+                  "Chỉnh sửa",
+                ),
+                isMyItem &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => handleDeleteNote(item),
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#ff4d4f",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "2px",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.color = "#cf1322"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.color = "#ff4d4f"),
+                  },
+                  "Xóa",
+                ),
+              ),
+            ),
           isReplyingToThis && canEdit ? renderComposerBlock(true) : null,
         ),
       ),
       hasReplies &&
+      React.createElement(
+        "div",
+        {
+          style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
+        },
         React.createElement(
           "div",
           {
-            style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
-          },
-          React.createElement(
-            "div",
-            {
-              onClick: () =>
-                setExpandedThreads((p) => ({ ...p, [noteId]: !p[noteId] })),
-              style: {
-                fontSize: 12,
-                color: "#1890ff",
-                cursor: "pointer",
-                fontWeight: 600,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 12px",
-                background: "#f0f8ff",
-                borderRadius: 4,
-                border: "1px dashed #91caff",
-                userSelect: "none",
-              },
+            onClick: () =>
+              setExpandedThreads((p) => ({ ...p, [noteId]: !p[noteId] })),
+            style: {
+              fontSize: 12,
+              color: "#1890ff",
+              cursor: "pointer",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 12px",
+              background: "#f0f8ff",
+              borderRadius: 4,
+              border: "1px dashed #91caff",
+              userSelect: "none",
             },
-            isExpanded
-              ? "▲ Thu gọn phản hồi"
-              : `▼ Xem ${replies.length} phản hồi`,
-            !isExpanded &&
-              Avatar &&
-              React.createElement(
-                Avatar.Group,
-                { size: "small", maxCount: 3 },
-                replies.map((r, i) =>
-                  React.createElement(Av, {
-                    key: i,
-                    name: r.note ? authorName(r.note) : "Ẩn danh",
-                    size: 16,
-                  }),
-                ),
-              ),
-          ),
-          isExpanded &&
-            React.createElement(
-              "div",
-              { style: { marginTop: 8 } },
-              ...replies.map((child, idx) =>
-                renderTaskLikeItem(child, `${key}-child-${idx}`, true),
-              ),
+          },
+          isExpanded
+            ? "▲ Thu gọn phản hồi"
+            : `▼ Xem ${replies.length} phản hồi`,
+          !isExpanded &&
+          Avatar &&
+          React.createElement(
+            Avatar.Group,
+            { size: "small", maxCount: 3 },
+            replies.map((r, i) =>
+              React.createElement(Av, {
+                key: i,
+                name: r.note ? authorName(r.note) : "Ẩn danh",
+                size: 16,
+              }),
             ),
+          ),
         ),
+        isExpanded &&
+        React.createElement(
+          "div",
+          { style: { marginTop: 8 } },
+          ...replies.map((child, idx) =>
+            renderTaskLikeItem(child, `${key}-child-${idx}`, true),
+          ),
+        ),
+      ),
     );
   };
 
@@ -3057,16 +3060,16 @@ const UnifiedNoteThread = ({
             ),
           ),
           doc.metadata.description &&
+          React.createElement(
+            "div",
+            { style: { marginTop: 6, color: "#595959", fontSize: 12 } },
             React.createElement(
-              "div",
-              { style: { marginTop: 6, color: "#595959", fontSize: 12 } },
-              React.createElement(
-                "span",
-                { style: { fontWeight: 600, color: "#8c8c8c" } },
-                "Tóm tắt:",
-              ),
-              ` ${doc.metadata.description}`,
+              "span",
+              { style: { fontWeight: 600, color: "#8c8c8c" } },
+              "Tóm tắt:",
             ),
+            ` ${doc.metadata.description}`,
+          ),
         );
       }),
     );
@@ -3107,71 +3110,71 @@ const UnifiedNoteThread = ({
         },
       },
       replyingTo &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "8px 12px",
+            background: "#f5f5f5",
+            borderLeft: "3px solid #1890ff",
+            marginBottom: 10,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            borderRadius: "0 4px 4px 0",
+          },
+        },
         React.createElement(
           "div",
-          {
-            style: {
-              padding: "8px 12px",
-              background: "#f5f5f5",
-              borderLeft: "3px solid #1890ff",
-              marginBottom: 10,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              borderRadius: "0 4px 4px 0",
-            },
-          },
+          null,
           React.createElement(
             "div",
-            null,
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#8c8c8c",
-                  fontFamily: FONT,
-                },
+            {
+              style: {
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#8c8c8c",
+                fontFamily: FONT,
               },
-              "Đang trả lời ",
-              replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
-            ),
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  color: "#595959",
-                  fontFamily: FONT,
-                  marginTop: 4,
-                  whiteSpace: "pre-wrap",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                },
-              },
-              replyingTo.note?.body
-                ? getCommentText(replyingTo.note.body)
-                : "Tài liệu đính kèm",
-            ),
+            },
+            "Đang trả lời ",
+            replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
           ),
           React.createElement(
             "div",
             {
-              onClick: () => setReplyingTo(null),
               style: {
-                cursor: "pointer",
-                color: "#bfbfbf",
-                fontSize: 16,
-                lineHeight: 1,
-                padding: "0 4px",
+                fontSize: 12,
+                color: "#595959",
+                fontFamily: FONT,
+                marginTop: 4,
+                whiteSpace: "pre-wrap",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
               },
             },
-            "×",
+            replyingTo.note?.body
+              ? getCommentText(replyingTo.note.body)
+              : "Tài liệu đính kèm",
           ),
         ),
+        React.createElement(
+          "div",
+          {
+            onClick: () => setReplyingTo(null),
+            style: {
+              cursor: "pointer",
+              color: "#bfbfbf",
+              fontSize: 16,
+              lineHeight: 1,
+              padding: "0 4px",
+            },
+          },
+          "×",
+        ),
+      ),
       React.createElement(CommentComposer, {
         value: body,
         onChange: setBody,
@@ -3241,64 +3244,64 @@ const UnifiedNoteThread = ({
       { style: { paddingBottom: 24 } },
       loading
         ? React.createElement(
-            "div",
-            { style: { textAlign: "center", padding: "40px 0" } },
-            React.createElement(Spin, { size: "large" }),
-          )
+          "div",
+          { style: { textAlign: "center", padding: "40px 0" } },
+          React.createElement(Spin, { size: "large" }),
+        )
         : feed.length === 0
           ? React.createElement(
+            "div",
+            {
+              style: {
+                textAlign: "center",
+                padding: "60px 0",
+                fontSize: 14,
+                fontFamily: FONT,
+                color: "#bfbfbf",
+              },
+            },
+            "Vụ việc này chưa có bình luận hay tài liệu nội bộ nào.",
+          )
+          : React.createElement(
+            "div",
+            null,
+            ...rootItems.map((item, i) =>
+              renderTaskLikeItem(item, `item-${i}`),
+            ),
+            hasMore &&
+            React.createElement(
               "div",
               {
+                onClick: () => setShowAll((v) => !v),
                 style: {
+                  margin: "24px 0",
                   textAlign: "center",
-                  padding: "60px 0",
-                  fontSize: 14,
+                  fontSize: 13,
                   fontFamily: FONT,
-                  color: "#bfbfbf",
+                  color: "#1890ff",
+                  cursor: "pointer",
+                  padding: "10px 0",
+                  border: "1px dashed #91caff",
+                  borderRadius: 8,
+                  background: "#f0f8ff",
+                  transition: "all 0.2s",
                 },
+                onMouseEnter: (e) =>
+                  (e.currentTarget.style.background = "#d6ecff"),
+                onMouseLeave: (e) =>
+                  (e.currentTarget.style.background = "#f0f8ff"),
               },
-              "Vụ việc này chưa có bình luận hay tài liệu nội bộ nào.",
-            )
-          : React.createElement(
-              "div",
-              null,
-              ...rootItems.map((item, i) =>
-                renderTaskLikeItem(item, `item-${i}`),
-              ),
-              hasMore &&
-                React.createElement(
-                  "div",
-                  {
-                    onClick: () => setShowAll((v) => !v),
-                    style: {
-                      margin: "24px 0",
-                      textAlign: "center",
-                      fontSize: 13,
-                      fontFamily: FONT,
-                      color: "#1890ff",
-                      cursor: "pointer",
-                      padding: "10px 0",
-                      border: "1px dashed #91caff",
-                      borderRadius: 8,
-                      background: "#f0f8ff",
-                      transition: "all 0.2s",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.background = "#d6ecff"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.background = "#f0f8ff"),
-                  },
-                  showAll
-                    ? `▲ Thu gọn (đang hiện ${feed.length})`
-                    : `▼ Xem tất cả ${feed.length} bình luận & tài liệu`,
-                ),
+              showAll
+                ? `▲ Thu gọn (đang hiện ${feed.length})`
+                : `▼ Xem tất cả ${feed.length} bình luận & tài liệu`,
             ),
+          ),
     ),
     previewDoc &&
-      React.createElement(PreviewModal, {
-        doc: previewDoc,
-        onClose: () => setPreviewDoc(null),
-      }),
+    React.createElement(PreviewModal, {
+      doc: previewDoc,
+      onClose: () => setPreviewDoc(null),
+    }),
     React.createElement(FileUploadModal, {
       open: showUploadModal,
       onClose: () => setShowUploadModal(false),

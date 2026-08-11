@@ -1,19 +1,83 @@
 /**
  * Generic Search/Filter block (Nocobase JS Field/Action block).
+ * Deployment: Legal Study module (collection "legalStudy").
+ *
+ * This is JsField/Search/Filter/GenericSearchFilter.js with CONFIG filled in
+ * for the Legal Study module, following the same structure as
+ * JsField/Search/Filter/LegalReferenceSearchFilter.js (nearly identical
+ * shape — both modules were scaffolded the same way).
+ *
+ * targetBlockUid is left EMPTY below — fill it in with the real target
+ * block's UID (Nocobase block designer menu > "Copy block UID") before
+ * relying on this deployment.
+ *
+ * Field notes — confirmed two ways: (a) the live "Legal Study - Configure
+ * fields" admin UI (2 screenshots covering the full field list: id,
+ * managerId, legalReferenceId, caseId, internalCompanyId, createdAt,
+ * createdBy, updatedAt, updatedBy, description, documents, folders, tasks,
+ * activity_log, startDate, deadline, closedDate, internalCompany, priority,
+ * status, notes, title, users [relation field named "users", display label
+ * "Manager"], members, legalReference, legalStudyCode, cases), and (b) the
+ * actual create payload in All Module/Document/LegalStudyCreateBlock.js:873-884
+ * plus its Select option definitions:
+ *   - `collection name`: LEGAL_STUDY_RESOURCES (line 23) tries "legalStudy"
+ *     first — used as CONFIG.tableName.
+ *   - `status` options: Active / Closed / Pending — confirmed EXACTLY as
+ *     capitalized at LegalStudyCreateBlock.js:1141-1145 (identical set and
+ *     casing to LegalReferenceSearchFilter.js's `status` field — both
+ *     modules share the same enum).
+ *   - `priority` options: low / medium / high — LegalStudyCreateBlock.js:1125-1129
+ *     (identical to LegalReferenceSearchFilter.js's `priority`).
+ *   - `internalCompanyId` (label "Internal Company") — flat scalar FK, same
+ *     shape as every other module.
+ *   - `managerId` (label "Manager") is a flat scalar FK confirmed at payload
+ *     line 883 (`manager: { id: managerId }, managerId`), with options
+ *     sourced from `USER_RESOURCES = ["users"]` (line 31, fetched line 810) —
+ *     targets `users` DIRECTLY, same as LegalReference's `managerId`. Note
+ *     the admin UI shows this relation's own field name as "users" (Field
+ *     name column), not "manager" — but since a flat `managerId` scalar
+ *     column exists and is what the form actually writes, the filter uses
+ *     `managerId` directly and never needs to touch the oddly-named "users"
+ *     relation field.
+ *   - `members` (label "Members") is a `belongsToMany` with no flat FK
+ *     column, confirmed at payload line 884 (`members: memberIds.map(id => ({id}))`)
+ *     — same `users` target as `managerId`. Needs `relationKey: 'id'` for
+ *     the filter control, and `targetKey: 'id'` (not `'userId'`) for
+ *     `currentUserScope.relationFields` — identical reasoning to
+ *     LegalReferenceSearchFilter.js's `members` field.
+ *   - `caseId` (flat scalar FK, confirmed present in the field list, "Case
+ *     ID" bigInt) targets `projects`. NOTE: the create form's multi-case
+ *     linking (`caseIds`, `linkCaseToLegalStudy`, lines 901-919) operates
+ *     through a SEPARATE join mechanism (calling `cases:add`/`legalStudy:add`
+ *     on the `projects` resource) — that is NOT the same as this `caseId`
+ *     scalar column, which the admin UI's field list confirms is a plain
+ *     `belongsTo`/"Many to one" (`cases` relation), not a many-to-many. Using
+ *     the flat `caseId` column here for filtering is simpler and avoids
+ *     conflating the two mechanisms.
+ *   - `legalReferenceId` (flat scalar FK) targets `legalReference` —
+ *     confirmed present in the field list ("Legal Reference ID" bigInt) and
+ *     the create form's `linkLegalReferenceToLegalStudy` flow (lines 591-607).
+ *   - The `search` filter uses `title`, `legalStudyCode`, and `description` —
+ *     all three confirmed real columns from the screenshots (title is
+ *     "Single line" per the field list; `legalStudyCode` is a `sequence`
+ *     type, same pattern as LegalReference's `referenceCode`).
+ *
+ * currentUserScope is ENABLED, mirroring LegalReferenceSearchFilter.js's "My
+ * References" pattern exactly (same field shapes: managerId targets `users`
+ * directly -> userFields; members targets `users` directly with no `lawyers`
+ * hop -> relationFields with targetKey: 'id') — Meet Any of: createdById =
+ * current user, managerId = current user, members includes current user. No
+ * native Data scope screenshot was provided for this module either; sync
+ * this to a real block's Data scope later if one differs, the same way
+ * ContractSearchFilter.js was synced.
  *
  * HOW TO USE THIS FILE:
- * 1. Copy this entire file into a new JS Field/Action block in Nocobase,
- *    attached to the page of the module you want to filter.
- * 2. Edit ONLY the CONFIG object below — set targetBlockUid, tableName, and
- *    the `filters` array for that module.
- * 3. Do not edit anything below the "ENGINE" marker. It is identical across
- *    every module deployment.
- *
- * Supported filter types (set via `filters[].type`):
- *   - 'status'    : buttons/select over an enum field, with per-option counts
- *   - 'relation'  : dropdown sourced from another collection (company, user...)
- *   - 'search'    : free-text search across one or more fields ($iLike)
- *   - 'dateRange' : from/to date range on one field
+ * 1. Fill in `targetBlockUid` below with the real block UID.
+ * 2. Copy this entire file into the Legal Study module's JS Field/Action
+ *    block in Nocobase.
+ * 3. Do not edit anything below the "ENGINE" marker except to keep it in
+ *    sync with JsField/Search/Filter/GenericSearchFilter.js if that template
+ *    changes.
  *
  * See docs/superpowers/specs/2026-07-08-generic-search-filter-design.md for
  * the full design.
@@ -23,67 +87,124 @@
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
 const CONFIG = {
-  targetBlockUid: '',   // UID of the table/kanban/list block to filter
-  tableName: '',          // collection name, e.g. "cases", "contracts"
-  extraFilter: {},        // always-applied filter (optional), e.g. {}
+  targetBlockUid: 'ql8tgdq5no2',
+  tableName: 'legalStudy',
+  extraFilter: {},
 
-  // Example filters array (replace with real config for the target module):
-  // filters: [
-  //   {
-  //     type: 'status',
-  //     key: 'status',
-  //     field: 'status',
-  //     label: 'Trạng thái',
-  //     options: [
-  //       { value: 'toDo', label: 'Chưa làm' },
-  //       { value: 'inProgress', label: 'Đang làm' },
-  //       { value: 'done', label: 'Hoàn thành' },
-  //     ],
-  //     showCounts: true,
-  //   },
-  //   {
-  //     type: 'relation',
-  //     key: 'company',
-  //     field: 'internalCompanyId',
-  //     label: 'Công ty',
-  //     placeholder: 'Tất cả',
-  //     // width: 180,      // optional override; each filter fills its grid cell (100%) by default
-  //     source: {
-  //       collection: 'internalCompany',
-  //       labelFields: ['shortName', 'name'],
-  //       excludeValues: [],
-  //       sort: 'createdAt',
-  //     },
-  //   },
-  //   {
-  //     type: 'search',
-  //     key: 'search',
-  //     label: 'Tìm kiếm',
-  //     fields: ['title', 'code', 'description'],
-  //     placeholder: 'Tìm theo tên, mã...',
-  //   },
-  //   {
-  //     type: 'dateRange',
-  //     key: 'signedDate',
-  //     field: 'signedDate',
-  //     label: 'Ngày ký',
-  //   },
-  // ],
-  filters: [],
+  filters: [
+    {
+      type: 'status',
+      key: 'status',
+      field: 'status',
+      label: 'Status',
+      options: [
+        { value: 'draft', label: 'Draft' },
+        { value: 'reviewing', label: 'Reviewing' },
+        { value: 'published', label: 'Published' },
+        { value: 'archived', label: 'Archived' },
+      ],
+      showCounts: true,
+    },
+    {
+      type: 'status',
+      key: 'priority',
+      field: 'priority',
+      label: 'Priority',
+      options: [
+        { value: 'low', label: 'Low' },
+        { value: 'medium', label: 'Medium' },
+        { value: 'high', label: 'High' },
+      ],
+      showCounts: true,
+    },
+    {
+      type: 'relation',
+      key: 'company',
+      field: 'internalCompanyId',
+      label: 'Internal Company',
+      placeholder: 'All',
+      source: {
+        collection: 'internalCompany',
+        labelFields: ['shortName'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'relation',
+      key: 'manager',
+      field: 'managerId',
+      label: 'Manager',
+      placeholder: 'All',
+      source: {
+        collection: 'users',
+        labelFields: ['nickname', 'displayName', 'name', 'username'],
+        sort: 'createdAt',
+      },
+    },
+    {
+      type: 'relation',
+      key: 'members',
+      field: 'members',
+      relationKey: 'id', // belongsToMany, no flat FK column
+      label: 'Members',
+      placeholder: 'All',
+      source: {
+        collection: 'users',
+        labelFields: ['nickname', 'displayName', 'name', 'username'],
+        sort: 'createdAt',
+      },
+    },
+    // {
+    //   type: 'relation',
+    //   key: 'case',
+    //   field: 'caseId',
+    //   label: 'Linked Case',
+    //   placeholder: 'All',
+    //   source: {
+    //     collection: 'projects',
+    //     labelFields: ['projectName'],
+    //     sort: 'createdAt',
+    //   },
+    // },
+    // {
+    //   type: 'relation',
+    //   key: 'legalReference',
+    //   field: 'legalReferenceId',
+    //   label: 'Case Reference',
+    //   placeholder: 'All',
+    //   source: {
+    //     collection: 'legalReference',
+    //     labelFields: ['title'],
+    //     sort: 'createdAt',
+    //   },
+    // },
+    {
+      type: 'search',
+      key: 'search',
+      label: 'Search',
+      fields: ['title', 'legalStudyCode', 'description'],
+      placeholder: 'Search by title, code, description...',
+    },
+  ],
 
+  // "My Legal Studies" scope — Meet Any: createdById = current user,
+  // managerId = current user, members includes current user. Same shape as
+  // LegalReferenceSearchFilter.js's currentUserScope: managerId targets
+  // `users` directly (-> userFields), members targets `users` directly with
+  // no `lawyers` hop (-> relationFields with targetKey: 'id').
   currentUserScope: {
-    enable: false,
-    userFields: ['createdById'],       // flat FK-to-users columns, compared directly
-    // relationFields: [               // optional — associations with no flat FK column
-    //   { field: 'assignees', targetKey: 'userId' }, // compares assignees.userId
-    // ],
+    enable: true,
+    userFields: ['createdById', 'managerId'],
+    relationFields: [
+      { field: 'members', targetKey: 'id' },
+    ],
     emptyWhenUnknown: true,
     validateFields: true,
   },
 };
 
 // ===================================================================
-// ENGINE — KHÔNG SỬA BÊN DƯỚI DÒNG NÀY
+// ENGINE — DO NOT EDIT BELOW THIS LINE
 // ===================================================================
 
 // ---- id / filter-key helpers (pure, no ctx access) ----
@@ -161,7 +282,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'Tất cả' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -274,7 +395,7 @@ function useCurrentUserScope() {
               });
               return field;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope field không hợp lệ: ${field}`, e);
+              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope field: ${field}`, e);
               return null;
             }
           }),
@@ -297,7 +418,7 @@ function useCurrentUserScope() {
               });
               return rel;
             } catch (e) {
-              console.warn(`[GenericSearchFilter] Bỏ qua currentUserScope relation field không hợp lệ: ${rel.field}`, e);
+              console.warn(`[GenericSearchFilter] Skipping invalid currentUserScope relation field: ${rel.field}`, e);
               return null;
             }
           }),
@@ -396,7 +517,7 @@ function useStatusCountsAll(activeValues, currentUserScopeFilter, scopeReady) {
         }));
         if (!cancelled) setCounts(Object.fromEntries(entries));
       } catch (e) {
-        console.error('[GenericSearchFilter] Lỗi lấy counts:', e);
+        console.error('[GenericSearchFilter] Error fetching counts:', e);
         if (!cancelled) setCounts({});
       }
       if (!cancelled) setLoading(false);
@@ -446,7 +567,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'Tất cả',
+        placeholder: filterDef.placeholder || 'All',
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -464,7 +585,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Tìm kiếm...',
+        placeholder: filterDef.placeholder || 'Search...',
         allowClear: true,
         enterButton: true,
         size: 'small',
@@ -530,13 +651,13 @@ const GenericSearchFilter = () => {
     try {
       const target = ctx.engine?.getModel(CONFIG.targetBlockUid);
       if (!target) {
-        console.warn('[GenericSearchFilter] targetBlockUid không resolve được model:', CONFIG.targetBlockUid);
+        console.warn('[GenericSearchFilter] targetBlockUid could not resolve a model:', CONFIG.targetBlockUid);
         return;
       }
       target.resource.addFilterGroup(filterKey, filter);
       await target.resource.refresh();
     } catch (e) {
-      console.error('[GenericSearchFilter] Áp filter thất bại:', filterKey, e);
+      console.error('[GenericSearchFilter] Failed to apply filter:', filterKey, e);
     }
   }, []);
 

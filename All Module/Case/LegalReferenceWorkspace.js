@@ -12,7 +12,6 @@ const {
   Input,
   List,
   Modal,
-  Select,
   Space,
   Spin,
   Tag,
@@ -116,10 +115,26 @@ const CONFIG = {
     "legalStudies",
   ],
 
+  // "Legal Study" tab (case-bound Legal Study folders) — caseLegalStudyLinks
+  // is a plain collection (not a Nocobase-managed belongsToMany), read via
+  // the projects.legalStudyFolderLinks hasMany relation (see
+  // fetchLinkedRelationRows) and written via normal create/destroy actions.
+  legalStudyFolderLinkRelationName: "legalStudyFolderLinks",
+  legalStudyFolderLinkCreateCandidates: [
+    "caseLegalStudyLinks:create",
+  ],
+  legalStudyFolderLinkDestroyCandidates: [
+    "caseLegalStudyLinks:destroy",
+  ],
+
   legalReferenceModuleScope: "legal_reference",
   legalReferenceStorageType: "legal_reference",
   legalStudyModuleScope: "legal_study",
   legalStudyStorageType: "legal_study",
+  // Case-bound "Legal Study" folder tag (see Library.js's
+  // LEGAL_STUDY_FOLDER_TEMPLATE_KEY) — CaseCreateForm.js stamps this on
+  // the auto-created "Legal Study" folder inside every case's own tree.
+  legalStudyFolderTemplateKey: "legal_study",
   caseStorageType: "cases",
 
   caseReferenceKind: "case_based",
@@ -1190,7 +1205,35 @@ const grantFolderMemberAccess = async (targetCaseId, lawyerId) => {
   }
 };
 
-const fetchLinkedRelationRows = async (caseId, relationName) => {
+// Counterpart to grantFolderMemberAccess — used when unlinking a "Legal
+// Study" folder link (see removeLinkRecord) and no other link still
+// justifies the current case's team having access to targetCaseId's root
+// folder. Fetch-then-destroy (rather than a filter-based bulk destroy) so
+// it works through the same destroyWithCandidates helper every other
+// destroy call in this file goes through.
+const revokeFolderMemberAccess = async (targetCaseId, lawyerId) => {
+  const safeLawyerId = idValue(lawyerId);
+  if (!hasUsableId(safeLawyerId)) return;
+  const rootFolderId = await findCaseRootFolderId(targetCaseId);
+  if (!hasUsableId(rootFolderId)) return;
+
+  try {
+    const existing = await fetchAllList("folderMembers:list", {
+      filter: buildFilter({
+        folderId: { $eq: idValue(rootFolderId) },
+        lawyerId: { $eq: safeLawyerId },
+      }),
+    });
+    await Promise.all(
+      activeRows(existing).map((row) => destroyWithCandidates(["folderMembers:destroy"], extractId(row))),
+    );
+    console.log("[revokeFolderMemberAccess] folderMembers revoked folderId=", rootFolderId, "lawyerId=", safeLawyerId);
+  } catch (error) {
+    console.error("[revokeFolderMemberAccess] revoke folderMembers FAILED caseId=", targetCaseId, "lawyerId=", safeLawyerId, error);
+  }
+};
+
+const fetchLinkedRelationRows = async (caseId, relationName, appends = ["createdBy"]) => {
   const safeCaseId = idValue(caseId);
   if (!hasUsableId(safeCaseId)) return [];
 
@@ -1201,7 +1244,7 @@ const fetchLinkedRelationRows = async (caseId, relationName) => {
 
   for (const url of candidates) {
     try {
-      const rows = await fetchAllList(url, { appends: ["createdBy"] });
+      const rows = await fetchAllList(url, { appends });
       console.log(`[OK] ${url} → ${rows.length} rows`);
       return activeRows(rows);
     } catch (error) {
@@ -1217,10 +1260,14 @@ const fetchCaseReferenceLinks = async (record) => {
   // Guard: không có caseId thì không fetch gì cả
   if (!hasUsableId(caseId)) return [];
 
-  const [legalRefs, caseRefs, legalStudies] = await Promise.all([
+  const [legalRefs, caseRefs, legalStudies, legalStudyFolderLinks] = await Promise.all([
     fetchLinkedRelationRows(caseId, "legalReference").catch(() => []),
     fetchLinkedRelationRows(caseId, "caseReferences").catch(() => []),
     fetchLinkedRelationRows(caseId, "legalStudy").catch(() => []),
+    // caseLegalStudyLinks — appends "folders" (the belongsTo pointing at the
+    // linked Legal Study folder) so its scalar projectId is available for
+    // the conditional-revoke check in removeLinkRecord without a second fetch.
+    fetchLinkedRelationRows(caseId, CONFIG.legalStudyFolderLinkRelationName, ["createdBy", "folders"]).catch(() => []),
   ]);
 
   const normalized = [];
@@ -1249,6 +1296,16 @@ const fetchCaseReferenceLinks = async (record) => {
     normalized.push({
       id: `study-${extractId(row)}`,
       type: "legal_study",
+      reference: row,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+  });
+
+  legalStudyFolderLinks.forEach((row) => {
+    normalized.push({
+      id: `study-folder-${extractId(row)}`,
+      type: "legal_study_folder",
       reference: row,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -1768,11 +1825,27 @@ function LegalReferenceWorkspace() {
   const [selectedCaseIdsForLink, setSelectedCaseIdsForLink] = React.useState([]);
   const [legalStudySearch, setLegalStudySearch] = React.useState("");
   const [selectedLegalStudyId, setSelectedLegalStudyId] = React.useState("");
-  // Multi-select list for the "Reference" tab — mirrors selectedCaseIdsForLink
+  // Multi-select list for the "Case Study" tab — mirrors selectedCaseIdsForLink
   // on the "Case" tab. selectedLegalStudyId (singular, above) stays as-is;
   // it only backs the unused folder/document source-picker plumbing further
   // down (renderSourceSelectionPicker is never actually rendered).
   const [selectedLegalStudyIds, setSelectedLegalStudyIds] = React.useState([]);
+  // "Legal Study" tab — case-bound Legal Study folders (folderTemplateKey
+  // === "legal_study", auto-created inside every case's own folder tree by
+  // CaseCreateForm.js), across ALL cases, filtered to folders that have at
+  // least one file directly inside them. Distinct from selectedLegalStudyIds
+  // above, which picks rows from the standalone `legalStudy` collection.
+  // Linking here doesn't create any relation record — it directly grants the
+  // current case's team viewer access on the TARGET case's root folder (see
+  // handleLinkSubmit), since Library.js's permission model only reads
+  // folderMembers off a tree's root, never a subfolder like this one.
+  const [caseLegalStudyFolders, setCaseLegalStudyFolders] = React.useState([]);
+  const [selectedLegalStudyFolderIds, setSelectedLegalStudyFolderIds] = React.useState([]);
+  // Search boxes for the "Case Study" and "Legal Study" tabs' row-list
+  // pickers (see renderPickerList) — separate from legalStudySearch above,
+  // which only backs the unused folder/document source-picker.
+  const [caseStudySearch, setCaseStudySearch] = React.useState("");
+  const [legalStudyFolderSearch, setLegalStudyFolderSearch] = React.useState("");
   const [newReferenceFiles, setNewReferenceFiles] = React.useState([]);
   const [newReferenceFolderFiles, setNewReferenceFolderFiles] = React.useState([]);
 
@@ -1997,6 +2070,18 @@ function LegalReferenceWorkspace() {
         links
           .filter((row) => row?.type === "case_based")
           .map((row) => extractId(row?.reference))
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    [links],
+  );
+
+  const linkedLegalStudyFolderIds = React.useMemo(
+    () =>
+      new Set(
+        links
+          .filter((row) => row?.type === "legal_study_folder")
+          .map((row) => extractId(row?.reference?.targetFolderId))
           .filter(Boolean)
           .map((id) => String(id)),
       ),
@@ -2270,6 +2355,57 @@ function LegalReferenceWorkspace() {
         });
       setCaseOptions(scopedCases);
 
+      // "Legal Study" tab — case-bound Legal Study folders (folderTemplateKey
+      // === CONFIG.legalStudyFolderTemplateKey) across every case the current
+      // lawyer can see (same access scope as scopedCases above), kept only
+      // when the folder has at least one file directly inside it. Sorted by
+      // folder.createdAt ascending (earliest first).
+      const scopedCaseIds = scopedCases.map((item) => idValue(extractId(item))).filter(hasUsableId);
+      let nextCaseLegalStudyFolders = [];
+      if (scopedCaseIds.length) {
+        try {
+          const candidateFolders = activeRows(
+            await fetchAllList("folders:list", {
+              filter: buildFilter({
+                $and: [
+                  { isDeleted: { $ne: true } },
+                  { folderTemplateKey: { $eq: CONFIG.legalStudyFolderTemplateKey } },
+                  { projectId: { $in: scopedCaseIds } },
+                ],
+              }),
+              sort: ["createdAt"],
+            }),
+          );
+          if (candidateFolders.length) {
+            const candidateFolderIds = candidateFolders.map((folder) => idValue(getFolderId(folder)));
+            const docsInCandidateFolders = await fetchAllList("documents:list", {
+              filter: buildFilter({
+                $and: [
+                  { isDeleted: { $ne: true } },
+                  { folderId: { $in: candidateFolderIds } },
+                ],
+              }),
+              fields: "id,folderId",
+            }).catch(() => []);
+            const folderIdsWithFiles = new Set(
+              activeRows(docsInCandidateFolders).map((doc) => String(getDocFolderId(doc))).filter(Boolean),
+            );
+            const caseByProjectId = new Map(scopedCases.map((item) => [String(extractId(item)), item]));
+            nextCaseLegalStudyFolders = candidateFolders
+              .filter((folder) => folderIdsWithFiles.has(String(getFolderId(folder))))
+              .map((folder) => ({
+                folder,
+                caseRecord: caseByProjectId.get(String(extractId(folder?.projectId))) || null,
+              }))
+              .filter((entry) => entry.caseRecord)
+              .sort((a, b) => new Date(a.folder?.createdAt || 0) - new Date(b.folder?.createdAt || 0));
+          }
+        } catch (error) {
+          console.warn("[LegalReferenceWorkspace] fetch case-bound legal study folders failed", error);
+        }
+      }
+      setCaseLegalStudyFolders(nextCaseLegalStudyFolders);
+
       // ── FIX 2: filter Legal Studies đã linked ──
       const linkedStudyIds = new Set(
         links
@@ -2302,6 +2438,7 @@ function LegalReferenceWorkspace() {
     setLegalStudySearch("");
     setSelectedLegalStudyId("");
     setSelectedLegalStudyIds([]);
+    setSelectedLegalStudyFolderIds([]);
     setSelectedCaseIdsForLink([]);
     resetSourceSelection();
     setNewReferenceFiles([]);
@@ -2458,9 +2595,35 @@ function LegalReferenceWorkspace() {
     }
 
     try {
-      if (linkType === "legal_study") {
-        await removeRelationLink("legalStudy", caseId, referenceId);
+      if (linkType === "legal_study_folder") {
+        await destroyWithCandidates(CONFIG.legalStudyFolderLinkDestroyCandidates, referenceId);
+
+        // Conditional revoke: only pull the current team's folderMembers
+        // grant off the target case's root folder if no OTHER link still
+        // justifies it — another legal_study_folder link pointing at the
+        // same target case, or a direct "Case" link to it. Both grant the
+        // exact same root folder, so revoking here would otherwise break
+        // access the other link still relies on.
+        const targetCaseId = extractId(reference?.folders?.projectId) || extractId(reference?.folders?.project);
+        if (hasUsableId(targetCaseId)) {
+          const hasOtherFolderLink = links.some((row) => {
+            if (row?.type !== "legal_study_folder") return false;
+            if (String(row?.id) === String(link?.id)) return false;
+            const rowTargetCaseId = extractId(row?.reference?.folders?.projectId) || extractId(row?.reference?.folders?.project);
+            return String(rowTargetCaseId) === String(targetCaseId);
+          });
+          const hasDirectCaseLink = links.some(
+            (row) => row?.type === "case_based" && String(extractId(row?.reference)) === String(targetCaseId),
+          );
+          if (!hasOtherFolderLink && !hasDirectCaseLink) {
+            const teamIds = currentCaseAccess?.allIds || [];
+            await Promise.all(teamIds.map((lawyerId) => revokeFolderMemberAccess(targetCaseId, lawyerId)));
+          }
+        }
         message?.success?.("Unlinked Legal Study successfully.");
+      } else if (linkType === "legal_study") {
+        await removeRelationLink("legalStudy", caseId, referenceId);
+        message?.success?.("Unlinked Case Study successfully.");
       } else if (linkType === "case_based") {
         await removeRelationLink("caseReferences", caseId, referenceId);
         message?.success?.("Removed Case successfully.");
@@ -2487,10 +2650,15 @@ function LegalReferenceWorkspace() {
     const linkType = link?.type;
     const title = linkType === "case_based"
       ? "Remove Case?"
-      : "Remove Reference?";
+      : linkType === "legal_study_folder"
+        ? "Unlink Legal Study?"
+        : "Remove Reference?";
+    const content = linkType === "legal_study_folder"
+      ? (reference?.caseName ? `Legal Study — ${reference.caseName}` : "Legal Study")
+      : getReferenceTitle(reference);
     Modal.confirm({
       title,
-      content: getReferenceTitle(reference),
+      content,
       okText: "Remove link",
       cancelText: "Cancel",
       okButtonProps: { danger: true },
@@ -2649,6 +2817,86 @@ function LegalReferenceWorkspace() {
           return;
         }
 
+      } else if (linkMode === "legal_study_folder") {
+        // Legal Study: creates a caseLegalStudyLinks row (so the link shows
+        // up in the References list and can be tracked/removed) AND grants
+        // the current case's team (Manager + Members) viewer access on the
+        // selected TARGET case's root folder. Library.js's permission model
+        // only reads folderManager/folderMembers off a tree's root, never a
+        // subfolder like the Legal Study folder itself, so granting there
+        // would be silently ignored — the target case's root is the only
+        // way to make its Legal Study folder (and the rest of its tree)
+        // actually visible to the current team.
+        if (selectedLegalStudyFolderIds.length === 0) {
+          message?.warning?.("Please select at least one Legal Study.");
+          return;
+        }
+
+        const alreadyLinkedFolderIds = new Set(
+          links
+            .filter((row) => row?.type === "legal_study_folder")
+            .map((row) => String(extractId(row?.reference?.targetFolderId)))
+            .filter(Boolean),
+        );
+
+        const currentAccess = caseAccessById[String(idValue(caseId))];
+        const currentCaseTeamIds = currentAccess?.allIds || [];
+
+        let successCount = 0;
+        let failedCount = 0;
+        let alreadyLinkedCount = 0;
+        for (const folderId of selectedLegalStudyFolderIds) {
+          if (alreadyLinkedFolderIds.has(String(folderId))) {
+            alreadyLinkedCount += 1;
+            continue;
+          }
+          const entry = caseLegalStudyFolders.find(
+            (item) => String(getFolderId(item.folder)) === String(folderId),
+          );
+          const targetCaseId = entry ? extractId(entry.caseRecord) : null;
+          if (!entry || !hasUsableId(targetCaseId)) {
+            failedCount += 1;
+            continue;
+          }
+
+          try {
+            await createWithCandidates(CONFIG.legalStudyFolderLinkCreateCandidates, {
+              caseId: idValue(caseId),
+              targetFolderId: idValue(folderId),
+              folderName: entry.folder?.name || "Legal Study",
+              caseName: getCaseReferenceListLabel(entry.caseRecord),
+            });
+            successCount += 1;
+
+            await Promise.all(
+              currentCaseTeamIds.map((lawyerId) => grantFolderMemberAccess(targetCaseId, lawyerId)),
+            );
+          } catch (error) {
+            failedCount += 1;
+            console.error("[JsItemLegalReference] link legal study folder failed", folderId, error);
+          }
+        }
+
+        if (successCount > 0 && failedCount === 0) {
+          message?.success?.(
+            successCount === 1
+              ? "Linked Legal Study successfully."
+              : `Linked ${successCount} Legal Studies successfully.`,
+          );
+        } else if (successCount > 0 && failedCount > 0) {
+          message?.warning?.(`Linked ${successCount} Legal Study(s), ${failedCount} failed.`);
+        } else if (failedCount > 0) {
+          message?.error?.("Failed to link Legal Study.");
+          return;
+        } else if (alreadyLinkedCount > 0) {
+          message?.info?.("Selected Legal Study(s) are already linked to the current case.");
+          setLinkModalOpen(false);
+          return;
+        } else {
+          message?.warning?.("Please select at least one Legal Study.");
+          return;
+        }
+
       } else {
         message?.warning?.("Unknown link mode.");
         return;
@@ -2661,6 +2909,7 @@ function LegalReferenceWorkspace() {
       setNewReferenceFolderFiles([]);
       setSelectedCaseIdsForLink([]);
       setSelectedLegalStudyIds([]);
+      setSelectedLegalStudyFolderIds([]);
       await loadLinks();
     } catch (error) {
       if (error?.errorFields) return;
@@ -2795,10 +3044,20 @@ function LegalReferenceWorkspace() {
       if (!reference) return false;
       // "case" filter key maps to type "case_based"
       if (filterKind === "case" && linkType !== "case_based") return false;
-      // "library" filter key covers both "standalone" (Case Study) and "legal_study"
-      if (filterKind === "library" && linkType !== "standalone" && linkType !== "legal_study") return false;
+      // "library" filter key covers "standalone" (Case Study), "legal_study",
+      // and "legal_study_folder" (Legal Study)
+      if (
+        filterKind === "library" &&
+        linkType !== "standalone" &&
+        linkType !== "legal_study" &&
+        linkType !== "legal_study_folder"
+      )
+        return false;
 
       if (!q) return true;
+      if (linkType === "legal_study_folder") {
+        return matchesSearchParts(["Legal Study", reference?.folderName, reference?.caseName], q);
+      }
       const title = linkType === "case_based" ? getCaseTitle(reference) : getReferenceTitle(reference);
       const sourceCase = linkType === "case_based" ? reference : getSourceCase(reference);
       return matchesSearchParts([
@@ -2828,9 +3087,163 @@ function LegalReferenceWorkspace() {
     [filteredCaseOptions, caseOptionSearch],
   );
 
+  const filteredCaseStudyOptions = React.useMemo(
+    () => activeRows(legalStudyLibrary.studies).filter((study) =>
+      matchesSearchParts([getLegalStudyTitle(study)], caseStudySearch)
+    ),
+    [legalStudyLibrary.studies, caseStudySearch],
+  );
+
+  const visibleCaseStudyOptions = React.useMemo(
+    () => filteredCaseStudyOptions.slice(0, caseStudySearch.trim() ? 150 : 80),
+    [filteredCaseStudyOptions, caseStudySearch],
+  );
+
+  const filteredLegalStudyFolderOptions = React.useMemo(
+    () => caseLegalStudyFolders.filter((entry) =>
+      matchesSearchParts(["Legal Study", getCaseReferenceListLabel(entry.caseRecord)], legalStudyFolderSearch)
+    ),
+    [caseLegalStudyFolders, legalStudyFolderSearch, getCaseReferenceListLabel],
+  );
+
+  const visibleLegalStudyFolderOptions = React.useMemo(
+    () => filteredLegalStudyFolderOptions.slice(0, legalStudyFolderSearch.trim() ? 150 : 80),
+    [filteredLegalStudyFolderOptions, legalStudyFolderSearch],
+  );
+
+  // Shared row-list picker layout for the Link modal's 3 tabs (Case, Case
+  // Study, Legal Study) — a bordered list with a header row and a
+  // scrollable, checkbox-toggleable body, matching the "Case" tab's
+  // original look so all 3 tabs feel like one consistent picker.
+  const renderPickerList = ({
+    countLabel,
+    searchValue,
+    onSearchChange,
+    searchPlaceholder,
+    headerLabel,
+    loading,
+    items,
+    getItemKey,
+    isItemDisabled,
+    disabledTag,
+    isItemSelected,
+    onToggleItem,
+    renderItemTitle,
+    renderItemSubtitle,
+    emptyText,
+  }) => [
+    h(
+      "div",
+      { key: "pickerCount", style: { marginBottom: 8, color: color.muted, fontSize: 12 } },
+      countLabel,
+    ),
+    h(Input.Search, {
+      key: "pickerSearch",
+      placeholder: searchPlaceholder,
+      value: searchValue,
+      onChange: (event) => onSearchChange(event.target.value),
+      allowClear: true,
+      style: { marginBottom: 10 },
+    }),
+    h(
+      "div",
+      {
+        key: "pickerList",
+        style: { border: `1px solid ${color.border}`, borderRadius: 8, overflow: "hidden" },
+      },
+      h(
+        "div",
+        {
+          key: "pickerListHeader",
+          style: {
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "8px 12px",
+            background: color.bg,
+            borderBottom: `1px solid ${color.border}`,
+            fontSize: 12,
+            fontWeight: 700,
+            color: color.muted,
+          },
+        },
+        h("div", null, headerLabel),
+      ),
+      h(
+        "div",
+        { key: "pickerListBody", style: { maxHeight: 300, overflowY: "auto" } },
+        loading
+          ? h("div", { style: { padding: 24, textAlign: "center" } }, h(Spin, null))
+          : items.length
+            ? h(List, {
+              dataSource: items,
+              renderItem: (item) => {
+                const id = getItemKey(item);
+                const disabled = isItemDisabled ? isItemDisabled(item) : false;
+                const selected = isItemSelected(id);
+                const toggleSelection = () => {
+                  if (disabled) return;
+                  onToggleItem(id);
+                };
+                const subtitle = renderItemSubtitle ? renderItemSubtitle(item) : null;
+                return h(
+                  List.Item,
+                  {
+                    key: id,
+                    onClick: toggleSelection,
+                    style: {
+                      padding: "10px 12px",
+                      cursor: disabled ? "default" : "pointer",
+                      background: selected ? color.blueSoft : "transparent",
+                      borderLeft: selected ? `3px solid ${color.blue}` : "3px solid transparent",
+                    },
+                  },
+                  h(
+                    "div",
+                    {
+                      style: {
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        gap: 12,
+                      },
+                    },
+                    h(
+                      "div",
+                      { style: { minWidth: 0, flex: 1 } },
+                      h("div", { style: { fontWeight: 600, color: color.text, fontSize: 13 } }, renderItemTitle(item)),
+                      disabled && disabledTag
+                        ? h(Tag, { color: "blue", style: { marginTop: 4 } }, disabledTag)
+                        : null,
+                      subtitle
+                        ? h(
+                          "div",
+                          { style: { marginTop: 4, fontSize: 11, color: color.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
+                          subtitle,
+                        )
+                        : null,
+                    ),
+                    h(Checkbox, {
+                      checked: disabled || selected,
+                      disabled,
+                      onClick: (event) => event.stopPropagation(),
+                      onChange: toggleSelection,
+                    }),
+                  ),
+                );
+              },
+            })
+            : h(Empty, { style: { padding: "24px 0" }, description: emptyText }),
+      ),
+    ),
+  ];
+
   const caseBasedCount = links.filter((row) => row?.type === "case_based").length;
   const standaloneCount = links.filter((row) => row?.type === "standalone").length;
   const legalStudyCount = links.filter((row) => row?.type === "legal_study").length;
+  const legalStudyFolderCount = links.filter((row) => row?.type === "legal_study_folder").length;
 
   const renderText = (props, children) => (Text ? h(Text, props, children) : h("span", props, children));
 
@@ -2876,10 +3289,11 @@ function LegalReferenceWorkspace() {
   };
 
   const renderKindBadge = (reference, overrideType) => {
+    const isFolderLink = overrideType === "legal_study_folder";
     const isStudy = overrideType === "legal_study" || (!overrideType && isLegalStudyReference(reference));
-    const isCase = overrideType === "case_based" || (!overrideType && !isStudy && isCaseBasedReference(reference));
+    const isCase = overrideType === "case_based" || (!overrideType && !isFolderLink && !isStudy && isCaseBasedReference(reference));
     const badgeColor = isCase ? "geekblue" : "purple";
-    const label = isCase ? "Case" : "Reference";
+    const label = isCase ? "Case" : isFolderLink ? "Legal Study" : isStudy ? "Case Study" : "Reference";
     return h(
       Tag,
       { color: badgeColor, style: { margin: 0, borderRadius: 4, fontWeight: 600 } },
@@ -2893,7 +3307,12 @@ function LegalReferenceWorkspace() {
     const linkType = link?.type || (isCaseBasedReference(reference) ? "case_based" : isLegalStudyReference(reference) ? "legal_study" : "standalone");
     const referenceId = String(extractId(reference));
     const sourceCase = linkType === "case_based" ? (reference?._sourceCase || getSourceCase(reference) || reference) : getSourceCase(reference);
-    const title = (linkType === "case_based" && sourceCase) ? getCaseTitle(sourceCase) : getReferenceTitle(reference);
+    const title = linkType === "legal_study_folder"
+      ? "Legal Study"
+      : (linkType === "case_based" && sourceCase) ? getCaseTitle(sourceCase) : getReferenceTitle(reference);
+    const descriptionText = linkType === "legal_study_folder"
+      ? (reference?.caseName || "-")
+      : (stripHtml(reference?.description) || "-");
     const folderCount = parseStoredIds(reference?.sourceFolderIds).length;
     const documentCount = parseStoredIds(reference?.sourceDocumentIds).length;
 
@@ -2965,7 +3384,7 @@ function LegalReferenceWorkspace() {
       ),
       h(
         Tooltip,
-        { title: stripHtml(reference?.description) },
+        { title: descriptionText },
         h(
           "div",
           {
@@ -2977,7 +3396,7 @@ function LegalReferenceWorkspace() {
               whiteSpace: "nowrap",
             },
           },
-          stripHtml(reference?.description) || "-",
+          descriptionText,
         ),
       ),
       h(
@@ -3977,6 +4396,7 @@ function LegalReferenceWorkspace() {
           setLegalStudySearch("");
           setSelectedLegalStudyId("");
           setSelectedLegalStudyIds([]);
+          setSelectedLegalStudyFolderIds([]);
           setSelectedCaseIdsForLink([]);
           resetSourceSelection();
           setNewReferenceFiles([]);
@@ -4016,6 +4436,7 @@ function LegalReferenceWorkspace() {
                 setLinkMode("case");
                 setSelectedLegalStudyId("");
                 setSelectedLegalStudyIds([]);
+                setSelectedLegalStudyFolderIds([]);
                 resetSourceSelection();
                 linkForm.setFieldsValue({ sourceType: "case" });
               },
@@ -4042,6 +4463,7 @@ function LegalReferenceWorkspace() {
                 setLinkMode("legal_study");
                 setCaseOptionSearch("");
                 setSelectedCaseIdsForLink([]);
+                setSelectedLegalStudyFolderIds([]);
                 resetSourceSelection();
                 linkForm.setFieldsValue({
                   sourceType: "legal_study",
@@ -4061,171 +4483,114 @@ function LegalReferenceWorkspace() {
                 transition: "all 0.2s ease",
               },
             },
-            "Reference",
+            "Case Study",
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setLinkMode("legal_study_folder");
+                setCaseOptionSearch("");
+                setSelectedCaseIdsForLink([]);
+                setSelectedLegalStudyId("");
+                setSelectedLegalStudyIds([]);
+                resetSourceSelection();
+                linkForm.setFieldsValue({
+                  sourceType: "legal_study_folder",
+                  legalStudyId: undefined,
+                });
+              },
+              style: {
+                border: 0,
+                background: linkMode === "legal_study_folder" ? color.white : "transparent",
+                color: linkMode === "legal_study_folder" ? color.blue : color.muted,
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: linkMode === "legal_study_folder" ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.2s ease",
+              },
+            },
+            "Legal Study",
           ),
         ),
         linkMode === "case"
-          ? [
-            h(
-              "div",
-              {
-                key: "caseSearchCount",
-                style: { marginBottom: 8, color: color.muted, fontSize: 12 },
-              },
-              `Found ${filteredCaseOptions.length} cases${filteredCaseOptions.length > visibleCaseOptions.length ? `, showing ${visibleCaseOptions.length}` : ""}`,
-            ),
-            h(Input.Search, {
-              key: "caseSearchInput",
-              placeholder: "Search case...",
-              value: caseOptionSearch,
-              onChange: (event) => setCaseOptionSearch(event.target.value),
-              allowClear: true,
-              style: { marginBottom: 10 },
-            }),
-            h(
-              "div",
-              {
-                key: "caseList",
-                style: {
-                  border: `1px solid ${color.border}`,
-                  borderRadius: 8,
-                  overflow: "hidden",
-                },
-              },
-              h(
-                "div",
-                {
-                  key: "caseListHeader",
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    padding: "8px 12px",
-                    background: color.bg,
-                    borderBottom: `1px solid ${color.border}`,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: color.muted,
-                  },
-                },
-                h("div", null, "Case Name"),
+          ? renderPickerList({
+            countLabel: `Found ${filteredCaseOptions.length} cases${filteredCaseOptions.length > visibleCaseOptions.length ? `, showing ${visibleCaseOptions.length}` : ""}`,
+            searchValue: caseOptionSearch,
+            onSearchChange: setCaseOptionSearch,
+            searchPlaceholder: "Search case...",
+            headerLabel: "Case Name",
+            loading: false,
+            items: visibleCaseOptions,
+            getItemKey: (item) => String(extractId(item)),
+            isItemDisabled: (item) => linkedSourceCaseIds.has(String(extractId(item))),
+            disabledTag: "Already linked",
+            isItemSelected: (id) => selectedCaseIdsForLink.includes(id),
+            onToggleItem: (id) =>
+              setSelectedCaseIdsForLink((prev) =>
+                prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
               ),
-              h(
-                "div",
-                { key: "caseListBody", style: { maxHeight: 300, overflowY: "auto" } },
-                visibleCaseOptions.length
-                ? h(List, {
-                  dataSource: visibleCaseOptions,
-                  renderItem: (item) => {
-                    const id = String(extractId(item));
-                    const isAlreadyLinked = linkedSourceCaseIds.has(id);
-                    const isSelected = selectedCaseIdsForLink.includes(id);
-                    // This case's existing caseReferences links (either
-                    // direction — the relation is symmetric) to OTHER cases
-                    // in the system, unrelated to the current case.
-                    const linkedCaseNames = relationRows(item?.caseReferences)
-                      .map((row) => getCaseTitle(row))
-                      .filter(Boolean);
-                    const toggleSelection = () => {
-                      if (isAlreadyLinked) return;
-                      setSelectedCaseIdsForLink((prev) =>
-                        prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
-                      );
-                    };
-                    return h(
-                      List.Item,
-                      {
-                        key: id,
-                        onClick: toggleSelection,
-                        style: {
-                          padding: "10px 12px",
-                          cursor: isAlreadyLinked ? "default" : "pointer",
-                          background: isSelected ? color.blueSoft : "transparent",
-                          borderLeft: isSelected ? `3px solid ${color.blue}` : "3px solid transparent",
-                        },
-                      },
-                      h(
-                        "div",
-                        {
-                          style: {
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            width: "100%",
-                            gap: 12,
-                          },
-                        },
-                        h(
-                          "div",
-                          { style: { minWidth: 0, flex: 1 } },
-                          h("div", { style: { fontWeight: 600, color: color.text, fontSize: 13 } }, getCaseReferenceListLabel(item)),
-                          isAlreadyLinked
-                            ? h(Tag, { color: "blue", style: { marginTop: 4 } }, "Already linked")
-                            : null,
-                          linkedCaseNames.length
-                            ? h(
-                              "div",
-                              { style: { marginTop: 4, fontSize: 11, color: color.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } },
-                              `Linked to: ${linkedCaseNames.join(", ")}`,
-                            )
-                            : null,
-                        ),
-                        h(Checkbox, {
-                          checked: isAlreadyLinked || isSelected,
-                          disabled: isAlreadyLinked,
-                          onClick: (event) => event.stopPropagation(),
-                          onChange: toggleSelection,
-                        }),
-                      ),
-                    );
-                  },
-                })
-                : h(Empty, { style: { padding: "24px 0" }, description: "No case found" }),
+            renderItemTitle: (item) => getCaseReferenceListLabel(item),
+            renderItemSubtitle: (item) => {
+              // This case's existing caseReferences links (either direction
+              // — the relation is symmetric) to OTHER cases in the system,
+              // unrelated to the current case.
+              const linkedCaseNames = relationRows(item?.caseReferences)
+                .map((row) => getCaseTitle(row))
+                .filter(Boolean);
+              return linkedCaseNames.length ? `Linked to: ${linkedCaseNames.join(", ")}` : null;
+            },
+            emptyText: "No case found",
+          })
+          : linkMode === "legal_study"
+          ? renderPickerList({
+            countLabel: `Found ${filteredCaseStudyOptions.length} case studies${filteredCaseStudyOptions.length > visibleCaseStudyOptions.length ? `, showing ${visibleCaseStudyOptions.length}` : ""}`,
+            searchValue: caseStudySearch,
+            onSearchChange: setCaseStudySearch,
+            searchPlaceholder: "Search case study...",
+            headerLabel: "Case Study Name",
+            loading: optionLoading,
+            items: visibleCaseStudyOptions,
+            getItemKey: (study) => String(extractId(study)),
+            isItemSelected: (id) => selectedLegalStudyIds.includes(id),
+            onToggleItem: (id) =>
+              setSelectedLegalStudyIds((prev) =>
+                prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
               ),
-            ),
-          ]
-          : [
-            h(
-              "div",
-              {
-                key: "legalStudyCount",
-                style: { marginBottom: 8, color: color.muted, fontSize: 12 },
-              },
-              `Selected ${selectedLegalStudyIds.length} Reference(s)`,
-            ),
-            h(
-              Form.Item,
-              {
-                key: "legalStudyId",
-                label: "Reference",
-              },
-              h(
-                Select,
-                {
-                  mode: "multiple",
-                  showSearch: true,
-                  loading: optionLoading,
-                  placeholder: "Select one or more References...",
-                  optionFilterProp: "label",
-                  value: selectedLegalStudyIds,
-                  filterOption: (input, option) =>
-                    normalizeSearchValue(option?.label).includes(normalizeSearchValue(input)),
-                  onChange: (values) => {
-                    setSelectedLegalStudyIds(asArray(values).map((v) => String(v)));
-                  },
-                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Reference not found",
-                },
-                activeRows(legalStudyLibrary.studies).map((study) =>
-                  h(Select.Option, {
-                    key: String(extractId(study)),
-                    value: String(extractId(study)),
-                    label: getLegalStudyTitle(study),
-                  }, getLegalStudyTitle(study)),
-                ),
+            renderItemTitle: (study) => getLegalStudyTitle(study),
+            emptyText: "No case study found",
+          })
+          : renderPickerList({
+            // "Legal Study" tab — case-bound Legal Study folders across all
+            // cases the current lawyer can see, limited to ones that already
+            // have at least one file directly inside them, sorted earliest
+            // first. Each row shows "Legal Study" with the owning case's
+            // label underneath in a muted color. Submitting grants the
+            // current case's team viewer access on the target case's root
+            // folder (see handleLinkSubmit) rather than creating a link row.
+            countLabel: `Found ${filteredLegalStudyFolderOptions.length} legal studies${filteredLegalStudyFolderOptions.length > visibleLegalStudyFolderOptions.length ? `, showing ${visibleLegalStudyFolderOptions.length}` : ""}`,
+            searchValue: legalStudyFolderSearch,
+            onSearchChange: setLegalStudyFolderSearch,
+            searchPlaceholder: "Search case...",
+            headerLabel: "Legal Study of Cases",
+            loading: optionLoading,
+            items: visibleLegalStudyFolderOptions,
+            getItemKey: (entry) => String(getFolderId(entry.folder)),
+            isItemDisabled: (entry) => linkedLegalStudyFolderIds.has(String(getFolderId(entry.folder))),
+            disabledTag: "Already linked",
+            isItemSelected: (id) => selectedLegalStudyFolderIds.includes(id),
+            onToggleItem: (id) =>
+              setSelectedLegalStudyFolderIds((prev) =>
+                prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
               ),
-            ),
-          ],
+            renderItemTitle: () => "Legal Study",
+            renderItemSubtitle: (entry) => getCaseReferenceListLabel(entry.caseRecord),
+            emptyText: "No Legal Study with files found",
+          }),
       ),
     );
   };
@@ -4287,7 +4652,7 @@ function LegalReferenceWorkspace() {
             h("strong", { style: { color: color.text, fontSize: 15 } }, "References"),
             h(Badge, { count: links.length, style: { backgroundColor: color.blue } }),
           ),
-          h("div", { style: { marginTop: 3, fontSize: 12, color: color.muted } }, `${standaloneCount + legalStudyCount} Reference · ${caseBasedCount} Case`),
+          h("div", { style: { marginTop: 3, fontSize: 12, color: color.muted } }, `${standaloneCount + legalStudyCount + legalStudyFolderCount} Reference · ${caseBasedCount} Case`),
         ),
         h(
           Space,
@@ -4333,7 +4698,7 @@ function LegalReferenceWorkspace() {
           },
           renderSegmentButton("all", "All", links.length),
           renderSegmentButton("case", "Case", caseBasedCount),
-          renderSegmentButton("library", "Reference", standaloneCount + legalStudyCount),
+          renderSegmentButton("library", "Reference", standaloneCount + legalStudyCount + legalStudyFolderCount),
         ),
         h(Input.Search, {
           allowClear: true,

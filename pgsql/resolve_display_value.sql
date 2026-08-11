@@ -16,6 +16,12 @@ DECLARE
 BEGIN
     IF p_val IS NULL THEN RETURN NULL; END IF;
 
+    IF p_col_name = 'userId' THEN
+        SELECT COALESCE(nickname, username) INTO result
+        FROM users WHERE id = p_val::BIGINT;
+        RETURN COALESCE(result, 'User #' || p_val);
+    END IF;
+
     -- ── Lawyer / người duyệt ─────────────────────────────────
     IF p_col_name IN (
         'lawyerId', 'approvedById', 'createdById', 'updatedById',

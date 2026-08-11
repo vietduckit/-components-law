@@ -1,0 +1,1217 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SRS — All Task & All Approval Block</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary:        #185FA5;
+    --primary-light:  #E6F1FB;
+    --secondary:      #1e293b;
+    --accent:         #0891B2;
+    --success:        #16a34a;
+    --warning:        #b45309;
+    --danger:         #dc2626;
+    --purple:         #7c3aed;
+    --gray-50:        #f8fafc;
+    --gray-100:       #f1f5f9;
+    --gray-200:       #e2e8f0;
+    --gray-300:       #cbd5e1;
+    --gray-500:       #64748b;
+    --gray-700:       #334155;
+    --gray-900:       #0f172a;
+    --border:         1px solid #e2e8f0;
+    --radius:         8px;
+    --shadow:         0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --font:           'Inter', ui-sans-serif, system-ui, sans-serif;
+    --mono:           'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--gray-900);
+    background: #fff;
+    max-width: 1020px;
+    margin: 0 auto;
+    padding: 40px 48px 100px;
+  }
+
+  /* ── TOC ─────────────────────────────────────────────── */
+  .toc {
+    background: var(--gray-50);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 48px;
+  }
+  .toc-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--gray-500);
+    margin-bottom: 14px;
+  }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .toc a { color: var(--primary); text-decoration: none; font-size: 13px; }
+  .toc a:hover { text-decoration: underline; }
+  .toc ol ol { margin-top: 4px; }
+  .toc ol ol li { font-size: 12px; color: var(--gray-700); }
+
+  /* ── Typography ───────────────────────────────────────── */
+  h1 { font-size: 26px; font-weight: 700; color: var(--secondary); margin-bottom: 6px; }
+  h2 { font-size: 19px; font-weight: 700; color: var(--secondary); margin: 48px 0 16px;
+       padding-bottom: 8px; border-bottom: 2px solid var(--primary); }
+  h3 { font-size: 15px; font-weight: 600; color: var(--secondary); margin: 28px 0 10px; }
+  h4 { font-size: 13px; font-weight: 600; color: var(--gray-700); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .05em; }
+  p  { margin: 8px 0; color: var(--gray-700); }
+
+  /* ── Module banner ────────────────────────────────────── */
+  .module-banner {
+    border-radius: var(--radius);
+    padding: 18px 24px;
+    margin: 32px 0 24px;
+    border-left: 4px solid;
+  }
+  .module-banner.task   { background: #eff6ff; border-color: #3b82f6; }
+  .module-banner.approval{ background: #fef3c7; border-color: #f59e0b; }
+  .module-banner-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .module-banner.task .module-banner-title { color: #1d4ed8; }
+  .module-banner.approval .module-banner-title { color: #92400e; }
+  .module-banner p { margin: 2px 0; font-size: 13px; }
+
+  /* ── Tables ───────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12.5px; }
+  th { background: var(--gray-100); font-weight: 600; text-align: left;
+       padding: 8px 12px; border: var(--border); color: var(--gray-700); }
+  td { padding: 7px 12px; border: var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--gray-50); }
+
+  /* ── Code ─────────────────────────────────────────────── */
+  code { font-family: var(--mono); font-size: 11.5px; background: var(--gray-100);
+         padding: 1px 5px; border-radius: 3px; color: var(--purple); }
+  pre  { font-family: var(--mono); font-size: 11.5px; background: var(--gray-900);
+         color: #e2e8f0; padding: 16px 20px; border-radius: var(--radius);
+         overflow-x: auto; margin: 12px 0; line-height: 1.6; }
+  pre .kw  { color: #93c5fd; }
+  pre .str { color: #86efac; }
+  pre .cm  { color: #6b7280; }
+
+  /* ── Callouts ─────────────────────────────────────────── */
+  .callout { border-radius: var(--radius); padding: 12px 16px; margin: 14px 0;
+             border-left: 3px solid; font-size: 13px; }
+  .callout.info    { background: #eff6ff; border-color: #3b82f6; color: #1e3a5f; }
+  .callout.warn    { background: #fffbeb; border-color: #f59e0b; color: #78350f; }
+  .callout.danger  { background: #fef2f2; border-color: #ef4444; color: #7f1d1d; }
+  .callout.success { background: #f0fdf4; border-color: #22c55e; color: #14532d; }
+  .callout strong  { display: block; margin-bottom: 4px; font-weight: 600; }
+
+  /* ── Status badges ────────────────────────────────────── */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 9999px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+  }
+  .badge-todo       { background:#f5f5f5; color:#595959; border:1px solid #d9d9d9; }
+  .badge-inprogress { background:#e6f4ff; color:#0958d9; border:1px solid #91caff; }
+  .badge-blocked    { background:#f9f0ff; color:#531dab; border:1px solid #d3adf7; }
+  .badge-pending    { background:#fffbe6; color:#874d00; border:1px solid #ffe58f; }
+  .badge-approval   { background:#f6ffed; color:#237804; border:1px solid #b7eb8f; }
+  .badge-done       { background:#f6ffed; color:#389e0d; border:1px solid #b7eb8f; }
+  .badge-cancelled  { background:#fafafa; color:#8c8c8c; border:1px solid #d9d9d9; }
+
+  /* ── Test case ────────────────────────────────────────── */
+  .test-case {
+    border: var(--border); border-radius: var(--radius);
+    margin: 14px 0; overflow: hidden;
+  }
+  .test-case-header {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--gray-100); padding: 10px 14px;
+    font-weight: 600; font-size: 13px;
+  }
+  .test-id { font-family: var(--mono); font-size: 11px; background: var(--primary);
+             color: #fff; padding: 2px 7px; border-radius: 4px; }
+  .test-case-body { padding: 12px 14px; }
+  .test-case-body table { margin: 8px 0; }
+  .test-step { background: var(--gray-50); padding: 4px 10px; border-radius: 4px; margin: 3px 0;
+               font-size: 12.5px; display: flex; gap: 8px; align-items: flex-start; }
+  .test-step-num { font-weight: 700; color: var(--primary); min-width: 18px; }
+  .pass  { color: var(--success); font-weight: 600; }
+  .fail  { color: var(--danger);  font-weight: 600; }
+  .warn  { color: var(--warning); font-weight: 600; }
+
+  /* ── Bug report ───────────────────────────────────────── */
+  .bug {
+    border: var(--border); border-radius: var(--radius);
+    margin: 12px 0; overflow: hidden;
+  }
+  .bug-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; font-weight: 600; font-size: 13px;
+  }
+  .bug-header.critical { background: #fef2f2; border-bottom: var(--border); }
+  .bug-header.high     { background: #fff7ed; border-bottom: var(--border); }
+  .bug-header.medium   { background: #fffbeb; border-bottom: var(--border); }
+  .bug-header.low      { background: var(--gray-50); border-bottom: var(--border); }
+  .sev { padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; }
+  .sev-critical { background: #dc2626; color: #fff; }
+  .sev-high     { background: #ea580c; color: #fff; }
+  .sev-medium   { background: #d97706; color: #fff; }
+  .sev-low      { background: #64748b; color: #fff; }
+  .bug-body { padding: 12px 14px; font-size: 12.5px; }
+  .bug-body p { margin: 4px 0; }
+  .bug-body strong { color: var(--gray-900); }
+
+  /* ── Layout mockup ───────────────────────────────────── */
+  .mockup {
+    font-family: var(--mono); font-size: 11.5px; background: #0f172a;
+    color: #cbd5e1; padding: 18px 20px; border-radius: var(--radius);
+    white-space: pre; overflow-x: auto; line-height: 1.55; margin: 12px 0;
+  }
+  .mockup .hl    { color: #93c5fd; }
+  .mockup .hl2   { color: #86efac; }
+  .mockup .hl3   { color: #fbbf24; }
+  .mockup .dim   { color: #475569; }
+
+  /* ── Flow step ───────────────────────────────────────── */
+  .flow { display: flex; flex-direction: column; gap: 0; margin: 12px 0; }
+  .flow-step {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 8px 0;
+  }
+  .flow-step:not(:last-child) { border-bottom: 1px dashed var(--gray-200); }
+  .flow-num {
+    min-width: 24px; height: 24px; background: var(--primary); color: #fff;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+  }
+  .flow-content { flex: 1; }
+  .flow-content strong { color: var(--secondary); }
+  .flow-content p { margin: 2px 0; font-size: 12.5px; color: var(--gray-700); }
+
+  /* ── Meta ────────────────────────────────────────────── */
+  .meta-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin: 14px 0;
+  }
+  .meta-item {
+    background: var(--gray-50); border: var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+  }
+  .meta-item label { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                     letter-spacing: .08em; color: var(--gray-500); display: block; margin-bottom: 4px; }
+  .meta-item span  { font-size: 13px; color: var(--gray-900); }
+
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  hr { border: none; border-top: var(--border); margin: 40px 0; }
+
+  .section-title-accent { color: var(--primary); }
+  .tag-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+
+  /* ── Print / PDF ─────────────────────────────────────────── */
+  @page {
+    size: A4;
+    margin: 1.5cm 1.8cm;
+  }
+  @media print {
+    body { max-width: 100%; padding: 0; }
+    h2 { page-break-before: auto; }
+    .mockup {
+      white-space: pre-wrap;
+      overflow: hidden;
+      font-size: 9px;
+      line-height: 1.45;
+      max-width: 100%;
+      word-break: break-word;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow: hidden;
+      font-size: 10px;
+      max-width: 100%;
+    }
+    table { font-size: 11px; }
+    .test-case, .bug { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════════════════ -->
+<h1>SRS — All Task &amp; All Approval Block</h1>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TOC
+═══════════════════════════════════════════════════════════ -->
+<div class="toc">
+  <div class="toc-label">Mục lục</div>
+  <ol>
+    <li><a href="#s1">Tổng quan hệ thống</a></li>
+    <li><a href="#s2">Module 1 — All Task Block</a>
+      <ol>
+        <li><a href="#s2-1">Mô tả chức năng</a></li>
+        <li><a href="#s2-2">Scope Mode (All / My)</a></li>
+        <li><a href="#s2-3">Filter Bar — Bố cục UI/UX</a></li>
+        <li><a href="#s2-4">Cột bảng (Table Columns)</a></li>
+        <li><a href="#s2-5">Column Menu & Actions</a></li>
+        <li><a href="#s2-6">Group-by & Sort</a></li>
+        <li><a href="#s2-7">View Modes (Table / Board / Roadmap)</a></li>
+        <li><a href="#s2-8">Pagination</a></li>
+        <li><a href="#s2-9">View Config Persistence</a></li>
+      </ol>
+    </li>
+    <li><a href="#s3">Module 2 — All Approval Block</a>
+      <ol>
+        <li><a href="#s3-1">Mô tả chức năng</a></li>
+        <li><a href="#s3-2">Scope Mode (All / My)</a></li>
+        <li><a href="#s3-3">Filter Bar — Bố cục UI/UX</a></li>
+        <li><a href="#s3-4">Cột bảng (Table Columns)</a></li>
+        <li><a href="#s3-5">Approve / Reject Flow</a></li>
+        <li><a href="#s3-6">Reject Modal</a></li>
+        <li><a href="#s3-7">Stats & Card Header</a></li>
+        <li><a href="#s3-8">Pagination</a></li>
+        <li><a href="#s3-9">View Config Persistence</a></li>
+      </ol>
+    </li>
+    <li><a href="#s4">Test Cases — All Task Block</a></li>
+    <li><a href="#s5">Test Cases — All Approval Block</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 1 — TỔNG QUAN
+═══════════════════════════════════════════════════════════ -->
+<h2 id="s1">1. Tổng quan hệ thống</h2>
+
+<p>Hai block này cùng thuộc nhóm <strong>Task Management</strong> của hệ thống quản lý công ty luật. Chúng chạy như JS Field blocks bên trong Nocobase, nhận <code>ctx</code> là interface chính để tương tác với API, UI và trạng thái người dùng.</p>
+
+<table>
+  <thead>
+    <tr><th>Thuộc tính</th><th>AllTaskBlock</th><th>AllApprovalBlock</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Mục đích</td><td>Xem, filter, quản lý toàn bộ tasks &amp; subtasks</td><td>Review và phê duyệt/từ chối các tasks cần approval</td></tr>
+    <tr><td>Số dòng code</td><td>~3.399 dòng</td><td>~2.961 dòng</td></tr>
+    <tr><td>Collections đọc</td><td>tasks, subTasks, lawyers, projects, projectServices, customers</td><td>tasks, subTasks, lawyers, projects, projectServices, customers</td></tr>
+    <tr><td>Collections ghi</td><td>tasks, subTasks (status update - board drag), users (view config)</td><td>tasks, subTasks (status, rejectionReason, approvedById), users (view config)</td></tr>
+    <tr><td>View modes</td><td>Table · Board · Roadmap</td><td>Table · Board</td></tr>
+    <tr><td>Filter API-level</td><td>Scope "my": <code>lawyerId ∈ currentLawyerIds</code></td><td>Scope "my": <code>approvedById ∈ currentLawyerIds</code></td></tr>
+    <tr><td>Filter server + client</td><td>isRequiredApproval: không lọc</td><td>isRequiredApproval: <code>true</code> (server)</td></tr>
+    <tr><td>Limit fetch</td><td>100 tasks + 100 subtasks</td><td>100 tasks + 100 subtasks</td></tr>
+    <tr><td>Scope key config</td><td>allTasks / myTasks</td><td>allApprovals / myApprovals</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <strong>Kiến trúc chung</strong>
+  Cả hai block chia sẻ cùng pattern: <code>loadCurrentUser()</code> → <code>reload()</code> → <code>enrichRows()</code> → state → render. View config được lưu trên <code>users.allTaskViewConfig</code> (JSON), scoped theo block và scope mode.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 2 — ALL TASK BLOCK
+═══════════════════════════════════════════════════════════ -->
+<h2 id="s2">2. Module 1 — All Task Block</h2>
+
+<div class="module-banner task">
+  <div class="module-banner-title">📋 AllTaskBlock.js</div>
+  <p>Danh sách tổng hợp toàn bộ công việc (task &amp; subtask) của công ty luật. Hỗ trợ 3 view mode: Table (có group &amp; column config), Board (kanban theo status), Roadmap (Gantt theo tháng). Scope "my" giới hạn về assignee là luật sư của current user.</p>
+</div>
+
+<h3 id="s2-1">2.1 Mô tả chức năng</h3>
+
+<h4>Yêu cầu chức năng (FR)</h4>
+<table>
+  <thead><tr><th>ID</th><th>Chức năng</th><th>Mô tả</th></tr></thead>
+  <tbody>
+    <tr><td>FR-T01</td><td>Tải dữ liệu</td><td>Fetch tối đa 100 tasks + 100 subtasks, sort theo <code>-updatedAt</code>. Nếu subtask có parent không trong 100 tasks → fetch parent riêng.</td></tr>
+    <tr><td>FR-T02</td><td>Enrich dữ liệu</td><td>Join tasks với lawyers, projects, projectServices, customers để tạo display rows đầy đủ label, id, value.</td></tr>
+    <tr><td>FR-T03</td><td>Filter bar</td><td>Filter theo: Case, Assignees, Status (7 loại), Waiting issue (6 loại), Date range (startDate), Keyword.</td></tr>
+    <tr><td>FR-T04</td><td>Column filter</td><td>Mỗi cột có filter riêng theo giá trị thực tế trong data, không reset khi filter bar thay đổi.</td></tr>
+    <tr><td>FR-T05</td><td>Sort</td><td>Sort theo bất kỳ cột nào (asc/desc), qua column header menu.</td></tr>
+    <tr><td>FR-T06</td><td>Group-by</td><td>10 lựa chọn: case, service, status, assignee, start date, due date, waiting issue, next step, updatedAt, closedDate.</td></tr>
+    <tr><td>FR-T07</td><td>Table view</td><td>Bảng có 9 cột, column resizable, reorderable, hideable, với pagination theo group (5 groups/trang).</td></tr>
+    <tr><td>FR-T08</td><td>Board view</td><td>Kanban 7 cột theo status. Drag-and-drop card để đổi status (gọi API update + reload).</td></tr>
+    <tr><td>FR-T09</td><td>Roadmap view</td><td>Gantt theo tháng hiện tại: left panel danh sách, right panel timeline. Bars màu theo overdue/không overdue.</td></tr>
+    <tr><td>FR-T10</td><td>Mở task detail</td><td>Click title → <code>ctx.openView("1a280d823ef", { mode: "dialog", size: "large" })</code>. Fallback: <code>window.open(url)</code>.</td></tr>
+    <tr><td>FR-T11</td><td>Real-time update</td><td>Lắng nghe <code>law-task-detail:changed</code>: patch row ngay + reload sau 180ms và 900ms.</td></tr>
+    <tr><td>FR-T12</td><td>View config</td><td>Lưu visibleColumnKeys, groupBy, viewMode, columnWidths, columnOrder, sortConfig vào <code>users.allTaskViewConfig</code>.</td></tr>
+    <tr><td>FR-T13</td><td>Scope mode</td><td>"all" = tất cả tasks. "my" = tasks có <code>lawyerId ∈ currentLawyerIds</code>.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s2-2">2.2 Scope Mode</h3>
+
+<p>Scope được xác định một lần khi module load, không thay đổi trong runtime:</p>
+<pre>
+<span class="kw">const</span> TASK_BLOCK_SCOPE = normalizeTaskScope(
+  getRuntimeInput().taskScope || getRuntimeInput().scope || <span class="str">"all"</span>
+);
+</pre>
+
+<table>
+  <thead><tr><th>Giá trị input</th><th>Normalized</th><th>Alias được chấp nhận</th></tr></thead>
+  <tbody>
+    <tr><td>Không có / "all"</td><td><strong>all</strong></td><td>Mọi giá trị không khớp alias "my"</td></tr>
+    <tr><td>"my"</td><td><strong>my</strong></td><td>mine, personal, assigned, assignee</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th></th><th>Scope "all"</th><th>Scope "my"</th></tr></thead>
+  <tbody>
+    <tr><td>Filter API</td><td>Không có</td><td><code>{ lawyerId: { $in: [...currentLawyerIds] } }</code></td></tr>
+    <tr><td>Card title</td><td>"All Tasks" (tuỳ implementation)</td><td>"My Tasks" (tuỳ implementation)</td></tr>
+    <tr><td>Config key</td><td><code>allTasks</code></td><td><code>myTasks</code></td></tr>
+    <tr><td>Empty state</td><td>Hiển thị bình thường</td><td>Nếu không có lawyer record → set empty, return</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s2-3">2.3 Filter Bar — Bố cục UI/UX</h3>
+
+<div class="mockup">┌─────────────────────────────────────────────────────────────────────────────────┐
+│ <span class="hl">Card Header</span>: "All Tasks" / "My Tasks"              [<span class="hl2">Refresh</span>]                    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ <span class="hl3">Row 1 — Grid 4 cột</span>                                                              │
+│ ┌──────────────────────┐ ┌─────────────────┐ ┌──────────────┐ ┌─────────────┐ │
+│ │ 📁 Case (multi)       │ │ 👤 Assignee(s)  │ │ ⬤ Status     │ │ ⚠ Waiting   │ │
+│ │   minmax(260,1.2fr)  │ │ minmax(220,1fr) │ │ minmax(220,1)│ │ minmax(180) │ │
+│ └──────────────────────┘ └─────────────────┘ └──────────────┘ └─────────────┘ │
+│                                                                                 │
+│ <span class="hl3">Row 2 — Grid 5 cột</span> (4 khi board mode — ẩn Group by)                           │
+│ ┌───────────────────┐ ┌──────────────┐ ┌────────────────────┐ ┌────┐ ┌──────┐ │
+│ │ 🔍 Search keyword  │ │ ⊞ Group by  │ │ 📅 Date range(Start)│ │⚙️  │ │Reset │ │
+│ │ minmax(280,1.4fr) │ │minmax(220,.8)│ │ minmax(320,1.1fr)  │ │160 │ │ 96px │ │
+│ └───────────────────┘ └──────────────┘ └────────────────────┘ └────┘ └──────┘ │
+└─────────────────────────────────────────────────────────────────────────────────┘</div>
+
+<h4>Chi tiết từng control</h4>
+<table>
+  <thead><tr><th>Control</th><th>Row</th><th>Type</th><th>Field filter</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Case</td><td>1</td><td>Multi-select</td><td><code>filters.caseIds</code></td><td>Option 2 dòng: case code + tên khách hàng (smaller, secondary). Search theo <code>searchText</code>.</td></tr>
+    <tr><td>Assignees</td><td>1</td><td>Multi-select</td><td><code>filters.assigneeIds</code></td><td>Options từ lawyers đã load. Search theo label.</td></tr>
+    <tr><td>Status</td><td>1</td><td>Multi-select</td><td><code>filters.statuses</code></td><td>7 values: toDo, inProgress, blocked, pending, approval, done, cancelled.</td></tr>
+    <tr><td>Waiting issue</td><td>1</td><td>Multi-select</td><td><code>filters.waitingKinds</code></td><td>6 values: blocked, waiting_previous, pending_approval, overdue, unassigned, has_next_step.</td></tr>
+    <tr><td>Search</td><td>2</td><td>Input.Search</td><td><code>filters.keyword</code></td><td>Tìm trong: title, parent title, project, service, assignee, description, blocker, next step, waiting text. Unicode NFC normalized.</td></tr>
+    <tr><td>Group by</td><td>2</td><td>Select</td><td><code>groupBy</code></td><td>Ẩn khi board mode. 10 options. Lưu vào view config.</td></tr>
+    <tr><td>Date range</td><td>2</td><td>RangePicker</td><td><code>filters.dateRange</code></td><td>Filter theo <strong>startDate</strong> (không phải dueDate). Format DD/MM/YYYY.</td></tr>
+    <tr><td>View config</td><td>2</td><td>Popover</td><td>—</td><td>Chứa: view mode toggle, column checkboxes, Reset columns.</td></tr>
+    <tr><td>Reset</td><td>2</td><td>Button</td><td>—</td><td>Xóa tất cả filters + columnFilters. Không reset view config.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Lưu ý UX: Date range filter</strong>
+  Placeholder hiển thị "Start" / "End" nhưng thực chất filter theo <code>startDateValue</code> của task — không phải dueDate hay closedDate. Người dùng có thể nhầm đây là "due date range".
+</div>
+
+<h3 id="s2-4">2.4 Cột bảng (Table Columns)</h3>
+
+<table>
+  <thead><tr><th>Key</th><th>Label</th><th>Width mặc định</th><th>Locked</th><th>Sortable</th><th>Filterable</th><th>Default visible</th><th>Đặc điểm</th></tr></thead>
+  <tbody>
+    <tr><td><code>task</code></td><td>Task</td><td>280px</td><td>✅ fixed left</td><td>✅</td><td>✅</td><td>✅</td><td>Subtask: hiển thị indent + "Subtask" label. Title luôn là link click mở detail.</td></tr>
+    <tr><td><code>status</code></td><td>Status</td><td>130px</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>Ant Design <code>Tag</code> với color từ STATUS_CFG.</td></tr>
+    <tr><td><code>assignee</code></td><td>Assignee</td><td>160px</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>"Unassigned" (secondary) nếu không có assigneeId.</td></tr>
+    <tr><td><code>start</code></td><td>Start</td><td>110px</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>Format vi-VN dd/mm/yyyy. "-" nếu null.</td></tr>
+    <tr><td><code>due</code></td><td>Due</td><td>110px</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>Màu đỏ (<code>colorError</code>) nếu overdue.</td></tr>
+    <tr><td><code>closedDate</code></td><td>Closed date</td><td>130px</td><td>—</td><td>✅</td><td>✅</td><td>—</td><td>Hidden mặc định.</td></tr>
+    <tr><td><code>waiting</code></td><td>Waiting issue</td><td>240px</td><td>—</td><td>—</td><td>✅</td><td>✅</td><td>Array of colored Tags. Tooltip chi tiết (task bị block, lý do, next step).</td></tr>
+    <tr><td><code>nextStep</code></td><td>Next step</td><td>220px</td><td>—</td><td>✅</td><td>✅</td><td>—</td><td>Ellipsis + Tooltip. Hidden mặc định.</td></tr>
+    <tr><td><code>updatedAt</code></td><td>Updated</td><td>150px</td><td>—</td><td>✅</td><td>✅</td><td>✅</td><td>Format datetime (ngày giờ vi-VN).</td></tr>
+  </tbody>
+</table>
+
+<h4>Status values &amp; màu sắc</h4>
+<div class="tag-grid">
+  <span class="badge badge-todo">To Do</span>
+  <span class="badge badge-inprogress">Đang làm</span>
+  <span class="badge badge-blocked">Bị chặn</span>
+  <span class="badge badge-pending">Chờ duyệt</span>
+  <span class="badge badge-approval">Đã duyệt</span>
+  <span class="badge badge-done">Hoàn thành</span>
+  <span class="badge badge-cancelled">Đã hủy</span>
+</div>
+
+<h3 id="s2-5">2.5 Column Menu &amp; Actions</h3>
+
+<p>Mỗi header cột (trừ <code>actions</code>) có nút "•••" mở Popover 270px:</p>
+<ul>
+  <li><strong>Select column</strong> — highlight cột (visual only)</li>
+  <li><strong>Sort ascending / descending</strong> — active button = primary. Chỉ một cột được sort tại một thời điểm.</li>
+  <li><strong>Clear sort</strong> — chỉ hiện khi cột đang sort</li>
+  <li><strong>Filter by values</strong> — multi-select dropdown; options = unique display values từ in-memory rows</li>
+  <li><strong>Group by values</strong> — disabled nếu field không trong GROUP_BY_OPTIONS</li>
+  <li><strong>Hide field</strong> — disabled cho locked columns</li>
+  <li><strong>Move left / Move right</strong> — reorder trong <code>columnOrder</code></li>
+  <li><strong>✕ Clear column config</strong> — xóa filter, sort, group-by của cột này</li>
+</ul>
+
+<p>Header hiển thị:</p>
+<ul>
+  <li>Màu nền primary-light khi cột đang được sort hoặc filter</li>
+  <li>Drag handle (8px, <code>col-resize</code> cursor) cho column resize — pointer capture, min width 90px</li>
+</ul>
+
+<h3 id="s2-6">2.6 Group-by &amp; Sort</h3>
+
+<h4>Group-by options (10)</h4>
+<table>
+  <thead><tr><th>Value</th><th>Label</th><th>Sort thứ tự nhóm</th></tr></thead>
+  <tbody>
+    <tr><td>case</td><td>Case</td><td>Giảm dần theo createdAt project, rồi alpha label</td></tr>
+    <tr><td>service</td><td>Service</td><td>Alpha</td></tr>
+    <tr><td>status</td><td>Status</td><td>Alpha (không có priority order)</td></tr>
+    <tr><td>assignee</td><td>Assignee</td><td>Alpha</td></tr>
+    <tr><td>start</td><td>Start date</td><td>Alpha theo formatted date string</td></tr>
+    <tr><td>due</td><td>Due date</td><td>Alpha theo formatted date string</td></tr>
+    <tr><td>waiting</td><td>Waiting issue</td><td>Alpha</td></tr>
+    <tr><td>nextStep</td><td>Next step</td><td>Alpha</td></tr>
+    <tr><td>updatedAt</td><td>Updated</td><td>Alpha theo formatted date string</td></tr>
+    <tr><td>closedDate</td><td>Closed date</td><td>Alpha theo formatted date string</td></tr>
+  </tbody>
+</table>
+
+<h4>Sort logic</h4>
+<ul>
+  <li>Date columns (start, due, closedDate, updatedAt): sort theo Unix timestamp (null → 0)</li>
+  <li>Text columns: <code>String.localeCompare("vi", { numeric: true })</code></li>
+  <li>Chỉ sort <strong>trong nhóm</strong> (sort trong mỗi group), không sort across groups</li>
+</ul>
+
+<h3 id="s2-7">2.7 View Modes</h3>
+
+<h4>Table mode (default)</h4>
+<ul>
+  <li>Hiển thị mỗi group là một section card với header màu và AntD Table bên trong</li>
+  <li>Table có <code>scroll: { x: totalColumnWidth }</code> — horizontal scroll khi columns vượt chiều rộng</li>
+  <li>Pagination theo group (5 groups/trang)</li>
+  <li>Mỗi table trong group có AntD pagination row-level (10 rows/trang, ẩn khi ≤ 10)</li>
+</ul>
+
+<h4>Board mode (Kanban)</h4>
+<ul>
+  <li>7 cột theo status (không theo groupBy setting)</li>
+  <li>Cards: title link, project, assignee, due date</li>
+  <li>Drag-and-drop: <code>draggable</code>, <code>onDragStart</code> → <code>onDrop</code> → API update status → reload</li>
+  <li>Scroll ngang (<code>overflow-x: auto</code>), height <code>calc(100vh - 260px)</code> max 680px min 360px</li>
+  <li>Filter bar ẩn "Group by" khi board mode</li>
+</ul>
+
+<h4>Roadmap mode (Gantt)</h4>
+<ul>
+  <li>Chỉ tháng hiện tại</li>
+  <li>Left: danh sách task (title + assignee), Right: timeline</li>
+  <li>Timeline có mật độ biến: recent days hiển thị riêng lẻ, ngày cũ hơn gom thành nhóm 5</li>
+  <li>Bar: viền đỏ + nền <code>#fff1f0</code> nếu overdue; màu primary nếu bình thường</li>
+  <li>Tasks không có ngày: placeholder "Outside {Month}"</li>
+  <li>Không paginate — render ALL groups/rows</li>
+</ul>
+
+<h3 id="s2-8">2.8 Pagination</h3>
+
+<table>
+  <thead><tr><th>Level</th><th>Đơn vị</th><th>Page size</th><th>Điều kiện hiện</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Group-level</td><td>Groups</td><td>5</td><td>allGroups.length > 5 và viewMode = "table"</td><td>Ant Design Pagination, "X-Y of Z groups"</td></tr>
+    <tr><td>Row-level</td><td>Rows trong group</td><td>10</td><td>group.rows.length > 10</td><td><code>hideOnSinglePage: true</code>, AntD Table built-in</td></tr>
+  </tbody>
+</table>
+
+<p>casePage reset về 1 khi: filter thay đổi, groupBy thay đổi, viewMode thay đổi, totalCasePages nhỏ hơn casePage hiện tại.</p>
+
+<h3 id="s2-9">2.9 View Config Persistence</h3>
+
+<table>
+  <thead><tr><th>Property</th><th>Kiểu</th><th>Mô tả</th></tr></thead>
+  <tbody>
+    <tr><td>visibleColumnKeys</td><td>string[]</td><td>Danh sách cột hiển thị</td></tr>
+    <tr><td>groupBy</td><td>string</td><td>Field group-by hiện tại</td></tr>
+    <tr><td>viewMode</td><td>string</td><td>"table" | "board" | "roadmap"</td></tr>
+    <tr><td>columnWidths</td><td>{[key]:number}</td><td>Độ rộng theo pixel từng cột</td></tr>
+    <tr><td>columnOrder</td><td>string[]</td><td>Thứ tự cột trái-phải</td></tr>
+    <tr><td>sortConfig</td><td>{field,direction}|null</td><td>Cột đang sort</td></tr>
+  </tbody>
+</table>
+
+<p>Lưu vào <code>users.allTaskViewConfig[BLOCK_VIEW_CONFIG_KEY]</code>. Mỗi scope (allTasks/myTasks) lưu độc lập. Filter bar state KHÔNG được persist.</p>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 3 — ALL APPROVAL BLOCK
+═══════════════════════════════════════════════════════════ -->
+<h2 id="s3">3. Module 2 — All Approval Block</h2>
+
+<div class="module-banner approval">
+  <div class="module-banner-title">✅ AllApprovalBlock.js</div>
+  <p>Block chuyên biệt cho luồng phê duyệt công việc. Chỉ tải tasks có <code>isRequiredApproval = true</code>. Scope "my" hiển thị các tasks mà current user là người phê duyệt (<code>approvedById</code>). Cung cấp nút Phê duyệt / Từ chối trực tiếp trong bảng.</p>
+</div>
+
+<h3 id="s3-1">3.1 Mô tả chức năng</h3>
+
+<table>
+  <thead><tr><th>ID</th><th>Chức năng</th><th>Mô tả</th></tr></thead>
+  <tbody>
+    <tr><td>FR-A01</td><td>Tải dữ liệu approval</td><td>Fetch tasks + subtasks có <code>isRequiredApproval: true</code>. Trong scope "my": thêm filter <code>approvedById ∈ currentLawyerIds</code>.</td></tr>
+    <tr><td>FR-A02</td><td>Phê duyệt task</td><td>PUT <code>status = "approval"</code>, <code>approvedById = currentLawyerId</code>. Chỉ hiện khi row.status = "pending".</td></tr>
+    <tr><td>FR-A03</td><td>Từ chối task</td><td>PUT <code>status = "toDo"</code>, <code>rejectionReason = reason</code>. Chỉ hiện khi row.status = "pending". Bắt buộc nhập lý do.</td></tr>
+    <tr><td>FR-A04</td><td>Reject modal</td><td>Modal 480px với preview task, textarea lý do (max 500 ký tự), helper text, validation client-side.</td></tr>
+    <tr><td>FR-A05</td><td>Filter bar</td><td>Filter theo: Case, Assignee, Approver, Status, Date range (dueDate), Keyword (bao gồm rejectionReason).</td></tr>
+    <tr><td>FR-A06</td><td>Column config</td><td>13 cột, 2 locked (task, actions). Sort, filter, group-by, resize, reorder, hide per column.</td></tr>
+    <tr><td>FR-A07</td><td>Group-by</td><td>7 options: status, case, service, assignee, approver, due, updatedAt.</td></tr>
+    <tr><td>FR-A08</td><td>Stats header</td><td>Hiển thị badge "N chờ duyệt" và text "X/Y đã duyệt" trên card header (từ unfiltered rows).</td></tr>
+    <tr><td>FR-A09</td><td>Board view</td><td>Kanban theo status với approve/reject buttons trên card. Không có roadmap mode.</td></tr>
+    <tr><td>FR-A10</td><td>Real-time</td><td>Lắng nghe <code>law-task-detail:changed</code>, debounce 600ms → reload.</td></tr>
+    <tr><td>FR-A11</td><td>Scope mode</td><td>"all" = tất cả approval tasks. "my" = tasks mà user là approver.</td></tr>
+    <tr><td>FR-A12</td><td>View config</td><td>Lưu config vào <code>users.allTaskViewConfig[allApprovals|myApprovals]</code>.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s3-2">3.2 Scope Mode</h3>
+
+<table>
+  <thead><tr><th></th><th>Scope "all"</th><th>Scope "my"</th></tr></thead>
+  <tbody>
+    <tr><td>API filter</td><td><code>{ isRequiredApproval: true }</code></td><td><code>{ isRequiredApproval: true, approvedById: { $in: [...] } }</code></td></tr>
+    <tr><td>Card title</td><td>"All Approval"</td><td>"My Approval"</td></tr>
+    <tr><td>Config key</td><td><code>allApprovals</code></td><td><code>myApprovals</code></td></tr>
+    <tr><td>Approver dropdown</td><td>Tất cả approvers có trong data</td><td>Chỉ current user (vì data đã scope)</td></tr>
+    <tr><td>Empty state</td><td>Hiển thị bình thường</td><td>Nếu user không có lawyer record → empty list, không có lỗi</td></tr>
+  </tbody>
+</table>
+
+<p>Alias được chấp nhận cho scope "my": <code>mine, personal, assigned, approver, reviewer, myapproval, my_approval, my-approval, "my approval"</code></p>
+
+<h3 id="s3-3">3.3 Filter Bar — Bố cục UI/UX</h3>
+
+<div class="mockup">┌────────────────────────────────────────────────────────────────────────────────────┐
+│ <span class="hl">Card Header</span>: "My Approval" /<span class="hl3"> [2 chờ duyệt]</span>    <span class="dim">3/10 đã duyệt</span>   [<span class="hl2">Refresh</span>]          │
+├────────────────────────────────────────────────────────────────────────────────────┤
+│ <span class="hl3">Row 1 — Grid 4 cột</span>                                                                 │
+│ ┌──────────────────────┐ ┌───────────────────┐ ┌──────────────────┐ ┌──────────┐ │
+│ │ 📁 Case (multi)       │ │ 👤 Assignee (multi)│ │ ✅ Approver(multi)│ │ ⬤ Status │ │
+│ │  minmax(260px,1.2fr) │ │  minmax(220px,1fr)│ │ minmax(220px,1fr)│ │min(180px)│ │
+│ └──────────────────────┘ └───────────────────┘ └──────────────────┘ └──────────┘ │
+│                                                                                    │
+│ <span class="hl3">Row 2 — Grid 5 cột</span> (4 nếu không có RangePicker)                                   │
+│ ┌──────────────────┐ ┌────────────┐ ┌────────────────────┐ ┌───────────┐ ┌──────┐ │
+│ │ 🔍 Search keyword │ │ ⊞ Group by │ │ 📅 Date range (Due) │ │ ⚙ View cfg│ │Reset │ │
+│ │ minmax(280,1.4fr)│ │min(180,.7) │ │  minmax(300,1.1fr) │ │min(140,.5)│ │ 96px │ │
+│ └──────────────────┘ └────────────┘ └────────────────────┘ └───────────┘ └──────┘ │
+└────────────────────────────────────────────────────────────────────────────────────┘</div>
+
+<table>
+  <thead><tr><th>Control</th><th>Row</th><th>Filter field</th><th>Điểm khác biệt với AllTaskBlock</th></tr></thead>
+  <tbody>
+    <tr><td>Case</td><td>1</td><td><code>filters.caseIds</code></td><td>Giống AllTaskBlock</td></tr>
+    <tr><td>Assignee</td><td>1</td><td><code>filters.assigneeIds</code></td><td>Giống AllTaskBlock</td></tr>
+    <tr><td><strong>Approver</strong></td><td>1</td><td><code>filters.approverIds</code></td><td>✨ Mới: filter theo người phê duyệt. Options = lawyers có trong data như approver.</td></tr>
+    <tr><td>Status</td><td>1</td><td><code>filters.statuses</code></td><td>Không có "Waiting issue" filter (khác AllTaskBlock)</td></tr>
+    <tr><td>Search</td><td>2</td><td><code>filters.keyword</code></td><td>Thêm <code>rejectionReasonValue</code> vào haystack</td></tr>
+    <tr><td>Group by</td><td>2</td><td><code>groupBy</code></td><td>7 options (không có waiting, nextStep)</td></tr>
+    <tr><td>Date range</td><td>2</td><td><code>filters.dateRange</code></td><td>Filter theo <strong>dueDate</strong> (khác AllTaskBlock filter startDate)</td></tr>
+    <tr><td>View config</td><td>2</td><td>—</td><td>Không có "Roadmap" option (chỉ Table / Board)</td></tr>
+    <tr><td>Reset</td><td>2</td><td>—</td><td>Giống AllTaskBlock</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s3-4">3.4 Cột bảng (Table Columns)</h3>
+
+<table>
+  <thead><tr><th>Key</th><th>Label</th><th>Width</th><th>Locked</th><th>Default visible</th><th>Đặc điểm</th></tr></thead>
+  <tbody>
+    <tr><td><code>task</code></td><td>Task</td><td>240px</td><td>✅ fixed left</td><td>✅</td><td>Link click mở detail. Subtask: indent + "Subtask" label + parent title in tooltip. Mở parent task's detail.</td></tr>
+    <tr><td><code>case</code></td><td>Case</td><td>200px</td><td>—</td><td>✅</td><td>Ellipsis + Tooltip.</td></tr>
+    <tr><td><code>service</code></td><td>Service</td><td>160px</td><td>—</td><td>—</td><td>Hidden mặc định.</td></tr>
+    <tr><td><code>status</code></td><td>Status</td><td>140px</td><td>—</td><td>✅</td><td>AntD Tag. Trong approval context: pending = trạng thái quan trọng nhất.</td></tr>
+    <tr><td><code>assignee</code></td><td>Assignee</td><td>140px</td><td>—</td><td>✅</td><td>"Unassigned" secondary nếu không có.</td></tr>
+    <tr><td><code>approver</code></td><td>Approver</td><td>140px</td><td>—</td><td>✅</td><td>✨ Màu xanh lá (<code>#237804</code>) nếu có approver. Secondary "-" nếu không.</td></tr>
+    <tr><td><code>start</code></td><td>Start</td><td>110px</td><td>—</td><td>✅</td><td>Format vi-VN.</td></tr>
+    <tr><td><code>due</code></td><td>Due</td><td>110px</td><td>—</td><td>✅</td><td>Format vi-VN.</td></tr>
+    <tr><td><code>closedDate</code></td><td>Closed date</td><td>120px</td><td>—</td><td>—</td><td>Hidden mặc định.</td></tr>
+    <tr><td><code>rejectionReason</code></td><td>Rejection reason</td><td>220px</td><td>—</td><td>✅</td><td>✨ Màu đỏ (<code>Text type="danger"</code>). Ellipsis + Tooltip. Giúp người duyệt thấy lý do từ chối trước đó.</td></tr>
+    <tr><td><code>nextStep</code></td><td>Next step</td><td>180px</td><td>—</td><td>—</td><td>Hidden mặc định.</td></tr>
+    <tr><td><code>updatedAt</code></td><td>Updated</td><td>150px</td><td>—</td><td>✅</td><td>Datetime format.</td></tr>
+    <tr><td><code>actions</code></td><td>Actions</td><td>200px</td><td>✅ no menu</td><td>✅</td><td>✨ Nút "Phê duyệt" (green) + "Từ chối" (red). <strong>Chỉ render khi status = "pending"</strong>. Non-pending → null (ô trống).</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s3-5">3.5 Approve / Reject Flow</h3>
+
+<h4>Approve Flow</h4>
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-num">1</div>
+    <div class="flow-content">
+      <strong>Guard kiểm tra</strong>
+      <p>Nếu <code>approvingKey === row.key</code> → return ngay (chặn double-click). Set <code>approvingKey = row.key</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">2</div>
+    <div class="flow-content">
+      <strong>Xác định collection</strong>
+      <p><code>row.recordType === "subTask"</code> → <code>subTasks</code>, ngược lại → <code>tasks</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">3</div>
+    <div class="flow-content">
+      <strong>API call</strong>
+      <p><code>POST {collection}:update?filterByTk={id}</code> với body <code>{ status: "approval", approvedById: currentLawyerId }</code>.</p>
+      <p><em>Note: <code>approvedById</code> chỉ được gửi khi <code>currentLawyerId</code> là truthy.</em></p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">4</div>
+    <div class="flow-content">
+      <strong>Success</strong>
+      <p><code>message.success("Task approved successfully.")</code> → <code>reload()</code> (full reload, không optimistic update).</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">5</div>
+    <div class="flow-content">
+      <strong>Error / Finally</strong>
+      <p>Error: <code>message.error("Could not approve task.")</code>. Finally: <code>setApprovingKey(null)</code>.</p>
+    </div>
+  </div>
+</div>
+
+<h4>Reject Flow</h4>
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-num">1</div>
+    <div class="flow-content">
+      <strong>Mở modal</strong>
+      <p><code>openRejectModal(row)</code> → <code>setRejectModal({ open: true, row, reason: "", submitting: false })</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">2</div>
+    <div class="flow-content">
+      <strong>Validation</strong>
+      <p><code>reason.trim()</code> phải không rỗng → <code>message.warning("Vui lòng nhập lý do từ chối.")</code> nếu vi phạm.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">3</div>
+    <div class="flow-content">
+      <strong>API call</strong>
+      <p><code>POST {collection}:update?filterByTk={id}</code> với body <code>{ status: "toDo", rejectionReason: reason.trim() }</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">4</div>
+    <div class="flow-content">
+      <strong>Success</strong>
+      <p><code>message.success("Task rejected and returned for revision.")</code> → đóng modal → <code>reload()</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-num">5</div>
+    <div class="flow-content">
+      <strong>Error</strong>
+      <p><code>message.error("Could not reject task.")</code> → <code>submitting = false</code> (modal giữ nguyên để user retry).</p>
+    </div>
+  </div>
+</div>
+
+<h3 id="s3-6">3.6 Reject Modal — UI/UX</h3>
+
+<div class="mockup">┌─────────────────────────────────────────────────┐
+│  <span class="hl">Từ chối phê duyệt</span>                         [×]  │
+├─────────────────────────────────────────────────┤
+│  <span class="dim">┌────────────────────────────────────────────┐</span> │
+│  <span class="dim">│</span> <span class="hl3">Tên task (bold)</span>                             <span class="dim">│</span> │
+│  <span class="dim">│</span> <span class="dim">Case name · Service name</span>                   <span class="dim">│</span> │
+│  <span class="dim">└────────────────────────────────────────────┘</span> │
+│                                                 │
+│  <span class="hl2">Lý do từ chối</span> <span class="hl" style="color:#ef4444">*</span>                                │
+│  ┌────────────────────────────────────────────┐ │
+│  │ Nhập lý do từ chối để thông báo cho        │ │
+│  │ người thực hiện...                         │ │
+│  │                                            │ │
+│  │                                    0/500   │ │
+│  └────────────────────────────────────────────┘ │
+│  <span class="dim">Task sẽ được trả về trạng thái "To do"</span>         │
+│  <span class="dim">kèm lý do từ chối.</span>                             │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│        [Hủy]          [Xác nhận từ chối 🔴]    │
+└─────────────────────────────────────────────────┘</div>
+
+<table>
+  <thead><tr><th>Thuộc tính</th><th>Giá trị</th></tr></thead>
+  <tbody>
+    <tr><td>Width</td><td>480px</td></tr>
+    <tr><td>destroyOnClose</td><td>true — textarea auto-focus hoạt động</td></tr>
+    <tr><td>maskClosable</td><td>false khi submitting</td></tr>
+    <tr><td>Textarea</td><td>4 rows, maxLength 500, showCount, autoFocus, disabled khi submitting</td></tr>
+    <tr><td>OK button style</td><td>danger, confirmLoading = submitting</td></tr>
+    <tr><td>Cancel button</td><td>disabled khi submitting; re-enables sau error</td></tr>
+    <tr><td>Validation</td><td>Client-side only; kiểm tra reason.trim() !== ""</td></tr>
+  </tbody>
+</table>
+
+<h3 id="s3-7">3.7 Stats &amp; Card Header</h3>
+
+<div class="mockup">┌─────────────────────────────────────────────────────────────────────────┐
+│ <span class="hl">My Approval</span>  <span class="hl3">[2 chờ duyệt]</span>         <span class="dim">5/12 đã duyệt</span>  [<span class="hl2">Refresh</span>]         │
+└─────────────────────────────────────────────────────────────────────────┘</div>
+
+<ul>
+  <li><strong>pendingCount</strong> = <code>rows.filter(r =&gt; r.status === "pending").length</code> — từ <strong>raw rows</strong> (bất kể filter bar)</li>
+  <li><strong>approvedCount</strong> = <code>rows.filter(r =&gt; r.status === "approval").length</code></li>
+  <li><strong>totalCount</strong> = <code>rows.length</code></li>
+  <li>Badge "N chờ duyệt" màu warning: chỉ render khi pendingCount &gt; 0</li>
+  <li>Text "X/Y đã duyệt": chỉ render khi totalCount &gt; 0</li>
+</ul>
+
+<div class="callout info">
+  Stats tính từ <code>rows</code> chưa qua filter bar — nên badge "chờ duyệt" có thể hiển thị tasks đang bị ẩn bởi filter. Đây là behavior có chủ đích: người dùng biết còn task chờ duyệt ngay cả khi đang filter.
+</div>
+
+<h3 id="s3-8">3.8 Pagination</h3>
+
+<p>Cùng pattern với AllTaskBlock: group-level (5 groups/trang) + row-level AntD (10 rows/trang). Group header còn hiển thị thêm badge "N pending" riêng cho từng group.</p>
+
+<h3 id="s3-9">3.9 View Config Persistence</h3>
+
+<p>Giống AllTaskBlock. Config key là <code>allApprovals</code> hoặc <code>myApprovals</code>. Lưu tất cả column/sort/group-by/viewMode. Filter bar KHÔNG persist.</p>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 4 — TEST CASES ALL TASK
+═══════════════════════════════════════════════════════════ -->
+<h2 id="s4">4. Test Cases — All Task Block</h2>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T01</span> Tải dữ liệu ban đầu (Initial Load)</div>
+  <div class="test-case-body">
+    <table><tr><th>Precondition</th><td>DB có 5 tasks, 3 subtasks, tất cả có projectId và lawyerId hợp lệ</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở block (scope = "all")</div>
+      <div class="test-step"><span class="test-step-num">2</span>Chờ loading spinner biến mất</div>
+    </td></tr>
+    <tr><th>Expected</th><td>
+      <ul>
+        <li>Hiển thị đúng 5 tasks + 3 subtasks (8 rows tổng)</li>
+        <li>Subtasks có indent, "Subtask" label bên dưới title</li>
+        <li>Assignee label hiển thị đúng tên luật sư</li>
+        <li>Project label hiển thị đúng tên hồ sơ</li>
+        <li>Không có lỗi console</li>
+      </ul>
+    </td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span> nếu row count khớp và không có error toast</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T02</span> Scope "my" — chỉ thấy task của mình</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Current user là luật sư A, có 3 tasks assign cho A, 5 tasks assign cho B</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở block với inputArgs <code>{ scope: "my" }</code></div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ 3 tasks của luật sư A hiển thị. 5 tasks của B không xuất hiện.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span> nếu row count = 3</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T03</span> Filter theo Status</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Có tasks với đủ 7 status</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Chọn "Đang làm" trong Status filter</div>
+      <div class="test-step"><span class="test-step-num">2</span>Chọn thêm "Bị chặn"</div>
+      <div class="test-step"><span class="test-step-num">3</span>Bỏ chọn "Đang làm"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 1: chỉ inProgress rows. Step 2: inProgress + blocked. Step 3: chỉ blocked. Pagination reset về trang 1 mỗi lần đổi filter.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T04</span> Filter Keyword — tìm kiếm nâng cao</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Nhập "hà nội" vào ô search (chữ thường, không dấu đủ)</div>
+      <div class="test-step"><span class="test-step-num">2</span>Nhập ký tự unicode đặc biệt (zero-width space)</div>
+      <div class="test-step"><span class="test-step-num">3</span>Xóa nội dung search</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 1: tìm đúng. Step 2: zero-width bị strip, kết quả giống không có. Step 3: hiện lại tất cả rows.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T05</span> Date Range filter — boundary</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task A startDate = 01/06/2026. Task B startDate = 30/06/2026. Task C startDate = null.</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Chọn date range 01/06/2026 → 30/06/2026</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Task A và B hiển thị. Task C ẩn (null). Boundary inclusive.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T06</span> Group-by thay đổi</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Group by = "case" (mặc định)</div>
+      <div class="test-step"><span class="test-step-num">2</span>Chuyển sang "status"</div>
+      <div class="test-step"><span class="test-step-num">3</span>Chuyển sang "assignee"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 2: group headers là status labels, số group = số status có data. Step 3: group headers là tên luật sư + "Unassigned". casePage về 1 mỗi lần đổi.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T07</span> Column Sort</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở column menu của cột "Due", chọn "Sort ascending"</div>
+      <div class="test-step"><span class="test-step-num">2</span>Mở column menu của cột "Assignee", chọn "Sort descending"</div>
+      <div class="test-step"><span class="test-step-num">3</span>Mở column menu của "Assignee", chọn "Clear sort"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 1: rows trong mỗi group sort theo due asc (null = 0 → đầu). Step 2: sort chuyển sang assignee desc (Due sort bị xóa). Step 3: không sort. Header "Due" mất highlight sau step 2.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T08</span> Column Resize và lưu config</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Drag column handle của "Task" từ 280px → 400px</div>
+      <div class="test-step"><span class="test-step-num">2</span>Reload trang (mở lại block)</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 1: column rộng lên ngay lập tức (live update). Step 2: column vẫn 400px (lưu vào users.allTaskViewConfig).</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T09</span> Board drag-and-drop</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task A status = "toDo"</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Chuyển sang Board mode</div>
+      <div class="test-step"><span class="test-step-num">2</span>Drag Task A từ cột "To Do" sang cột "In Progress"</div>
+      <div class="test-step"><span class="test-step-num">3</span>Kiểm tra DB</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Step 2: card di chuyển ngay (optimistic). Step 3: DB có tasks.status = "inProgress". Nếu API fail: card rollback về cột cũ.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T10</span> Scope "my" — user không có lawyer record</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Current user không có record trong <code>lawyers</code> collection (userId không match)</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở block với scope = "my"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Block hiển thị empty state (không có task). Không có error toast, không crash. Loading spinner tắt.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span> nếu empty không crash. <span class="warn">WARN</span> nếu không có message giải thích.</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T11</span> Real-time event update</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Block đang hiển thị Task A status = "toDo"</div>
+      <div class="test-step"><span class="test-step-num">2</span>Dispatch event: <code>window.dispatchEvent(new CustomEvent("law-task-detail:changed", { detail: { id: taskAId, status: "done" } }))</code></div>
+    </td></tr>
+    <tr><th>Expected</th><td>Task A status badge đổi ngay (patch optimistic). Sau 180ms: full reload. Sau 900ms: second reload (debounced).</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T12</span> Pagination — 6 groups</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>6 cases khác nhau, mỗi case có ít nhất 1 task. Group by = "case".</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Xem trang 1</div>
+      <div class="test-step"><span class="test-step-num">2</span>Click next</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Trang 1: 5 groups. Trang 2: 1 group. Pagination bar hiển thị "1-5 of 6 groups".</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-T13</span> Reset filters</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Set status filter = "done", keyword = "abc", date range = 01/01 → 31/12</div>
+      <div class="test-step"><span class="test-step-num">2</span>Click Reset</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Tất cả filters trở về rỗng. Tất cả rows hiển thị lại. View config (columns, sort, groupBy) KHÔNG bị reset.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 5 — TEST CASES ALL APPROVAL
+═══════════════════════════════════════════════════════════ -->
+<h2 id="s5">5. Test Cases — All Approval Block</h2>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A01</span> Chỉ tải tasks cần approval</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>DB có 3 tasks với isRequiredApproval=true, 5 tasks với isRequiredApproval=false hoặc null</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở AllApprovalBlock (scope = "all")</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ 3 tasks hiển thị. Tasks không cần approval không xuất hiện.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A02</span> Scope "my" — chỉ thấy task mình phê duyệt</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task A approvedById = lawyerX (= current user). Task B approvedById = lawyerY.</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở block với scope = "my"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ Task A hiển thị. Title = "My Approval". Badge pending count chính xác.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A03</span> Phê duyệt task thành công</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task A status = "pending". Current user có lawyer record lawyerX.</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Click nút "Phê duyệt" trên row Task A</div>
+      <div class="test-step"><span class="test-step-num">2</span>Chờ spinner biến mất</div>
+      <div class="test-step"><span class="test-step-num">3</span>Kiểm tra DB</div>
+    </td></tr>
+    <tr><th>Expected</th><td>
+      <ul>
+        <li>Nút "Phê duyệt" hiển thị spinner khi đang xử lý</li>
+        <li>Toast "Task approved successfully."</li>
+        <li>DB: tasks.status = "approval", approvedById = lawyerX.id</li>
+        <li>Row cập nhật sau reload (nút actions ẩn vì không còn "pending")</li>
+        <li>Stats: approvedCount tăng 1, pendingCount giảm 1</li>
+      </ul>
+    </td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A04</span> Phê duyệt — chặn double-click</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Click "Phê duyệt" nhanh 3 lần liên tiếp</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ 1 API call được gửi. Không có duplicate update.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A05</span> Từ chối task — nhập lý do hợp lệ</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task B status = "pending"</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Click "Từ chối" → modal mở</div>
+      <div class="test-step"><span class="test-step-num">2</span>Nhập "Thiếu tài liệu chứng minh nguồn gốc tài sản"</div>
+      <div class="test-step"><span class="test-step-num">3</span>Click "Xác nhận từ chối"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>
+      <ul>
+        <li>Modal đóng sau success</li>
+        <li>Toast "Task rejected and returned for revision."</li>
+        <li>DB: status = "toDo", rejectionReason = "Thiếu tài liệu..."</li>
+        <li>Cột rejectionReason hiển thị màu đỏ với nội dung vừa nhập</li>
+      </ul>
+    </td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A06</span> Từ chối — bỏ trống lý do</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở reject modal</div>
+      <div class="test-step"><span class="test-step-num">2</span>Không nhập gì, click "Xác nhận từ chối"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Warning toast "Vui lòng nhập lý do từ chối." Modal vẫn mở. Không có API call.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A07</span> Từ chối — chỉ whitespace</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Nhập "   " (3 khoảng trắng) vào textarea</div>
+      <div class="test-step"><span class="test-step-num">2</span>Click "Xác nhận từ chối"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Warning toast (reason.trim() = ""). Không có API call.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A08</span> Actions chỉ hiện cho pending rows</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Có tasks với đủ 7 status khác nhau</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Quan sát cột Actions với từng row theo status</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ row status = "pending" có nút Phê duyệt + Từ chối. Tất cả status khác: ô Actions trống.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A09</span> Filter Approver dropdown</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task A approvedBy = luật sư X. Task B approvedBy = luật sư Y.</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Chọn "luật sư X" trong Approver filter</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Chỉ Task A hiển thị. Task B ẩn.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A10</span> Stats không bị ảnh hưởng bởi filter</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>10 tasks tổng, 3 pending, 4 approval. Hiện đang filter status = "pending".</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Quan sát card header khi filter đang active</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Badge hiển thị "3 chờ duyệt". Text "4/10 đã duyệt". (Không phải "3/3")</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A11</span> Reject modal — API fail</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Mở reject modal, nhập lý do hợp lệ</div>
+      <div class="test-step"><span class="test-step-num">2</span>Mock API trả về lỗi 500</div>
+      <div class="test-step"><span class="test-step-num">3</span>Click "Xác nhận từ chối"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Error toast "Could not reject task." Modal vẫn mở (không đóng). Nút Cancel re-enable (submitting = false). User có thể thử lại.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A12</span> Group-by "status" — thứ tự pending đầu tiên</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Group by = "status"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Group "Chờ duyệt" (pending) xuất hiện đầu tiên trong danh sách groups (priority order, không phải alpha).</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A13</span> Keyword search trong rejection reason</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Precondition</th><td>Task C rejectionReason = "Thiếu hồ sơ nhân thân". Task D rejectionReason = null.</td></tr>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Tìm "nhân thân"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Task C xuất hiện. Task D ẩn.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="test-case">
+  <div class="test-case-header"><span class="test-id">TC-A14</span> Scope "my" — user không có lawyer record</div>
+  <div class="test-case-body">
+    <table>
+    <tr><th>Steps</th><td>
+      <div class="test-step"><span class="test-step-num">1</span>Đăng nhập user không có lawyer record</div>
+      <div class="test-step"><span class="test-step-num">2</span>Mở block scope = "my"</div>
+    </td></tr>
+    <tr><th>Expected</th><td>Empty list. Không crash. Không error toast.</td></tr>
+    <tr><th>Pass criteria</th><td><span class="pass">PASS</span> (empty) / <span class="warn">WARN</span> vì không có giải thích cho user</td></tr>
+    </table>
+  </div>
+</div>
+
+
+</body>
+</html>

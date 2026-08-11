@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SRS — Hệ thống Quản lý Tài liệu Thư viện (Library.js)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary:   #185FA5;
+    --primary-light: #E6F1FB;
+    --secondary: #1e293b;
+    --accent:    #0891B2;
+    --success:   #16a34a;
+    --warning:   #b45309;
+    --danger:    #dc2626;
+    --gray-50:   #f8fafc;
+    --gray-100:  #f1f5f9;
+    --gray-200:  #e2e8f0;
+    --gray-300:  #cbd5e1;
+    --gray-500:  #64748b;
+    --gray-700:  #334155;
+    --gray-900:  #0f172a;
+    --border:    1px solid #e2e8f0;
+    --radius:    8px;
+    --shadow:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --font:      'Inter', ui-sans-serif, system-ui, sans-serif;
+    --mono:      'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--gray-900);
+    background: #fff;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 48px 80px;
+  }
+
+
+  /* ── TOC ─────────────────────────────────────────── */
+  .toc {
+    background: var(--gray-50);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 44px;
+  }
+  .toc h2 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--gray-500);
+    margin-bottom: 14px;
+  }
+  .toc ol {
+    padding-left: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+  }
+  .toc li { font-size: 13px; color: var(--primary); }
+  .toc li a { color: inherit; text-decoration: none; }
+  .toc li a:hover { text-decoration: underline; }
+
+  /* ── Typography ──────────────────────────────────── */
+  h2.section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--secondary);
+    margin: 52px 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2.section-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  h3.sub-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h3.sub-title::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 16px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+  h4.feat-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin: 18px 0 8px;
+  }
+
+  p { margin-bottom: 10px; color: var(--gray-700); }
+
+  /* ── Feature card ────────────────────────────────── */
+  .feature-block {
+    border: var(--border);
+    border-radius: 10px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .feature-header {
+    background: var(--gray-50);
+    border-bottom: var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .feature-id {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    height: 22px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 0 8px;
+  }
+  .feature-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--secondary);
+  }
+  .feature-body {
+    padding: 16px 20px;
+    display: grid;
+    gap: 14px;
+  }
+  .layer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+  }
+  .layer-card {
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .layer-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 6px;
+  }
+  .layer-label.ui   { color: var(--primary); }
+  .layer-label.db   { color: var(--success); }
+  .layer-label.wf   { color: var(--warning); }
+  .layer-label.sec  { color: var(--danger); }
+  .layer-label.logic{ color: var(--accent); }
+  .layer-content ul {
+    padding-left: 14px;
+    margin: 0;
+  }
+  .layer-content li {
+    font-size: 12.5px;
+    color: var(--gray-700);
+    margin-bottom: 3px;
+  }
+
+  /* ── Badge row ───────────────────────────────────── */
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+  }
+  .badge-blue   { background:#E6F1FB; color:#0C447C; border-color:#B5D4F4; }
+  .badge-green  { background:#F0FDF4; color:#15803D; border-color:#BBF7D0; }
+  .badge-amber  { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+  .badge-purple { background:#F5F3FF; color:#5B21B6; border-color:#DDD6FE; }
+  .badge-rose   { background:#FFF1F2; color:#9F1239; border-color:#FECDD3; }
+  .badge-slate  { background:#F1F5F9; color:#475569; border-color:#CBD5E1; }
+
+  /* ── Table ───────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin-bottom: 16px;
+  }
+  thead th {
+    background: var(--gray-100);
+    font-weight: 600;
+    font-size: 11.5px;
+    color: var(--gray-700);
+    padding: 8px 12px;
+    text-align: left;
+    border: 1px solid var(--gray-200);
+  }
+  tbody td {
+    padding: 7px 12px;
+    border: 1px solid var(--gray-200);
+    color: var(--gray-700);
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) td { background: var(--gray-50); }
+
+  /* ── Code ────────────────────────────────────────── */
+  code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #0f172a;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre .c  { color: #64748b; font-style: italic; }
+  pre .k  { color: #818cf8; }
+  pre .s  { color: #6ee7b7; }
+  pre .n  { color: #fbbf24; }
+
+  /* ── Info/Warning boxes ──────────────────────────── */
+  .box {
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+  }
+  .box-info   { background: #EFF6FF; border-left: 3px solid #3B82F6; color: #1e3a8a; }
+  .box-warn   { background: #FFFBEB; border-left: 3px solid #F59E0B; color: #78350f; }
+  .box-success{ background: #F0FDF4; border-left: 3px solid #22C55E; color: #14532d; }
+  .box-danger { background: #FFF1F2; border-left: 3px solid #F43F5E; color: #881337; }
+
+  /* ── Test table ─────────────────────────────────── */
+  .test-pass { color: #16a34a; font-weight: 600; }
+  .test-fail { color: #dc2626; font-weight: 600; }
+  .test-manual { color: #b45309; font-weight: 600; }
+
+  /* ── Permission matrix ───────────────────────────── */
+  .perm-yes { color: #16a34a; font-weight: 700; text-align: center; }
+  .perm-no  { color: #9ca3af; text-align: center; }
+  .perm-cond{ color: #b45309; font-weight: 600; text-align: center; }
+
+  /* ── Print ───────────────────────────────────────── */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+    /* Xóa header/footer mặc định của trình duyệt */
+    @top-center { content: none; }
+    @bottom-center { content: none; }
+  }
+  @media print {
+    body { padding: 0; font-size: 12.5px; max-width: 100%; }
+    h2.section-title { break-before: page; }
+    .feature-block, table, pre { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+    /* Ẩn URL và timestamp do trình duyệt thêm vào */
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+
+<!-- ══════════════════════════════════════════════════
+     TABLE OF CONTENTS
+════════════════════════════════════════════════════ -->
+<div class="toc">
+  <h2>Mục lục</h2>
+  <ol>
+    <li><a href="#s1">Tổng quan hệ thống</a></li>
+    <li><a href="#s3">Phân tích yêu cầu</a></li>
+    <li><a href="#s4">Hệ thống phân quyền</a></li>
+    <li><a href="#s5">Quản lý Thư mục</a></li>
+    <li><a href="#s6">Quản lý Tài liệu</a></li>
+    <li><a href="#s7">Tải lên & Xử lý file</a></li>
+    <li><a href="#s8">Xem trước tài liệu</a></li>
+    <li><a href="#s9">Chia sẻ tài liệu</a></li>
+    <li><a href="#s10">Không gian Knowledge Base</a></li>
+    <li><a href="#s11">Không gian Case Reference</a></li>
+    <li><a href="#s12">Không gian Legal Study</a></li>
+    <li><a href="#s13">Tài liệu cá nhân (My Documents)</a></li>
+    <li><a href="#s14">Tài liệu Khách hàng / Hồ sơ</a></li>
+    <li><a href="#s15">Shared With Me</a></li>
+    <li><a href="#s16">Hoạt động gần đây (Recent)</a></li>
+    <li><a href="#s17">Thùng rác (Trash)</a></li>
+    <li><a href="#s18">Thao tác hàng loạt</a></li>
+    <li><a href="#s19">Drag & Drop</a></li>
+    <li><a href="#s20">Bộ Test Case</a></li>
+    <li><a href="#s22">Cơ sở dữ liệu</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §1 TỔNG QUAN
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s1"><span class="num">1</span> Tổng quan hệ thống</h2>
+
+<p><strong>Library</strong> là module quản lý tài liệu tập trung của hệ thống quản lý công ty luật, được triển khai dưới dạng JS Field Block trên nền tảng Nocobase. Module cung cấp giao diện thống nhất để tổ chức, lưu trữ, phân quyền và tra cứu tài liệu cho toàn bộ hoạt động pháp lý.</p>
+
+<h3 class="sub-title">Stakeholders</h3>
+<table>
+  <thead><tr><th>Vai trò</th><th>Mô tả</th><th>Quyền hạn</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Admin</strong></td><td>Quản trị viên hệ thống</td><td>Toàn quyền mọi không gian</td></tr>
+    <tr><td><strong>Luật sư / Nhân viên</strong></td><td>Người dùng chính</td><td>Quyền theo folder (manager/editor/viewer)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Không gian lưu trữ (Spaces)</h3>
+<table>
+  <thead><tr><th>Space</th><th>storageType</th><th>moduleScope</th><th>Mô tả</th></tr></thead>
+  <tbody>
+    <tr><td><code>knowledge</code></td><td>knowledge</td><td>knowledge</td><td>Kho kiến thức chung, không gắn user/company</td></tr>
+    <tr><td><code>company_shared</code></td><td>company_shared</td><td>internal_templates</td><td>Mẫu nội bộ theo công ty</td></tr>
+    <tr><td><code>legal_reference</code></td><td>legal_reference</td><td>legal_reference</td><td>Tài liệu tham chiếu pháp luật (Case Reference)</td></tr>
+    <tr><td><code>legal_study</code></td><td>legal_study</td><td>legal_study</td><td>Nghiên cứu, bình luận pháp luật</td></tr>
+    <tr><td><code>personal</code></td><td>personal</td><td>personal</td><td>Tài liệu cá nhân của từng user</td></tr>
+    <tr><td><code>customer</code></td><td>(customer/case)</td><td>—</td><td>Tài liệu theo khách hàng/hồ sơ</td></tr>
+    <tr><td><code>shared_with_me</code></td><td>—</td><td>—</td><td>File được chia sẻ đến user hiện tại</td></tr>
+    <tr><td><code>recent</code></td><td>—</td><td>—</td><td>Lịch sử hoạt động (activity log)</td></tr>
+    <tr><td><code>trash</code></td><td>—</td><td>—</td><td>Thùng rác (soft delete)</td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     §3 PHÂN TÍCH YÊU CẦU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s3"><span class="num">3</span> Phân tích yêu cầu</h2>
+
+<h3 class="sub-title">Yêu cầu nghiệp vụ (Business Requirements)</h3>
+<table>
+  <thead><tr><th>ID</th><th>Yêu cầu</th><th>Ưu tiên</th><th>Phân tích</th></tr></thead>
+  <tbody>
+    <tr><td>BR-01</td><td>Tổ chức tài liệu theo không gian, danh mục, thư mục phân cấp</td><td><span class="badge badge-rose">Critical</span></td><td>Cây thư mục đệ quy, breadcrumb navigation, không giới hạn độ sâu</td></tr>
+    <tr><td>BR-02</td><td>Phân quyền chi tiết đến từng thư mục</td><td><span class="badge badge-rose">Critical</span></td><td>5 vai trò: admin, owner, manager, editor, viewer; kế thừa từ thư mục cha</td></tr>
+    <tr><td>BR-03</td><td>Xem trước tài liệu mà không cần tải về</td><td><span class="badge badge-blue">High</span></td><td>PDF, Office, ảnh, video, audio, text/code inline</td></tr>
+    <tr><td>BR-04</td><td>Chia sẻ file cho người dùng cụ thể</td><td><span class="badge badge-blue">High</span></td><td>documentShares collection; ghi activity log</td></tr>
+    <tr><td>BR-05</td><td>Theo dõi lịch sử hoạt động toàn diện</td><td><span class="badge badge-blue">High</span></td><td>14 loại action; trigger SQL + log thủ công từ JS</td></tr>
+    <tr><td>BR-06</td><td>Tích hợp Legal Study — link tài liệu từ Case/Task</td><td><span class="badge badge-amber">Medium</span></td><td>linked_legal_study / unlinked_legal_study action types</td></tr>
+    <tr><td>BR-07</td><td>Thùng rác với khả năng khôi phục</td><td><span class="badge badge-amber">Medium</span></td><td>Soft delete (isDeleted, deletedAt); restore; permanent delete</td></tr>
+    <tr><td>BR-08</td><td>Tải lên hàng loạt, kể cả toàn bộ thư mục</td><td><span class="badge badge-amber">Medium</span></td><td>Drag-and-drop uploader; giữ cấu trúc thư mục</td></tr>
+    <tr><td>BR-09</td><td>Tìm kiếm, lọc tài liệu</td><td><span class="badge badge-amber">Medium</span></td><td>Tìm theo tên (client-side filter trên dữ liệu đã tải)</td></tr>
+    <tr><td>BR-10</td><td>Kéo thả sắp xếp thứ tự tài liệu</td><td><span class="badge badge-slate">Low</span></td><td>fileIndex field; reorderFileAroundTarget()</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Yêu cầu phi chức năng (Non-functional)</h3>
+<table>
+  <thead><tr><th>ID</th><th>Yêu cầu</th><th>Tiêu chí</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-01</td><td>Hiệu năng</td><td>Fetch 500 records/request; client-side filter không re-fetch</td></tr>
+    <tr><td>NFR-02</td><td>Bảo mật dữ liệu</td><td>Mọi API request qua ctx.api (có Nocobase ACL); không expose URL trực tiếp</td></tr>
+    <tr><td>NFR-03</td><td>Khả năng mở rộng</td><td>DASHBOARD_CONFIG cho phép tái sử dụng component cho module khác</td></tr>
+    <tr><td>NFR-04</td><td>Khả năng bảo trì</td><td>Phân section rõ ràng bằng comment §1..§N; hàm helper tách biệt</td></tr>
+    <tr><td>NFR-05</td><td>Trải nghiệm người dùng</td><td>Loading spinners; empty state có hướng dẫn; drag-drop visual feedback</td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     §4 HỆ THỐNG PHÂN QUYỀN
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s4"><span class="num">4</span> Hệ thống phân quyền</h2>
+
+<p>Phân quyền hoạt động ở cấp <strong>thư mục</strong>, kế thừa đệ quy từ thư mục cha lên đến gốc. File-level sharing (documentShares) là lớp bổ sung độc lập.</p>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-01</span>
+    <span class="feature-name">Vai trò & Ma trận quyền</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Logic — roleToPerms()</div>
+        <div class="layer-content">
+          <ul>
+            <li><code>admin</code>: mọi quyền, bỏ qua permission check</li>
+            <li><code>owner</code>: người tạo folder, toàn quyền trên folder đó</li>
+            <li><code>manager</code>: quản lý permission, move, delete</li>
+            <li><code>editor</code>: tạo, đổi tên, không xóa/move</li>
+            <li><code>viewer</code>: chỉ xem</li>
+          </ul>
+        </div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB Collections</div>
+        <div class="layer-content">
+          <ul>
+            <li><code>folderManagers</code>: userId + folderId (role: manager)</li>
+            <li><code>folderMembers</code>: userId + folderId (role: editor/viewer)</li>
+            <li><code>lawyers</code>: thông tin luật sư (link với users)</li>
+            <li><code>users</code>: Nocobase built-in users</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Quyền</th><th>Admin</th><th>Owner</th><th>Manager</th><th>Editor</th><th>Viewer</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Xem file</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td></tr>
+        <tr><td>Tạo folder/file</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td></tr>
+        <tr><td>Đổi tên</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td></tr>
+        <tr><td>Di chuyển</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td><td class="perm-no">—</td></tr>
+        <tr><td>Xóa (trash)</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td><td class="perm-no">—</td></tr>
+        <tr><td>Chia sẻ file</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td></tr>
+        <tr><td>Quản lý phân quyền</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td><td class="perm-no">—</td></tr>
+        <tr><td>Xóa vĩnh viễn</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-yes">✓</td><td class="perm-no">—</td><td class="perm-no">—</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box box-info">
+      <strong>Kế thừa quyền:</strong> Hàm <code>getFolderPermissions(folder, user, allFolders, currentLawyerId)</code> đệ quy lên thư mục cha cho đến root để tìm ra vai trò áp dụng. Nếu không tìm thấy role nào → quyền tối thiểu (viewer hoặc no-access tùy cấu hình space).
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-02</span>
+    <span class="feature-name">Giao diện quản lý phân quyền thư mục</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Modal "Phân quyền thư mục" mở từ context menu folder</li>
+          <li>Danh sách managers + members hiện tại</li>
+          <li>Dropdown chọn user, dropdown chọn vai trò (Manager/Editor/Viewer)</li>
+          <li>Nút "Thêm" — ghi vào DB ngay</li>
+          <li>Nút xóa từng permission entry</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Thêm: POST <code>folderManagers:create</code> hoặc <code>folderMembers:create</code></li>
+          <li>Xóa: DELETE <code>folderManagers:destroy</code> / <code>folderMembers:destroy</code></li>
+          <li>Đọc: GET <code>folders:get</code> với appends <code>["folderManagers","folderMembers"]</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Ghi <code>permission_updated</code> vào <code>activity_log</code> sau mỗi thay đổi permission</li>
+          <li>Ghi thủ công từ JS (trigger SQL không cover được context này)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §5 QUẢN LÝ THƯ MỤC
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s5"><span class="num">5</span> Quản lý Thư mục</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-03</span>
+    <span class="feature-name">Tạo thư mục mới</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Nút "+ Thư mục mới" trong topbar</li>
+          <li>Popconfirm / inline input trong topbar hoặc Modal nhỏ</li>
+          <li>Input field tên thư mục; nút Hủy / Tạo</li>
+          <li>Sau tạo: folder xuất hiện ngay trong grid (optimistic UI)</li>
+          <li>Lỗi đã fix: bỏ <code>onPressEnter</code> khỏi Input để tránh double-submit</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>POST <code>folders:create</code></li>
+          <li>Payload từ <code>buildScopedPayload(activeSpace)</code>: storageType, moduleScope, parentFolderId (nếu tạo con)</li>
+          <li>Field <code>createdById</code> tự động ghi bởi Nocobase</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">WF / Trigger</div>
+        <div class="layer-content"><ul>
+          <li>Trigger SQL <code>fn_log_activity_documents()</code> ghi <code>action: "created"</code> vào <code>activity_log</code></li>
+          <li>JS không cần ghi log thủ công cho thao tác này</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-04</span>
+    <span class="feature-name">Đổi tên / Di chuyển / Xóa thư mục</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Context menu (3-chấm) trên mỗi folder card: Đổi tên, Di chuyển, Xóa</li>
+          <li>Đổi tên: inline editable text hoặc modal input</li>
+          <li>Di chuyển: TreeSelect chọn thư mục đích</li>
+          <li>Xóa: Popconfirm xác nhận → soft delete</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Đổi tên: PATCH <code>folders:update</code> với <code>{ name }</code></li>
+          <li>Di chuyển: PATCH với <code>{ parentFolder: targetId }</code></li>
+          <li>Xóa: PATCH với <code>{ isDeleted: true, deletedAt: now }</code> (soft delete)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label sec">Bảo mật</div>
+        <div class="layer-content"><ul>
+          <li>Check <code>canRename</code>, <code>canMove</code>, <code>canDelete</code> trước khi show menu item</li>
+          <li>Ẩn button nếu không có quyền (không chỉ disable)</li>
+          <li>Khi move: kiểm tra không move folder cha vào con (circular)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-05</span>
+    <span class="feature-name">Breadcrumb navigation</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Breadcrumb hiển thị path đầy đủ: "Knowledge Base / Hợp đồng / 2025"</li>
+          <li>Click bất kỳ node → navigate đến folder đó</li>
+          <li>Root node hiển thị tên space tương ứng</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Logic</div>
+        <div class="layer-content"><ul>
+          <li>Tính từ <code>selectedFolderId</code> → tra <code>folders[]</code> → follow parentFolder chain</li>
+          <li>useMemo để không tính lại khi folders không đổi</li>
+          <li>Root name map theo activeSpace</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §6 QUẢN LÝ TÀI LIỆU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s6"><span class="num">6</span> Quản lý Tài liệu</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-06</span>
+    <span class="feature-name">Hiển thị tài liệu — Grid / Table view</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI — Grid</div>
+        <div class="layer-content"><ul>
+          <li>Card 44×44px icon file type (PDF, DOC, XLS, IMG, VIDEO...)</li>
+          <li>Badge loại file (màu theo extension)</li>
+          <li>Tên file, ngày tạo, kích thước</li>
+          <li>Chip tag phân loại (contract, policy, hr...)</li>
+          <li>Avatar người tạo</li>
+          <li>Context menu 3-chấm: Xem trước, Tải về, Di chuyển, Đổi tên, Chia sẻ, Xóa</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label ui">UI — Table</div>
+        <div class="layer-content"><ul>
+          <li>Ant Design Table với columns: Tên, Loại, Ngày tạo, Kích thước, Người tạo, Thao tác</li>
+          <li>Toggle Grid ↔ Table qua icon buttons trong topbar</li>
+          <li>State lưu trong <code>viewMode</code> (useState)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-07</span>
+    <span class="feature-name">Đổi tên / Di chuyển / Xóa tài liệu</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Context menu trên file card: các option theo quyền</li>
+          <li>Di chuyển: Modal với TreeSelect chọn folder đích</li>
+          <li>Đổi tên: Modal hoặc inline input</li>
+          <li>Xóa: Popconfirm → đưa vào trash</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>PATCH <code>documents:update</code></li>
+          <li>Di chuyển: <code>{ folder: { id: targetFolderId } }</code></li>
+          <li>Xóa: <code>{ isDeleted: true, deletedAt: ISO_string }</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Trigger SQL ghi <code>moved</code>, <code>updated</code>, <code>trash_deleted</code></li>
+          <li>JS ghi thủ công khi trigger không đủ context</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §7 TẢI LÊN
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s7"><span class="num">7</span> Tải lên & Xử lý file</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-08</span>
+    <span class="feature-name">Upload file đơn / hàng loạt</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Ant Design <code>Dragger</code> component: drag-drop area</li>
+          <li>Nút "Tải lên" trong topbar mở upload modal</li>
+          <li>Progress bar theo % cho từng file</li>
+          <li>Hỗ trợ multiple files cùng lúc</li>
+          <li>Upload thư mục: giữ nguyên cấu trúc folder</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Bước 1: POST <code>attachments:upload</code> → nhận <code>attachment.id</code></li>
+          <li>Bước 2: POST <code>documents:create</code> với payload từ <code>buildScopedPayload()</code> + attachmentId</li>
+          <li>fileIndex gán tự động (max hiện tại + 1)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">WF</div>
+        <div class="layer-content"><ul>
+          <li>Trigger SQL ghi <code>action: "uploaded"</code> vào <code>activity_log</code> ngay sau INSERT documents</li>
+          <li>Nocobase workflow có thể trigger thêm notification (nếu cấu hình)</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="box box-info">
+      <strong>buildScopedPayload(targetSpace)</strong> — hàm trung tâm xác định payload DB khi tạo document/folder. Phân nhánh theo từng space: knowledge, company_shared, legal_reference, legal_study, personal, customer.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §8 XEM TRƯỚC
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s8"><span class="num">8</span> Xem trước tài liệu (Preview)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-09</span>
+    <span class="feature-name">Preview modal đa định dạng</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Modal full-screen (size: large)</li>
+          <li>Header: tên file, loại, nút Tải về, nút Đóng</li>
+          <li>PDF: <code>&lt;iframe&gt;</code> nhúng trực tiếp từ URL attachment</li>
+          <li>Office (DOC/XLS/PPT): <code>https://view.officeapps.live.com/op/embed.aspx?src=...</code></li>
+          <li>Ảnh: <code>&lt;img&gt;</code> full size với scroll</li>
+          <li>Video: HTML5 <code>&lt;video&gt;</code> player</li>
+          <li>Audio: HTML5 <code>&lt;audio&gt;</code> player</li>
+          <li>Text/Code: <code>&lt;pre&gt;</code> block với scroll</li>
+          <li>Unknown: thông báo "Không hỗ trợ xem trực tiếp" + nút tải về</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Ghi thủ công <code>action: "previewed"</code> từ JS ngay khi mở modal</li>
+          <li>Trigger SQL không cover được event này (không có INSERT/UPDATE)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §9 CHIA SẺ TÀI LIỆU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s9"><span class="num">9</span> Chia sẻ tài liệu</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-10</span>
+    <span class="feature-name">FileShareModal — Chia sẻ file đến người dùng</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Modal "Chia sẻ tài liệu"</li>
+          <li>Danh sách người đang được share (avatar, tên, email)</li>
+          <li>Input tìm user để thêm (autocomplete từ danh sách lawyers)</li>
+          <li>Nút "Hủy chia sẻ" bên cạnh từng user</li>
+          <li>Nút "Thêm" để thêm user mới</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>POST <code>documentShares:create</code>: <code>{ documentId, userId }</code></li>
+          <li>DELETE <code>documentShares:destroy</code>: theo id của share record</li>
+          <li>GET <code>documentShares:list</code> với filter <code>documentId: $eq</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Ghi <code>shared_file</code> khi thêm</li>
+          <li>Ghi <code>unshared_file</code> khi hủy</li>
+          <li>Ghi thủ công từ JS (trigger không cover)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label sec">Bảo mật</div>
+        <div class="layer-content"><ul>
+          <li>Chỉ user có <code>canShare</code> mới thấy menu "Chia sẻ"</li>
+          <li>User trong <code>documentShares</code> chỉ xem được file đó, không vào thư mục</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §10 KNOWLEDGE BASE
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s10"><span class="num">10</span> Knowledge Base</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-11</span>
+    <span class="feature-name">Không gian Knowledge Base</span>
+  </div>
+  <div class="feature-body">
+    <p>Kho kiến thức chung toàn tổ chức. Không gắn với user, company hay hồ sơ cụ thể. Mọi thành viên đều thấy, quyền theo folder.</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: một mục "Knowledge Base" (SVG icon bookshelf)</li>
+          <li>Badge số lượng tổng folder + file</li>
+          <li>Nhấn → hiện toàn bộ root folders của space này</li>
+          <li>Điều hướng subfolder bình thường qua breadcrumb</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li><code>storageType: "knowledge"</code></li>
+          <li><code>moduleScope: "knowledge"</code> (trong DASHBOARD_CONFIG.moduleScopes)</li>
+          <li>Không có <code>internalCompanyId</code>, không có <code>userId</code></li>
+          <li>Fetch chung trong <code>fetchFoldersForInternalTemplates()</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">buildScopedPayload</div>
+        <div class="layer-content"><ul>
+          <li><code>{ moduleScope: "knowledge", storageType: "knowledge" }</code></li>
+          <li>Không cần chọn company trước khi tạo</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §11 CASE REFERENCE
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s11"><span class="num">11</span> Case Reference (Tham chiếu pháp luật)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-12</span>
+    <span class="feature-name">Không gian Case Reference</span>
+  </div>
+  <div class="feature-body">
+    <p>Quản lý văn bản pháp luật, nghị định, thông tư, án lệ được dùng làm tài liệu tham chiếu trong các hồ sơ.</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: mục "Case Reference" với icon Scale of Justice (SVG tùy chỉnh)</li>
+          <li>Gallery view: danh sách <code>legalReference</code> records dạng card/table</li>
+          <li>Click vào 1 record → hiện folders + docs gắn với record đó</li>
+          <li>Nút "Tạo tham chiếu mới" từ sidebar</li>
+          <li>Toggle Grid/Table cho danh sách references</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Collection: <code>legalReference</code> (alias: legalReferences)</li>
+          <li>Documents có <code>legalReferenceId</code> relation</li>
+          <li>Folders có <code>legalReferenceId</code> relation</li>
+          <li><code>storageType: "legal_reference"</code></li>
+          <li>Fetch: thử lần lượt <code>legalReference:list</code> → <code>legalReferences:list</code> (fallback)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §12 LEGAL STUDY
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s12"><span class="num">12</span> Legal Study (Nghiên cứu pháp luật)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-13</span>
+    <span class="feature-name">Không gian Legal Study</span>
+  </div>
+  <div class="feature-body">
+    <p>Lưu trữ các nghiên cứu, bình luận, phân tích pháp luật. Tài liệu có thể được link từ Task/Case notes.</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: mục "Legal Study" với icon Scroll (SVG cuộn giấy)</li>
+          <li>Two-section layout trong content area: "Đã tải lên" (self-uploaded) + "Đã liên kết" (linked từ task)</li>
+          <li>Gallery danh sách legalStudy records để navigate</li>
+          <li>Nút "Liên kết tài liệu" để link doc vào study</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Collection: <code>legalStudy</code> (alias: legalStudies)</li>
+          <li><code>storageType: "legal_study"</code>, <code>moduleScope: "legal_study"</code></li>
+          <li>Link action: POST <code>documents:update</code> với <code>legalStudyId</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Ghi <code>linked_legal_study</code> khi link document</li>
+          <li>Ghi <code>unlinked_legal_study</code> khi hủy link</li>
+          <li>Hiển thị trong Recent activity + filterable</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §13 MY DOCUMENTS
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s13"><span class="num">13</span> Tài liệu cá nhân (My Documents)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-14</span>
+    <span class="feature-name">Personal space</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: "Tài liệu của tôi" với icon người dùng</li>
+          <li>Chỉ hiện tài liệu của user đang đăng nhập</li>
+          <li>Toàn quyền với tài liệu của mình</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li><code>storageType: "personal"</code>, <code>moduleScope: "personal"</code></li>
+          <li>Filter theo <code>createdById: { $eq: currentUserId }</code></li>
+          <li>buildScopedPayload trả về <code>{ moduleScope: "personal" }</code></li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §14 CUSTOMER / CASE
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s14"><span class="num">14</span> Tài liệu Khách hàng / Hồ sơ</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-15</span>
+    <span class="feature-name">Customer / Case document space</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: danh sách khách hàng (customers)</li>
+          <li>Click khách hàng → danh sách hồ sơ (cases) của khách hàng đó</li>
+          <li>Click hồ sơ → folders + docs của hồ sơ</li>
+          <li>Nút tìm kiếm khách hàng (client-side filter)</li>
+          <li>Avatar khách hàng (initials)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>GET <code>customers:list</code> với appends cases</li>
+          <li>Documents filter theo <code>projectId</code> hoặc <code>customerId</code></li>
+          <li>buildScopedPayload: <code>{ projectId, caseId, customerId }</code></li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §15 SHARED WITH ME
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s15"><span class="num">15</span> Shared With Me</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-16</span>
+    <span class="feature-name">Tài liệu được chia sẻ đến tôi</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar quick section: "Được chia sẻ với tôi"</li>
+          <li>Flat list (không có cấu trúc thư mục)</li>
+          <li>Mỗi file: tên, người chia sẻ, ngày chia sẻ, preview/download</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>GET <code>documentShares:list</code> với filter <code>userId: { $eq: currentUserId }</code></li>
+          <li>Appends <code>["document", "document.attachment"]</code></li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §16 RECENT ACTIVITY
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s16"><span class="num">16</span> Hoạt động gần đây (Recent)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-17</span>
+    <span class="feature-name">Activity audit log</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Tab "Gần đây" trong sidebar quick section</li>
+          <li>List các log entries: icon màu, label action, tên file, người thực hiện, thời gian</li>
+          <li>Dropdown lọc theo loại action (14 options)</li>
+          <li>DatePicker lọc theo ngày</li>
+          <li>Infinite scroll hoặc phân trang</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>GET <code>activity_log:list</code> với params filter + sort <code>-createdAt</code></li>
+          <li>Appends: user, document, folder</li>
+          <li>Collection ghi bởi PostgreSQL triggers (INSERT/UPDATE/DELETE trên documents/folders)</li>
+        </ul></div>
+      </div>
+    </div>
+
+    <h4 class="feat-title">14 loại action trong activity log</h4>
+    <div class="badge-row">
+      <span class="badge badge-blue">uploaded</span>
+      <span class="badge badge-blue">created</span>
+      <span class="badge badge-amber">moved</span>
+      <span class="badge badge-purple">previewed</span>
+      <span class="badge badge-blue">downloaded</span>
+      <span class="badge badge-blue">linked_legal_study</span>
+      <span class="badge badge-amber">unlinked_legal_study</span>
+      <span class="badge badge-purple">shared_file</span>
+      <span class="badge badge-slate">unshared_file</span>
+      <span class="badge badge-amber">permission_updated</span>
+      <span class="badge badge-blue">updated</span>
+      <span class="badge badge-rose">trash_deleted</span>
+      <span class="badge badge-green">restored</span>
+      <span class="badge badge-rose">deleted</span>
+    </div>
+
+    <div class="box box-info">
+      <strong>Phân loại log:</strong> Triggers SQL ghi tự động (uploaded, created, moved, updated, trash_deleted, restored, deleted). JS ghi thủ công (previewed, downloaded, shared_file, unshared_file, permission_updated, linked_legal_study, unlinked_legal_study).
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §17 TRASH
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s17"><span class="num">17</span> Thùng rác (Trash)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-18</span>
+    <span class="feature-name">Soft delete & Restore</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar quick section: "Thùng rác"</li>
+          <li>Hiện tất cả items có <code>isDeleted: true</code></li>
+          <li>Context menu: Khôi phục, Xóa vĩnh viễn</li>
+          <li>Nút "Xóa tất cả" (dọn thùng rác)</li>
+          <li>Badge số lượng items trong trash</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Xóa: PATCH <code>{ isDeleted: true, deletedAt: now }</code></li>
+          <li>Khôi phục: PATCH <code>{ isDeleted: false, deletedAt: null }</code></li>
+          <li>Xóa vĩnh viễn: DELETE <code>documents:destroy</code> / <code>folders:destroy</code></li>
+          <li>Trigger SQL ghi <code>trash_deleted</code> / <code>restored</code> / <code>deleted</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label sec">Bảo mật</div>
+        <div class="layer-content"><ul>
+          <li>Xóa vĩnh viễn: chỉ admin hoặc owner mới có quyền</li>
+          <li>Popconfirm bắt buộc trước permanent delete</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §18 BULK OPERATIONS
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s18"><span class="num">18</span> Thao tác hàng loạt (Bulk)</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-19</span>
+    <span class="feature-name">Bulk move / delete / restore / permanent delete</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Checkbox trên mỗi card/row (hiện khi hover hoặc khi đã chọn ≥1)</li>
+          <li>Bulk action bar ở dưới cùng màn hình (sticky)</li>
+          <li>Bar hiện số lượng đã chọn + các action: Di chuyển, Xóa, Khôi phục, Xóa vĩnh viễn</li>
+          <li>Nút "Bỏ chọn tất cả"</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Logic</div>
+        <div class="layer-content"><ul>
+          <li><code>selectedItems: Set&lt;id&gt;</code> state</li>
+          <li>Bulk API calls: Promise.all() song song</li>
+          <li>Sau complete: clear selection + refresh data</li>
+          <li>Toast success/error count</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §19 DRAG & DROP
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s19"><span class="num">19</span> Drag & Drop</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-20</span>
+    <span class="feature-name">Sắp xếp & Di chuyển bằng kéo thả</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Drag handle icon trên mỗi card</li>
+          <li>Visual indicator khi đang drag (opacity, border)</li>
+          <li>Drop target: folder card → di chuyển vào folder</li>
+          <li>Drop target: giữa 2 card → sắp xếp thứ tự</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Logic</div>
+        <div class="layer-content"><ul>
+          <li><code>reorderFileAroundTarget(sourceId, targetId, position)</code></li>
+          <li>Tính lại <code>fileIndex</code> dựa trên vị trí target</li>
+          <li><code>handleDropOnRecord()</code>: phân biệt drop-on-folder vs reorder</li>
+          <li>PATCH <code>documents:update</code> với <code>{ fileIndex: newIndex }</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li>Field <code>fileIndex</code> (number) trên documents</li>
+          <li>Sort mặc định theo <code>fileIndex ASC</code></li>
+          <li>Trigger SQL không log reorder (intended — quá nhiều events)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §20 BỘ TEST CASE
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s20"><span class="num">20</span> Bộ Test Case</h2>
+
+<div class="box box-warn">
+  <strong>Lưu ý:</strong> Đây là hệ thống Nocobase JS Block, không có unit test framework. Mọi test thực hiện bằng tay (Manual Testing) hoặc E2E. Kết quả Pass/Fail lưu trong Google Sheet: <em>[Link sheet sẽ điền sau khi test]</em>
+</div>
+
+<h3 class="sub-title">TC-01: Phân quyền thư mục</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-01-01</td><td>Admin xem tất cả folder</td><td>Login admin → vào Library → chọn bất kỳ space</td><td>Thấy toàn bộ folders/docs</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-02</td><td>Viewer không thấy nút Tạo</td><td>Login viewer → vào folder có role viewer</td><td>Nút "+ Thư mục mới" ẩn</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-03</td><td>Manager thêm member vào folder</td><td>Context menu folder → Phân quyền → chọn user → Editor → Thêm</td><td>User xuất hiện trong danh sách, có quyền editor</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-04</td><td>Kế thừa quyền từ cha</td><td>Tạo subfolder trong folder đã cấp Editor cho user A → Login user A</td><td>User A thấy subfolder với quyền Editor</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-05</td><td>Editor không di chuyển folder</td><td>Login editor → context menu folder → menu "Di chuyển" phải ẩn</td><td>Menu item "Di chuyển" không hiện</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-02: Tạo thư mục</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-02-01</td><td>Tạo folder cơ bản</td><td>Click "+ Thư mục mới" → nhập tên → Enter/Tạo</td><td>Folder xuất hiện trong grid, activity log ghi "created"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-02</td><td>Không tạo trùng tên (cùng cấp)</td><td>Tạo folder trùng tên với folder đã có</td><td>Thông báo lỗi hoặc cảnh báo</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-03</td><td>Không double-submit khi Enter</td><td>Nhập tên → nhấn Enter</td><td>Chỉ tạo 1 folder (không tạo 2)</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-04</td><td>Tên rỗng không được tạo</td><td>Để trống tên → nhấn Tạo</td><td>Validation error, không gọi API</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-05</td><td>Tạo subfolder</td><td>Vào folder → "+ Thư mục mới"</td><td>Folder mới có parentFolderId = folder hiện tại</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-03: Upload & Xem trước file</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-03-01</td><td>Upload file PDF</td><td>Drag file PDF vào uploader → Confirm</td><td>File xuất hiện với icon PDF, activity "uploaded"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-02</td><td>Upload nhiều file cùng lúc</td><td>Chọn 5 files → Upload</td><td>5 files xuất hiện, 5 log entries</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-03</td><td>Preview PDF</td><td>Click file PDF → Xem trước</td><td>Modal mở với iframe hiện PDF, log "previewed"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-04</td><td>Preview DOCX</td><td>Click file DOCX → Xem trước</td><td>Modal dùng officeapps.live.com, file hiện đúng</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-05</td><td>Preview ảnh</td><td>Click file JPG → Xem trước</td><td>Modal hiện &lt;img&gt; đúng ảnh</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-06</td><td>Tải về file</td><td>Context menu → Tải về</td><td>Download bắt đầu, log "downloaded"</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-04: Chia sẻ file</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-04-01</td><td>Share file cho user</td><td>Context menu → Chia sẻ → chọn user → Thêm</td><td>User thấy file trong "Shared with me", log "shared_file"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-02</td><td>Hủy share</td><td>Share modal → click X bên cạnh user</td><td>User không còn thấy file, log "unshared_file"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-03</td><td>Viewer không thấy nút Chia sẻ</td><td>Login viewer → kiểm tra context menu file</td><td>Không có menu item "Chia sẻ"</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-05: Thùng rác</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-05-01</td><td>Xóa file vào trash</td><td>Context menu → Xóa → Xác nhận</td><td>File biến khỏi grid, hiện trong Thùng rác, log "trash_deleted"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-02</td><td>Khôi phục file</td><td>Thùng rác → context menu → Khôi phục</td><td>File về lại folder gốc, log "restored"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-03</td><td>Xóa vĩnh viễn</td><td>Thùng rác → Xóa vĩnh viễn → Popconfirm OK</td><td>File biến hoàn toàn khỏi DB, log "deleted"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-04</td><td>Viewer không có nút xóa</td><td>Login viewer → context menu file trong không gian viewer</td><td>Không có menu "Xóa"</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-06: Activity Log</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-06-01</td><td>Filter theo action type</td><td>Recent tab → dropdown → chọn "Tải lên"</td><td>Chỉ hiện log với action="uploaded"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-06-02</td><td>Filter theo ngày</td><td>DatePicker chọn ngày hôm qua</td><td>Chỉ hiện log của ngày đó</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-06-03</td><td>Màu sắc action đúng</td><td>Xem recent tab sau khi upload / preview / share</td><td>Mỗi action có màu badge riêng biệt</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-07: Drag & Drop</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-07-01</td><td>Sắp xếp lại thứ tự file</td><td>Drag file A lên trước file B</td><td>fileIndex cập nhật, A hiện trước B</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-07-02</td><td>Di chuyển file vào folder bằng drag</td><td>Drag file → thả vào folder card</td><td>File chuyển vào folder, folder mở ra với file bên trong</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     §22 CƠ SỞ DỮ LIỆU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s22"><span class="num">22</span> Cơ sở dữ liệu — Schema tóm tắt</h2>
+
+<h3 class="sub-title">Collections chính</h3>
+<table>
+  <thead><tr><th>Collection</th><th>Các field quan trọng</th><th>Relations</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>documents</code></td>
+      <td>name, storageType, moduleScope, fileIndex, isDeleted, deletedAt, createdById</td>
+      <td>BelongsTo: folder, attachment, legalReference, legalStudy, project, customer; HasMany: documentShares, activity_log</td>
+    </tr>
+    <tr>
+      <td><code>folders</code></td>
+      <td>name, storageType, moduleScope, isDeleted, deletedAt, createdById</td>
+      <td>BelongsTo: parentFolder, internalCompany, legalReference, legalStudy; HasMany: folders (children), documents, folderManagers, folderMembers</td>
+    </tr>
+    <tr>
+      <td><code>attachments</code></td>
+      <td>filename, mimetype, size, url, path</td>
+      <td>BelongsTo: document (HasOne ngược lại)</td>
+    </tr>
+    <tr>
+      <td><code>documentShares</code></td>
+      <td>documentId, userId, createdAt</td>
+      <td>BelongsTo: document, user</td>
+    </tr>
+    <tr>
+      <td><code>folderManagers</code></td>
+      <td>folderId, userId, role</td>
+      <td>BelongsTo: folder, user</td>
+    </tr>
+    <tr>
+      <td><code>folderMembers</code></td>
+      <td>folderId, userId, role</td>
+      <td>BelongsTo: folder, user</td>
+    </tr>
+    <tr>
+      <td><code>activity_log</code></td>
+      <td>action, documentId, folderId, userId, fieldName, oldValue, newValue, createdAt</td>
+      <td>BelongsTo: document, folder, user</td>
+    </tr>
+    <tr>
+      <td><code>legalReference</code></td>
+      <td>name, code, type, issueDate, effectiveDate</td>
+      <td>HasMany: documents, folders</td>
+    </tr>
+    <tr>
+      <td><code>legalStudy</code></td>
+      <td>name, description, topic</td>
+      <td>HasMany: documents, folders</td>
+    </tr>
+    <tr>
+      <td><code>customers</code></td>
+      <td>name, email, phone, type</td>
+      <td>HasMany: projects, documents</td>
+    </tr>
+    <tr>
+      <td><code>projects</code></td>
+      <td>name, status, customerId</td>
+      <td>BelongsTo: customer; HasMany: documents, folders</td>
+    </tr>
+    <tr>
+      <td><code>lawyers</code></td>
+      <td>name, email, userId</td>
+      <td>BelongsTo: user</td>
+    </tr>
+    <tr>
+      <td><code>internalCompany</code></td>
+      <td>name, taxCode</td>
+      <td>HasMany: folders (moduleScope=internal_templates)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">PostgreSQL Triggers</h3>
+<table>
+  <thead><tr><th>Trigger file</th><th>Event</th><th>Action ghi log</th></tr></thead>
+  <tbody>
+    <tr><td><code>log_activity_documents.sql</code></td><td>INSERT/UPDATE/DELETE on documents</td><td>uploaded, created, updated, moved, trash_deleted, restored, deleted</td></tr>
+    <tr><td><code>resolve_display_value.sql</code></td><td>BEFORE INSERT/UPDATE</td><td>Resolve display label của relation fields</td></tr>
+    <tr><td><code>compact_document_share_activity.sql</code></td><td>AFTER INSERT on activity_log (shared_file)</td><td>Gộp nhiều share event liên tiếp thành 1</td></tr>
+    <tr><td><code>log_activity_document_shares.sql</code></td><td>INSERT/DELETE on documentShares</td><td>shared_file, unshared_file</td></tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     FOOTER
+════════════════════════════════════════════════════ -->
+<div style="margin-top: 64px; padding-top: 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between;">
+  <span>SRS — Library Document Management System · v1.0.0 · 12/06/2026</span>
+  <span>components-law / All Module/Document/Library.js</span>
+</div>
+
+</body>
+</html>

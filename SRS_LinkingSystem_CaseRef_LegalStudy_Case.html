@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SRS — Hệ thống Liên kết Case Reference · Legal Study · Case</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --primary:   #185FA5;
+    --primary-light: #E6F1FB;
+    --secondary: #1e293b;
+    --accent:    #0891B2;
+    --success:   #16a34a;
+    --warning:   #b45309;
+    --danger:    #dc2626;
+    --purple:    #7c3aed;
+    --gray-50:   #f8fafc;
+    --gray-100:  #f1f5f9;
+    --gray-200:  #e2e8f0;
+    --gray-500:  #64748b;
+    --gray-700:  #334155;
+    --gray-900:  #0f172a;
+    --border:    1px solid #e2e8f0;
+    --radius:    8px;
+    --font:      'Inter', ui-sans-serif, system-ui, sans-serif;
+    --mono:      'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--gray-900);
+    background: #fff;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 48px 80px;
+  }
+
+  /* ── TOC ─────────────────────────────────────────── */
+  .toc {
+    background: var(--gray-50);
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    margin-bottom: 44px;
+  }
+  .toc-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .toc-header h2 {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--gray-500);
+  }
+  .toc-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 11.5px;
+    color: var(--gray-500);
+  }
+  .toc-meta span { display: flex; align-items: center; gap: 4px; }
+  .toc ol {
+    padding-left: 18px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+  }
+  .toc li { font-size: 13px; color: var(--primary); }
+  .toc li a { color: inherit; text-decoration: none; }
+  .toc li a:hover { text-decoration: underline; }
+
+  /* ── Typography ──────────────────────────────────── */
+  h2.section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--secondary);
+    margin: 52px 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2.section-title .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  h3.sub-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h3.sub-title::before {
+    content: '';
+    display: inline-block;
+    width: 3px; height: 16px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+  h4.feat-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--gray-700);
+    margin: 18px 0 8px;
+  }
+  p { margin-bottom: 10px; color: var(--gray-700); }
+
+  /* ── Relation diagram ────────────────────────────── */
+  .rel-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 24px 0;
+    flex-wrap: wrap;
+  }
+  .rel-entity {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .rel-box {
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-weight: 700;
+    font-size: 13.5px;
+    text-align: center;
+    min-width: 140px;
+    border: 2px solid;
+  }
+  .rel-box.blue  { background: #E6F1FB; color: #0C447C; border-color: #185FA5; }
+  .rel-box.green { background: #F0FDF4; color: #14532D; border-color: #16A34A; }
+  .rel-box.purple{ background: #F5F3FF; color: #4C1D95; border-color: #7C3AED; }
+  .rel-sub { font-size: 11px; color: var(--gray-500); }
+  .rel-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 0 16px;
+    min-width: 120px;
+  }
+  .rel-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--gray-500);
+    font-weight: 500;
+  }
+  .rel-line hr {
+    border: none;
+    border-top: 2px solid #cbd5e1;
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  /* ── Feature card ────────────────────────────────── */
+  .feature-block {
+    border: var(--border);
+    border-radius: 10px;
+    margin-bottom: 28px;
+    overflow: hidden;
+  }
+  .feature-header {
+    background: var(--gray-50);
+    border-bottom: var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .feature-id {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    height: 22px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 0 8px;
+  }
+  .feature-name { font-size: 14px; font-weight: 600; color: var(--secondary); }
+  .feature-body { padding: 16px 20px; display: grid; gap: 14px; }
+
+  .layer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+  }
+  .layer-card {
+    border: var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .layer-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 6px;
+  }
+  .layer-label.ui    { color: var(--primary); }
+  .layer-label.db    { color: var(--success); }
+  .layer-label.logic { color: var(--accent); }
+  .layer-label.api   { color: var(--purple); }
+  .layer-label.wf    { color: var(--warning); }
+  .layer-content ul { padding-left: 14px; margin: 0; }
+  .layer-content li { font-size: 12.5px; color: var(--gray-700); margin-bottom: 3px; }
+
+  /* ── Badge ───────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+  }
+  .badge-blue   { background:#E6F1FB; color:#0C447C; border-color:#B5D4F4; }
+  .badge-green  { background:#F0FDF4; color:#15803D; border-color:#BBF7D0; }
+  .badge-amber  { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+  .badge-purple { background:#F5F3FF; color:#5B21B6; border-color:#DDD6FE; }
+  .badge-rose   { background:#FFF1F2; color:#9F1239; border-color:#FECDD3; }
+  .badge-slate  { background:#F1F5F9; color:#475569; border-color:#CBD5E1; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+
+  /* ── Table ───────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 16px; }
+  thead th {
+    background: var(--gray-100);
+    font-weight: 600; font-size: 11.5px;
+    color: var(--gray-700);
+    padding: 8px 12px;
+    text-align: left;
+    border: 1px solid var(--gray-200);
+  }
+  tbody td {
+    padding: 7px 12px;
+    border: 1px solid var(--gray-200);
+    color: var(--gray-700);
+    vertical-align: top;
+  }
+  tbody tr:nth-child(even) td { background: var(--gray-50); }
+
+  /* ── Code ────────────────────────────────────────── */
+  code {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #0f172a;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    line-height: 1.6;
+    margin: 12px 0;
+  }
+  pre .c { color: #64748b; font-style: italic; }
+  pre .k { color: #818cf8; }
+  pre .s { color: #6ee7b7; }
+  pre .n { color: #fbbf24; }
+  pre .err { color: #f87171; }
+
+  /* ── Info boxes ──────────────────────────────────── */
+  .box {
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+  }
+  .box-info   { background: #EFF6FF; border-left: 3px solid #3B82F6; color: #1e3a8a; }
+  .box-warn   { background: #FFFBEB; border-left: 3px solid #F59E0B; color: #78350f; }
+  .box-success{ background: #F0FDF4; border-left: 3px solid #22C55E; color: #14532d; }
+
+  /* ── Test table ─────────────────────────────────── */
+  .test-manual { color: #b45309; font-weight: 600; }
+
+  /* ── Print ───────────────────────────────────────── */
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+    @top-center { content: none; }
+    @bottom-center { content: none; }
+  }
+  @media print {
+    body { padding: 0; font-size: 12.5px; max-width: 100%; }
+    h2.section-title { break-before: page; }
+    .feature-block, table, pre { break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     TABLE OF CONTENTS
+════════════════════════════════════════════════════ -->
+<div class="toc">
+  <div class="toc-header">
+    <h2>Mục lục</h2>
+    <div class="toc-meta">
+      <span>SRS — Hệ thống Liên kết</span>
+      <span>|</span>
+      <span>v1.0.0 · 12/06/2026</span>
+      <span>|</span>
+      <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js</span>
+    </div>
+  </div>
+  <ol>
+    <li><a href="#s1">Tổng quan & Sơ đồ quan hệ</a></li>
+    <li><a href="#s2">Phân tích yêu cầu</a></li>
+    <li><a href="#s3">JsLegalReferenceLinks — Liên kết từ Case Reference</a></li>
+    <li><a href="#s4">JsLegalStudyLinks — Liên kết từ Legal Study</a></li>
+    <li><a href="#s5">Library.js — Tích hợp Legal Study Document</a></li>
+    <li><a href="#s6">Chiến lược API Fallback</a></li>
+    <li><a href="#s7">Cơ sở dữ liệu — Relations & Fields</a></li>
+    <li><a href="#s8">Luồng dữ liệu đầy đủ</a></li>
+    <li><a href="#s9">Bộ Test Case</a></li>
+  </ol>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §1 TỔNG QUAN
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s1"><span class="num">1</span> Tổng quan & Sơ đồ quan hệ</h2>
+
+<p>Hệ thống liên kết kết nối ba thực thể nghiệp vụ theo quan hệ <strong>nhiều-nhiều (M:N)</strong>, cho phép tra cứu chéo giữa các văn bản pháp luật, nghiên cứu pháp lý và các hồ sơ vụ án thực tế.</p>
+
+<!-- Relation diagram -->
+<div class="rel-diagram">
+  <div class="rel-entity">
+    <div class="rel-box blue">Case Reference<br/><small style="font-weight:400;font-size:11px">legalReference</small></div>
+    <span class="rel-sub">Văn bản pháp luật<br/>Nghị định, Thông tư, Án lệ</span>
+  </div>
+
+  <div class="rel-arrow">
+    <div class="rel-line">
+      <hr/>
+      <span>Link Case</span>
+      <hr/>
+    </div>
+    <div class="rel-line" style="margin-top:4px">
+      <hr/>
+      <span>Link Study</span>
+      <hr/>
+    </div>
+  </div>
+
+  <div class="rel-entity">
+    <div class="rel-box green">Case / Vụ việc<br/><small style="font-weight:400;font-size:11px">projects / cases</small></div>
+    <span class="rel-sub">Hồ sơ / Vụ án<br/>Đang xử lý / đã đóng</span>
+  </div>
+
+  <div class="rel-arrow">
+    <div class="rel-line">
+      <hr/>
+      <span>Link Case</span>
+      <hr/>
+    </div>
+    <div class="rel-line" style="margin-top:4px">
+      <hr/>
+      <span>Link Reference</span>
+      <hr/>
+    </div>
+  </div>
+
+  <div class="rel-entity">
+    <div class="rel-box purple">Legal Study<br/><small style="font-weight:400;font-size:11px">legalStudy</small></div>
+    <span class="rel-sub">Nghiên cứu pháp lý<br/>Bình luận, Phân tích</span>
+  </div>
+</div>
+
+<div class="box box-info">
+  <strong>Quan hệ M:N đối xứng:</strong> Mỗi entity có thể link đến nhiều entity kia. Một Case Reference có thể áp dụng cho nhiều vụ án; một vụ án có thể tham chiếu nhiều văn bản; một Legal Study có thể phân tích nhiều văn bản và được dùng trong nhiều vụ án.
+</div>
+
+<h3 class="sub-title">Các file triển khai</h3>
+<table>
+  <thead><tr><th>File</th><th>Vị trí hiển thị</th><th>Chức năng</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>JsField/JsLegalReferenceLinks.js</code></td>
+      <td>Tab trong trang chi tiết Case Reference</td>
+      <td>Xem + link Cases và Legal Studies đến một Case Reference</td>
+    </tr>
+    <tr>
+      <td><code>JsField/JsLegalStudyLinks.js</code></td>
+      <td>Tab trong trang chi tiết Legal Study</td>
+      <td>Xem + link Cases và Case References đến một Legal Study</td>
+    </tr>
+    <tr>
+      <td><code>All Module/Document/Library.js</code></td>
+      <td>Space "Legal Study" trong Library module</td>
+      <td>Hiển thị tài liệu theo Legal Study; ghi activity log khi link/unlink</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Ma trận quan hệ liên kết</h3>
+<table>
+  <thead><tr><th>Từ \ Đến</th><th>Case Reference</th><th>Legal Study</th><th>Case / Vụ việc</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Case Reference</strong></td>
+      <td style="text-align:center;color:#9ca3af">—</td>
+      <td style="text-align:center;color:#16a34a;font-weight:700">✓ addLegalStudyLink</td>
+      <td style="text-align:center;color:#16a34a;font-weight:700">✓ addCaseLink</td>
+    </tr>
+    <tr>
+      <td><strong>Legal Study</strong></td>
+      <td style="text-align:center;color:#16a34a;font-weight:700">✓ addLegalReferenceLink</td>
+      <td style="text-align:center;color:#9ca3af">—</td>
+      <td style="text-align:center;color:#16a34a;font-weight:700">✓ addCaseLink</td>
+    </tr>
+    <tr>
+      <td><strong>Case / Vụ việc</strong></td>
+      <td style="text-align:center;color:#b45309;font-weight:600">Read-only (qua relation field)</td>
+      <td style="text-align:center;color:#b45309;font-weight:600">Read-only (qua relation field)</td>
+      <td style="text-align:center;color:#9ca3af">—</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     §2 PHÂN TÍCH YÊU CẦU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s2"><span class="num">2</span> Phân tích yêu cầu</h2>
+
+<h3 class="sub-title">Yêu cầu nghiệp vụ</h3>
+<table>
+  <thead><tr><th>ID</th><th>Yêu cầu</th><th>Ưu tiên</th><th>Phân tích</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>BR-01</td>
+      <td>Từ một Case Reference, xem danh sách các vụ án đang áp dụng văn bản đó</td>
+      <td><span class="badge badge-rose">Critical</span></td>
+      <td>Fetch <code>cases</code>/<code>projects</code> relation từ legalReference record + query cross-reference</td>
+    </tr>
+    <tr>
+      <td>BR-02</td>
+      <td>Từ một Case Reference, xem danh sách Legal Studies phân tích văn bản đó</td>
+      <td><span class="badge badge-rose">Critical</span></td>
+      <td>Fetch <code>legalStudy</code>/<code>legalStudies</code> relation + query documents/folders có legalReferenceId</td>
+    </tr>
+    <tr>
+      <td>BR-03</td>
+      <td>Thêm link Case ↔ Case Reference trực tiếp trong UI</td>
+      <td><span class="badge badge-blue">High</span></td>
+      <td>Modal chọn case từ danh sách; gọi API <code>:add</code> relation với fallback đa endpoint</td>
+    </tr>
+    <tr>
+      <td>BR-04</td>
+      <td>Thêm link Legal Study ↔ Case Reference trực tiếp trong UI</td>
+      <td><span class="badge badge-blue">High</span></td>
+      <td>Modal chọn study từ danh sách; 18 API candidates fallback</td>
+    </tr>
+    <tr>
+      <td>BR-05</td>
+      <td>Từ một Legal Study, xem các vụ án liên quan và các Case Reference được phân tích</td>
+      <td><span class="badge badge-blue">High</span></td>
+      <td>Fetch cross-reference từ cả hai phía: relation field + query ngược</td>
+    </tr>
+    <tr>
+      <td>BR-06</td>
+      <td>Tìm kiếm và lọc danh sách liên kết theo loại (Case / Legal Study / Legal Reference)</td>
+      <td><span class="badge badge-amber">Medium</span></td>
+      <td>Client-side filter trên danh sách đã load; segment buttons: All / Linked Case / Legal Study</td>
+    </tr>
+    <tr>
+      <td>BR-07</td>
+      <td>Mở trực tiếp record được link (case / study / reference) trong tab mới</td>
+      <td><span class="badge badge-amber">Medium</span></td>
+      <td>Hardcoded URL templates trong CONFIG; <code>window.open()</code> với <code>filterbytk</code></td>
+    </tr>
+    <tr>
+      <td>BR-08</td>
+      <td>Activity log khi tài liệu trong Library được link/unlink vào Legal Study</td>
+      <td><span class="badge badge-amber">Medium</span></td>
+      <td>Library.js ghi thủ công <code>linked_legal_study</code> / <code>unlinked_legal_study</code></td>
+    </tr>
+    <tr>
+      <td>BR-09</td>
+      <td>Không cho link trùng — phát hiện và báo lỗi nếu đã link rồi</td>
+      <td><span class="badge badge-amber">Medium</span></td>
+      <td><code>linkedCaseIds</code>/<code>linkedLegalStudyIds</code> Set; kiểm tra trước khi gọi API</td>
+    </tr>
+    <tr>
+      <td>BR-10</td>
+      <td>Hiển thị trạng thái Case (đang xử lý, đã đóng...) trong danh sách link</td>
+      <td><span class="badge badge-slate">Low</span></td>
+      <td><code>getStatusColor()</code> map status text → Ant Design Tag color</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ══════════════════════════════════════════════════
+     §3 JsLegalReferenceLinks
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s3"><span class="num">3</span> JsLegalReferenceLinks — Liên kết từ Case Reference</h2>
+
+<p>Component hiển thị trong tab của trang chi tiết một <strong>Case Reference</strong> record. Cho phép xem tất cả Cases và Legal Studies liên quan, thêm link mới.</p>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-01</span>
+    <span class="feature-name">Load danh sách liên kết (LegalReferenceLinksViewer)</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Luồng load</div>
+        <div class="layer-content"><ul>
+          <li>Lấy <code>legalReferenceId</code> từ ctx.record / URL / ctx.params / route filterbytk</li>
+          <li>Fetch <code>legalReference:get?filterByTk={id}</code> với đầy đủ appends (cases, projects, caseReferences, legalStudy, legalStudies...)</li>
+          <li>Parallel: <code>getCaseRowsFromReferenceRecord()</code> + <code>fetchLegalStudyRowsForReference()</code></li>
+          <li>Merge, dedup bằng <code>uniqById()</code> + <code>uniqLinks()</code></li>
+          <li>Sort theo <code>updatedAt DESC</code></li>
+          <li>Resolve tên người tạo qua <code>users:list</code></li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API calls</div>
+        <div class="layer-content"><ul>
+          <li>GET <code>legalReference:get?filterByTk=ID</code></li>
+          <li>GET <code>legalReference:list</code> filter <code>referenceKind=legal_study</code> (source rows)</li>
+          <li>GET <code>folders:list</code> filter storageType=legal_study + legalReferenceId</li>
+          <li>GET <code>documents:list</code> tương tự</li>
+          <li>GET <code>users:list</code> batch resolve names</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Loading spinner khi đang fetch</li>
+          <li>Alert lỗi kèm nút Reload nếu fail</li>
+          <li>Table với header: Type | Code/Name | Description | Creator | Updated | ⟶</li>
+          <li>Row click → mở tab mới đến detail URL</li>
+          <li>Empty state nếu chưa có link</li>
+        </ul></div>
+      </div>
+    </div>
+
+    <h4 class="feat-title">fetchLegalStudyRowsForReference() — chiến lược 3 nguồn</h4>
+    <pre>
+<span class="c">// Nguồn 1: legalReference:list với filter referenceKind = "legal_study"</span>
+<span class="c">//          → lọc tiếp những record có legalReferenceId match</span>
+<span class="n">fetchLegalReferenceSourceRows</span>(legalReferenceId)
+
+<span class="c">// Nguồn 2: folders:list với storageType=legal_study + legalReferenceId filter</span>
+<span class="c">//          → fallback sang broad filter nếu direct filter fail</span>
+<span class="n">fetchLegalStudyScopeRowsForReference</span>(<span class="s">"folders:list"</span>, legalReferenceId)
+
+<span class="c">// Nguồn 3: documents:list tương tự</span>
+<span class="n">fetchLegalStudyScopeRowsForReference</span>(<span class="s">"documents:list"</span>, legalReferenceId)
+
+<span class="c">// Merge và dedup bằng ID</span>
+<span class="n">uniqById</span>([...sourceRows, ...folderRows, ...documentRows])
+</pre>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-02</span>
+    <span class="feature-name">Thêm link Case ↔ Case Reference</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Nút "Add link" → mở Modal</li>
+          <li>Segment toggle: <strong>Linked Case</strong> | Legal Study</li>
+          <li>Select "Linked Case" với search (tìm trong danh sách đã load)</li>
+          <li>Loại bỏ những case đã link (<code>linkedCaseIds</code> Set)</li>
+          <li>Confirm → gọi API → toast success/error → reload danh sách</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API — 12 candidates</div>
+        <div class="layer-content"><ul>
+          <li><code>projects/{cId}/legalReference:add</code></li>
+          <li><code>projects/{cId}/legalReferences:add</code></li>
+          <li><code>cases/{cId}/legalReference:add</code></li>
+          <li><code>legalReference/{refId}/cases:add</code></li>
+          <li><code>legalReference/{refId}/projects:add</code></li>
+          <li><code>legalReferences/{refId}/cases:add</code></li>
+          <li>+ 6 alias variants (LegalReference, legalReferences...)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Dedup logic</div>
+        <div class="layer-content"><ul>
+          <li>Trước khi submit: kiểm tra <code>linkedCaseIds.has(caseId)</code></li>
+          <li>Nếu đã link → toast "already linked", đóng modal</li>
+          <li>Options dropdown cũng ẩn những case đã link</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-03</span>
+    <span class="feature-name">Thêm link Legal Study ↔ Case Reference</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Segment toggle: Linked Case | <strong>Legal Study</strong></li>
+          <li>Select Legal Study với search tên/code</li>
+          <li>Loại bỏ studies đã link (<code>linkedLegalStudyIds</code>)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API — 18 candidates</div>
+        <div class="layer-content"><ul>
+          <li><code>legalReference/{refId}/legalStudy:add</code></li>
+          <li><code>legalReference/{refId}/legalStudies:add</code></li>
+          <li><code>legalReference/{refId}/sourceLegalStudy:add</code></li>
+          <li><code>legalStudy/{studyId}/legalReference:add</code></li>
+          <li><code>legalStudy/{studyId}/legalReferences:add</code></li>
+          <li>+ 13 alias variants (LegalReference, legalReferences, legalStudies...)</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="box box-info">
+      <strong>Tại sao 18 candidates?</strong> Nocobase collection có thể được đặt tên với nhiều alias (legalReference, legalReferences, LegalReference). Relation field cũng có thể là singular/plural. <code>postRelationCandidates()</code> thử từng URL với payload <code>{ tk: id }</code> và <code>{ tks: [id] }</code> cho đến khi thành công.
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-04</span>
+    <span class="feature-name">Filter & Search danh sách link</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Segment buttons: <strong>All</strong> (badge count) | <strong>Linked Case</strong> | <strong>Legal Study</strong></li>
+          <li>Input search tìm theo: title, description, caseCode, projectCode, studyCode</li>
+          <li>Nút Reload làm mới dữ liệu</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Logic</div>
+        <div class="layer-content"><ul>
+          <li>Client-side filter trên <code>links[]</code> state</li>
+          <li>Normalize search: bỏ dấu tiếng Việt, lowercase</li>
+          <li>useMemo để tránh re-compute không cần thiết</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §4 JsLegalStudyLinks
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s4"><span class="num">4</span> JsLegalStudyLinks — Liên kết từ Legal Study</h2>
+
+<p>Component đối xứng với JsLegalReferenceLinks, hiển thị trong tab của trang chi tiết <strong>Legal Study</strong>. Cho phép xem Cases và Case References liên quan, thêm link mới.</p>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-05</span>
+    <span class="feature-name">Load danh sách liên kết (LegalStudyLinksViewer)</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Luồng load</div>
+        <div class="layer-content"><ul>
+          <li>Lấy <code>legalStudyId</code> từ ctx.record / URL route</li>
+          <li>Fetch <code>legalStudy:get</code> (thử 3 endpoint names × 3 append sets)</li>
+          <li>Parallel: <code>fetchCaseRowsForStudy()</code> + <code>fetchLegalReferenceRowsForStudy()</code></li>
+          <li>Merge direct relation rows + fetched rows → dedup</li>
+          <li>Sort theo updatedAt DESC → resolve creator names</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API calls</div>
+        <div class="layer-content"><ul>
+          <li>GET <code>legalStudy:get</code> / <code>legalStudies:get</code> / <code>LegalStudy:get</code></li>
+          <li>GET <code>projects:list</code> → filter <code>recordMatchesLegalStudy()</code></li>
+          <li>GET <code>cases:list</code> fallback</li>
+          <li>GET <code>legalReference:list</code> → filter <code>recordMatchesLegalStudy()</code></li>
+          <li>GET <code>users:list</code> batch resolve</li>
+        </ul></div>
+      </div>
+    </div>
+
+    <h4 class="feat-title">recordMatchesLegalStudy() — kiểm tra nhiều field name</h4>
+    <pre>
+<span class="c">// Kiểm tra bất kỳ field nào trong danh sách này có match legalStudyId không:</span>
+[
+  record?.legalStudyId,
+  record?.legalStudy,
+  record?.legalStudies,
+  record?.legalStudiesId,
+  record?.sourceLegalStudyId,
+  record?.sourceLegalStudy,
+  record?.parentLegalStudyId,
+  record?.baseLegalStudyId,
+].some((value) =&gt; valueMatchesId(value, legalStudyId))
+
+<span class="c">// valueMatchesId: kiểm tra cả array relation, single value, nested object</span></pre>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-06</span>
+    <span class="feature-name">Thêm link Case ↔ Legal Study</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label api">API — 12 candidates</div>
+        <div class="layer-content"><ul>
+          <li><code>projects/{cId}/legalStudy:add</code></li>
+          <li><code>projects/{cId}/legalStudies:add</code></li>
+          <li><code>projects/{cId}/sourceLegalStudy:add</code></li>
+          <li><code>cases/{cId}/legalStudy:add</code></li>
+          <li><code>legalStudy/{studyId}/cases:add</code></li>
+          <li><code>legalStudy/{studyId}/projects:add</code></li>
+          <li>+ 6 alias variants</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Dedup</div>
+        <div class="layer-content"><ul>
+          <li><code>linkedCaseIds</code> Set từ danh sách hiện tại</li>
+          <li>Dropdown ẩn cases đã link</li>
+          <li>Double-check trước khi submit</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-07</span>
+    <span class="feature-name">Thêm link Case Reference ↔ Legal Study</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label api">API — 18 candidates</div>
+        <div class="layer-content"><ul>
+          <li><code>legalReference/{refId}/legalStudy:add</code></li>
+          <li><code>legalReference/{refId}/legalStudies:add</code></li>
+          <li><code>legalStudy/{studyId}/legalReference:add</code></li>
+          <li><code>legalStudy/{studyId}/legalReferences:add</code></li>
+          <li><code>legalStudies/{studyId}/legalReference:add</code></li>
+          <li>+ 13 alias variants tương tự FEAT-03</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Segment toggle: Linked Case | <strong>Legal Reference</strong></li>
+          <li>Select từ danh sách legalReference records</li>
+          <li>Search theo title, referenceCode, code</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §5 LIBRARY INTEGRATION
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s5"><span class="num">5</span> Library.js — Tích hợp Legal Study Document</h2>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-08</span>
+    <span class="feature-name">Space "Legal Study" trong Library</span>
+  </div>
+  <div class="feature-body">
+    <p>Library cung cấp không gian lưu tài liệu gắn với Legal Study. Một document có thể được "đưa vào Legal Study" (link) hoặc "gỡ khỏi Legal Study" (unlink) từ Library UI.</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Sidebar: mục "Legal Study" → danh sách legalStudy records</li>
+          <li>Click study → hiện folders + docs có <code>storageType="legal_study"</code> gắn với study đó</li>
+          <li>Context menu file: "Đưa vào Legal Study" / "Gỡ khỏi Legal Study"</li>
+          <li>Modal chọn Legal Study target khi link</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB</div>
+        <div class="layer-content"><ul>
+          <li><code>documents.storageType = "legal_study"</code></li>
+          <li><code>documents.legalStudyId</code> → relation đến legalStudy record</li>
+          <li><code>documents.legalStudyLinkedAt</code> — timestamp khi link</li>
+          <li><code>documents.legalStudySource</code> — nguồn gốc link</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label wf">Activity Log</div>
+        <div class="layer-content"><ul>
+          <li>Link: ghi <code>action: "linked_legal_study"</code> vào <code>activity_log</code></li>
+          <li>Unlink: ghi <code>action: "unlinked_legal_study"</code></li>
+          <li>Ghi thủ công từ JS (không qua trigger SQL)</li>
+          <li>Hiển thị badge màu xanh "Đưa vào Legal Study" trong Recent tab</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-09</span>
+    <span class="feature-name">Hiển thị Legal Study liên kết với tài liệu trong Library Recent</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Logic lọc activity log</div>
+        <div class="layer-content"><ul>
+          <li><code>LEGAL_STUDY_ACTIVITY_ACTIONS = Set["linked_legal_study", "unlinked_legal_study"]</code></li>
+          <li>Recent tab filter option: "Đưa vào Legal Study" và "Gỡ khỏi Legal Study"</li>
+          <li>Badge màu sắc: <code>linked_legal_study</code> → xanh dương, <code>unlinked_legal_study</code> → cam đỏ</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label db">DB Fields</div>
+        <div class="layer-content"><ul>
+          <li><code>legalStudyLinkedAt</code> — ngày link</li>
+          <li><code>legalStudySource</code> — module nguồn</li>
+          <li><code>sourceCollectionName</code> — collection gốc</li>
+          <li><code>sourceRecordId</code> — ID record gốc</li>
+          <li><code>originScope</code>, <code>originFolderId</code> — nguồn gốc</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §6 API FALLBACK STRATEGY
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s6"><span class="num">6</span> Chiến lược API Fallback</h2>
+
+<p>Do Nocobase collection names và relation field names có thể biến thể (singular/plural, PascalCase/camelCase), cả hai JS component đều dùng pattern <strong>candidate fallback</strong>.</p>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-10</span>
+    <span class="feature-name">postRelationCandidates() — thử đến khi thành công</span>
+  </div>
+  <div class="feature-body">
+    <pre>
+<span class="k">const</span> postRelationCandidates = <span class="k">async</span> (candidates) =&gt; {
+  <span class="k">let</span> lastError = <span class="k">null</span>;
+  <span class="k">for</span> (<span class="k">const</span> candidate <span class="k">of</span> candidates) {
+    <span class="c">// Thử payload { tk: id } trước, rồi { tks: [id] }</span>
+    <span class="k">for</span> (<span class="k">const</span> data <span class="k">of</span> [{ tk: targetValue }, { tks: [targetValue] }]) {
+      <span class="k">try</span> {
+        <span class="k">const</span> response = <span class="k">await</span> ctx.api.request({ url: candidate.url, method: <span class="s">"POST"</span>, data });
+        <span class="k">return</span> getResponseData(response); <span class="c">// thành công → dừng</span>
+      } <span class="k">catch</span> (error) {
+        lastError = error; <span class="c">// tiếp tục thử candidate tiếp theo</span>
+      }
+    }
+  }
+  <span class="k">throw</span> lastError; <span class="c">// tất cả fail → throw lỗi cuối cùng</span>
+};</pre>
+
+    <h4 class="feat-title">fetchWithCandidates() — thử nhiều endpoint name</h4>
+    <pre>
+<span class="k">const</span> fetchWithCandidates = <span class="k">async</span> (urls, params) =&gt; {
+  <span class="k">for</span> (<span class="k">const</span> url <span class="k">of</span> urls) {
+    <span class="k">try</span> {
+      <span class="k">return</span> activeRows(<span class="k">await</span> fetchAllList(url, params));
+    } <span class="k">catch</span> { <span class="c">/* thử url tiếp theo */</span> }
+  }
+  <span class="k">throw new</span> Error(<span class="s">"No API candidate worked"</span>);
+};
+
+<span class="c">// Ví dụ: legalReference candidates</span>
+[<span class="s">"legalReference:list"</span>, <span class="s">"legalReferences:list"</span>, <span class="s">"LegalReference:list"</span>]</pre>
+
+    <div class="box box-info">
+      <strong>fetchAllList() — auto pagination:</strong> Tự động fetch nhiều trang cho đến khi hết data (max 20 trang), dùng meta.totalPage / meta.count để dừng đúng lúc. pageSize mặc định = 200.
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-11</span>
+    <span class="feature-name">getCurrentLegalReferenceId() — resolve ID từ nhiều context</span>
+  </div>
+  <div class="feature-body">
+    <pre>
+<span class="k">const</span> getCurrentLegalReferenceId = (record) =&gt;
+  extractId(record?.id)                        <span class="c">// từ ctx.record</span>
+  || extractId(ctx.recordId)                    <span class="c">// Nocobase recordId</span>
+  || extractId(ctx.filterByTk)                  <span class="c">// filter param</span>
+  || extractId(ctx.params?.filterByTk)          <span class="c">// nested params</span>
+  || extractId(ctx.router?.params?.filterByTk)  <span class="c">// router params</span>
+  || extractId(ctx.view?.params?.filterByTk)    <span class="c">// view params</span>
+  || extractId(ctx.inputArgs?.filterByTk)       <span class="c">// inputArgs</span>
+  || extractId(getRouteFilterByTk());           <span class="c">// URL path parsing</span>
+
+<span class="c">// getRouteFilterByTk(): regex match /filterbytk/([^/?#]+)/ từ window.location.pathname</span></pre>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §7 CƠ SỞ DỮ LIỆU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s7"><span class="num">7</span> Cơ sở dữ liệu — Relations & Fields</h2>
+
+<h3 class="sub-title">Collections và quan hệ</h3>
+<table>
+  <thead><tr><th>Collection</th><th>Relation fields quan trọng</th><th>Mô tả quan hệ</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>legalReference</code></td>
+      <td>
+        <code>cases</code>, <code>projects</code>, <code>caseReferences</code><br/>
+        <code>legalStudy</code>, <code>legalStudies</code>, <code>sourceLegalStudy</code>
+      </td>
+      <td>BelongsToMany: cases, legalStudies (M:N)</td>
+    </tr>
+    <tr>
+      <td><code>legalStudy</code></td>
+      <td>
+        <code>cases</code>, <code>projects</code>, <code>caseReferences</code><br/>
+        <code>legalReference</code>, <code>legalReferences</code>, <code>sourceLegalReference</code>
+      </td>
+      <td>BelongsToMany: cases, legalReferences (M:N)</td>
+    </tr>
+    <tr>
+      <td><code>projects</code> / <code>cases</code></td>
+      <td>
+        <code>legalReference</code>, <code>legalReferences</code>, <code>sourceLegalReference</code><br/>
+        <code>legalStudy</code>, <code>legalStudies</code>, <code>sourceLegalStudy</code>
+      </td>
+      <td>BelongsToMany: legalReferences, legalStudies (M:N)</td>
+    </tr>
+    <tr>
+      <td><code>documents</code></td>
+      <td>
+        <code>legalStudyId</code>, <code>legalReferenceId</code><br/>
+        <code>legalStudyLinkedAt</code>, <code>legalStudySource</code><br/>
+        <code>sourceCollectionName</code>, <code>sourceRecordId</code>
+      </td>
+      <td>BelongsTo: legalStudy, legalReference (M:1)</td>
+    </tr>
+    <tr>
+      <td><code>folders</code></td>
+      <td><code>legalStudyId</code>, <code>legalReferenceId</code></td>
+      <td>BelongsTo: legalStudy, legalReference (M:1)</td>
+    </tr>
+    <tr>
+      <td><code>activity_log</code></td>
+      <td><code>action</code>, <code>documentId</code>, <code>userId</code>, <code>newValue</code></td>
+      <td>Ghi khi linked_legal_study / unlinked_legal_study</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Relation resolution — valueMatchesId()</h3>
+<p>Hàm kiểm tra một field value có match một ID hay không, xử lý các dạng dữ liệu Nocobase trả về:</p>
+<table>
+  <thead><tr><th>Dạng value</th><th>Xử lý</th></tr></thead>
+  <tbody>
+    <tr><td>Số nguyên: <code>123</code></td><td>So sánh trực tiếp với ID</td></tr>
+    <tr><td>Chuỗi: <code>"123"</code></td><td>So sánh String(extractId(value)) === String(safeId)</td></tr>
+    <tr><td>Object: <code>{ id: 123, name: "..." }</code></td><td><code>extractId(value)</code> → lấy .id</td></tr>
+    <tr><td>Array: <code>[{ id: 123 }, { id: 456 }]</code></td><td><code>relationRows(value).some(...)</code></td></tr>
+    <tr><td>Nocobase pagination wrapper: <code>{ data: { data: [...] } }</code></td><td><code>relationRows()</code> unwrap</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">Normalize ID — normalizeFilterId()</h3>
+<p>Chuyển đổi ID từ string về number khi có thể, để tránh filter mismatch giữa <code>"123"</code> và <code>123</code>:</p>
+<pre>
+<span class="k">const</span> normalizeFilterId = (id) =&gt; {
+  <span class="k">const</span> safeId = Number(id);
+  <span class="k">return</span> Number.isFinite(safeId) &amp;&amp; String(safeId) === String(id) ? safeId : id;
+  <span class="c">// "123" → 123, "abc" → "abc", "12.5" → "12.5" (giữ nguyên)</span>
+};</pre>
+
+<!-- ══════════════════════════════════════════════════
+     §8 LUỒNG DỮ LIỆU
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s8"><span class="num">8</span> Luồng dữ liệu đầy đủ</h2>
+
+<h3 class="sub-title">Luồng load JsLegalReferenceLinks</h3>
+<pre>
+User mở trang chi tiết Case Reference
+  ↓
+<span class="n">getCurrentLegalReferenceId()</span>   <span class="c">← resolve từ URL / ctx / record</span>
+  ↓
+<span class="n">fetchLegalReferenceWithLinks(refId)</span>
+  → GET legalReference:get?filterByTk={refId}
+  → appends: cases, projects, caseReferences, legalStudy, legalStudies, createdBy, updatedBy
+  ↓
+parallel:
+  <span class="n">getCaseRowsFromReferenceRecord(record)</span>      <span class="c">← từ relation fields</span>
+  <span class="n">fetchLegalStudyRowsForReference(refId)</span>     <span class="c">← 3 nguồn (source + folders + documents)</span>
+  ↓
+<span class="n">uniqLinks([...casesLinks, ...studyLinks])</span>
+<span class="n">resolveLinkCreatorLabels(links)</span>             <span class="c">← batch users:list</span>
+  ↓
+setLinks(sorted) → render table</pre>
+
+<h3 class="sub-title">Luồng thêm link Case Reference → Case</h3>
+<pre>
+User click "Add link" → chọn "Linked Case"
+  ↓
+fetchCandidateCases()   <span class="c">← projects:list || cases:list</span>
+Render dropdown (ẩn đã-link)
+  ↓
+User chọn case → click OK
+  ↓
+<span class="n">linkedCaseIds.has(caseId)</span>?  → toast "already linked"
+  ↓
+<span class="n">addCaseLinkToLegalReference(refId, caseId)</span>
+  → thử 12 API candidates × 2 payload formats
+  → dừng khi thành công đầu tiên
+  ↓
+toast.success → loadLinks() → re-render</pre>
+
+<h3 class="sub-title">Luồng link Document → Legal Study (Library.js)</h3>
+<pre>
+User: context menu file → "Đưa vào Legal Study"
+  ↓
+Modal: chọn Legal Study target
+  ↓
+PATCH documents:update {
+  legalStudyId: targetStudyId,
+  legalStudyLinkedAt: now,
+  legalStudySource: "library"
+}
+  ↓
+createManualActivityLog({
+  action: <span class="s">"linked_legal_study"</span>,
+  documentId: doc.id,
+  userId: currentUserId
+})
+  ↓
+Refresh visibleDocs → document xuất hiện trong Legal Study space</pre>
+
+<!-- ══════════════════════════════════════════════════
+     §9 BỘ TEST CASE
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s9"><span class="num">9</span> Bộ Test Case</h2>
+
+<div class="box box-warn">
+  Tất cả test thực hiện bằng tay (Manual). Kết quả Pass/Fail lưu tại: <em>[Link Google Sheet sẽ điền sau khi test]</em>
+</div>
+
+<h3 class="sub-title">TC-01: JsLegalReferenceLinks — Load dữ liệu</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-01-01</td><td>Mở tab Links trên Case Reference có sẵn dữ liệu</td><td>Vào chi tiết Case Reference bất kỳ có link → chuyển tab Links</td><td>Danh sách hiện đúng Cases và Legal Studies đã link, không lỗi</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-02</td><td>Case Reference chưa có link nào</td><td>Mở Case Reference mới tạo → tab Links</td><td>Empty state hiện "No linked Cases or Legal Studies yet."</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-03</td><td>legalReferenceId không tìm được từ context</td><td>Mở component ngoài context record</td><td>Alert warning "Current Legal Reference not found"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-04</td><td>API lỗi khi load</td><td>Tắt mạng → mở tab Links</td><td>Alert error với nút Reload</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-01-05</td><td>Reload dữ liệu</td><td>Thêm link từ màn hình khác → quay lại → click Reload</td><td>Danh sách cập nhật đúng link mới</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-02: JsLegalReferenceLinks — Thêm link</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-02-01</td><td>Link Case mới thành công</td><td>Add link → Linked Case → chọn case chưa link → Add link</td><td>toast success; case xuất hiện trong danh sách; badge "Linked Case"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-02</td><td>Link Legal Study mới thành công</td><td>Add link → Legal Study → chọn study → Add link</td><td>toast success; study xuất hiện; badge "Legal Study" màu tím</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-03</td><td>Link case đã link (dedup)</td><td>Chọn case đã link trong dropdown</td><td>Case không xuất hiện trong dropdown (đã bị ẩn)</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-04</td><td>Submit không chọn gì</td><td>Add link → OK mà không chọn case</td><td>Form validation error "Please select a case"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-02-05</td><td>Search case trong modal</td><td>Gõ tên hoặc mã số hồ sơ vào ô search</td><td>Dropdown lọc đúng theo tên/code</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-03: JsLegalReferenceLinks — Filter & Navigation</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-03-01</td><td>Filter "Linked Case"</td><td>Click segment "Linked Case"</td><td>Chỉ hiện rows có type="case"; badge count đúng</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-02</td><td>Filter "Legal Study"</td><td>Click segment "Legal Study"</td><td>Chỉ hiện rows có type="legal_study"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-03</td><td>Search text</td><td>Gõ tên case/study vào input search</td><td>Danh sách filter real-time, bỏ dấu tiếng Việt vẫn match</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-04</td><td>Mở record được link</td><td>Click icon ⟶ trên một row</td><td>Tab mới mở đến trang chi tiết đúng record</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-03-05</td><td>Filter All</td><td>Click "All" sau khi đã filter</td><td>Hiện tất cả links, badge All = tổng</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-04: JsLegalStudyLinks — Load & Link</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-04-01</td><td>Load links từ Legal Study có dữ liệu</td><td>Mở chi tiết Legal Study → tab Links</td><td>Hiện Cases và Legal References đã link</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-02</td><td>Link Case từ Legal Study</td><td>Add link → Linked Case → chọn → Add</td><td>Case xuất hiện trong danh sách</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-03</td><td>Link Legal Reference từ Legal Study</td><td>Add link → Legal Reference → chọn → Add</td><td>Reference xuất hiện với badge "Legal Reference" geekblue</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-04</td><td>Cross-check: link từ Legal Study xuất hiện trong Case Reference</td><td>Link Case Reference từ Legal Study → mở Case Reference → tab Links</td><td>Legal Study xuất hiện trong danh sách Case Reference</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-04-05</td><td>Dedup — Legal Reference đã link không hiện trong dropdown</td><td>Open modal Legal Reference → kiểm tra dropdown</td><td>References đã link không có trong dropdown</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-05: Library.js — Legal Study Document Link</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-05-01</td><td>Đưa tài liệu vào Legal Study</td><td>Library → context menu file → "Đưa vào Legal Study" → chọn study</td><td>File xuất hiện trong Legal Study space; activity log ghi "linked_legal_study"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-02</td><td>Gỡ tài liệu khỏi Legal Study</td><td>Library → context menu → "Gỡ khỏi Legal Study"</td><td>File biến khỏi Legal Study space; log "unlinked_legal_study"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-03</td><td>Filter Recent by linked_legal_study</td><td>Library → Recent → dropdown → chọn "Đưa vào Legal Study"</td><td>Chỉ hiện log với action="linked_legal_study"</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-05-04</td><td>Tài liệu linked study hiện đúng study name</td><td>Library → Legal Study space → chọn study → kiểm tra docs</td><td>Chỉ hiện docs có legalStudyId = study đang chọn</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-06: API Fallback</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-06-01</td><td>legalReference:list hoạt động → không cần fallback</td><td>Thêm link bình thường</td><td>Thành công với candidate đầu tiên; không log warn</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-06-02</td><td>Tất cả candidates fail</td><td>Simulate API lỗi toàn bộ</td><td>toast "Failed to add link"; không crash app</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-06-03</td><td>ID là number vs string</td><td>Case ID = 123 (number) — kiểm tra normalizeFilterId</td><td>Filter đúng, không bị type mismatch</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-06-04</td><td>Pagination — nhiều hơn 200 records</td><td>Có hơn 200 cases trong hệ thống</td><td>fetchAllList auto-paginate, load đủ tất cả records</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<!-- Footer -->
+<div style="margin-top: 64px; padding-top: 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between;">
+  <span>SRS — Hệ thống Liên kết Case Reference · Legal Study · Case · v1.0.0 · 12/06/2026</span>
+  <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js</span>
+</div>
+
+</body>
+</html>

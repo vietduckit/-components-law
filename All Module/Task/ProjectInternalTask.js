@@ -29,6 +29,7 @@ const { Dragger } = Upload;
 
 const PROJECT_ID = ctx.record?.id;
 const PROJECT_INTERNAL_DOCUMENT_SCOPE = "project_internal";
+const PROJECT_INTERNAL_STORAGE_TYPE = "project_internal";
 const FONT =
   "Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const COL = {
@@ -62,13 +63,15 @@ const DeleteIcon = () =>
         flexShrink: 0,
         display: "inline-flex",
         verticalAlign: "middle",
-        pointerEvents: "none"
-      }
+        pointerEvents: "none",
+      },
     },
     React.createElement("polyline", { points: "3 6 5 6 21 6" }),
-    React.createElement("path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
+    React.createElement("path", {
+      d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+    }),
     React.createElement("line", { x1: "10", y1: "11", x2: "10", y2: "17" }),
-    React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" })
+    React.createElement("line", { x1: "14", y1: "11", x2: "14", y2: "17" }),
   );
 const EditIcon = () =>
   React.createElement(
@@ -89,8 +92,12 @@ const EditIcon = () =>
         pointerEvents: "none",
       },
     },
-    React.createElement("path", { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }),
-    React.createElement("path", { d: "M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" })
+    React.createElement("path", {
+      d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7",
+    }),
+    React.createElement("path", {
+      d: "M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z",
+    }),
   );
 const originURL = window.location.origin;
 // 🌟 CONFIG URL DEEP-LINK CHO BÌNH LUẬN (Gán cứng các UID Route để dễ bảo trì)
@@ -316,7 +323,6 @@ const withTaskLinkedUrl = (
   linkedUrl: buildTaskLinkedUrl(item, type, fallbackCaseId),
 });
 
-
 const getCommentText = (html, removeMentions = false) => {
   if (!html) return "";
   if (typeof document !== "undefined") {
@@ -444,60 +450,14 @@ const normalizeLookupText = (val) =>
     .replace(/\s+/g, " ");
 
 const buildProjectInternalDocumentMeta = (folderId) => {
-  const payload = { moduleScope: PROJECT_INTERNAL_DOCUMENT_SCOPE };
+  const payload = {
+    moduleScope: PROJECT_INTERNAL_DOCUMENT_SCOPE,
+    storageType: PROJECT_INTERNAL_STORAGE_TYPE,
+  };
   const safeFolderId = extractId(folderId);
   if (safeFolderId) payload.folderId = safeFolderId;
   return payload;
 };
-
-const resolveSectionUploadFolderId = ({
-  item,
-  type,
-  tasks,
-  allProjectFolders,
-  projectFolderId,
-  projectInternalId,
-}) => {
-  const folderList = Array.isArray(allProjectFolders) ? allProjectFolders : [];
-  const rawFallbackId = extractId(projectFolderId);
-  const fallbackId =
-    rawFallbackId &&
-      folderList.some((folder) => extractId(folder?.id || folder) === rawFallbackId)
-      ? rawFallbackId
-      : null;
-  const parentTask =
-    type === "subTask" && Array.isArray(tasks)
-      ? tasks.find((t) => extractId(t.id) === extractId(item?.taskId))
-      : null;
-  const taskLike = item?.titleSection ? item : parentTask || item;
-  const sectionName = String(taskLike?.titleSection || "").trim();
-
-  if (!sectionName) return fallbackId;
-
-  const normalizedSectionName = normalizeLookupText(sectionName);
-  const currentProjectId = extractId(projectInternalId);
-  const inCurrentProjectScope = (folder) => {
-    const parentId = extractId(folder?.parentId) || extractId(folder?.parent);
-    const folderProjectId =
-      extractId(folder?.projectInternalId) || extractId(folder?.projectInternal);
-    return (
-      !fallbackId ||
-      parentId === fallbackId ||
-      (currentProjectId && folderProjectId === currentProjectId)
-    );
-  };
-  const matchesSectionName = (folder) =>
-    !!normalizedSectionName &&
-    normalizeLookupText(folder?.name || folder?.title) === normalizedSectionName;
-
-  const scopedFolders = folderList.filter(inCurrentProjectScope);
-  const matched =
-    scopedFolders.find(matchesSectionName) ||
-    folderList.find(matchesSectionName);
-
-  return extractId(matched?.id) || fallbackId;
-};
-
 
 const getExtInfo = (ext) =>
   FILE_EXT_ICON[(ext || "").toLowerCase()] || {
@@ -523,7 +483,7 @@ const formatActivityValue = (val) => {
     try {
       const d = new Date(val);
       if (!isNaN(d.getTime())) return fmt(val, "full");
-    } catch { }
+    } catch {}
   }
   return val;
 };
@@ -631,14 +591,163 @@ async function fetchNotes(collectionName, recordId, includeDeleted = false) {
   }
 }
 
+const DOCUMENT_FILE_FIELDS =
+  "id,title,documentCode,documentType,batchId,collectionName,sourceCollectionName,sourceTaskId,sourceRecordId,googleDriveUrl,note,createdAt,updatedAt,createdById,isDeleted,folderId,caseId,taskId,subTaskId,moduleScope,storageType";
+
+function normalizeDocumentCollectionName(collectionName) {
+  const raw = String(collectionName || "").trim();
+  const lower = raw.toLowerCase();
+  if (lower === "tasks" || lower === "task") return "Task";
+  if (lower === "subtasks" || lower === "subtask") return "SubTask";
+  if (
+    ["projectinternal", "project internal", "project_internal"].includes(lower)
+  )
+    return "Project Internal";
+  return raw || collectionName;
+}
+
+function buildDocumentRecordLink(collectionName, recordId, extra = {}) {
+  const normalized = normalizeDocumentCollectionName(collectionName);
+  const safeRecordId = extractId(recordId);
+  const projectInternalId =
+    extractId(extra.projectInternalId) || extractId(PROJECT_ID);
+  const payload = {
+    collectionName: normalized,
+    ...buildProjectInternalDocumentMeta(extra.folderId),
+  };
+  if (safeRecordId) {
+    const isTaskAttachment = normalized === "Task" || normalized === "SubTask";
+    // documents has no projectInternalId column; ProjectDocument links by source collection/id.
+    payload.sourceCollectionName =
+      isTaskAttachment && projectInternalId ? "Project Internal" : normalized;
+    payload.sourceRecordId =
+      isTaskAttachment && projectInternalId ? projectInternalId : safeRecordId;
+  }
+  if (normalized === "Task" && safeRecordId) {
+    payload.taskId = safeRecordId;
+    payload.sourceTaskId = safeRecordId;
+  }
+  if (normalized === "SubTask" && safeRecordId)
+    payload.subTaskId = safeRecordId;
+  return payload;
+}
+
+function buildDocumentRecordFilter(collectionName, recordId) {
+  const link = buildDocumentRecordLink(collectionName, recordId);
+  const filter = [];
+  if (link.collectionName)
+    filter.push({ collectionName: { $eq: link.collectionName } });
+  if (link.taskId) {
+    filter.push({
+      $or: [
+        { taskId: { $eq: link.taskId } },
+        { sourceTaskId: { $eq: link.taskId } },
+        { sourceRecordId: { $eq: link.taskId } },
+      ],
+    });
+  } else if (link.subTaskId) {
+    filter.push({
+      $or: [
+        { subTaskId: { $eq: link.subTaskId } },
+        { sourceRecordId: { $eq: link.subTaskId } },
+      ],
+    });
+  } else return null;
+  filter.push({ moduleScope: { $eq: PROJECT_INTERNAL_DOCUMENT_SCOPE } });
+  filter.push({ storageType: { $eq: PROJECT_INTERNAL_STORAGE_TYPE } });
+  return { $and: filter };
+}
+
+function getDocumentTaskId(doc) {
+  return (
+    extractId(doc?.taskId) ||
+    extractId(doc?.task) ||
+    extractId(doc?.sourceTaskId) ||
+    (normalizeDocumentCollectionName(doc?.sourceCollectionName) === "Task"
+      ? extractId(doc?.sourceRecordId)
+      : null)
+  );
+}
+
+function filterTaskDocumentsByIds(
+  files,
+  taskIds,
+  moduleScope = null,
+  storageType = null,
+) {
+  const idSet = new Set(
+    (taskIds || []).map((id) => String(extractId(id))).filter(Boolean),
+  );
+  return (files || []).filter((file) => {
+    const taskId = getDocumentTaskId(file);
+    if (!taskId || !idSet.has(String(taskId))) return false;
+    if (moduleScope && file.moduleScope && file.moduleScope !== moduleScope)
+      return false;
+    if (storageType && file.storageType && file.storageType !== storageType)
+      return false;
+    return true;
+  });
+}
+
+async function fetchTaskDocumentsByIds(taskIds, extraFilters = []) {
+  const safeTaskIds = (taskIds || []).map(extractId).filter(Boolean);
+  if (!safeTaskIds.length) return [];
+  const baseFilters = [
+    { collectionName: { $eq: "Task" } },
+    ...extraFilters,
+    { isDeleted: { $ne: true } },
+  ];
+  const filterAttempts = [
+    {
+      $and: [
+        ...baseFilters,
+        {
+          $or: [
+            { taskId: { $in: safeTaskIds } },
+            { sourceTaskId: { $in: safeTaskIds } },
+            { sourceRecordId: { $in: safeTaskIds } },
+          ],
+        },
+      ],
+    },
+    { $and: [...baseFilters, { taskId: { $in: safeTaskIds } }] },
+    { $and: [...baseFilters, { sourceTaskId: { $in: safeTaskIds } }] },
+    { $and: [...baseFilters, { sourceRecordId: { $in: safeTaskIds } }] },
+    { $and: baseFilters },
+  ];
+
+  for (const filter of filterAttempts) {
+    try {
+      const res = await ctx.api.request({
+        url: "documents:list",
+        params: {
+          pageSize: 2000,
+          filter: JSON.stringify(filter),
+          fields: DOCUMENT_FILE_FIELDS,
+          appends: ["fileAttachment", "createdBy", "updatedBy"],
+        },
+      });
+      const files = filterTaskDocumentsByIds(
+        res?.data?.data || [],
+        safeTaskIds,
+        PROJECT_INTERNAL_DOCUMENT_SCOPE,
+        PROJECT_INTERNAL_STORAGE_TYPE,
+      );
+      if (
+        files.length ||
+        filter === filterAttempts[filterAttempts.length - 1]
+      ) {
+        return files;
+      }
+    } catch {}
+  }
+  return [];
+}
+
 async function fetchFiles(collectionName, recordId, includeDeleted = false) {
   try {
-    const filter = {
-      $and: [
-        { collectionName: { $eq: collectionName } },
-        { recordId: { $eq: parseInt(recordId) } },
-      ],
-    };
+    const filter = buildDocumentRecordFilter(collectionName, recordId);
+    if (!filter) return [];
     if (!includeDeleted) {
       filter.$and.push({ isDeleted: { $ne: true } });
     }
@@ -649,8 +758,7 @@ async function fetchFiles(collectionName, recordId, includeDeleted = false) {
         page: 1,
         sort: ["-createdAt"],
         filter: JSON.stringify(filter),
-        fields:
-          "id,title,documentCode,documentType,batchId,collectionName,recordId,googleDriveUrl,note,createdAt,updatedAt,createdById,isDeleted",
+        fields: DOCUMENT_FILE_FIELDS,
         appends: ["fileAttachment", "createdBy", "updatedBy"],
       },
     });
@@ -691,7 +799,7 @@ async function logActivity(
       batchId: batchId || null,
       dataId: dataId || null,
     });
-  } catch { }
+  } catch {}
 }
 
 async function fetchTimesheets(filter) {
@@ -997,23 +1105,23 @@ const TruncatedCell = ({
       display,
     ),
     needTruncate &&
-    React.createElement(
-      "span",
-      {
-        onClick: (e) => {
-          e.stopPropagation();
-          setExpanded((v) => !v);
+      React.createElement(
+        "span",
+        {
+          onClick: (e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          },
+          style: {
+            fontSize: 12,
+            color: "#1890ff",
+            cursor: "pointer",
+            userSelect: "none",
+            marginLeft: 4,
+          },
         },
-        style: {
-          fontSize: 12,
-          color: "#1890ff",
-          cursor: "pointer",
-          userSelect: "none",
-          marginLeft: 4,
-        },
-      },
-      expanded ? "Thu gọn" : "Xem thêm",
-    ),
+        expanded ? "Thu gọn" : "Xem thêm",
+      ),
   );
   if (showTooltip && needTruncate)
     return React.createElement(
@@ -1079,85 +1187,85 @@ const StatusBtn = ({
         },
       },
       status === "done" &&
-      React.createElement(
-        "span",
-        { style: { color: "#fff", fontSize: size * 0.6, lineHeight: 1 } },
-        "✓",
-      ),
+        React.createElement(
+          "span",
+          { style: { color: "#fff", fontSize: size * 0.6, lineHeight: 1 } },
+          "✓",
+        ),
       status === "cancelled" &&
-      React.createElement(
-        "span",
-        { style: { color: cfg.color, fontSize: size * 0.6, lineHeight: 1 } },
-        "×",
-      ),
+        React.createElement(
+          "span",
+          { style: { color: cfg.color, fontSize: size * 0.6, lineHeight: 1 } },
+          "×",
+        ),
       status === "blocked" &&
-      React.createElement(
-        "span",
-        { style: { color: cfg.color, fontSize: size * 0.55, lineHeight: 1 } },
-        "⏸",
-      ),
+        React.createElement(
+          "span",
+          { style: { color: cfg.color, fontSize: size * 0.55, lineHeight: 1 } },
+          "⏸",
+        ),
     ),
     open &&
-    !readOnly &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: size + 4,
-          left: 0,
-          zIndex: 9999,
-          background: "#fff",
-          border: "1px solid #e8e8e8",
-          borderRadius: 6,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-          padding: "4px 0",
-          minWidth: 160,
-        },
-        onMouseLeave: () => setOpen(false),
-      },
-      ...allowedKeys.map((k) => {
-        const v = STATUS_CFG[k];
-        return React.createElement(
-          "div",
-          {
-            key: k,
-            onClick: (e) => {
-              e.stopPropagation();
-              onChange && onChange(k);
-              setOpen(false);
-            },
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "7px 12px",
-              cursor: "pointer",
-              fontSize: 12,
-              fontFamily: FONT,
-            },
-            onMouseEnter: (e) =>
-              (e.currentTarget.style.background = "#f5f5f5"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.background = "transparent"),
+      !readOnly &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            top: size + 4,
+            left: 0,
+            zIndex: 9999,
+            background: "#fff",
+            border: "1px solid #e8e8e8",
+            borderRadius: 6,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            padding: "4px 0",
+            minWidth: 160,
           },
-          React.createElement("div", {
-            style: {
-              width: 9,
-              height: 9,
-              borderRadius: "50%",
-              background: v.color,
-              flexShrink: 0,
+          onMouseLeave: () => setOpen(false),
+        },
+        ...allowedKeys.map((k) => {
+          const v = STATUS_CFG[k];
+          return React.createElement(
+            "div",
+            {
+              key: k,
+              onClick: (e) => {
+                e.stopPropagation();
+                onChange && onChange(k);
+                setOpen(false);
+              },
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 12px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontFamily: FONT,
+              },
+              onMouseEnter: (e) =>
+                (e.currentTarget.style.background = "#f5f5f5"),
+              onMouseLeave: (e) =>
+                (e.currentTarget.style.background = "transparent"),
             },
-          }),
-          React.createElement(
-            "span",
-            { style: { color: "#262626" } },
-            v.label,
-          ),
-        );
-      }),
-    ),
+            React.createElement("div", {
+              style: {
+                width: 9,
+                height: 9,
+                borderRadius: "50%",
+                background: v.color,
+                flexShrink: 0,
+              },
+            }),
+            React.createElement(
+              "span",
+              { style: { color: "#262626" } },
+              v.label,
+            ),
+          );
+        }),
+      ),
   );
 };
 
@@ -1236,7 +1344,6 @@ const ColHeader = () =>
     React.createElement("div", {
       style: { width: COL.approval, flexShrink: 0 },
     }),
-
   );
 // ============================================================
 // §6 PICKERS
@@ -1363,11 +1470,11 @@ const LawyerPicker = ({
           l.lawyerName,
         ),
         l.unitPrice > 0 &&
-        React.createElement(
-          "div",
-          { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-          `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/giờ`,
-        ),
+          React.createElement(
+            "div",
+            { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
+            `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/giờ`,
+          ),
       ),
     );
   };
@@ -1398,33 +1505,33 @@ const LawyerPicker = ({
       "div",
       { style: { overflowY: "auto", flex: 1 } },
       cur &&
-      React.createElement(
-        "div",
-        {
-          onClick: (e) => {
-            e.stopPropagation();
-            onChange && onChange(null, null, null);
-            handleClose();
+        React.createElement(
+          "div",
+          {
+            onClick: (e) => {
+              e.stopPropagation();
+              onChange && onChange(null, null, null);
+              handleClose();
+            },
+            style: {
+              padding: "7px 12px",
+              fontSize: 12,
+              color: "#cf1322",
+              cursor: "pointer",
+              fontFamily: FONT,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 4,
+              borderBottom: "1px solid #f0f0f0",
+            },
+            onMouseEnter: (e) => (e.currentTarget.style.background = "#fff1f0"),
+            onMouseLeave: (e) =>
+              (e.currentTarget.style.background = "transparent"),
           },
-          style: {
-            padding: "7px 12px",
-            fontSize: 12,
-            color: "#cf1322",
-            cursor: "pointer",
-            fontFamily: FONT,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 4,
-            borderBottom: "1px solid #f0f0f0",
-          },
-          onMouseEnter: (e) => (e.currentTarget.style.background = "#fff1f0"),
-          onMouseLeave: (e) =>
-            (e.currentTarget.style.background = "transparent"),
-        },
-        React.createElement("span", null, "×"),
-        React.createElement("span", null, "Huỷ phân công"),
-      ),
+          React.createElement("span", null, "×"),
+          React.createElement("span", null, "Huỷ phân công"),
+        ),
       ...grouped.map(({ type, cfg, items }) =>
         React.createElement(
           "div",
@@ -1451,28 +1558,28 @@ const LawyerPicker = ({
         ),
       ),
       others.length > 0 &&
-      React.createElement(
-        "div",
-        null,
         React.createElement(
           "div",
-          {
-            style: {
-              padding: "5px 12px 3px",
-              fontSize: 12,
-              fontFamily: FONT,
-              fontWeight: 700,
-              color: "#8c8c8c",
-              textTransform: "uppercase",
-              letterSpacing: 0.6,
-              background: "#f5f5f5",
-              borderTop: "1px solid #f0f0f0",
+          null,
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "5px 12px 3px",
+                fontSize: 12,
+                fontFamily: FONT,
+                fontWeight: 700,
+                color: "#8c8c8c",
+                textTransform: "uppercase",
+                letterSpacing: 0.6,
+                background: "#f5f5f5",
+                borderTop: "1px solid #f0f0f0",
+              },
             },
-          },
-          "Khác",
+            "Khác",
+          ),
+          ...others.map(renderLawyerRow),
         ),
-        ...others.map(renderLawyerRow),
-      ),
     ),
   );
 
@@ -1503,57 +1610,57 @@ const LawyerPicker = ({
       },
       cur
         ? React.createElement(
-          React.Fragment,
-          null,
-          React.createElement(Av, { name: cur.lawyerName, color, size }),
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 13,
-                fontFamily: FONT,
-                color: "#262626",
-                fontWeight: 600,
+            React.Fragment,
+            null,
+            React.createElement(Av, { name: cur.lawyerName, color, size }),
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  color: "#262626",
+                  fontWeight: 600,
+                },
               },
-            },
-            cur.lawyerName,
-          ),
-          !readOnly &&
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#bfbfbf", lineHeight: 1 } },
-            "▾",
-          ),
-        )
+              cur.lawyerName,
+            ),
+            !readOnly &&
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#bfbfbf", lineHeight: 1 } },
+                "▾",
+              ),
+          )
         : readOnly
           ? React.createElement("div", {
-            style: {
-              width: size,
-              height: size,
-              borderRadius: "50%",
-              background: "#f0f0f0",
-              border: "1px solid #e8e8e8",
-              flexShrink: 0,
-            },
-          })
-          : React.createElement(
-            "div",
-            {
-              title: "Phân công luật sư",
               style: {
                 width: size,
                 height: size,
                 borderRadius: "50%",
-                border: "1.5px dashed #bfbfbf",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: size * 0.55,
-                color: "#bfbfbf",
+                background: "#f0f0f0",
+                border: "1px solid #e8e8e8",
+                flexShrink: 0,
               },
-            },
-            "+",
-          ),
+            })
+          : React.createElement(
+              "div",
+              {
+                title: "Phân công luật sư",
+                style: {
+                  width: size,
+                  height: size,
+                  borderRadius: "50%",
+                  border: "1.5px dashed #bfbfbf",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: size * 0.55,
+                  color: "#bfbfbf",
+                },
+              },
+              "+",
+            ),
     ),
     React.createElement(
       PortalDropdown,
@@ -1790,60 +1897,64 @@ const TaskPicker = ({
         { style: { overflowY: "auto", flex: 1 } },
         grouped.length === 0
           ? React.createElement(
-            "div",
-            {
-              style: {
-                padding: "16px",
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#bfbfbf",
-                textAlign: "center",
-              },
-            },
-            "Không có công việc nào",
-          )
-          : grouped.map((g) =>
-            React.createElement(
               "div",
-              { key: g.key },
+              {
+                style: {
+                  padding: "16px",
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#bfbfbf",
+                  textAlign: "center",
+                },
+              },
+              "Không có công việc nào",
+            )
+          : grouped.map((g) =>
               React.createElement(
                 "div",
-                {
-                  style: {
-                    padding: "10px 12px",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    fontWeight: 700,
-                    color: "#8c8c8c",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                    background: "#f5f5f5",
-                    borderTop: "1px solid #efefef",
-                    borderBottom: "1px solid #efefef",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  },
-                },
-                React.createElement("span", { style: { fontSize: 11 } }, "🗂"),
-                React.createElement("span", null, g.label),
+                { key: g.key },
                 React.createElement(
-                  "span",
+                  "div",
                   {
                     style: {
-                      marginLeft: "auto",
-                      background: "#e0e0e0",
-                      borderRadius: 8,
-                      padding: "0 6px",
+                      padding: "10px 12px",
                       fontSize: 12,
+                      fontFamily: FONT,
+                      fontWeight: 700,
+                      color: "#8c8c8c",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                      background: "#f5f5f5",
+                      borderTop: "1px solid #efefef",
+                      borderBottom: "1px solid #efefef",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
                     },
                   },
-                  String(g.tasks.length),
+                  React.createElement(
+                    "span",
+                    { style: { fontSize: 11 } },
+                    "🗂",
+                  ),
+                  React.createElement("span", null, g.label),
+                  React.createElement(
+                    "span",
+                    {
+                      style: {
+                        marginLeft: "auto",
+                        background: "#e0e0e0",
+                        borderRadius: 8,
+                        padding: "0 6px",
+                        fontSize: 12,
+                      },
+                    },
+                    String(g.tasks.length),
+                  ),
                 ),
+                g.tasks.map(renderTaskRow),
               ),
-              g.tasks.map(renderTaskRow),
             ),
-          ),
       ),
     );
   };
@@ -1852,10 +1963,10 @@ const TaskPicker = ({
     "div",
     { style: { position: "relative" } },
     open &&
-    React.createElement("div", {
-      style: { position: "fixed", inset: 0, zIndex: 9998 },
-      onClick: handleClose,
-    }),
+      React.createElement("div", {
+        style: { position: "fixed", inset: 0, zIndex: 9998 },
+        onClick: handleClose,
+      }),
     React.createElement(
       "div",
       {
@@ -1877,62 +1988,68 @@ const TaskPicker = ({
       },
       cur
         ? React.createElement(
-          React.Fragment,
-          null,
-          React.createElement("div", {
-            style: {
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: (STATUS_CFG[cur.status] || STATUS_CFG.toDo).color,
-              flexShrink: 0,
-            },
-          }),
-          React.createElement(
+            React.Fragment,
+            null,
+            React.createElement("div", {
+              style: {
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: (STATUS_CFG[cur.status] || STATUS_CFG.toDo).color,
+                flexShrink: 0,
+              },
+            }),
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  color: "#262626",
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  fontWeight: 500,
+                },
+              },
+              cur.title,
+            ),
+            React.createElement(StatusBadge, { status: cur.status }),
+            React.createElement(
+              "span",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  onChange(null);
+                },
+                style: {
+                  fontSize: 14,
+                  color: "#cf1322",
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  lineHeight: 1,
+                },
+              },
+              "×",
+            ),
+          )
+        : React.createElement(
             "span",
             {
               style: {
                 fontSize: 13,
                 fontFamily: FONT,
-                color: "#262626",
+                color: "#bfbfbf",
                 flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                fontWeight: 500,
               },
             },
-            cur.title,
+            "Chọn công việc điều kiện...",
           ),
-          React.createElement(StatusBadge, { status: cur.status }),
-          React.createElement(
-            "span",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                onChange(null);
-              },
-              style: {
-                fontSize: 14,
-                color: "#cf1322",
-                fontWeight: 700,
-                flexShrink: 0,
-                lineHeight: 1,
-              },
-            },
-            "×",
-          ),
-        )
-        : React.createElement(
-          "span",
-          { style: { fontSize: 13, fontFamily: FONT, color: "#bfbfbf", flex: 1 } },
-          "Chọn công việc điều kiện...",
-        ),
     ),
     renderDropdown(),
   );
 };
-
 
 const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
   const [items, setItems] = useState([]);
@@ -2072,55 +2189,55 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
           ),
         ),
         (a.oldValue || a.newValue) &&
-        !isCreate &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              marginTop: 2,
-              flexWrap: "wrap",
-            },
-          },
-          a.oldValue &&
+          !isCreate &&
           React.createElement(
-            "span",
+            "div",
             {
               style: {
-                fontSize: 12,
-                color: "#cf1322",
-                background: "#fff1f0",
-                padding: "1px 5px",
-                borderRadius: 3,
-                textDecoration: "line-through",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                marginTop: 2,
+                flexWrap: "wrap",
               },
             },
-            formatActivityValue(a.oldValue),
+            a.oldValue &&
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 12,
+                    color: "#cf1322",
+                    background: "#fff1f0",
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                    textDecoration: "line-through",
+                  },
+                },
+                formatActivityValue(a.oldValue),
+              ),
+            a.oldValue &&
+              a.newValue &&
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#8c8c8c" } },
+                "→",
+              ),
+            a.newValue &&
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 12,
+                    color: "#389e0d",
+                    background: "#f6ffed",
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                  },
+                },
+                formatActivityValue(a.newValue),
+              ),
           ),
-          a.oldValue &&
-          a.newValue &&
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#8c8c8c" } },
-            "→",
-          ),
-          a.newValue &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 12,
-                color: "#389e0d",
-                background: "#f6ffed",
-                padding: "1px 5px",
-                borderRadius: 3,
-              },
-            },
-            formatActivityValue(a.newValue),
-          ),
-        ),
       ),
     );
   };
@@ -2195,37 +2312,37 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
             },
           },
           n.title &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                fontWeight: 600,
-                color: "#006d75",
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  color: "#006d75",
+                },
               },
-            },
-            n.title,
-          ),
+              n.title,
+            ),
           n.body &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#595959",
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.5,
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#595959",
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5,
+                },
               },
-            },
-            (() => {
-              const plainText = n.body.replace(/<[^>]*>?/gm, "").trim();
-              return plainText.length > 100
-                ? plainText.slice(0, 100) + "…"
-                : plainText;
-            })(),
-          ),
+              (() => {
+                const plainText = n.body.replace(/<[^>]*>?/gm, "").trim();
+                return plainText.length > 100
+                  ? plainText.slice(0, 100) + "…"
+                  : plainText;
+              })(),
+            ),
         ),
       ),
     );
@@ -2329,30 +2446,30 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
               },
             },
             (f.title || att?.title || att?.filename || "(Chưa có tên)") +
-            fileExt,
+              fileExt,
           ),
           fullUrl &&
-          React.createElement(
-            "span",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                window.open(fullUrl, "_blank");
+            React.createElement(
+              "span",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  window.open(fullUrl, "_blank");
+                },
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#531dab",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  padding: "1px 6px",
+                  border: "1px solid #d3adf7",
+                  borderRadius: 3,
+                  background: "#fff",
+                },
               },
-              style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#531dab",
-                cursor: "pointer",
-                flexShrink: 0,
-                padding: "1px 6px",
-                border: "1px solid #d3adf7",
-                borderRadius: 3,
-                background: "#fff",
-              },
-            },
-            "⬇️",
-          ),
+              "⬇️",
+            ),
         ),
       ),
     );
@@ -2371,35 +2488,35 @@ const HistoryPanel = ({ collectionName, recordId, canAccess = true }) => {
     },
     loading
       ? React.createElement(
-        "div",
-        { style: { textAlign: "center", padding: "8px 0" } },
-        React.createElement(Spin, { size: "small" }),
-      )
+          "div",
+          { style: { textAlign: "center", padding: "8px 0" } },
+          React.createElement(Spin, { size: "small" }),
+        )
       : items.length === 0
         ? React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 12,
-              color: "#bfbfbf",
-              display: "block",
-              padding: "4px 0",
-              fontFamily: FONT,
+            Text,
+            {
+              style: {
+                fontSize: 12,
+                color: "#bfbfbf",
+                display: "block",
+                padding: "4px 0",
+                fontFamily: FONT,
+              },
             },
-          },
-          "Chưa có hoạt động nào",
-        )
+            "Chưa có hoạt động nào",
+          )
         : React.createElement(
-          "div",
-          null,
-          ...items.map((item, i) => {
-            const key = `hp-${item._kind}-${i}`;
-            if (item._kind === "log") return renderLog(item.data, key);
-            if (item._kind === "note") return renderNote(item.data, key);
-            if (item._kind === "file") return renderFile(item.data, key);
-            return null;
-          }),
-        ),
+            "div",
+            null,
+            ...items.map((item, i) => {
+              const key = `hp-${item._kind}-${i}`;
+              if (item._kind === "log") return renderLog(item.data, key);
+              if (item._kind === "note") return renderNote(item.data, key);
+              if (item._kind === "file") return renderFile(item.data, key);
+              return null;
+            }),
+          ),
   );
 };
 // ======================== HELPER ====================================
@@ -2445,20 +2562,20 @@ const loadQuillAsync = () => {
         QuillLib && typeof QuillLib === "function"
           ? QuillLib
           : (QuillLib && QuillLib.default) ||
-          (QuillLib && QuillLib.Quill) ||
-          QuillLib;
+            (QuillLib && QuillLib.Quill) ||
+            QuillLib;
       if (!Q) throw new Error("Quill constructor not found in UMD export");
       try {
         const SizeStyle = Q.import("attributors/style/size");
         SizeStyle.whitelist = QUILL_FONT_SIZES;
         Q.register(SizeStyle, true);
-      } catch { }
+      } catch {}
       return Q;
     });
   return _quillLoadPromise;
 };
 // Kick off loading immediately so Quill is ready when component mounts
-loadQuillAsync().catch(() => { });
+loadQuillAsync().catch(() => {});
 
 // ── QuillEditor ────────────────────────────────────────────────────
 const QUILL_CUSTOM_CSS = `
@@ -2656,30 +2773,30 @@ const QuillEditor = ({
     React.createElement("style", null, QUILL_CUSTOM_CSS),
     error
       ? React.createElement(
-        "div",
-        {
-          style: {
-            padding: "12px 16px",
-            color: "#ff4d4f",
-            fontSize: 13,
-            fontFamily: FONT,
-          },
-        },
-        error,
-      )
-      : !ready
-        ? React.createElement(
           "div",
           {
             style: {
               padding: "12px 16px",
-              color: "#bfbfbf",
+              color: "#ff4d4f",
               fontSize: 13,
               fontFamily: FONT,
             },
           },
-          "Đang tải editor...",
+          error,
         )
+      : !ready
+        ? React.createElement(
+            "div",
+            {
+              style: {
+                padding: "12px 16px",
+                color: "#bfbfbf",
+                fontSize: 13,
+                fontFamily: FONT,
+              },
+            },
+            "Đang tải editor...",
+          )
         : null,
     React.createElement("div", { ref: containerRef }),
   );
@@ -2780,131 +2897,131 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
 
       // ── Dropdown ───────────────────────────────────────────────
       open &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            zIndex: 9999,
-            background: "#fff",
-            border: "1px solid #e0e0e0",
-            borderRadius: 12,
-            boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
-            minWidth: 240,
-            maxHeight: 280,
-            overflowY: "auto",
-            padding: "6px 0",
-          },
-        },
-        // Search input
         React.createElement(
           "div",
           {
-            style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" },
-          },
-          React.createElement("input", {
-            autoFocus: true,
-            value: search,
-            onChange: (e) => setSearch(e.target.value),
-            placeholder: "Tìm tên luật sư...",
             style: {
-              width: "100%",
-              boxSizing: "border-box",
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              zIndex: 9999,
+              background: "#fff",
               border: "1px solid #e0e0e0",
-              borderRadius: 8,
-              padding: "5px 10px",
-              fontSize: 12,
-              fontFamily: FONT,
-              outline: "none",
+              borderRadius: 12,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
+              minWidth: 240,
+              maxHeight: 280,
+              overflowY: "auto",
+              padding: "6px 0",
             },
-          }),
-        ),
-        // List
-        filtered.length === 0
-          ? React.createElement(
+          },
+          // Search input
+          React.createElement(
             "div",
             {
+              style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" },
+            },
+            React.createElement("input", {
+              autoFocus: true,
+              value: search,
+              onChange: (e) => setSearch(e.target.value),
+              placeholder: "Tìm tên luật sư...",
               style: {
-                padding: "12px",
-                textAlign: "center",
-                color: "#bfbfbf",
+                width: "100%",
+                boxSizing: "border-box",
+                border: "1px solid #e0e0e0",
+                borderRadius: 8,
+                padding: "5px 10px",
                 fontSize: 12,
                 fontFamily: FONT,
+                outline: "none",
               },
-            },
-            "Không tìm thấy",
-          )
-          : filtered.map((l) => {
-            const selected = assignedIds.includes(l.id);
-            return React.createElement(
-              "div",
-              {
-                key: l.id,
-                onMouseDown: (e) => {
-                  e.preventDefault();
-                  toggle(l);
-                },
-                style: {
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 14px",
-                  cursor: "pointer",
-                  background: selected ? "#e6f4ff" : "transparent",
-                  borderLeft: selected
-                    ? "3px solid #1890ff"
-                    : "3px solid transparent",
-                  transition: "background 0.1s",
-                },
-                onMouseEnter: (e) => {
-                  if (!selected)
-                    e.currentTarget.style.background = "#f5f5f5";
-                },
-                onMouseLeave: (e) => {
-                  if (!selected)
-                    e.currentTarget.style.background = "transparent";
-                },
-              },
-              React.createElement(Av, { name: l.lawyerName, size: 28 }),
-              React.createElement(
+            }),
+          ),
+          // List
+          filtered.length === 0
+            ? React.createElement(
                 "div",
-                { style: { flex: 1 } },
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 13,
-                      fontWeight: selected ? 700 : 400,
-                      color: selected ? "#096dd9" : "#262626",
-                      fontFamily: FONT,
-                    },
-                  },
-                  l.lawyerName,
-                ),
-                l.lawyerType &&
-                React.createElement(
-                  "div",
-                  { style: { fontSize: 11, color: "#8c8c8c" } },
-                  l.lawyerType,
-                ),
-              ),
-              selected &&
-              React.createElement(
-                "span",
                 {
                   style: {
-                    fontSize: 16,
-                    color: "#1890ff",
-                    fontWeight: 700,
+                    padding: "12px",
+                    textAlign: "center",
+                    color: "#bfbfbf",
+                    fontSize: 12,
+                    fontFamily: FONT,
                   },
                 },
-                "✓",
-              ),
-            );
-          }),
-      ),
+                "Không tìm thấy",
+              )
+            : filtered.map((l) => {
+                const selected = assignedIds.includes(l.id);
+                return React.createElement(
+                  "div",
+                  {
+                    key: l.id,
+                    onMouseDown: (e) => {
+                      e.preventDefault();
+                      toggle(l);
+                    },
+                    style: {
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "8px 14px",
+                      cursor: "pointer",
+                      background: selected ? "#e6f4ff" : "transparent",
+                      borderLeft: selected
+                        ? "3px solid #1890ff"
+                        : "3px solid transparent",
+                      transition: "background 0.1s",
+                    },
+                    onMouseEnter: (e) => {
+                      if (!selected)
+                        e.currentTarget.style.background = "#f5f5f5";
+                    },
+                    onMouseLeave: (e) => {
+                      if (!selected)
+                        e.currentTarget.style.background = "transparent";
+                    },
+                  },
+                  React.createElement(Av, { name: l.lawyerName, size: 28 }),
+                  React.createElement(
+                    "div",
+                    { style: { flex: 1 } },
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 13,
+                          fontWeight: selected ? 700 : 400,
+                          color: selected ? "#096dd9" : "#262626",
+                          fontFamily: FONT,
+                        },
+                      },
+                      l.lawyerName,
+                    ),
+                    l.lawyerType &&
+                      React.createElement(
+                        "div",
+                        { style: { fontSize: 11, color: "#8c8c8c" } },
+                        l.lawyerType,
+                      ),
+                  ),
+                  selected &&
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 16,
+                          color: "#1890ff",
+                          fontWeight: 700,
+                        },
+                      },
+                      "✓",
+                    ),
+                );
+              }),
+        ),
     ),
 
     // ── Selected Tags ─────────────────────────────────────────────
@@ -3411,42 +3528,42 @@ const RichMentionInput = ({
       }),
       React.createElement(Sep, { key: "sep-upload" }),
       onUploadClick &&
-      React.createElement(
-        Tooltip,
-        { title: "Đính kèm tệp", placement: "top" },
         React.createElement(
-          "button",
-          {
-            type: "button",
-            onClick: onUploadClick,
-            style: {
-              minWidth: 28,
-              height: 26,
-              padding: "0 4px",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-              background: "#fff",
-              cursor: "pointer",
-              fontSize: 14,
-              fontFamily: FONT,
-              color: "#333",
-              userSelect: "none",
+          Tooltip,
+          { title: "Đính kèm tệp", placement: "top" },
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: onUploadClick,
+              style: {
+                minWidth: 28,
+                height: 26,
+                padding: "0 4px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                background: "#fff",
+                cursor: "pointer",
+                fontSize: 14,
+                fontFamily: FONT,
+                color: "#333",
+                userSelect: "none",
+              },
+              onMouseEnter: (e) => {
+                e.currentTarget.style.background = "#e8f4ff";
+                e.currentTarget.style.borderColor = "#1890ff";
+              },
+              onMouseLeave: (e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.borderColor = "#ddd";
+              },
             },
-            onMouseEnter: (e) => {
-              e.currentTarget.style.background = "#e8f4ff";
-              e.currentTarget.style.borderColor = "#1890ff";
-            },
-            onMouseLeave: (e) => {
-              e.currentTarget.style.background = "#fff";
-              e.currentTarget.style.borderColor = "#ddd";
-            },
-          },
-          "📎",
+            "📎",
+          ),
         ),
-      ),
       React.createElement(
         "span",
         {
@@ -3485,137 +3602,137 @@ const RichMentionInput = ({
     }),
     // Dropdown Mentions
     showDD &&
-    filtered.length > 0 &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: dropdownPos.top,
-          left: dropdownPos.left,
-          zIndex: 9999,
-          background: "#fff",
-          border: "1px solid #e0e0e0",
-          borderRadius: 10,
-          boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
-          minWidth: 230,
-          maxHeight: 240,
-          overflowY: "auto",
-          padding: "4px 0",
-        },
-      },
+      filtered.length > 0 &&
       React.createElement(
         "div",
         {
           style: {
-            padding: "5px 12px 6px",
-            fontSize: 11,
-            color: "#888",
-            fontFamily: FONT,
-            borderBottom: "1px solid #f0f0f0",
+            position: "absolute",
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            zIndex: 9999,
+            background: "#fff",
+            border: "1px solid #e0e0e0",
+            borderRadius: 10,
+            boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
+            minWidth: 230,
+            maxHeight: 240,
+            overflowY: "auto",
+            padding: "4px 0",
           },
         },
-        query ? `Tìm luật sư: "${query}"` : "Nhắc tên luật sư",
-      ),
-      React.createElement(
-        "div",
-        { ref: dropdownRef },
-        filtered.map((l, idx) =>
-          React.createElement(
-            "div",
-            {
-              key: l.id,
-              onMouseDown: (e) => {
-                e.preventDefault();
-                selectLawyer(l);
-              },
-              onMouseEnter: () => setActiveIdx(idx),
-              style: {
-                padding: "8px 12px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: idx === activeIdx ? "#e6f4ff" : "transparent",
-                borderLeft:
-                  idx === activeIdx
-                    ? "3px solid #1890ff"
-                    : "3px solid transparent",
-                transition: "background 0.1s",
-              },
+        React.createElement(
+          "div",
+          {
+            style: {
+              padding: "5px 12px 6px",
+              fontSize: 11,
+              color: "#888",
+              fontFamily: FONT,
+              borderBottom: "1px solid #f0f0f0",
             },
-            React.createElement(Av, { name: l.lawyerName, size: 28 }),
+          },
+          query ? `Tìm luật sư: "${query}"` : "Nhắc tên luật sư",
+        ),
+        React.createElement(
+          "div",
+          { ref: dropdownRef },
+          filtered.map((l, idx) =>
             React.createElement(
               "div",
-              null,
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    fontSize: 13,
-                    fontWeight: idx === activeIdx ? 600 : 400,
-                    color: idx === activeIdx ? "#096dd9" : "#262626",
-                    fontFamily: FONT,
-                  },
+              {
+                key: l.id,
+                onMouseDown: (e) => {
+                  e.preventDefault();
+                  selectLawyer(l);
                 },
-                l.lawyerName,
-              ),
-              l.lawyerType &&
+                onMouseEnter: () => setActiveIdx(idx),
+                style: {
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  background: idx === activeIdx ? "#e6f4ff" : "transparent",
+                  borderLeft:
+                    idx === activeIdx
+                      ? "3px solid #1890ff"
+                      : "3px solid transparent",
+                  transition: "background 0.1s",
+                },
+              },
+              React.createElement(Av, { name: l.lawyerName, size: 28 }),
               React.createElement(
                 "div",
-                { style: { fontSize: 11, color: "#888" } },
-                l.lawyerType,
+                null,
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 13,
+                      fontWeight: idx === activeIdx ? 600 : 400,
+                      color: idx === activeIdx ? "#096dd9" : "#262626",
+                      fontFamily: FONT,
+                    },
+                  },
+                  l.lawyerName,
+                ),
+                l.lawyerType &&
+                  React.createElement(
+                    "div",
+                    { style: { fontSize: 11, color: "#888" } },
+                    l.lawyerType,
+                  ),
               ),
             ),
           ),
         ),
       ),
-    ),
     // Tags List
     assignedIds.length > 0 &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          padding: "6px 12px 8px",
-          borderTop: "1px solid #f0f0f0",
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: 6,
-          background: "#fafcff",
-        },
-      },
       React.createElement(
-        "span",
-        { style: { fontSize: 11, color: "#888", fontFamily: FONT } },
-        "Đã nhắc:",
-      ),
-      assignedIds.map((id) => {
-        const lawyer = lawyers.find((l) => l.id === id);
-        if (!lawyer) return null;
-        return React.createElement(
-          Tag,
-          {
-            key: id,
-            closable: true,
-            onClose: () => removeAssigned(id),
-            style: {
-              borderRadius: 12,
-              background: "#e6f4ff",
-              color: "#096dd9",
-              border: "1px solid #91caff",
-              fontSize: 12,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            },
+        "div",
+        {
+          style: {
+            padding: "6px 12px 8px",
+            borderTop: "1px solid #f0f0f0",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 6,
+            background: "#fafcff",
           },
-          React.createElement(Av, { name: lawyer.lawyerName, size: 16 }),
-          lawyer.lawyerName,
-        );
-      }),
-    ),
+        },
+        React.createElement(
+          "span",
+          { style: { fontSize: 11, color: "#888", fontFamily: FONT } },
+          "Đã nhắc:",
+        ),
+        assignedIds.map((id) => {
+          const lawyer = lawyers.find((l) => l.id === id);
+          if (!lawyer) return null;
+          return React.createElement(
+            Tag,
+            {
+              key: id,
+              closable: true,
+              onClose: () => removeAssigned(id),
+              style: {
+                borderRadius: 12,
+                background: "#e6f4ff",
+                color: "#096dd9",
+                border: "1px solid #91caff",
+                fontSize: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              },
+            },
+            React.createElement(Av, { name: lawyer.lawyerName, size: 16 }),
+            lawyer.lawyerName,
+          );
+        }),
+      ),
   );
 };
 // ============================================================
@@ -3766,10 +3883,10 @@ const UnifiedNoteThread = ({
           : null,
         replyText: replyingTo?.note?.body
           ? replyingTo.note.body
-            .replace(/<[^>]*>?/gm, "")
-            .trim()
-            .substring(0, 150) +
-          (replyingTo.note.body.length > 150 ? "..." : "")
+              .replace(/<[^>]*>?/gm, "")
+              .trim()
+              .substring(0, 150) +
+            (replyingTo.note.body.length > 150 ? "..." : "")
           : replyingTo
             ? "Tài liệu đính kèm"
             : null,
@@ -3839,9 +3956,10 @@ const UnifiedNoteThread = ({
             note: pDoc.metadata.note?.trim() || "",
             updatedById: currentUser?.id || null,
             updatedAt: new Date().toISOString(),
-            ...buildProjectInternalDocumentMeta(projectFolderId),
-            collectionName,
-            recordId: parseInt(recordId),
+            ...buildDocumentRecordLink(collectionName, recordId, {
+              folderId: projectFolderId,
+              projectInternalId: PROJECT_ID,
+            }),
             createdById: currentUser?.id || null,
             createdAt: new Date().toISOString(),
             batchId,
@@ -4159,196 +4277,196 @@ const UnifiedNoteThread = ({
         // Title or edit input
         isEditingThisFile
           ? React.createElement("input", {
-            autoFocus: true,
-            value: editFileTitle,
-            onChange: (e) => setEditFileTitle(e.target.value),
-            onKeyDown: (e) => {
-              if (e.key === "Enter") handleSaveFileTitle(f);
-              if (e.key === "Escape") setEditingFileId(null);
-            },
-            style: {
-              flex: 1,
-              fontSize: 13,
-              fontFamily: FONT,
-              border: "1px solid #1890ff",
-              borderRadius: 4,
-              padding: "3px 8px",
-              outline: "none",
-            },
-          })
-          : React.createElement(
-            "span",
-            {
-              onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
-              title: `File gốc: ${rawFilename}`,
+              autoFocus: true,
+              value: editFileTitle,
+              onChange: (e) => setEditFileTitle(e.target.value),
+              onKeyDown: (e) => {
+                if (e.key === "Enter") handleSaveFileTitle(f);
+                if (e.key === "Escape") setEditingFileId(null);
+              },
               style: {
+                flex: 1,
                 fontSize: 13,
                 fontFamily: FONT,
-                fontWeight: 600,
-                color: "#096dd9",
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                cursor: fullUrl ? "pointer" : "default",
-                textDecoration: fullUrl ? "underline" : "none",
-                textUnderlineOffset: 3,
+                border: "1px solid #1890ff",
+                borderRadius: 4,
+                padding: "3px 8px",
+                outline: "none",
               },
-            },
-            displayTitle,
-          ),
+            })
+          : React.createElement(
+              "span",
+              {
+                onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
+                title: `File gốc: ${rawFilename}`,
+                style: {
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  color: "#096dd9",
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  cursor: fullUrl ? "pointer" : "default",
+                  textDecoration: fullUrl ? "underline" : "none",
+                  textUnderlineOffset: 3,
+                },
+              },
+              displayTitle,
+            ),
         // Action buttons
         isEditingThisFile
           ? React.createElement(
-            React.Fragment,
-            null,
-            React.createElement(
-              "span",
-              {
-                onClick: () => handleSaveFileTitle(f),
-                style: {
-                  fontSize: 12,
-                  padding: "2px 10px",
-                  cursor: "pointer",
-                  color: "#fff",
-                  background: "#1890ff",
-                  borderRadius: 4,
-                  fontWeight: 600,
-                  flexShrink: 0,
+              React.Fragment,
+              null,
+              React.createElement(
+                "span",
+                {
+                  onClick: () => handleSaveFileTitle(f),
+                  style: {
+                    fontSize: 12,
+                    padding: "2px 10px",
+                    cursor: "pointer",
+                    color: "#fff",
+                    background: "#1890ff",
+                    borderRadius: 4,
+                    fontWeight: 600,
+                    flexShrink: 0,
+                  },
                 },
-              },
-              "Lưu",
-            ),
-            React.createElement(
-              "span",
-              {
-                onClick: () => setEditingFileId(null),
-                style: {
-                  fontSize: 12,
-                  padding: "2px 8px",
-                  cursor: "pointer",
-                  color: "#595959",
-                  border: "1px solid #d9d9d9",
-                  borderRadius: 4,
-                  flexShrink: 0,
+                "Lưu",
+              ),
+              React.createElement(
+                "span",
+                {
+                  onClick: () => setEditingFileId(null),
+                  style: {
+                    fontSize: 12,
+                    padding: "2px 8px",
+                    cursor: "pointer",
+                    color: "#595959",
+                    border: "1px solid #d9d9d9",
+                    borderRadius: 4,
+                    flexShrink: 0,
+                  },
                 },
-              },
-              "Hủy",
-            ),
-          )
+                "Hủy",
+              ),
+            )
           : React.createElement(
-            React.Fragment,
-            null,
-            canIframe &&
-            React.createElement(
-              "span",
-              {
-                onClick: () =>
-                  setExpandedPreviews((prev) => ({
-                    ...prev,
-                    [f.id]: !prev[f.id],
-                  })),
-                title: isExpanded ? "Ẩn preview" : "Xem preview",
-                style: {
-                  fontSize: 12,
-                  padding: "2px 8px",
-                  cursor: "pointer",
-                  color: "#595959",
-                  border: "1px solid #d9d9d9",
-                  borderRadius: 4,
-                  flexShrink: 0,
-                  fontWeight: 500,
-                },
-              },
-              isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
+              React.Fragment,
+              null,
+              canIframe &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () =>
+                      setExpandedPreviews((prev) => ({
+                        ...prev,
+                        [f.id]: !prev[f.id],
+                      })),
+                    title: isExpanded ? "Ẩn preview" : "Xem preview",
+                    style: {
+                      fontSize: 12,
+                      padding: "2px 8px",
+                      cursor: "pointer",
+                      color: "#595959",
+                      border: "1px solid #d9d9d9",
+                      borderRadius: 4,
+                      flexShrink: 0,
+                      fontWeight: 500,
+                    },
+                  },
+                  isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
+                ),
+              fullUrl &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      window.open(fullUrl, "_blank");
+                    },
+                    style: {
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#531dab",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      padding: "2px 8px",
+                      background: "#f9f0ff",
+                      borderRadius: 4,
+                      border: "1px solid #d3adf7",
+                    },
+                  },
+                  "Tải về",
+                ),
+              isMine &&
+                canEdit &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: () => {
+                      setEditingFileId(f.id);
+                      setEditFileTitle(displayTitle);
+                    },
+                    style: {
+                      fontSize: 12,
+                      padding: "2px 8px",
+                      cursor: "pointer",
+                      color: "#8c8c8c",
+                      border: "1px solid #d9d9d9",
+                      borderRadius: 4,
+                      flexShrink: 0,
+                    },
+                  },
+                  "✏️",
+                ),
             ),
-            fullUrl &&
-            React.createElement(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  window.open(fullUrl, "_blank");
-                },
-                style: {
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#531dab",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  padding: "2px 8px",
-                  background: "#f9f0ff",
-                  borderRadius: 4,
-                  border: "1px solid #d3adf7",
-                },
-              },
-              "Tải về",
-            ),
-            isMine &&
-            canEdit &&
-            React.createElement(
-              "span",
-              {
-                onClick: () => {
-                  setEditingFileId(f.id);
-                  setEditFileTitle(displayTitle);
-                },
-                style: {
-                  fontSize: 12,
-                  padding: "2px 8px",
-                  cursor: "pointer",
-                  color: "#8c8c8c",
-                  border: "1px solid #d9d9d9",
-                  borderRadius: 4,
-                  flexShrink: 0,
-                },
-              },
-              "✏️",
-            ),
-          ),
       ),
       // ── Inline iframe preview ─────────────────────────────────
       isExpanded &&
-      fullUrl &&
-      React.createElement(
-        "div",
-        { style: { borderTop: "1px solid #f0f0f0", background: "#f8f9fa" } },
-        isPdf
-          ? React.createElement("iframe", {
-            src: fullUrl,
-            style: {
-              width: "100%",
-              height: 420,
-              border: "none",
-              display: "block",
-            },
-            title: displayTitle,
-          })
-          : isImage
-            ? React.createElement("img", {
-              src: fullUrl,
-              alt: displayTitle,
-              style: {
-                width: "100%",
-                maxHeight: 400,
-                objectFit: "contain",
-                display: "block",
-                background: "#fff",
-              },
-            })
-            : isOffice
-              ? React.createElement("iframe", {
-                src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`,
+        fullUrl &&
+        React.createElement(
+          "div",
+          { style: { borderTop: "1px solid #f0f0f0", background: "#f8f9fa" } },
+          isPdf
+            ? React.createElement("iframe", {
+                src: fullUrl,
                 style: {
                   width: "100%",
-                  height: 600,
+                  height: 420,
                   border: "none",
                   display: "block",
                 },
                 title: displayTitle,
               })
-              : null,
-      ),
+            : isImage
+              ? React.createElement("img", {
+                  src: fullUrl,
+                  alt: displayTitle,
+                  style: {
+                    width: "100%",
+                    maxHeight: 400,
+                    objectFit: "contain",
+                    display: "block",
+                    background: "#fff",
+                  },
+                })
+              : isOffice
+                ? React.createElement("iframe", {
+                    src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`,
+                    style: {
+                      width: "100%",
+                      height: 600,
+                      border: "none",
+                      display: "block",
+                    },
+                    title: displayTitle,
+                  })
+                : null,
+        ),
     );
   };
 
@@ -4446,317 +4564,317 @@ const UnifiedNoteThread = ({
           ),
           isEditing
             ? React.createElement(
-              "div",
-              { style: { marginTop: 10 } },
-              React.createElement(CommentComposer, {
-                value: editBody,
-                onChange: setEditBody,
-                onAssignMultiple: setEditAssignedIds,
-                assignedIds: editAssignedIds,
-                lawyers,
-                onSubmit: () => handleSaveEdit(note.id),
-              }),
-              React.createElement(
                 "div",
-                {
-                  style: {
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 8,
-                    marginTop: 8,
-                  },
-                },
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => {
-                      setEditingNoteId(null);
-                      setEditBody("");
-                      setEditAssignedIds([]);
-                    },
-                    style: {
-                      fontSize: 12,
-                      padding: "4px 12px",
-                      cursor: "pointer",
-                      color: "#595959",
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 4,
-                      fontFamily: FONT,
-                    },
-                  },
-                  "Hủy",
-                ),
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => handleSaveEdit(note.id),
-                    style: {
-                      fontSize: 12,
-                      padding: "4px 16px",
-                      cursor: "pointer",
-                      color: "#fff",
-                      background: "#1890ff",
-                      borderRadius: 4,
-                      fontWeight: 600,
-                      fontFamily: FONT,
-                    },
-                  },
-                  "Lưu thay đổi",
-                ),
-              ),
-            )
-            : (hasBody || hasFiles) &&
-            React.createElement(
-              "div",
-              null,
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    fontSize: 13,
-                    fontFamily: FONT,
-                    color: "#262626",
-                    lineHeight: 1.7,
-                    background: "#f8f9fa",
-                    borderRadius: 8,
-                    padding: "12px 14px",
-                    borderLeft: "3px solid #1890ff",
-                  },
-                },
-                !isChild &&
-                note?.replyText &&
+                { style: { marginTop: 10 } },
+                React.createElement(CommentComposer, {
+                  value: editBody,
+                  onChange: setEditBody,
+                  onAssignMultiple: setEditAssignedIds,
+                  assignedIds: editAssignedIds,
+                  lawyers,
+                  onSubmit: () => handleSaveEdit(note.id),
+                }),
                 React.createElement(
                   "div",
                   {
                     style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#595959",
-                      background: "#fff",
-                      border: "1px solid #e8e8e8",
-                      borderLeft: "3px solid #bfbfbf",
-                      borderRadius: "4px",
-                      padding: "6px 10px",
-                      marginBottom: 8,
-                      whiteSpace: "pre-wrap",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    },
-                  },
-                  React.createElement(
-                    "b",
-                    { style: { color: "#8c8c8c", marginRight: 4 } },
-                    "Trích dẫn:",
-                  ),
-                  " ",
-                  note.replyText,
-                ),
-                hasBody &&
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      marginBottom: hasFiles ? 8 : 0,
-                    },
-                  },
-                  renderRichText(note.body, lawyers),
-                ),
-                note?.assignees &&
-                note.assignees.length > 0 &&
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      marginTop: 8,
                       display: "flex",
-                      gap: 6,
-                      flexWrap: "wrap",
-                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                      marginTop: 8,
                     },
                   },
                   React.createElement(
                     "span",
                     {
+                      onClick: () => {
+                        setEditingNoteId(null);
+                        setEditBody("");
+                        setEditAssignedIds([]);
+                      },
                       style: {
                         fontSize: 12,
-                        color: "#8c8c8c",
+                        padding: "4px 12px",
+                        cursor: "pointer",
+                        color: "#595959",
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 4,
                         fontFamily: FONT,
                       },
                     },
-                    "Đã nhắc đến:",
+                    "Hủy",
                   ),
-                  ...note.assignees.map((assigneeItem) => {
-                    const assigneeId =
-                      typeof assigneeItem === "object" &&
-                        assigneeItem !== null
-                        ? assigneeItem.id
-                        : assigneeItem;
-                    const l = lawyers?.find((lw) => lw.id === assigneeId);
-                    if (!l) return null;
-                    return React.createElement(
-                      "span",
+                  React.createElement(
+                    "span",
+                    {
+                      onClick: () => handleSaveEdit(note.id),
+                      style: {
+                        fontSize: 12,
+                        padding: "4px 16px",
+                        cursor: "pointer",
+                        color: "#fff",
+                        background: "#1890ff",
+                        borderRadius: 4,
+                        fontWeight: 600,
+                        fontFamily: FONT,
+                      },
+                    },
+                    "Lưu thay đổi",
+                  ),
+                ),
+              )
+            : (hasBody || hasFiles) &&
+                React.createElement(
+                  "div",
+                  null,
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        fontSize: 13,
+                        fontFamily: FONT,
+                        color: "#262626",
+                        lineHeight: 1.7,
+                        background: "#f8f9fa",
+                        borderRadius: 8,
+                        padding: "12px 14px",
+                        borderLeft: "3px solid #1890ff",
+                      },
+                    },
+                    !isChild &&
+                      note?.replyText &&
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
+                            fontSize: 12,
+                            fontFamily: FONT,
+                            color: "#595959",
+                            background: "#fff",
+                            border: "1px solid #e8e8e8",
+                            borderLeft: "3px solid #bfbfbf",
+                            borderRadius: "4px",
+                            padding: "6px 10px",
+                            marginBottom: 8,
+                            whiteSpace: "pre-wrap",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          },
+                        },
+                        React.createElement(
+                          "b",
+                          { style: { color: "#8c8c8c", marginRight: 4 } },
+                          "Trích dẫn:",
+                        ),
+                        " ",
+                        note.replyText,
+                      ),
+                    hasBody &&
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
+                            marginBottom: hasFiles ? 8 : 0,
+                          },
+                        },
+                        renderRichText(note.body, lawyers),
+                      ),
+                    note?.assignees &&
+                      note.assignees.length > 0 &&
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
+                            marginTop: 8,
+                            display: "flex",
+                            gap: 6,
+                            flexWrap: "wrap",
+                            alignItems: "center",
+                          },
+                        },
+                        React.createElement(
+                          "span",
+                          {
+                            style: {
+                              fontSize: 12,
+                              color: "#8c8c8c",
+                              fontFamily: FONT,
+                            },
+                          },
+                          "Đã nhắc đến:",
+                        ),
+                        ...note.assignees.map((assigneeItem) => {
+                          const assigneeId =
+                            typeof assigneeItem === "object" &&
+                            assigneeItem !== null
+                              ? assigneeItem.id
+                              : assigneeItem;
+                          const l = lawyers?.find((lw) => lw.id === assigneeId);
+                          if (!l) return null;
+                          return React.createElement(
+                            "span",
+                            {
+                              key: l.id,
+                              style: {
+                                fontSize: 12,
+                                color: "#096dd9",
+                                background: "#e6f4ff",
+                                border: "1px solid #91caff",
+                                padding: "2px 8px",
+                                borderRadius: 4,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                fontFamily: FONT,
+                                fontWeight: 500,
+                              },
+                            },
+                            "@",
+                            l.lawyerName,
+                          );
+                        }),
+                      ),
+                    ...files.map((f) => renderFileRow(f)),
+                  ),
+                  (note || files.length > 0) &&
+                    (canEdit || isMyItem) &&
+                    !isEditing &&
+                    React.createElement(
+                      "div",
                       {
-                        key: l.id,
                         style: {
-                          fontSize: 12,
-                          color: "#096dd9",
-                          background: "#e6f4ff",
-                          border: "1px solid #91caff",
-                          padding: "2px 8px",
-                          borderRadius: 4,
-                          display: "inline-flex",
+                          display: "flex",
                           alignItems: "center",
-                          fontFamily: FONT,
-                          fontWeight: 500,
+                          gap: 12,
+                          marginTop: 6,
+                          paddingLeft: 4,
                         },
                       },
-                      "@",
-                      l.lawyerName,
-                    );
-                  }),
-                ),
-                ...files.map((f) => renderFileRow(f)),
-              ),
-              (note || files.length > 0) &&
-              (canEdit || isMyItem) &&
-              !isEditing &&
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    marginTop: 6,
-                    paddingLeft: 4,
-                  },
-                },
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => setReplyingTo(item),
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#52c41a",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                      textUnderlineOffset: "2px",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.color = "#389e0d"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.color = "#52c41a"),
-                  },
-                  "Phản hồi",
-                ),
-                isMyItem &&
-                note &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => {
-                      setEditingNoteId(note.id);
-                      setEditBody(note.body || "");
-                      setEditAssignedIds(
-                        (note.assignees || []).map((a) =>
-                          typeof a === "object" ? a.id : a,
+                      React.createElement(
+                        "span",
+                        {
+                          onClick: () => setReplyingTo(item),
+                          style: {
+                            fontSize: 12,
+                            fontFamily: FONT,
+                            color: "#52c41a",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            textUnderlineOffset: "2px",
+                          },
+                          onMouseEnter: (e) =>
+                            (e.currentTarget.style.color = "#389e0d"),
+                          onMouseLeave: (e) =>
+                            (e.currentTarget.style.color = "#52c41a"),
+                        },
+                        "Phản hồi",
+                      ),
+                      isMyItem &&
+                        note &&
+                        React.createElement(
+                          "span",
+                          {
+                            onClick: () => {
+                              setEditingNoteId(note.id);
+                              setEditBody(note.body || "");
+                              setEditAssignedIds(
+                                (note.assignees || []).map((a) =>
+                                  typeof a === "object" ? a.id : a,
+                                ),
+                              );
+                            },
+                            style: {
+                              fontSize: 12,
+                              fontFamily: FONT,
+                              color: "#595959",
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              textUnderlineOffset: "2px",
+                            },
+                            onMouseEnter: (e) =>
+                              (e.currentTarget.style.color = "#1890ff"),
+                            onMouseLeave: (e) =>
+                              (e.currentTarget.style.color = "#595959"),
+                          },
+                          "Chỉnh sửa",
                         ),
-                      );
-                    },
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#595959",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                      textUnderlineOffset: "2px",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.color = "#1890ff"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.color = "#595959"),
-                  },
-                  "Chỉnh sửa",
+                      isMyItem &&
+                        React.createElement(
+                          "span",
+                          {
+                            onClick: () => handleDeleteNote(item),
+                            style: {
+                              fontSize: 12,
+                              fontFamily: FONT,
+                              color: "#ff4d4f",
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              textUnderlineOffset: "2px",
+                            },
+                            onMouseEnter: (e) =>
+                              (e.currentTarget.style.color = "#cf1322"),
+                            onMouseLeave: (e) =>
+                              (e.currentTarget.style.color = "#ff4d4f"),
+                          },
+                          "Xóa",
+                        ),
+                    ),
                 ),
-                isMyItem &&
-                React.createElement(
-                  "span",
-                  {
-                    onClick: () => handleDeleteNote(item),
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#ff4d4f",
-                      cursor: "pointer",
-                      textDecoration: "underline",
-                      textUnderlineOffset: "2px",
-                    },
-                    onMouseEnter: (e) =>
-                      (e.currentTarget.style.color = "#cf1322"),
-                    onMouseLeave: (e) =>
-                      (e.currentTarget.style.color = "#ff4d4f"),
-                  },
-                  "Xóa",
-                ),
-              ),
-            ),
           isReplyingToThis ? renderComposerBlock(true) : null,
         ),
       ),
       hasReplies &&
-      React.createElement(
-        "div",
-        {
-          style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
-        },
         React.createElement(
           "div",
           {
-            onClick: () =>
-              setExpandedThreads((p) => ({ ...p, [note.id]: !p[note.id] })),
-            style: {
-              fontSize: 12,
-              color: "#1890ff",
-              cursor: "pointer",
-              fontWeight: 600,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 12px",
-              background: "#f0f8ff",
-              borderRadius: 4,
-              border: "1px dashed #91caff",
-              userSelect: "none",
-            },
+            style: { marginLeft: 44, padding: "0 20px 16px 0", marginTop: -8 },
           },
-          isExpanded
-            ? "▲ Thu gọn phản hồi"
-            : `▼ Xem ${replies.length} phản hồi`,
-          !isExpanded &&
           React.createElement(
-            Avatar.Group,
-            { size: "small", maxCount: 3 },
-            replies.map((r, i) =>
-              React.createElement(Av, {
-                key: i,
-                name: r.note ? authorName(r.note) : "Ẩn danh",
-                size: 16,
-              }),
+            "div",
+            {
+              onClick: () =>
+                setExpandedThreads((p) => ({ ...p, [note.id]: !p[note.id] })),
+              style: {
+                fontSize: 12,
+                color: "#1890ff",
+                cursor: "pointer",
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "4px 12px",
+                background: "#f0f8ff",
+                borderRadius: 4,
+                border: "1px dashed #91caff",
+                userSelect: "none",
+              },
+            },
+            isExpanded
+              ? "▲ Thu gọn phản hồi"
+              : `▼ Xem ${replies.length} phản hồi`,
+            !isExpanded &&
+              React.createElement(
+                Avatar.Group,
+                { size: "small", maxCount: 3 },
+                replies.map((r, i) =>
+                  React.createElement(Av, {
+                    key: i,
+                    name: r.note ? authorName(r.note) : "Ẩn danh",
+                    size: 16,
+                  }),
+                ),
+              ),
+          ),
+          isExpanded &&
+            React.createElement(
+              "div",
+              { style: { marginTop: 8 } },
+              ...replies.map((child, idx) =>
+                renderItem(child, `${key}-child-${idx}`, true),
+              ),
             ),
-          ),
         ),
-        isExpanded &&
-        React.createElement(
-          "div",
-          { style: { marginTop: 8 } },
-          ...replies.map((child, idx) =>
-            renderItem(child, `${key}-child-${idx}`, true),
-          ),
-        ),
-      ),
     );
   };
 
@@ -4839,26 +4957,26 @@ const UnifiedNoteThread = ({
             ),
           ),
           doc.metadata.note &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                marginTop: 6,
-                color: "#262626",
-                padding: "6px 10px",
-                background: "rgba(255,255,255,0.7)",
-                borderRadius: 4,
-              },
-            },
             React.createElement(
-              "span",
+              "div",
               {
-                style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
+                style: {
+                  marginTop: 6,
+                  color: "#262626",
+                  padding: "6px 10px",
+                  background: "rgba(255,255,255,0.7)",
+                  borderRadius: 4,
+                },
               },
-              "Nội dung ghi chú:",
+              React.createElement(
+                "span",
+                {
+                  style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
+                },
+                "Nội dung ghi chú:",
+              ),
+              doc.metadata.note,
             ),
-            doc.metadata.note,
-          ),
         );
       }),
     );
@@ -4899,71 +5017,71 @@ const UnifiedNoteThread = ({
         },
       },
       replyingTo &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            padding: "8px 12px",
-            background: "#f5f5f5",
-            borderLeft: "3px solid #1890ff",
-            marginBottom: 10,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            borderRadius: "0 4px 4px 0",
-          },
-        },
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 11,
-                fontWeight: 700,
-                color: "#8c8c8c",
-                fontFamily: FONT,
-              },
-            },
-            "Đang trả lời ",
-            replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
-          ),
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                color: "#595959",
-                fontFamily: FONT,
-                marginTop: 4,
-                whiteSpace: "pre-wrap",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              },
-            },
-            replyingTo.note?.body
-              ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
-              : "Tài liệu đính kèm",
-          ),
-        ),
         React.createElement(
           "div",
           {
-            onClick: () => setReplyingTo(null),
             style: {
-              cursor: "pointer",
-              color: "#bfbfbf",
-              fontSize: 16,
-              lineHeight: 1,
-              padding: "0 4px",
+              padding: "8px 12px",
+              background: "#f5f5f5",
+              borderLeft: "3px solid #1890ff",
+              marginBottom: 10,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              borderRadius: "0 4px 4px 0",
             },
           },
-          "×",
+          React.createElement(
+            "div",
+            null,
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#8c8c8c",
+                  fontFamily: FONT,
+                },
+              },
+              "Đang trả lời ",
+              replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
+            ),
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  color: "#595959",
+                  fontFamily: FONT,
+                  marginTop: 4,
+                  whiteSpace: "pre-wrap",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                },
+              },
+              replyingTo.note?.body
+                ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
+                : "Tài liệu đính kèm",
+            ),
+          ),
+          React.createElement(
+            "div",
+            {
+              onClick: () => setReplyingTo(null),
+              style: {
+                cursor: "pointer",
+                color: "#bfbfbf",
+                fontSize: 16,
+                lineHeight: 1,
+                padding: "0 4px",
+              },
+            },
+            "×",
+          ),
         ),
-      ),
       React.createElement(CommentComposer, {
         value: body,
         onChange: setBody,
@@ -5025,61 +5143,61 @@ const UnifiedNoteThread = ({
       { style: { paddingBottom: 24 } },
       loading
         ? React.createElement(
-          "div",
-          { style: { textAlign: "center", padding: "24px 0" } },
-          React.createElement(Spin, { size: "small" }),
-        )
+            "div",
+            { style: { textAlign: "center", padding: "24px 0" } },
+            React.createElement(Spin, { size: "small" }),
+          )
         : feed.length === 0
           ? React.createElement(
-            "div",
-            {
-              style: {
-                textAlign: "center",
-                padding: "32px 0",
-                fontSize: 13,
-                fontFamily: FONT,
-                color: "#bfbfbf",
-              },
-            },
-            "Chưa có bình luận hay tài liệu nào",
-          )
-          : React.createElement(
-            "div",
-            null,
-            ...rootItems.map((item, i) => renderItem(item, `item-${i}`)),
-            hasMore &&
-            React.createElement(
               "div",
               {
-                onClick: () => setShowAll((v) => !v),
                 style: {
-                  margin: "16px",
                   textAlign: "center",
-                  fontSize: 12,
+                  padding: "32px 0",
+                  fontSize: 13,
                   fontFamily: FONT,
-                  color: "#1890ff",
-                  cursor: "pointer",
-                  padding: "7px 0",
-                  border: "1px dashed #91caff",
-                  borderRadius: 6,
-                  background: "#f0f8ff",
+                  color: "#bfbfbf",
                 },
-                onMouseEnter: (e) =>
-                  (e.currentTarget.style.background = "#d6ecff"),
-                onMouseLeave: (e) =>
-                  (e.currentTarget.style.background = "#f0f8ff"),
               },
-              showAll
-                ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${feed.length})`
-                : `▼ Xem thêm ${feed.length - INITIAL_COUNT} bình luận (tổng ${feed.length})`,
+              "Chưa có bình luận hay tài liệu nào",
+            )
+          : React.createElement(
+              "div",
+              null,
+              ...rootItems.map((item, i) => renderItem(item, `item-${i}`)),
+              hasMore &&
+                React.createElement(
+                  "div",
+                  {
+                    onClick: () => setShowAll((v) => !v),
+                    style: {
+                      margin: "16px",
+                      textAlign: "center",
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#1890ff",
+                      cursor: "pointer",
+                      padding: "7px 0",
+                      border: "1px dashed #91caff",
+                      borderRadius: 6,
+                      background: "#f0f8ff",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.background = "#d6ecff"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.background = "#f0f8ff"),
+                  },
+                  showAll
+                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${feed.length})`
+                    : `▼ Xem thêm ${feed.length - INITIAL_COUNT} bình luận (tổng ${feed.length})`,
+                ),
             ),
-          ),
     ),
     previewDoc &&
-    React.createElement(PreviewModal, {
-      doc: previewDoc,
-      onClose: () => setPreviewDoc(null),
-    }),
+      React.createElement(PreviewModal, {
+        doc: previewDoc,
+        onClose: () => setPreviewDoc(null),
+      }),
     React.createElement(FileUploadModal, {
       open: showUploadModal,
       onClose: () => setShowUploadModal(false),
@@ -5149,52 +5267,22 @@ const PreviewModal = ({ doc, onClose }) => {
       bodyStyle: { padding: 0 },
       footer: [
         fullUrl &&
-        React.createElement(
-          Button,
-          {
-            key: "dl",
-            onClick: () => window.open(fullUrl, "_blank"),
-          },
-          "⬇️ Tải về",
-        ),
+          React.createElement(
+            Button,
+            {
+              key: "dl",
+              onClick: () => window.open(fullUrl, "_blank"),
+            },
+            "⬇️ Tải về",
+          ),
         React.createElement(Button, { key: "cl", onClick: onClose }, "Đóng"),
       ].filter(Boolean),
     },
     // PDF
     isPdf &&
-    fullUrl &&
-    React.createElement("iframe", {
-      src: fullUrl,
-      style: {
-        width: "100%",
-        height: "80vh",
-        border: "none",
-        display: "block",
-      },
-      title: displayName,
-    }),
-    // Image
-    isImage &&
-    fullUrl &&
-    React.createElement("img", {
-      src: fullUrl,
-      alt: displayName,
-      style: {
-        maxWidth: "100%",
-        maxHeight: "80vh",
-        display: "block",
-        margin: "0 auto",
-        padding: 16,
-      },
-    }),
-    // Office — Microsoft Web Viewer
-    isOffice &&
-    officeViewerUrl &&
-    React.createElement(
-      "div",
-      { style: { padding: 0 } },
+      fullUrl &&
       React.createElement("iframe", {
-        src: officeViewerUrl,
+        src: fullUrl,
         style: {
           width: "100%",
           height: "80vh",
@@ -5202,23 +5290,53 @@ const PreviewModal = ({ doc, onClose }) => {
           display: "block",
         },
         title: displayName,
-        frameBorder: "0",
       }),
-    ),
+    // Image
+    isImage &&
+      fullUrl &&
+      React.createElement("img", {
+        src: fullUrl,
+        alt: displayName,
+        style: {
+          maxWidth: "100%",
+          maxHeight: "80vh",
+          display: "block",
+          margin: "0 auto",
+          padding: 16,
+        },
+      }),
+    // Office — Microsoft Web Viewer
+    isOffice &&
+      officeViewerUrl &&
+      React.createElement(
+        "div",
+        { style: { padding: 0 } },
+        React.createElement("iframe", {
+          src: officeViewerUrl,
+          style: {
+            width: "100%",
+            height: "80vh",
+            border: "none",
+            display: "block",
+          },
+          title: displayName,
+          frameBorder: "0",
+        }),
+      ),
     // Fallback
     !isPdf &&
-    !isImage &&
-    !isOffice &&
-    React.createElement(
-      "div",
-      {
-        style: { padding: 32, textAlign: "center" },
-      },
-      React.createElement(Empty, {
-        description:
-          "Không thể xem trước định dạng này — vui lòng tải về để mở",
-      }),
-    ),
+      !isImage &&
+      !isOffice &&
+      React.createElement(
+        "div",
+        {
+          style: { padding: 32, textAlign: "center" },
+        },
+        React.createElement(Empty, {
+          description:
+            "Không thể xem trước định dạng này — vui lòng tải về để mở",
+        }),
+      ),
   );
 };
 
@@ -5293,6 +5411,12 @@ const FileUploadModal = ({
               params: {
                 pageSize: 1000,
                 page: 1,
+                filter: JSON.stringify({
+                  $and: [
+                    { moduleScope: { $eq: PROJECT_INTERNAL_DOCUMENT_SCOPE } },
+                    { storageType: { $eq: PROJECT_INTERNAL_STORAGE_TYPE } },
+                  ],
+                }),
                 appends: ["folderMember", "folderManager"],
               },
             }),
@@ -5301,9 +5425,15 @@ const FileUploadModal = ({
               params: {
                 pageSize: 1000,
                 page: 1,
-                filter: JSON.stringify({ isDeleted: { $ne: true } }),
+                filter: JSON.stringify({
+                  $and: [
+                    { moduleScope: { $eq: PROJECT_INTERNAL_DOCUMENT_SCOPE } },
+                    { storageType: { $eq: PROJECT_INTERNAL_STORAGE_TYPE } },
+                    { isDeleted: { $ne: true } },
+                  ],
+                }),
                 fields:
-                  "id,title,documentCode,folderId,fileAttachment,createdById,isDeleted",
+                  "id,title,documentCode,folderId,fileAttachment,createdById,isDeleted,moduleScope,storageType",
                 appends: ["fileAttachment", "createdBy"],
               },
             }),
@@ -5558,8 +5688,10 @@ const FileUploadModal = ({
       } else {
         await apiReq("documents:create", "POST", {
           ...payload,
-          collectionName,
-          recordId: parseInt(recordId),
+          ...buildDocumentRecordLink(collectionName, recordId, {
+            folderId: projectFolderId,
+            projectInternalId: PROJECT_ID,
+          }),
           createdById: currentUser?.id || null,
           createdAt: now,
           batchId: `upd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -5639,27 +5771,27 @@ const FileUploadModal = ({
       ],
     },
     currentUser &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          background: "#f6ffed",
-          border: "1px solid #b7eb8f",
-          borderRadius: 6,
-          padding: "6px 12px",
-          marginBottom: 12,
-          fontSize: 12,
-          color: "#595959",
-          fontFamily: FONT,
-        },
-      },
-      `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
       React.createElement(
-        "strong",
-        null,
-        userName(currentUser) || currentUser.email,
+        "div",
+        {
+          style: {
+            background: "#f6ffed",
+            border: "1px solid #b7eb8f",
+            borderRadius: 6,
+            padding: "6px 12px",
+            marginBottom: 12,
+            fontSize: 12,
+            color: "#595959",
+            fontFamily: FONT,
+          },
+        },
+        `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
+        React.createElement(
+          "strong",
+          null,
+          userName(currentUser) || currentUser.email,
+        ),
       ),
-    ),
     React.createElement(
       Form,
       { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
@@ -5834,33 +5966,33 @@ const FileUploadModal = ({
               { style: { padding: "8px 0" } },
               libraryLoading
                 ? React.createElement(
-                  "div",
-                  { style: { textAlign: "center", padding: 20 } },
-                  React.createElement(ctx.antd.Spin, { size: "small" }),
-                  React.createElement(
                     "div",
-                    {
-                      style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
-                    },
-                    "Đang tải thư viện...",
-                  ),
-                )
+                    { style: { textAlign: "center", padding: 20 } },
+                    React.createElement(ctx.antd.Spin, { size: "small" }),
+                    React.createElement(
+                      "div",
+                      {
+                        style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
+                      },
+                      "Đang tải thư viện...",
+                    ),
+                  )
                 : React.createElement(
-                  "div",
-                  null,
-                  React.createElement(TreeSelect, {
-                    style: { width: "100%" },
-                    treeData,
-                    placeholder: "Tìm kiếm và chọn file từ thư viện...",
-                    treeDefaultExpandAll: true,
-                    allowClear: true,
-                    showSearch: true,
-                    treeNodeFilterProp: "title",
-                    onChange: handleTreeSelect,
-                    value: selectedLibDoc ? selectedLibDoc.value : undefined,
-                    dropdownStyle: { maxHeight: 400, overflow: "auto" },
-                  }),
-                ),
+                    "div",
+                    null,
+                    React.createElement(TreeSelect, {
+                      style: { width: "100%" },
+                      treeData,
+                      placeholder: "Tìm kiếm và chọn file từ thư viện...",
+                      treeDefaultExpandAll: true,
+                      allowClear: true,
+                      showSearch: true,
+                      treeNodeFilterProp: "title",
+                      onChange: handleTreeSelect,
+                      value: selectedLibDoc ? selectedLibDoc.value : undefined,
+                      dropdownStyle: { maxHeight: 400, overflow: "auto" },
+                    }),
+                  ),
             ),
           },
         ],
@@ -5989,55 +6121,55 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
               },
             },
             doc.title ||
-            attachment?.title ||
-            attachment?.filename ||
-            "(Chưa có tên)",
+              attachment?.title ||
+              attachment?.filename ||
+              "(Chưa có tên)",
           ),
           doc.documentType &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 12,
-                color: "#8c8c8c",
-                fontFamily: FONT,
-                marginTop: 2,
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 12,
+                  color: "#8c8c8c",
+                  fontFamily: FONT,
+                  marginTop: 2,
+                },
               },
-            },
-            doc.documentType,
-          ),
+              doc.documentType,
+            ),
         ),
       ),
       extra: editing
         ? React.createElement(
-          Space,
-          null,
-          React.createElement(
-            Button,
-            { size: "small", onClick: () => setEditing(false) },
-            "Huỷ",
-          ),
-          React.createElement(
+            Space,
+            null,
+            React.createElement(
+              Button,
+              { size: "small", onClick: () => setEditing(false) },
+              "Huỷ",
+            ),
+            React.createElement(
+              Button,
+              {
+                size: "small",
+                type: "primary",
+                loading: saving,
+                onClick: handleSave,
+              },
+              "💾 Lưu",
+            ),
+          )
+        : React.createElement(
             Button,
             {
               size: "small",
               type: "primary",
-              loading: saving,
-              onClick: handleSave,
+              ghost: true,
+              onClick: () => setEditing(true),
             },
-            "💾 Lưu",
+            "✏️ Chỉnh sửa",
           ),
-        )
-        : React.createElement(
-          Button,
-          {
-            size: "small",
-            type: "primary",
-            ghost: true,
-            onClick: () => setEditing(true),
-          },
-          "✏️ Chỉnh sửa",
-        ),
     },
     React.createElement(
       Descriptions,
@@ -6082,10 +6214,10 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
         { label: "Ngày hiệu lực" },
         doc.effectiveAt
           ? React.createElement(
-            Text,
-            { style: { color: "#389e0d", fontWeight: 500 } },
-            formatDate(doc.effectiveAt),
-          )
+              Text,
+              { style: { color: "#389e0d", fontWeight: 500 } },
+              formatDate(doc.effectiveAt),
+            )
           : "—",
       ),
       React.createElement(
@@ -6108,15 +6240,15 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
         { label: "Google Drive" },
         doc.googleDriveUrl
           ? React.createElement(
-            Button,
-            {
-              type: "link",
-              size: "small",
-              style: { padding: 0 },
-              onClick: () => window.open(doc.googleDriveUrl, "_blank"),
-            },
-            "🔗 Mở link",
-          )
+              Button,
+              {
+                type: "link",
+                size: "small",
+                style: { padding: 0 },
+                onClick: () => window.open(doc.googleDriveUrl, "_blank"),
+              },
+              "🔗 Mở link",
+            )
           : "—",
       ),
       React.createElement(
@@ -6140,23 +6272,23 @@ const DocDetailDrawer = ({ doc, onClose, onSuccess, currentUser }) => {
       ),
     ),
     attachment &&
-    fullUrl &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          marginTop: 16,
-          paddingTop: 12,
-          borderTop: "1px solid #f0f0f0",
-        },
-      },
-      (isPdf || isImage) &&
+      fullUrl &&
       React.createElement(
-        Button,
-        { size: "small", onClick: () => window.open(fullUrl, "_blank") },
-        "👁 Xem trước",
+        "div",
+        {
+          style: {
+            marginTop: 16,
+            paddingTop: 12,
+            borderTop: "1px solid #f0f0f0",
+          },
+        },
+        (isPdf || isImage) &&
+          React.createElement(
+            Button,
+            { size: "small", onClick: () => window.open(fullUrl, "_blank") },
+            "👁 Xem trước",
+          ),
       ),
-    ),
   );
 };
 
@@ -6352,320 +6484,320 @@ const TimesheetModal = ({
     },
     !hasLawyer
       ? React.createElement(
-        "div",
-        { style: { textAlign: "center", padding: "30px 0" } },
-        React.createElement(
           "div",
-          { style: { fontSize: 32, marginBottom: 12 } },
-          "⚠️",
-        ),
-        React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 14,
-              fontFamily: FONT,
-              color: "#cf1322",
-              display: "block",
-            },
-          },
-          "Công việc chưa được phân công luật sư",
-        ),
-      )
-      : React.createElement(
-        "div",
-        null,
-
-        /* Luật sư (read-only) */
-        fld(
-          "👨‍⚖️ Luật sư",
+          { style: { textAlign: "center", padding: "30px 0" } },
           React.createElement(
             "div",
+            { style: { fontSize: 32, marginBottom: 12 } },
+            "⚠️",
+          ),
+          React.createElement(
+            Text,
             {
               style: {
-                ...inpS,
-                background: "#f5f5f5",
-                color: "#595959",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "not-allowed",
-                borderRadius: 6,
+                fontSize: 14,
+                fontFamily: FONT,
+                color: "#cf1322",
+                display: "block",
               },
             },
-            React.createElement(Av, {
-              name: assignedLawyer.lawyerName,
-              color:
-                LAWYER_COLORS[
-                lawyers.indexOf(assignedLawyer) % LAWYER_COLORS.length
-                ],
-              size: 22,
-            }),
+            "Công việc chưa được phân công luật sư",
+          ),
+        )
+      : React.createElement(
+          "div",
+          null,
+
+          /* Luật sư (read-only) */
+          fld(
+            "👨‍⚖️ Luật sư",
             React.createElement(
-              "span",
-              { style: { fontWeight: 500 } },
-              assignedLawyer.lawyerName,
+              "div",
+              {
+                style: {
+                  ...inpS,
+                  background: "#f5f5f5",
+                  color: "#595959",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: "not-allowed",
+                  borderRadius: 6,
+                },
+              },
+              React.createElement(Av, {
+                name: assignedLawyer.lawyerName,
+                color:
+                  LAWYER_COLORS[
+                    lawyers.indexOf(assignedLawyer) % LAWYER_COLORS.length
+                  ],
+                size: 22,
+              }),
+              React.createElement(
+                "span",
+                { style: { fontWeight: 500 } },
+                assignedLawyer.lawyerName,
+              ),
             ),
           ),
-        ),
-        /* Ngày giờ thực hiện */
-        fld(
-          "📅 Ngày giờ thực hiện *",
-          React.createElement("input", {
-            type: "datetime-local",
-            value: form.workingDay,
-            onChange: (e) => set("workingDay", e.target.value),
-            style: inpS,
-            onFocus: focusB,
-            onBlur: blurB,
-          }),
-        ),
-        /* Số giờ */
-        React.createElement(
-          "div",
-          { style: { marginBottom: 14 } },
-          lbl("⏱ Số giờ thực hiện *"),
-          React.createElement(
-            "div",
-            { style: { position: "relative" } },
+          /* Ngày giờ thực hiện */
+          fld(
+            "📅 Ngày giờ thực hiện *",
             React.createElement("input", {
-              type: "number",
-              step: "0.5",
-              min: "0.5",
-              max: "24",
-              placeholder: "Ví dụ: 2",
-              value: form.duration,
-              onChange: (e) => set("duration", e.target.value),
-              style: {
-                ...inpS,
-                fontSize: 13,
-                fontWeight: 700,
-                paddingRight: 50,
-                textAlign: "center",
-                border: dur > 0 ? "2px solid #1890ff" : "1px solid #e8e8e8",
-              },
+              type: "datetime-local",
+              value: form.workingDay,
+              onChange: (e) => set("workingDay", e.target.value),
+              style: inpS,
               onFocus: focusB,
               onBlur: blurB,
-              autoFocus: true,
             }),
+          ),
+          /* Số giờ */
+          React.createElement(
+            "div",
+            { style: { marginBottom: 14 } },
+            lbl("⏱ Số giờ thực hiện *"),
             React.createElement(
-              "span",
-              {
+              "div",
+              { style: { position: "relative" } },
+              React.createElement("input", {
+                type: "number",
+                step: "0.5",
+                min: "0.5",
+                max: "24",
+                placeholder: "Ví dụ: 2",
+                value: form.duration,
+                onChange: (e) => set("duration", e.target.value),
                 style: {
-                  position: "absolute",
-                  right: 14,
-                  top: "50%",
-                  transform: "translateY(-50%)",
+                  ...inpS,
                   fontSize: 13,
-                  color: "#8c8c8c",
-                  fontFamily: FONT,
-                  pointerEvents: "none",
+                  fontWeight: 700,
+                  paddingRight: 50,
+                  textAlign: "center",
+                  border: dur > 0 ? "2px solid #1890ff" : "1px solid #e8e8e8",
                 },
-              },
-              "giờ",
-            ),
-          ),
-          dur > 0 &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                marginTop: 8,
-                padding: "10px 14px",
-                background: "#e6f4ff",
-                borderRadius: 8,
-                border: "1px solid #91caff",
-              },
-            },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: wrPrev ? 6 : 0,
-                },
-              },
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 11,
-                      fontFamily: FONT,
-                      color: "#8c8c8c",
-                      marginBottom: 2,
-                    },
-                  },
-                  "🕐 Kết thúc dự kiến",
-                ),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 13,
-                      fontFamily: FONT,
-                      fontWeight: 600,
-                      color: "#096dd9",
-                    },
-                  },
-                  endPreview
-                    ? endPreview.toLocaleString("vi-VN", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                    : "—",
-                ),
-              ),
-              React.createElement(
-                "div",
-                { style: { textAlign: "right" } },
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 11,
-                      fontFamily: FONT,
-                      color: "#8c8c8c",
-                      marginBottom: 2,
-                    },
-                  },
-                  "⏱ Tổng",
-                ),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 16,
-                      fontFamily: FONT,
-                      fontWeight: 700,
-                      color: "#096dd9",
-                    },
-                  },
-                  fmtHours(dur),
-                ),
-              ),
-            ),
-            wrPrev &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingTop: 6,
-                  borderTop: "1px solid #bae0ff",
-                },
-              },
+                onFocus: focusB,
+                onBlur: blurB,
+                autoFocus: true,
+              }),
               React.createElement(
                 "span",
                 {
                   style: {
-                    fontSize: 11,
-                    fontFamily: FONT,
+                    position: "absolute",
+                    right: 14,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    fontSize: 13,
                     color: "#8c8c8c",
+                    fontFamily: FONT,
+                    pointerEvents: "none",
                   },
                 },
-                "⚡ Năng suất:",
+                "giờ",
               ),
+            ),
+            dur > 0 &&
               React.createElement(
-                "span",
+                "div",
                 {
                   style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    fontWeight: 700,
-                    padding: "2px 10px",
-                    borderRadius: 10,
-                    background: wrPrev.bg,
-                    color: wrPrev.color,
+                    marginTop: 8,
+                    padding: "10px 14px",
+                    background: "#e6f4ff",
+                    borderRadius: 8,
+                    border: "1px solid #91caff",
                   },
                 },
-                wrPrev.label,
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: wrPrev ? 6 : 0,
+                    },
+                  },
+                  React.createElement(
+                    "div",
+                    null,
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 11,
+                          fontFamily: FONT,
+                          color: "#8c8c8c",
+                          marginBottom: 2,
+                        },
+                      },
+                      "🕐 Kết thúc dự kiến",
+                    ),
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 13,
+                          fontFamily: FONT,
+                          fontWeight: 600,
+                          color: "#096dd9",
+                        },
+                      },
+                      endPreview
+                        ? endPreview.toLocaleString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—",
+                    ),
+                  ),
+                  React.createElement(
+                    "div",
+                    { style: { textAlign: "right" } },
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 11,
+                          fontFamily: FONT,
+                          color: "#8c8c8c",
+                          marginBottom: 2,
+                        },
+                      },
+                      "⏱ Tổng",
+                    ),
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 16,
+                          fontFamily: FONT,
+                          fontWeight: 700,
+                          color: "#096dd9",
+                        },
+                      },
+                      fmtHours(dur),
+                    ),
+                  ),
+                ),
+                wrPrev &&
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingTop: 6,
+                        borderTop: "1px solid #bae0ff",
+                      },
+                    },
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 11,
+                          fontFamily: FONT,
+                          color: "#8c8c8c",
+                        },
+                      },
+                      "⚡ Năng suất:",
+                    ),
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 12,
+                          fontFamily: FONT,
+                          fontWeight: 700,
+                          padding: "2px 10px",
+                          borderRadius: 10,
+                          background: wrPrev.bg,
+                          color: wrPrev.color,
+                        },
+                      },
+                      wrPrev.label,
+                    ),
+                  ),
               ),
+          ),
+          isManager &&
+            fld(
+              "💵 Đơn giá / giờ (₫)",
+              React.createElement("input", {
+                type: "number",
+                placeholder: "Đơn giá/giờ",
+                value: form.hourlyRate,
+                onChange: (e) => set("hourlyRate", e.target.value),
+                style: inpS,
+                onFocus: focusB,
+                onBlur: blurB,
+              }),
+            ),
+          /* Mô tả */
+          fld(
+            "📝 Nội dung mô tả công việc",
+            React.createElement("textarea", {
+              value: form.description,
+              onChange: (e) => set("description", e.target.value),
+              placeholder: "Mô tả ngắn gọn công việc đã thực hiện...",
+              rows: 3,
+              style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
+              onFocus: focusB,
+              onBlur: blurB,
+            }),
+          ),
+          /* Footer */
+          React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px solid #f0f0f0",
+              },
+            },
+            React.createElement(
+              "div",
+              {
+                onClick: onClose,
+                style: {
+                  padding: "7px 20px",
+                  borderRadius: 6,
+                  border: "1px solid #e8e8e8",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  color: "#595959",
+                },
+              },
+              "Huỷ",
+            ),
+            React.createElement(
+              "div",
+              {
+                onClick: saving ? null : handleSave,
+                style: {
+                  padding: "7px 24px",
+                  borderRadius: 6,
+                  background: saving ? "#f5f5f5" : "#1890ff",
+                  color: saving ? "#bfbfbf" : "#fff",
+                  cursor: saving ? "not-allowed" : "pointer",
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  fontWeight: 700,
+                },
+              },
+              saving ? "Đang lưu..." : isEdit ? "Cập nhật" : "+ Ghi nhận giờ",
             ),
           ),
         ),
-        isManager &&
-        fld(
-          "💵 Đơn giá / giờ (₫)",
-          React.createElement("input", {
-            type: "number",
-            placeholder: "Đơn giá/giờ",
-            value: form.hourlyRate,
-            onChange: (e) => set("hourlyRate", e.target.value),
-            style: inpS,
-            onFocus: focusB,
-            onBlur: blurB,
-          }),
-        ),
-        /* Mô tả */
-        fld(
-          "📝 Nội dung mô tả công việc",
-          React.createElement("textarea", {
-            value: form.description,
-            onChange: (e) => set("description", e.target.value),
-            placeholder: "Mô tả ngắn gọn công việc đã thực hiện...",
-            rows: 3,
-            style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
-            onFocus: focusB,
-            onBlur: blurB,
-          }),
-        ),
-        /* Footer */
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 16,
-              paddingTop: 12,
-              borderTop: "1px solid #f0f0f0",
-            },
-          },
-          React.createElement(
-            "div",
-            {
-              onClick: onClose,
-              style: {
-                padding: "7px 20px",
-                borderRadius: 6,
-                border: "1px solid #e8e8e8",
-                cursor: "pointer",
-                fontSize: 13,
-                fontFamily: FONT,
-                color: "#595959",
-              },
-            },
-            "Huỷ",
-          ),
-          React.createElement(
-            "div",
-            {
-              onClick: saving ? null : handleSave,
-              style: {
-                padding: "7px 24px",
-                borderRadius: 6,
-                background: saving ? "#f5f5f5" : "#1890ff",
-                color: saving ? "#bfbfbf" : "#fff",
-                cursor: saving ? "not-allowed" : "pointer",
-                fontSize: 13,
-                fontFamily: FONT,
-                fontWeight: 700,
-              },
-            },
-            saving ? "Đang lưu..." : isEdit ? "Cập nhật" : "+ Ghi nhận giờ",
-          ),
-        ),
-      ),
   );
 };
 
@@ -6765,40 +6897,40 @@ const TimesheetTab = ({
       },
       hasLawyer
         ? React.createElement(
-          "div",
-          { style: { display: "flex", alignItems: "center", gap: 8 } },
-          React.createElement(Av, {
-            name: assignedLawyer.lawyerName,
-            color: lawyerMap[extractId(assignedLawyer.id)]?.color,
-            size: 22,
-          }),
-          React.createElement(
             "div",
-            null,
+            { style: { display: "flex", alignItems: "center", gap: 8 } },
+            React.createElement(Av, {
+              name: assignedLawyer.lawyerName,
+              color: lawyerMap[extractId(assignedLawyer.id)]?.color,
+              size: 22,
+            }),
             React.createElement(
-              Text,
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  fontWeight: 600,
-                  display: "block",
+              "div",
+              null,
+              React.createElement(
+                Text,
+                {
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    fontWeight: 600,
+                    display: "block",
+                  },
                 },
-              },
-              assignedLawyer.lawyerName,
+                assignedLawyer.lawyerName,
+              ),
+              React.createElement(
+                Text,
+                { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
+                `${fmtVND(assignedLawyer.unitPrice || 0)}/giờ${estDur > 0 ? `  ·  Dự kiến: ${fmtHours(estDur)}` : ""}`,
+              ),
             ),
-            React.createElement(
-              Text,
-              { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-              `${fmtVND(assignedLawyer.unitPrice || 0)}/giờ${estDur > 0 ? `  ·  Dự kiến: ${fmtHours(estDur)}` : ""}`,
-            ),
-          ),
-        )
+          )
         : React.createElement(
-          "span",
-          { style: { fontSize: 12, fontFamily: FONT, color: "#cf1322" } },
-          "⚠ Chưa phân công",
-        ),
+            "span",
+            { style: { fontSize: 12, fontFamily: FONT, color: "#cf1322" } },
+            "⚠ Chưa phân công",
+          ),
 
       // 🌟 HEADER BUTTONS (Thêm nút Reload ở đây)
       React.createElement(
@@ -6811,339 +6943,339 @@ const TimesheetTab = ({
           text: "",
         }),
         hasLawyer &&
-        React.createElement(
-          "div",
-          {
-            onClick: () => {
-              setEditEntry(null);
-              setModal(true);
+          React.createElement(
+            "div",
+            {
+              onClick: () => {
+                setEditEntry(null);
+                setModal(true);
+              },
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                padding: "5px 12px",
+                borderRadius: 5,
+                background: "#1890ff",
+                color: "#fff",
+                cursor: "pointer",
+                fontWeight: 600,
+              },
             },
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              padding: "5px 12px",
-              borderRadius: 5,
-              background: "#1890ff",
-              color: "#fff",
-              cursor: "pointer",
-              fontWeight: 600,
-            },
-          },
-          "＋ Thêm",
-        ),
+            "＋ Thêm",
+          ),
       ),
     ),
 
     sheets.length > 0 &&
-    React.createElement(
-      "div",
-      {
-        style: {
-          display: "grid",
-          gridTemplateColumns: isManager ? "1fr 1fr 1fr" : "1fr 1fr",
-          gap: 8,
-        },
-      },
       React.createElement(
         "div",
         {
           style: {
-            background: "#e6f4ff",
-            borderRadius: 6,
-            padding: "8px 10px",
-            border: "1px solid #91caff",
+            display: "grid",
+            gridTemplateColumns: isManager ? "1fr 1fr 1fr" : "1fr 1fr",
+            gap: 8,
           },
         },
         React.createElement(
-          Text,
+          "div",
           {
             style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              color: "#096dd9",
-              fontWeight: 700,
-              display: "block",
-              marginBottom: 2,
+              background: "#e6f4ff",
+              borderRadius: 6,
+              padding: "8px 10px",
+              border: "1px solid #91caff",
             },
           },
-          "⏱ Tổng giờ",
+          React.createElement(
+            Text,
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#096dd9",
+                fontWeight: 700,
+                display: "block",
+                marginBottom: 2,
+              },
+            },
+            "⏱ Tổng giờ",
+          ),
+          React.createElement(
+            Text,
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                fontWeight: 700,
+                color: "#096dd9",
+                display: "block",
+              },
+            },
+            fmtHours(totalHours),
+          ),
         ),
         React.createElement(
-          Text,
+          "div",
           {
             style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              fontWeight: 700,
-              color: "#096dd9",
-              display: "block",
+              background: item.workRate
+                ? workRateCfg(item.workRate).bg
+                : "#f9f0ff",
+              borderRadius: 6,
+              padding: "8px 10px",
+              border: "1px solid #d3adf7",
             },
           },
-          fmtHours(totalHours),
+          React.createElement(
+            Text,
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: "#531dab",
+                fontWeight: 700,
+                display: "block",
+                marginBottom: 2,
+              },
+            },
+            "⚡ Năng suất",
+          ),
+          React.createElement(
+            Text,
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                fontWeight: 700,
+                color: item.workRate
+                  ? workRateCfg(item.workRate).color
+                  : "#8c8c8c",
+                display: "block",
+              },
+            },
+            item.workRate ? workRateCfg(item.workRate).label : "—",
+          ),
         ),
+        isManager &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                background: "#f6ffed",
+                borderRadius: 6,
+                padding: "8px 10px",
+                border: "1px solid #b7eb8f",
+              },
+            },
+            React.createElement(
+              Text,
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#389e0d",
+                  fontWeight: 700,
+                  display: "block",
+                  marginBottom: 2,
+                },
+              },
+              "💰 Thành tiền",
+            ),
+            React.createElement(
+              Text,
+              {
+                style: {
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  fontWeight: 700,
+                  color: "#389e0d",
+                  display: "block",
+                },
+              },
+              fmtVND(totalAmount),
+            ),
+          ),
       ),
-      React.createElement(
-        "div",
-        {
-          style: {
-            background: item.workRate
-              ? workRateCfg(item.workRate).bg
-              : "#f9f0ff",
-            borderRadius: 6,
-            padding: "8px 10px",
-            border: "1px solid #d3adf7",
-          },
-        },
-        React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              color: "#531dab",
-              fontWeight: 700,
-              display: "block",
-              marginBottom: 2,
-            },
-          },
-          "⚡ Năng suất",
-        ),
-        React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              fontWeight: 700,
-              color: item.workRate
-                ? workRateCfg(item.workRate).color
-                : "#8c8c8c",
-              display: "block",
-            },
-          },
-          item.workRate ? workRateCfg(item.workRate).label : "—",
-        ),
-      ),
-      isManager &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            background: "#f6ffed",
-            borderRadius: 6,
-            padding: "8px 10px",
-            border: "1px solid #b7eb8f",
-          },
-        },
-        React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              color: "#389e0d",
-              fontWeight: 700,
-              display: "block",
-              marginBottom: 2,
-            },
-          },
-          "💰 Thành tiền",
-        ),
-        React.createElement(
-          Text,
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              fontWeight: 700,
-              color: "#389e0d",
-              display: "block",
-            },
-          },
-          fmtVND(totalAmount),
-        ),
-      ),
-    ),
 
     loading
       ? React.createElement(
-        "div",
-        { style: { textAlign: "center", padding: 16 } },
-        React.createElement(Spin, { size: "small" }),
-      )
+          "div",
+          { style: { textAlign: "center", padding: 16 } },
+          React.createElement(Spin, { size: "small" }),
+        )
       : sheets.length === 0
         ? React.createElement(
-          "div",
-          {
-            style: {
-              textAlign: "center",
-              padding: "16px 0",
-              color: "#bfbfbf",
-              fontSize: 12,
-              fontFamily: FONT,
-              border: "1px dashed #f0f0f0",
-              borderRadius: 6,
-            },
-          },
-          hasLawyer
-            ? "Chưa có bản ghi giờ làm việc nào"
-            : "Phân công luật sư trước",
-        )
-        : React.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: 6 } },
-          ...sheets.map((s) => {
-            const wr = s.workRate != null ? workRateCfg(s.workRate) : null;
-            return React.createElement(
-              "div",
-              {
-                key: s.id,
-                style: {
-                  background: "#fff",
-                  borderRadius: 6,
-                  padding: "10px 12px",
-                  border: "1px solid #e8e8e8",
-                },
+            "div",
+            {
+              style: {
+                textAlign: "center",
+                padding: "16px 0",
+                color: "#bfbfbf",
+                fontSize: 12,
+                fontFamily: FONT,
+                border: "1px dashed #f0f0f0",
+                borderRadius: 6,
               },
-              React.createElement(
+            },
+            hasLawyer
+              ? "Chưa có bản ghi giờ làm việc nào"
+              : "Phân công luật sư trước",
+          )
+        : React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: 6 } },
+            ...sheets.map((s) => {
+              const wr = s.workRate != null ? workRateCfg(s.workRate) : null;
+              return React.createElement(
                 "div",
                 {
+                  key: s.id,
                   style: {
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 4,
+                    background: "#fff",
+                    borderRadius: 6,
+                    padding: "10px 12px",
+                    border: "1px solid #e8e8e8",
                   },
                 },
                 React.createElement(
                   "div",
                   {
-                    style: { display: "flex", alignItems: "center", gap: 6 },
+                    style: {
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 4,
+                    },
                   },
+                  React.createElement(
+                    "div",
+                    {
+                      style: { display: "flex", alignItems: "center", gap: 6 },
+                    },
+                    React.createElement(
+                      Text,
+                      {
+                        style: {
+                          fontSize: 12,
+                          fontFamily: FONT,
+                          color: "#262626",
+                          fontWeight: 600,
+                        },
+                      },
+                      fmt(s.workingDay, "full") || "—",
+                    ),
+                  ),
+                  wr &&
+                    React.createElement(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 12,
+                          fontFamily: FONT,
+                          fontWeight: 600,
+                          padding: "1px 6px",
+                          borderRadius: 8,
+                          background: wr.bg,
+                          color: wr.color,
+                        },
+                      },
+                      `⚡ ${wr.label}`,
+                    ),
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#595959",
+                    },
+                  },
+                  React.createElement(
+                    "span",
+                    { style: { fontWeight: 700, color: "#096dd9" } },
+                    fmtHours(parseFloat(s.duration) || 0),
+                  ),
+                  isManager &&
+                    s.amount > 0 &&
+                    React.createElement(
+                      "span",
+                      { style: { fontWeight: 700, color: "#389e0d" } },
+                      `= ${fmtVND(s.amount)}`,
+                    ),
+                ),
+                s.description &&
                   React.createElement(
                     Text,
                     {
                       style: {
                         fontSize: 12,
                         fontFamily: FONT,
-                        color: "#262626",
-                        fontWeight: 600,
+                        color: "#8c8c8c",
+                        display: "block",
+                        marginTop: 3,
                       },
                     },
-                    fmt(s.workingDay, "full") || "—",
+                    s.description,
+                  ),
+
+                // 🌟 NÚT SỬA/XOÁ (Đã bỏ quy trình gửi duyệt vô nghĩa)
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 6,
+                      paddingTop: 6,
+                      marginTop: 4,
+                      borderTop: "1px solid #f5f5f5",
+                    },
+                  },
+                  React.createElement(
+                    "div",
+                    {
+                      onClick: () => {
+                        setEditEntry(s);
+                        setModal(true);
+                      },
+                      style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        padding: "3px 10px",
+                        borderRadius: 4,
+                        border: "1px solid #e8e8e8",
+                        color: "#595959",
+                        cursor: "pointer",
+                        background: "#fafafa",
+                      },
+                    },
+                    "✏️ Sửa",
+                  ),
+                  React.createElement(
+                    "div",
+                    {
+                      onClick: () => handleDelete(s.id),
+                      style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        padding: "3px 10px",
+                        borderRadius: 4,
+                        border: "1px solid #ffa39e",
+                        color: "#cf1322",
+                        cursor: "pointer",
+                        background: "#fff1f0",
+                      },
+                    },
+                    deleting === s.id ? "..." : "🗑 Xoá",
                   ),
                 ),
-                wr &&
-                React.createElement(
-                  "span",
-                  {
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      fontWeight: 600,
-                      padding: "1px 6px",
-                      borderRadius: 8,
-                      background: wr.bg,
-                      color: wr.color,
-                    },
-                  },
-                  `⚡ ${wr.label}`,
-                ),
-              ),
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#595959",
-                  },
-                },
-                React.createElement(
-                  "span",
-                  { style: { fontWeight: 700, color: "#096dd9" } },
-                  fmtHours(parseFloat(s.duration) || 0),
-                ),
-                isManager &&
-                s.amount > 0 &&
-                React.createElement(
-                  "span",
-                  { style: { fontWeight: 700, color: "#389e0d" } },
-                  `= ${fmtVND(s.amount)}`,
-                ),
-              ),
-              s.description &&
-              React.createElement(
-                Text,
-                {
-                  style: {
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    color: "#8c8c8c",
-                    display: "block",
-                    marginTop: 3,
-                  },
-                },
-                s.description,
-              ),
-
-              // 🌟 NÚT SỬA/XOÁ (Đã bỏ quy trình gửi duyệt vô nghĩa)
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 6,
-                    paddingTop: 6,
-                    marginTop: 4,
-                    borderTop: "1px solid #f5f5f5",
-                  },
-                },
-                React.createElement(
-                  "div",
-                  {
-                    onClick: () => {
-                      setEditEntry(s);
-                      setModal(true);
-                    },
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      padding: "3px 10px",
-                      borderRadius: 4,
-                      border: "1px solid #e8e8e8",
-                      color: "#595959",
-                      cursor: "pointer",
-                      background: "#fafafa",
-                    },
-                  },
-                  "✏️ Sửa",
-                ),
-                React.createElement(
-                  "div",
-                  {
-                    onClick: () => handleDelete(s.id),
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      padding: "3px 10px",
-                      borderRadius: 4,
-                      border: "1px solid #ffa39e",
-                      color: "#cf1322",
-                      cursor: "pointer",
-                      background: "#fff1f0",
-                    },
-                  },
-                  deleting === s.id ? "..." : "🗑 Xoá",
-                ),
-              ),
-            );
-          }),
-        ),
+              );
+            }),
+          ),
 
     React.createElement(TimesheetModal, {
       open: modal,
@@ -7288,21 +7420,21 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
           ),
         ),
         lawyerName &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              color: statusInfo.color,
-              opacity: 0.75,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+          React.createElement(
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                color: statusInfo.color,
+                opacity: 0.75,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              },
             },
-          },
-          `👤 ${lawyerName}`,
-        ),
+            `👤 ${lawyerName}`,
+          ),
       ),
     ),
   );
@@ -7395,21 +7527,21 @@ const NextStepInlineEditor = ({
         },
       },
       isDirty &&
-      React.createElement(
-        "span",
-        {
-          style: {
-            fontSize: 12,
-            fontFamily: FONT,
-            color: "#fa8c16",
-            background: "#fff7e6",
-            border: "1px solid #ffd591",
-            borderRadius: 10,
-            padding: "1px 8px",
+        React.createElement(
+          "span",
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              color: "#fa8c16",
+              background: "#fff7e6",
+              border: "1px solid #ffd591",
+              borderRadius: 10,
+              padding: "1px 8px",
+            },
           },
-        },
-        "Chưa lưu",
-      ),
+          "Chưa lưu",
+        ),
       React.createElement(
         "div",
         {
@@ -7519,21 +7651,21 @@ const DescriptionInlineEditor = ({
         },
       },
       isDirty &&
-      React.createElement(
-        "span",
-        {
-          style: {
-            fontSize: 11,
-            fontFamily: FONT,
-            color: "#fa8c16",
-            background: "#fff7e6",
-            border: "1px solid #ffd591",
-            borderRadius: 10,
-            padding: "1px 8px",
+        React.createElement(
+          "span",
+          {
+            style: {
+              fontSize: 11,
+              fontFamily: FONT,
+              color: "#fa8c16",
+              background: "#fff7e6",
+              border: "1px solid #ffd591",
+              borderRadius: 10,
+              padding: "1px 8px",
+            },
           },
-        },
-        "Chưa lưu",
-      ),
+          "Chưa lưu",
+        ),
       React.createElement(
         "div",
         {
@@ -7593,27 +7725,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
   const activityLogKey = (a) =>
     a?.batchId
       ? [
-        "batch",
-        a.collectionName || "",
-        extractId(a.recordId) || "",
-        a.action || "",
-        a.fieldName || "",
-        a.batchId || "",
-        extractId(a.dataId) || "",
-        a.oldValue || "",
-        a.newValue || "",
-      ].join("|")
+          "batch",
+          a.collectionName || "",
+          extractId(a.recordId) || "",
+          a.action || "",
+          a.fieldName || "",
+          a.batchId || "",
+          extractId(a.dataId) || "",
+          a.oldValue || "",
+          a.newValue || "",
+        ].join("|")
       : [
-        "time",
-        a?.collectionName || "",
-        extractId(a?.recordId) || "",
-        a?.action || "",
-        a?.fieldName || "",
-        extractId(a?.dataId) || "",
-        a?.oldValue || "",
-        a?.newValue || "",
-        a?.changedAt || a?.updatedAt || a?.createdAt || "",
-      ].join("|");
+          "time",
+          a?.collectionName || "",
+          extractId(a?.recordId) || "",
+          a?.action || "",
+          a?.fieldName || "",
+          extractId(a?.dataId) || "",
+          a?.oldValue || "",
+          a?.newValue || "",
+          a?.changedAt || a?.updatedAt || a?.createdAt || "",
+        ].join("|");
 
   const activityLogRenderKey = (a) => {
     const field = ["title", "documents"].includes(a?.fieldName)
@@ -8207,290 +8339,290 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
 
       // ── Reply context ──────────────────────────────────────────────────
       parentAuthor &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            fontSize: 12,
-            color: "#8c8c8c",
-            fontFamily: FONT,
-            fontStyle: "italic",
-          },
-        },
-        `đã phản hồi ${parentAuthor}:`,
-      ),
-
-      // ── Nội dung bình luận ─────────────────────────────────────────────
-      hasBody &&
-      React.createElement(
-        "div",
-        null,
         React.createElement(
           "div",
           {
             style: {
               fontSize: 12,
-              fontWeight: 600,
               color: "#8c8c8c",
-              marginBottom: 6,
               fontFamily: FONT,
-              display: showBodyLabel ? "block" : "none",
+              fontStyle: "italic",
             },
           },
-          "Nội dung bình luận:",
+          `đã phản hồi ${parentAuthor}:`,
         ),
+
+      // ── Nội dung bình luận ─────────────────────────────────────────────
+      hasBody &&
         React.createElement(
           "div",
-          {
-            style: {
-              background: isDel
-                ? "#fff1f0"
-                : isCommentOnly
-                  ? "#fff"
-                  : "#e6fffb",
-              border: isDel
-                ? "1px solid #ffa39e"
-                : isCommentOnly
-                  ? "1px solid #e8e8e8"
-                  : "1px solid #87e8de",
-              borderLeft: `3px solid ${isDel ? "#ff4d4f" : "#13c2c2"}`,
-              borderRadius: isCommentOnly ? 6 : 8,
-              padding: isCommentOnly ? "9px 12px" : "10px 14px",
-              fontSize: 13,
-              fontFamily: FONT,
-              lineHeight: 1.6,
-            },
-          },
-
-          // Quote parent note
-          parentNote &&
+          null,
           React.createElement(
             "div",
             {
               style: {
-                borderLeft: "2px solid #1890ff",
-                paddingLeft: 8,
-                marginBottom: 8,
-                color: "#8c8c8c",
                 fontSize: 12,
-                fontStyle: "italic",
+                fontWeight: 600,
+                color: "#8c8c8c",
+                marginBottom: 6,
+                fontFamily: FONT,
+                display: showBodyLabel ? "block" : "none",
               },
             },
-            renderRichText(parentNote.body, lawyers),
+            "Nội dung bình luận:",
           ),
-
-          // Updated: oldBody gạch đỏ
-          isUpdated &&
-          oldBody &&
-          React.createElement("div", {
-            style: {
-              color: "#ff4d4f",
-              textDecoration: "line-through",
-              marginBottom: 4,
-              opacity: 0.8,
-            },
-            dangerouslySetInnerHTML: {
-              __html:
-                typeof oldBody === "string"
-                  ? oldBody
-                  : renderRichText(oldBody, lawyers),
-            },
-          }),
-          isUpdated &&
-          oldBody &&
-          body &&
           React.createElement(
             "div",
-            { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
-            "↓ thay đổi thành ↓",
-          ),
-
-          // Nội dung hiện tại
-          body
-            ? React.createElement("div", {
+            {
               style: {
-                color: isDel ? "#8c8c8c" : "#262626",
-                textDecoration: isDel ? "line-through" : "none",
+                background: isDel
+                  ? "#fff1f0"
+                  : isCommentOnly
+                    ? "#fff"
+                    : "#e6fffb",
+                border: isDel
+                  ? "1px solid #ffa39e"
+                  : isCommentOnly
+                    ? "1px solid #e8e8e8"
+                    : "1px solid #87e8de",
+                borderLeft: `3px solid ${isDel ? "#ff4d4f" : "#13c2c2"}`,
+                borderRadius: isCommentOnly ? 6 : 8,
+                padding: isCommentOnly ? "9px 12px" : "10px 14px",
+                fontSize: 13,
+                fontFamily: FONT,
+                lineHeight: 1.6,
               },
-              dangerouslySetInnerHTML: {
-                __html:
-                  typeof body === "string"
-                    ? body
-                    : renderRichText(body, lawyers),
-              },
-            })
-            : isDel && oldBody
-              ? React.createElement("div", {
-                style: { color: "#8c8c8c", textDecoration: "line-through" },
+            },
+
+            // Quote parent note
+            parentNote &&
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    borderLeft: "2px solid #1890ff",
+                    paddingLeft: 8,
+                    marginBottom: 8,
+                    color: "#8c8c8c",
+                    fontSize: 12,
+                    fontStyle: "italic",
+                  },
+                },
+                renderRichText(parentNote.body, lawyers),
+              ),
+
+            // Updated: oldBody gạch đỏ
+            isUpdated &&
+              oldBody &&
+              React.createElement("div", {
+                style: {
+                  color: "#ff4d4f",
+                  textDecoration: "line-through",
+                  marginBottom: 4,
+                  opacity: 0.8,
+                },
                 dangerouslySetInnerHTML: {
                   __html:
                     typeof oldBody === "string"
                       ? oldBody
                       : renderRichText(oldBody, lawyers),
                 },
-              })
-              : React.createElement(
-                "span",
-                { style: { color: "#8c8c8c", fontStyle: "italic" } },
-                "(Ghi chú có nhắc tên)",
+              }),
+            isUpdated &&
+              oldBody &&
+              body &&
+              React.createElement(
+                "div",
+                { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
+                "↓ thay đổi thành ↓",
               ),
+
+            // Nội dung hiện tại
+            body
+              ? React.createElement("div", {
+                  style: {
+                    color: isDel ? "#8c8c8c" : "#262626",
+                    textDecoration: isDel ? "line-through" : "none",
+                  },
+                  dangerouslySetInnerHTML: {
+                    __html:
+                      typeof body === "string"
+                        ? body
+                        : renderRichText(body, lawyers),
+                  },
+                })
+              : isDel && oldBody
+                ? React.createElement("div", {
+                    style: { color: "#8c8c8c", textDecoration: "line-through" },
+                    dangerouslySetInnerHTML: {
+                      __html:
+                        typeof oldBody === "string"
+                          ? oldBody
+                          : renderRichText(oldBody, lawyers),
+                    },
+                  })
+                : React.createElement(
+                    "span",
+                    { style: { color: "#8c8c8c", fontStyle: "italic" } },
+                    "(Ghi chú có nhắc tên)",
+                  ),
+          ),
         ),
-      ),
 
       // ── Đã nhắc đến ai ─────────────────────────────────────────────────
       hasAssignees &&
-      React.createElement(
-        "div",
-        null,
         React.createElement(
           "div",
-          {
-            style: {
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#8c8c8c",
-              marginBottom: 4,
-              fontFamily: FONT,
-            },
-          },
-          "Đã nhắc đến ai:",
-        ),
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              background: "#fafafa",
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #f0f0f0",
-              gap: 4,
-            },
-          },
-          // Updated: old tags gạch đỏ → mũi tên → new tags
-          isUpdated &&
-          oldAssignees &&
+          null,
           React.createElement(
-            React.Fragment,
-            null,
-            renderAssigneeTags(oldAssignees, true, false),
-            assignees?.length > 0 &&
-            React.createElement(
-              "span",
-              {
-                style: {
-                  margin: "0 6px",
-                  color: "#bfbfbf",
-                  fontSize: 12,
-                },
+            "div",
+            {
+              style: {
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#8c8c8c",
+                marginBottom: 4,
+                fontFamily: FONT,
               },
-              "→",
+            },
+            "Đã nhắc đến ai:",
+          ),
+          React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                background: "#fafafa",
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #f0f0f0",
+                gap: 4,
+              },
+            },
+            // Updated: old tags gạch đỏ → mũi tên → new tags
+            isUpdated &&
+              oldAssignees &&
+              React.createElement(
+                React.Fragment,
+                null,
+                renderAssigneeTags(oldAssignees, true, false),
+                assignees?.length > 0 &&
+                  React.createElement(
+                    "span",
+                    {
+                      style: {
+                        margin: "0 6px",
+                        color: "#bfbfbf",
+                        fontSize: 12,
+                      },
+                    },
+                    "→",
+                  ),
+              ),
+            // Current / deleted
+            renderAssigneeTags(
+              isDel && !isUpdated && oldAssignees ? oldAssignees : assignees,
+              isDel && !isUpdated,
+              isDel,
             ),
           ),
-          // Current / deleted
-          renderAssigneeTags(
-            isDel && !isUpdated && oldAssignees ? oldAssignees : assignees,
-            isDel && !isUpdated,
-            isDel,
-          ),
         ),
-      ),
 
       // ── Tệp đính kèm ───────────────────────────────────────────────────
       hasFiles &&
-      React.createElement(
-        "div",
-        { style: { marginTop: 4 } },
         React.createElement(
           "div",
-          {
-            style: {
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#8c8c8c",
-              marginBottom: 4,
-              fontFamily: FONT,
-              display: showFileLabel ? "block" : "none",
-            },
-          },
-          "Tệp đính kèm:",
-        ),
-        files.map((f) => {
-          const att = Array.isArray(f.fileAttachment)
-            ? f.fileAttachment[0]
-            : f.fileAttachment;
-          const rawName =
-            f.title || att?.title || att?.filename || "(Chưa có tên)";
-          const fExt = att?.extname || "";
-          const displayName = rawName
-            .toLowerCase()
-            .endsWith(fExt.toLowerCase())
-            ? rawName
-            : rawName + fExt;
-          const eInfo = getExtInfo(fExt);
-          const fUrl = getFullUrl(att?.url || att?.preview);
-          const isFileDeleted = f.isDeleted || isDel;
-
-          return React.createElement(
+          { style: { marginTop: 4 } },
+          React.createElement(
             "div",
             {
-              key: f.id,
               style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: isFileDeleted ? "#fff1f0" : "#f9f0ff",
-                border: isFileDeleted
-                  ? "1px solid #ffa39e"
-                  : "1px solid #d3adf7",
-                borderLeft: `3px solid ${isFileDeleted ? "#ff4d4f" : "#722ed1"}`,
-                borderRadius: 4,
-                padding: "4px 10px",
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#8c8c8c",
                 marginBottom: 4,
-                opacity: isFileDeleted ? 0.7 : 1,
-                cursor: fUrl && !isFileDeleted ? "pointer" : "default",
+                fontFamily: FONT,
+                display: showFileLabel ? "block" : "none",
               },
-              onClick:
-                fUrl && !isFileDeleted
-                  ? () => window.open(fUrl, "_blank")
-                  : undefined,
             },
-            React.createElement(
-              "span",
-              { style: { fontSize: 12 } },
-              eInfo.icon,
-            ),
-            React.createElement(
-              "span",
+            "Tệp đính kèm:",
+          ),
+          files.map((f) => {
+            const att = Array.isArray(f.fileAttachment)
+              ? f.fileAttachment[0]
+              : f.fileAttachment;
+            const rawName =
+              f.title || att?.title || att?.filename || "(Chưa có tên)";
+            const fExt = att?.extname || "";
+            const displayName = rawName
+              .toLowerCase()
+              .endsWith(fExt.toLowerCase())
+              ? rawName
+              : rawName + fExt;
+            const eInfo = getExtInfo(fExt);
+            const fUrl = getFullUrl(att?.url || att?.preview);
+            const isFileDeleted = f.isDeleted || isDel;
+
+            return React.createElement(
+              "div",
               {
+                key: f.id,
                 style: {
-                  fontSize: 11,
-                  fontFamily: FONT,
-                  fontWeight: 600,
-                  color: isFileDeleted ? "#8c8c8c" : "#262626",
-                  textDecoration: isFileDeleted ? "line-through" : "none",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: isFileDeleted ? "#fff1f0" : "#f9f0ff",
+                  border: isFileDeleted
+                    ? "1px solid #ffa39e"
+                    : "1px solid #d3adf7",
+                  borderLeft: `3px solid ${isFileDeleted ? "#ff4d4f" : "#722ed1"}`,
+                  borderRadius: 4,
+                  padding: "4px 10px",
+                  marginBottom: 4,
+                  opacity: isFileDeleted ? 0.7 : 1,
+                  cursor: fUrl && !isFileDeleted ? "pointer" : "default",
                 },
+                onClick:
+                  fUrl && !isFileDeleted
+                    ? () => window.open(fUrl, "_blank")
+                    : undefined,
               },
-              displayName,
-            ),
-            fUrl &&
-            !isFileDeleted &&
-            React.createElement(
-              "span",
-              {
-                style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
-              },
-              "TẢI VỀ",
-            ),
-          );
-        }),
-      ),
+              React.createElement(
+                "span",
+                { style: { fontSize: 12 } },
+                eInfo.icon,
+              ),
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    fontSize: 11,
+                    fontFamily: FONT,
+                    fontWeight: 600,
+                    color: isFileDeleted ? "#8c8c8c" : "#262626",
+                    textDecoration: isFileDeleted ? "line-through" : "none",
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  },
+                },
+                displayName,
+              ),
+              fUrl &&
+                !isFileDeleted &&
+                React.createElement(
+                  "span",
+                  {
+                    style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
+                  },
+                  "TẢI VỀ",
+                ),
+            );
+          }),
+        ),
     );
   };
 
@@ -8578,27 +8710,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
           "Giá trị:",
         ),
         showOldValue &&
-        React.createElement(
-          "span",
-          {
-            style: {
-              color: "#cf1322",
-              background: "#fff1f0",
-              padding: "2px 8px",
-              borderRadius: 4,
-              textDecoration: a.oldValue ? "line-through" : "none",
-              maxWidth: "100%",
-              overflowWrap: "anywhere",
+          React.createElement(
+            "span",
+            {
+              style: {
+                color: "#cf1322",
+                background: "#fff1f0",
+                padding: "2px 8px",
+                borderRadius: 4,
+                textDecoration: a.oldValue ? "line-through" : "none",
+                maxWidth: "100%",
+                overflowWrap: "anywhere",
+              },
             },
-          },
-          oldVal,
-        ),
+            oldVal,
+          ),
         showArrow &&
-        React.createElement(
-          "span",
-          { style: { color: "#8c8c8c", fontWeight: 700 } },
-          "→",
-        ),
+          React.createElement(
+            "span",
+            { style: { color: "#8c8c8c", fontWeight: 700 } },
+            "→",
+          ),
         React.createElement(
           "span",
           {
@@ -8843,24 +8975,25 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
             `${actionLabel} l\u00fac ${fmt(latestTime, "full") || "\u2014"}`,
           ),
           badge &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 11,
-                color: layoutType === "fileOnly" ? "#531dab" : "#006d75",
-                background: layoutType === "fileOnly" ? "#f9f0ff" : "#e6fffb",
-                border: `1px solid ${layoutType === "fileOnly" ? "#d3adf7" : "#87e8de"
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 11,
+                  color: layoutType === "fileOnly" ? "#531dab" : "#006d75",
+                  background: layoutType === "fileOnly" ? "#f9f0ff" : "#e6fffb",
+                  border: `1px solid ${
+                    layoutType === "fileOnly" ? "#d3adf7" : "#87e8de"
                   }`,
-                borderRadius: 4,
-                padding: "1px 6px",
-                marginLeft: 6,
-                fontFamily: FONT,
-                whiteSpace: "nowrap",
+                  borderRadius: 4,
+                  padding: "1px 6px",
+                  marginLeft: 6,
+                  fontFamily: FONT,
+                  whiteSpace: "nowrap",
+                },
               },
-            },
-            badge,
-          ),
+              badge,
+            ),
         ),
       ),
 
@@ -8877,12 +9010,12 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
         },
         renderActionSummary(actionSummary),
         compositeNoteLog ||
-        items.map((it, idx) => {
-          if (it._kind === "log") return renderLogInner(it, idx, isDeleted);
-          if (it._kind === "unified")
-            return renderUnifiedInner(it, idx, isDeleted);
-          return null;
-        }),
+          items.map((it, idx) => {
+            if (it._kind === "log") return renderLogInner(it, idx, isDeleted);
+            if (it._kind === "unified")
+              return renderUnifiedInner(it, idx, isDeleted);
+            return null;
+          }),
       ),
     );
   };
@@ -8954,55 +9087,55 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
             },
           },
           isUpd &&
-          a.oldValue &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                color: "#ff4d4f",
-                textDecoration: "line-through",
-                fontSize: 12,
-                marginBottom: 4,
+            a.oldValue &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  color: "#ff4d4f",
+                  textDecoration: "line-through",
+                  fontSize: 12,
+                  marginBottom: 4,
+                },
               },
-            },
-            a.oldValue,
-          ),
+              a.oldValue,
+            ),
           isUpd &&
-          a.oldValue &&
+            a.oldValue &&
+            a.newValue &&
+            React.createElement(
+              "div",
+              { style: { fontSize: 10, color: "#bfbfbf", margin: "2px 0" } },
+              "↓",
+            ),
           a.newValue &&
-          React.createElement(
-            "div",
-            { style: { fontSize: 10, color: "#bfbfbf", margin: "2px 0" } },
-            "↓",
-          ),
-          a.newValue &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontWeight: 600,
-                fontSize: 13,
-                color: isDel ? "#8c8c8c" : "#262626",
-                textDecoration: isDel ? "line-through" : "none",
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: isDel ? "#8c8c8c" : "#262626",
+                  textDecoration: isDel ? "line-through" : "none",
+                },
               },
-            },
-            a.newValue,
-          ),
+              a.newValue,
+            ),
           isDel &&
-          !isUpd &&
-          a.oldValue &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontWeight: 600,
-                fontSize: 13,
-                color: "#8c8c8c",
-                textDecoration: "line-through",
+            !isUpd &&
+            a.oldValue &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: "#8c8c8c",
+                  textDecoration: "line-through",
+                },
               },
-            },
-            a.oldValue,
-          ),
+              a.oldValue,
+            ),
         ),
       );
     }
@@ -9036,39 +9169,39 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
         isUpd ? `cập nhật [${label}]` : `đã xóa [${label}]`,
       ),
       (a.oldValue || a.newValue) &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            fontSize: 12,
-            fontFamily: FONT,
-            background: isDel ? "#fff1f0" : "#fafafa",
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid #f0f0f0",
-            opacity: isDel ? 0.7 : 1,
-            marginTop: 4,
+        React.createElement(
+          "div",
+          {
+            style: {
+              fontSize: 12,
+              fontFamily: FONT,
+              background: isDel ? "#fff1f0" : "#fafafa",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #f0f0f0",
+              opacity: isDel ? 0.7 : 1,
+              marginTop: 4,
+            },
           },
-        },
-        a.oldValue &&
-        React.createElement("div", {
-          style: {
-            color: "#ff4d4f",
-            textDecoration: "line-through",
-            marginBottom: a.newValue ? 4 : 0,
-          },
-          dangerouslySetInnerHTML: {
-            __html: formatActivityValue(a.oldValue),
-          },
-        }),
-        a.newValue &&
-        React.createElement("div", {
-          style: { color: isDel ? "#8c8c8c" : "#262626" },
-          dangerouslySetInnerHTML: {
-            __html: formatActivityValue(a.newValue),
-          },
-        }),
-      ),
+          a.oldValue &&
+            React.createElement("div", {
+              style: {
+                color: "#ff4d4f",
+                textDecoration: "line-through",
+                marginBottom: a.newValue ? 4 : 0,
+              },
+              dangerouslySetInnerHTML: {
+                __html: formatActivityValue(a.oldValue),
+              },
+            }),
+          a.newValue &&
+            React.createElement("div", {
+              style: { color: isDel ? "#8c8c8c" : "#262626" },
+              dangerouslySetInnerHTML: {
+                __html: formatActivityValue(a.newValue),
+              },
+            }),
+        ),
     );
   };
 
@@ -9157,1451 +9290,63 @@ const ActivityTab = ({ collectionName, recordId, lawyers }) => {
       { style: { flex: 1, overflowY: "auto" } },
       loading
         ? React.createElement(
-          "div",
-          { style: { textAlign: "center", padding: 30 } },
-          React.createElement(Spin, { size: "large" }),
-        )
+            "div",
+            { style: { textAlign: "center", padding: 30 } },
+            React.createElement(Spin, { size: "large" }),
+          )
         : items.length === 0
           ? React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 13,
-                color: "#bfbfbf",
-                textAlign: "center",
-                padding: "30px 0",
-                fontFamily: FONT,
-              },
-            },
-            "Chưa có hoạt động nào",
-          )
-          : React.createElement(
-            "div",
-            null,
-            ...visibleItems.map((item, i) => {
-              if (item._kind === "group")
-                return renderGroup(item, `act-${i}`);
-              if (item._kind === "taskLog")
-                return renderTaskLog(item, `act-task-${i}`);
-              return null;
-            }),
-            hasMore &&
-            React.createElement(
               "div",
               {
-                onClick: () => setShowAll((v) => !v),
                 style: {
-                  margin: "16px",
+                  fontSize: 13,
+                  color: "#bfbfbf",
                   textAlign: "center",
-                  fontSize: 12,
+                  padding: "30px 0",
                   fontFamily: FONT,
-                  color: "#1890ff",
-                  cursor: "pointer",
-                  padding: "8px 0",
-                  border: "1px dashed #91caff",
-                  borderRadius: 6,
-                  background: "#f0f8ff",
-                  fontWeight: 600,
                 },
-                onMouseEnter: (e) =>
-                  (e.currentTarget.style.background = "#d6ecff"),
-                onMouseLeave: (e) =>
-                  (e.currentTarget.style.background = "#f0f8ff"),
               },
-              showAll
-                ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${items.length})`
-                : `▼ Xem thêm ${items.length - INITIAL_COUNT} hoạt động (tổng ${items.length})`,
-            ),
-          ),
-    ),
-  );
-};
-
-const DetailModal = ({
-  item,
-  type,
-  lawyers,
-  allTasksInProject,
-  tasksInService,
-  services,
-  projectManagerId,
-  onClose,
-  onUpdate,
-  currentUser,
-  isManager = false,
-  onStatusChange,
-  isAssignedToThis = false,
-  projectFolderId,
-  onOpenAddSubModal,
-}) => {
-  if (!item) return null;
-  const name = type === "subTask" ? item.subTaskName : item.title;
-  const collectionName = type === "subTask" ? "SubTask" : "Task";
-  const st = STATUS_CFG[item.status] || STATUS_CFG.toDo;
-
-  const canEdit = isManager || isAssignedToThis;
-  const canManage = isManager;
-  const canAccessFilesAndTimesheet = isManager || isAssignedToThis;
-
-  const _pool = tasksInService || allTasksInProject;
-
-  const isLastTask = useMemo(() => {
-    if (type !== "task" || !item.titleSection) return false;
-    const sectionTasks = _pool.filter(
-      (t) => String(t.titleSection || "").trim() === String(item.titleSection || "").trim(),
-    );
-    if (sectionTasks.length === 0) return false;
-    const maxId = Math.max(...sectionTasks.map((t) => extractId(t.id)));
-    return extractId(item.id) === maxId;
-  }, [item, _pool, type]);
-
-  const [editName, setEditName] = useState(false);
-  const [nameVal, setNameVal] = useState(name);
-  const [estDurVal, setEstDurVal] = useState(item.estimatedDuration || "");
-  const [openTimesheet, setOpenTimesheet] = useState(false);
-  const [openActivity, setOpenActivity] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState(null);
-  const [editingFileId, setEditingFileId] = useState(null);
-  const [editFileTitle, setEditFileTitle] = useState("");
-  const [expandedPreviews, setExpandedPreviews] = useState({});
-  const [cmtRefreshTrigger, setCmtRefreshTrigger] = useState(0);
-
-  const handleSaveFileTitle = async (f) => {
-    const newTitle = editFileTitle.trim();
-    if (!newTitle) return;
-    try {
-      await apiReq(`documents:update?filterByTk=${f.id}`, "POST", {
-        title: newTitle,
-      });
-      // Update local item files state to reflect change
-      if (onUpdate) {
-        const updatedFiles = allFiles.map((file) =>
-          file.id === f.id ? { ...file, title: newTitle } : file,
-        );
-        onUpdate({ ...item, _files: updatedFiles });
-      }
-      message.success("Đã cập nhật tên tài liệu");
-    } catch (e) {
-      message.error("Lỗi cập nhật tên");
-    }
-    setEditingFileId(null);
-    setEditFileTitle("");
-  };
-
-  const allFiles = item._files || [];
-  const templateFiles = allFiles.filter(
-    (f) => f.documentType && f.documentType.toLowerCase().trim() === "file mẫu",
-  );
-  const regularFiles = allFiles.filter(
-    (f) =>
-      !f.documentType || f.documentType.toLowerCase().trim() !== "file mẫu",
-  );
-
-  const inpStyle = {
-    border: "1px solid #e8e8e8",
-    borderRadius: 4,
-    padding: "6px 10px",
-    fontSize: 12,
-    fontFamily: FONT,
-    outline: "none",
-    color: "#262626",
-    background: "#fff",
-    width: "100%",
-    boxSizing: "border-box",
-  };
-  const inpReadOnly = {
-    ...inpStyle,
-    background: "#fafafa",
-    color: "#8c8c8c",
-    cursor: "not-allowed",
-  };
-
-  const toLocalDT = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const p = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
-
-  const DR = ({ label, children }) =>
-    React.createElement(
-      "div",
-      { style: { marginBottom: 12 } },
-      React.createElement(
-        "div",
-        {
-          style: {
-            fontSize: 12,
-            color: "#8c8c8c",
-            fontFamily: FONT,
-            fontWeight: 600,
-            marginBottom: 4,
-          },
-        },
-        label,
-      ),
-      React.createElement("div", null, children),
-    );
-
-  const handleStatus = async (newSt) => {
-    if (!canEdit) return;
-    if (type === "task" && item.previousTaskId) {
-      const prevTask = _pool.find(
-        (t) => extractId(t.id) === extractId(item.previousTaskId),
-      );
-      if (
-        prevTask &&
-        prevTask.status !== "done" &&
-        prevTask.status !== "cancelled"
-      ) {
-        if (!["cancelled", "blocked"].includes(newSt)) {
-          message.warning(`Cần hoàn thành "${prevTask.title}" trước`);
-          return;
-        }
-      }
-    }
-    const resolvedSt = resolveStatus(newSt, item);
-    const url =
-      type === "subTask"
-        ? `subTasks:update?filterByTk=${extractId(item.id)}`
-        : `tasks:update?filterByTk=${extractId(item.id)}`;
-    const data =
-      resolvedSt === "done"
-        ? { status: resolvedSt, closedDate: new Date().toISOString() }
-        : { status: resolvedSt, closedDate: null };
-
-    onUpdate({ ...item, ...data });
-
-    try {
-      await apiReq(url, "POST", data);
-      await logActivity(
-        collectionName,
-        extractId(item.id),
-        "updated",
-        "status",
-        st.label,
-        STATUS_CFG[resolvedSt]?.label,
-        userName(currentUser),
-        `upd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      );
-      if (onStatusChange)
-        onStatusChange(extractId(item.id), resolvedSt, type, data);
-      message.success(`Trạng thái: ${STATUS_CFG[resolvedSt]?.label}`);
-    } catch (error) {
-      message.error(
-        "Lỗi Backend: Tài khoản chưa được cấp quyền sửa trường này!",
-      );
-      onUpdate({ ...item });
-    }
-  };
-
-  const handleAssign = async (id, n, c) => {
-    if (!canManage) return;
-    const url =
-      type === "subTask"
-        ? `subTasks:update?filterByTk=${extractId(item.id)}`
-        : `tasks:update?filterByTk=${extractId(item.id)}`;
-    const payload = withTaskLinkedUrl({ lawyerId: id }, item, type);
-    await apiReq(url, "POST", payload);
-    onUpdate({ ...item, ...payload, _ln: n, _lc: c || "#8c8c8c" });
-  };
-
-  const handlePriority = async (newPr) => {
-    if (!canEdit) return;
-    const url =
-      type === "subTask"
-        ? `subTasks:update?filterByTk=${extractId(item.id)}`
-        : `tasks:update?filterByTk=${extractId(item.id)}`;
-    onUpdate({ ...item, priority: newPr });
-    try {
-      await apiReq(url, "POST", { priority: newPr });
-      message.success("Đã cập nhật mức độ ưu tiên");
-    } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
-      onUpdate({ ...item });
-    }
-  };
-
-  const saveName = async () => {
-    if (!canEdit) {
-      setEditName(false);
-      return;
-    }
-    setEditName(false);
-    if (!nameVal.trim() || nameVal === name) return;
-    const url =
-      type === "subTask"
-        ? `subTasks:update?filterByTk=${extractId(item.id)}`
-        : `tasks:update?filterByTk=${extractId(item.id)}`;
-    const field = type === "subTask" ? "subTaskName" : "title";
-    onUpdate({ ...item, [field]: nameVal.trim() });
-    try {
-      await apiReq(url, "POST", { [field]: nameVal.trim() });
-      message.success("Đã cập nhật tên công việc");
-    } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
-      onUpdate({ ...item });
-      setNameVal(name);
-    }
-  };
-
-  const saveEstDur = async () => {
-    if (!canEdit) return;
-    const newVal = parseFloat(estDurVal) || null;
-    const oldVal = parseFloat(item.estimatedDuration) || null;
-    if (newVal === oldVal) return;
-    onUpdate({ ...item, estimatedDuration: newVal });
-    try {
-      const url =
-        type === "subTask"
-          ? `subTasks:update?filterByTk=${extractId(item.id)}`
-          : `tasks:update?filterByTk=${extractId(item.id)}`;
-      await apiReq(url, "POST", { estimatedDuration: newVal });
-      message.success("Đã cập nhật thời gian dự kiến");
-    } catch (e) {
-      message.error("Lỗi Backend: Không có quyền cập nhật");
-      onUpdate({ ...item });
-      setEstDurVal(oldVal || "");
-    }
-  };
-
-  const modalTitle = React.createElement(
-    "div",
-    {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        paddingRight: 20,
-      },
-    },
-    React.createElement(
-      "span",
-      { style: { fontSize: 18, marginRight: 4 } },
-      type === "subTask" ? "↳" : "📋",
-    ),
-    canEdit && editName
-      ? React.createElement("input", {
-        value: nameVal,
-        onChange: (e) => setNameVal(e.target.value),
-        autoFocus: true,
-        onKeyDown: (e) => {
-          if (e.key === "Enter") saveName();
-          if (e.key === "Escape") setEditName(false);
-        },
-        onBlur: saveName,
-        style: {
-          fontSize: 16,
-          fontWeight: 600,
-          fontFamily: FONT,
-          border: "none",
-          borderBottom: "2px solid #1890ff",
-          outline: "none",
-          background: "transparent",
-          padding: "2px 4px",
-          minWidth: 300,
-        },
-      })
-      : React.createElement(
-        "span",
-        {
-          onClick: canEdit ? () => setEditName(true) : undefined,
-          style: {
-            fontSize: 16,
-            fontWeight: 600,
-            fontFamily: FONT,
-            color: "#1a1a1a",
-            cursor: canEdit ? "text" : "default",
-          },
-        },
-        nameVal || name,
-      ),
-
-    item.isRequiredApproval &&
-    React.createElement(
-      "span",
-      {
-        style: {
-          fontSize: 11,
-          padding: "2px 6px",
-          borderRadius: 3,
-          background: "#fff7e6",
-          color: "#d46b08",
-          border: "1px solid #ffd591",
-        },
-      },
-      "Cần phê duyệt",
-    ),
-    item._od &&
-    React.createElement(
-      "span",
-      {
-        style: {
-          fontSize: 11,
-          padding: "2px 6px",
-          borderRadius: 3,
-          background: "#fff1f0",
-          color: "#cf1322",
-          border: "1px solid #ffa39e",
-        },
-      },
-      "Quá hạn",
-    ),
-  );
-
-  const renderFileList = (
-    files,
-    emptyMsg = "Chưa có tệp đính kèm nào.",
-    hideTime = false,
-  ) => {
-    if (files.length === 0)
-      return React.createElement(
-        "div",
-        {
-          style: {
-            fontSize: 12,
-            color: "#bfbfbf",
-            fontStyle: "italic",
-            fontFamily: FONT,
-          },
-        },
-        emptyMsg,
-      );
-    return React.createElement(
-      "div",
-      {
-        style: {
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 10,
-        },
-      },
-      ...files.map((f) => {
-        const att = Array.isArray(f.fileAttachment)
-          ? f.fileAttachment[0]
-          : f.fileAttachment;
-        let originalName = att?.filename || "File";
-        let ext = att?.extname
-          ? att.extname.startsWith(".")
-            ? att.extname.toLowerCase()
-            : "." + att.extname.toLowerCase()
-          : "";
-        if (ext && originalName.toLowerCase().endsWith(ext))
-          originalName = originalName.slice(0, -ext.length);
-        const finalFileName = originalName + ext;
-        const isEditingThisFile = editingFileId === f.id;
-        const fullUrl = getFullUrl(att?.url || att?.preview);
-        return React.createElement(
-          "div",
-          {
-            key: f.id,
-            onClick: isEditingThisFile
-              ? null
-              : fullUrl
-                ? () => setPreviewDoc(f)
-                : undefined,
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              padding: "10px 12px",
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 6,
-              cursor: fullUrl ? "pointer" : "default",
-              transition: "all 0.2s",
-            },
-            onMouseEnter: (e) =>
-              (e.currentTarget.style.borderColor = "#1890ff"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.borderColor = "#e8e8e8"),
-          },
-          React.createElement(
-            "div",
-            { style: { display: "flex", alignItems: "center", gap: 8 } },
-            getFileIcon(ext),
-            React.createElement(
+              "Chưa có hoạt động nào",
+            )
+          : React.createElement(
               "div",
-              { style: { flex: 1, minWidth: 0 } },
-              isEditingThisFile
-                ? React.createElement("input", {
-                  autoFocus: true,
-                  value: editFileTitle,
-                  onChange: (e) => setEditFileTitle(e.target.value),
-                  onClick: (e) => e.stopPropagation(),
-                  onKeyDown: (e) => {
-                    if (e.key === "Enter") handleSaveFileTitle(f);
-                    if (e.key === "Escape") setEditingFileId(null);
-                  },
-                  style: {
-                    width: "100%",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    border: "1px solid #1890ff",
-                    borderRadius: 4,
-                    padding: "2px 6px",
-                    outline: "none",
-                  },
-                })
-                : React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "#096dd9",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    },
-                  },
-                  f.title || att?.title || finalFileName,
-                ),
-            ),
-            !isEditingThisFile &&
-            canEdit &&
-            React.createElement(
-              "span",
-              {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  setEditingFileId(f.id);
-                  setEditFileTitle(f.title || att?.title || finalFileName);
-                },
-                style: {
-                  fontSize: 12,
-                  cursor: "pointer",
-                  color: "#8c8c8c",
-                  padding: "2px 4px",
-                },
-              },
-              "✏️",
-            ),
-          ),
-          f.note &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                fontSize: 11,
-                color: "#262626",
-                marginTop: 4,
-                padding: "6px 10px",
-                background: "#fff",
-                borderRadius: 4,
-                border: "1px solid #f0f0f0",
-              },
-            },
-            React.createElement(
-              "span",
-              {
-                style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
-              },
-              "Nội dung ghi chú:",
-            ),
-            f.note,
-          ),
-        );
-      }),
-    );
-  };
-  const headerBar = (txt, extra = null) =>
-    React.createElement(
-      "div",
-      {
-        style: {
-          padding: "12px 24px",
-          borderBottom: "1px solid #f0f0f0",
-          background: "#fafafa",
-          fontSize: 14,
-          fontWeight: 600,
-          color: "#262626",
-          flexShrink: 0,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        },
-      },
-      txt,
-      extra,
-    );
-  return React.createElement(
-    React.Fragment,
-    null,
-    React.createElement(
-      Modal,
-      {
-        open: true,
-        onCancel: onClose,
-        footer: null,
-        width: 1200,
-        centered: true,
-        title: modalTitle,
-        bodyStyle: {
-          padding: 0,
-          height: "85vh",
-          display: "flex",
-          flexDirection: "column",
-        },
-        style: { fontFamily: FONT, top: 20 },
-        closeIcon: React.createElement(
-          "span",
-          { style: { fontSize: 20, color: "#8c8c8c" } },
-          "×",
-        ),
-      },
-      // ACTION BAR
-      React.createElement(
-        "div",
-        {
-          style: {
-            display: "flex",
-            gap: 10,
-            padding: "12px 24px",
-            borderBottom: "1px solid #f0f0f0",
-            background: "#fff",
-            flexShrink: 0,
-          },
-        },
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 16px",
-              background: "#e6f4ff",
-              color: "#096dd9",
-              border: "1px solid #91caff",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "0.2s",
-            },
-            onClick: () => setOpenTimesheet(true),
-            onMouseEnter: (e) => (e.currentTarget.style.background = "#bae0ff"),
-            onMouseLeave: (e) => (e.currentTarget.style.background = "#e6f4ff"),
-          },
-          "Ghi nhận Timesheet",
-        ),
-        isManager &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 16px",
-              background: "#f5f5f5",
-              color: "#595959",
-              border: "1px solid #d9d9d9",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "0.2s",
-            },
-            onClick: () => setOpenActivity(true),
-            onMouseEnter: (e) =>
-              (e.currentTarget.style.background = "#e8e8e8"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.background = "#f5f5f5"),
-          },
-          "Lịch sử hoạt động",
-        ),
-        type === "task" &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 16px",
-              background: "#f6ffed",
-              color: "#389e0d",
-              border: "1px solid #b7eb8f",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "0.2s",
-            },
-            onClick: () => onOpenAddSubModal(item.id),
-            onMouseEnter: (e) =>
-              (e.currentTarget.style.background = "#d9f7be"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.background = "#f6ffed"),
-          },
-          "＋ Tạo công việc phụ",
-        ),
-        isLastTask &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 16px",
-              background: "#fff7e6",
-              color: "#d46b08",
-              border: "1px solid #ffd591",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "0.2s",
-            },
-            onClick: async () => {
-              const popupUid = "qlk80ukgcot";
-              onClose?.();
-              await new Promise((resolve) => setTimeout(resolve, 180));
-              await ctx.openView(popupUid, {
-                mode: "dialog",
-                title: ctx.t
-                  ? ctx.t("Tạo yêu cầu thanh toán")
-                  : "Tạo yêu cầu thanh toán",
-                size: "medium",
-              });
-            },
-            onMouseEnter: (e) =>
-              (e.currentTarget.style.background = "#ffe7ba"),
-            onMouseLeave: (e) =>
-              (e.currentTarget.style.background = "#fff7e6"),
-          },
-          "💳 Tạo yêu cầu thanh toán",
-        ),
-      ),
-
-      // 🌟 CHIA GRID THEO TỶ LỆ 4 - 6
-      React.createElement(
-        "div",
-        {
-          style: {
-            display: "grid",
-            gridTemplateColumns: "4fr 6fr",
-            flex: 1,
-            overflow: "hidden",
-          },
-        },
-        // ── CỘT TRÁI (Thông tin chung - 4 Phần) ──
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              borderRight: "1px solid #f0f0f0",
-              overflow: "hidden",
-            },
-          },
-          headerBar("Thông tin chung"),
-          React.createElement(
-            "div",
-            { style: { padding: "20px 24px", overflowY: "auto", flex: 1 } },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  background: "#fafafa",
-                  padding: 16,
-                  borderRadius: 8,
-                  border: "1px solid #f0f0f0",
-                  marginBottom: 24,
-                },
-              },
-
-              // 🌟 SẮP XẾP LẠI THÀNH 2 CỘT TRÁNH BỊ ÉP NHỎ
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                    marginBottom: 16,
-                  },
-                },
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Trạng thái",
-                  ),
-                  React.createElement(Select, {
-                    value: item.status,
-                    onChange: canEdit ? handleStatus : undefined,
-                    disabled: !canEdit,
-                    style: { width: "100%", fontFamily: FONT },
-                    options: getStatusKeys(item.isRequiredApproval).map(
-                      (k) => ({
-                        label: React.createElement(
-                          "div",
-                          {
-                            style: {
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                            },
-                          },
-                          React.createElement("div", {
-                            style: {
-                              width: 10,
-                              height: 10,
-                              borderRadius: "50%",
-                              background: STATUS_CFG[k].color,
-                            },
-                          }),
-                          STATUS_CFG[k].label,
-                        ),
-                        value: k,
-                      }),
-                    ),
-                  }),
-                ),
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Mức độ ưu tiên",
-                  ),
-                  React.createElement(Select, {
-                    value: item.priority || "medium",
-                    onChange: canEdit ? handlePriority : undefined,
-                    disabled: !canEdit,
-                    style: { width: "100%", fontFamily: FONT },
-                    options: Object.entries(PRIORITY_CFG).map(([k, v]) => ({
-                      label: `${v.label}`,
-                      value: k,
-                    })),
-                  }),
-                ),
-              ),
-
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                    marginBottom: 16,
-                  },
-                },
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Thời gian dự kiến",
-                  ),
-                  React.createElement(
-                    "div",
-                    {
-                      style: { display: "flex", alignItems: "center", gap: 8 },
-                    },
-                    React.createElement("input", {
-                      type: "number",
-                      step: "0.5",
-                      min: "0",
-                      value: estDurVal,
-                      onChange: canEdit
-                        ? (e) => setEstDurVal(e.target.value)
-                        : undefined,
-                      readOnly: !canEdit,
-                      placeholder: "Số giờ...",
-                      style: {
-                        ...(canEdit ? inpStyle : inpReadOnly),
-                        width: "100%",
-                      },
-                      onBlur: canEdit ? saveEstDur : undefined,
-                    }),
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          color: "#8c8c8c",
-                          fontSize: 12,
-                          flexShrink: 0,
-                        },
-                      },
-                      "giờ",
-                    ),
-                  ),
-                ),
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Người phụ trách",
-                  ),
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        border: "1px solid #e8e8e8",
-                        borderRadius: 4,
-                        padding: "4px 10px",
-                        background: canManage ? "#fff" : "#fafafa",
-                        minHeight: 32,
-                        display: "flex",
-                        alignItems: "center",
-                        boxSizing: "border-box",
-                      },
-                    },
-                    React.createElement(LawyerPicker, {
-                      lawyers,
-                      value: extractId(item.lawyerId),
-                      size: 20,
-                      readOnly: !canManage,
-                      onChange: handleAssign,
-                    }),
-                  ),
-                ),
-              ),
-
-              // Yêu cầu xét duyệt | Người xét duyệt
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 12,
-                    marginBottom: 16,
-                  },
-                },
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Yêu cầu xét duyệt",
-                  ),
-                  React.createElement(
-                    "label",
-                    {
-                      style: {
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        cursor: canManage ? "pointer" : "default",
-                        fontSize: 12,
-                        fontFamily: FONT,
-                        color: "#595959",
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: "1px solid #f0f0f0",
-                        background: item.isRequiredApproval
-                          ? "#fff7e6"
-                          : "#fafafa",
-                        minHeight: 32,
-                        boxSizing: "border-box",
-                      },
-                    },
-                    React.createElement("input", {
-                      type: "checkbox",
-                      checked: !!item.isRequiredApproval,
-                      disabled: !canManage,
-                      onChange: canManage
-                        ? async (e) => {
-                          const newVal = e.target.checked;
-                          const payload = { isRequiredApproval: newVal };
-                          if (!newVal) payload.approvedById = null; // 🌟 TỰ ĐỘNG XÓA NGƯỜI DUYỆT KHI TOGGLE TẮT
-
-                          const url =
-                            type === "subTask"
-                              ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                              : `tasks:update?filterByTk=${extractId(item.id)}`;
-                          await apiReq(url, "POST", payload);
-                          onUpdate({ ...item, ...payload });
-                        }
-                        : undefined,
-                      style: {
-                        width: 14,
-                        height: 14,
-                        cursor: canManage ? "pointer" : "not-allowed",
-                        accentColor: "#d46b08",
-                      },
-                    }),
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          color: item.isRequiredApproval
-                            ? "#d46b08"
-                            : "#8c8c8c",
-                          fontWeight: item.isRequiredApproval ? 600 : 400,
-                        },
-                      },
-                      item.isRequiredApproval
-                        ? "Cần phê duyệt"
-                        : "Không yêu cầu",
-                    ),
-                  ),
-                ),
-                React.createElement(
-                  "div",
-                  null,
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        fontSize: 12,
-                        color: "#8c8c8c",
-                        fontFamily: FONT,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      },
-                    },
-                    "Người xét duyệt",
-                  ),
-                  React.createElement(
-                    "div",
-                    {
-                      style: {
-                        border: "1px solid #e8e8e8",
-                        borderRadius: 4,
-                        padding: "4px 10px",
-                        background:
-                          canManage && item.isRequiredApproval
-                            ? "#fff"
-                            : "#fafafa",
-                        minHeight: 32,
-                        display: "flex",
-                        alignItems: "center",
-                        boxSizing: "border-box",
-                        opacity: item.isRequiredApproval ? 1 : 0.45,
-                      },
-                    },
-                    React.createElement(LawyerPicker, {
-                      lawyers,
-                      value: extractId(item.approvedById),
-                      size: 20,
-                      readOnly: !canManage || !item.isRequiredApproval,
-                      onChange:
-                        canManage && item.isRequiredApproval
-                          ? async (id, n, c) => {
-                            const url =
-                              type === "subTask"
-                                ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                                : `tasks:update?filterByTk=${extractId(item.id)}`;
-                            const payload = withTaskLinkedUrl(
-                              { approvedById: id },
-                              item,
-                              type,
-                            );
-                            await apiReq(url, "POST", payload);
-                            onUpdate({ ...item, ...payload });
-                          }
-                          : undefined,
-                    }),
-                    !item.approvedById &&
-                    item.isRequiredApproval &&
-                    React.createElement(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          color: "#bfbfbf",
-                          marginLeft: 4,
-                        },
-                      },
-                      "Chọn...",
-                    ),
-                  ),
-                ),
-              ),
-
-              // Thời gian thực hiện (chiếm 1 hàng đầy đủ)
-              React.createElement(
-                "div",
-                null,
+              null,
+              ...visibleItems.map((item, i) => {
+                if (item._kind === "group")
+                  return renderGroup(item, `act-${i}`);
+                if (item._kind === "taskLog")
+                  return renderTaskLog(item, `act-task-${i}`);
+                return null;
+              }),
+              hasMore &&
                 React.createElement(
                   "div",
                   {
+                    onClick: () => setShowAll((v) => !v),
                     style: {
+                      margin: "16px",
+                      textAlign: "center",
                       fontSize: 12,
-                      color: "#8c8c8c",
                       fontFamily: FONT,
+                      color: "#1890ff",
+                      cursor: "pointer",
+                      padding: "8px 0",
+                      border: "1px dashed #91caff",
+                      borderRadius: 6,
+                      background: "#f0f8ff",
                       fontWeight: 600,
-                      marginBottom: 4,
                     },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.background = "#d6ecff"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.background = "#f0f8ff"),
                   },
-                  "Thời gian thực hiện",
+                  showAll
+                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${items.length})`
+                    : `▼ Xem thêm ${items.length - INITIAL_COUNT} hoạt động (tổng ${items.length})`,
                 ),
-                React.createElement(
-                  "div",
-                  { style: { display: "flex", alignItems: "center", gap: 8 } },
-                  React.createElement("input", {
-                    type: "datetime-local",
-                    defaultValue: toLocalDT(
-                      type === "subTask" ? item.date : item.startDate,
-                    ),
-                    readOnly: !canEdit,
-                    onBlur: canEdit
-                      ? async (e) => {
-                        const field =
-                          type === "subTask" ? "date" : "startDate";
-                        const val = e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null;
-                        onUpdate({ ...item, [field]: val });
-                        const apiUrl =
-                          type === "subTask"
-                            ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                            : `tasks:update?filterByTk=${extractId(item.id)}`;
-                        try {
-                          await apiReq(apiUrl, "POST", { [field]: val });
-                          message.success("Đã cập nhật thời gian");
-                        } catch (e) {
-                          message.error("Lỗi: Không thể cập nhật");
-                        }
-                      }
-                      : undefined,
-                    style: {
-                      ...(canEdit ? inpStyle : inpReadOnly),
-                      flex: 1,
-                      minWidth: 0,
-                    },
-                  }),
-                  React.createElement(
-                    "span",
-                    { style: { color: "#bfbfbf" } },
-                    "→",
-                  ),
-                  React.createElement("input", {
-                    type: "datetime-local",
-                    defaultValue: toLocalDT(
-                      type === "subTask" ? item.deadline : item.dueDate,
-                    ),
-                    readOnly: !canEdit,
-                    onBlur: canEdit
-                      ? async (e) => {
-                        const field =
-                          type === "subTask" ? "deadline" : "dueDate";
-                        const val = e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null;
-                        onUpdate({ ...item, [field]: val });
-                        const apiUrl =
-                          type === "subTask"
-                            ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                            : `tasks:update?filterByTk=${extractId(item.id)}`;
-                        try {
-                          await apiReq(apiUrl, "POST", { [field]: val });
-                          message.success("Đã cập nhật thời gian");
-                        } catch (e) {
-                          message.error("Lỗi: Không thể cập nhật");
-                        }
-                      }
-                      : undefined,
-                    style: {
-                      ...(canEdit ? inpStyle : inpReadOnly),
-                      flex: 1,
-                      minWidth: 0,
-                    },
-                  }),
-                ),
-              ),
             ),
-
-            // NỘI DUNG CHÍNH
-            React.createElement(
-              "div",
-              { style: { display: "flex", flexDirection: "column", gap: 24 } },
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                    },
-                  },
-                  "Mô tả công việc",
-                ),
-                React.createElement(DescriptionInlineEditor, {
-                  item,
-                  type,
-                  onUpdate,
-                  readOnly: !canEdit,
-                }),
-              ),
-              type === "task" &&
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                    },
-                  },
-                  "Công việc phụ thuộc (Pending Issue)",
-                ),
-                React.createElement(TaskPicker, {
-                  allTasks: _pool,
-                  currentTaskId: extractId(item.id),
-                  value: extractId(item.previousTaskId),
-                  services,
-                  readOnly: !canManage,
-                  onChange: canManage
-                    ? async (newPrevId) => {
-                      const found = _pool.find(
-                        (t) => extractId(t.id) === extractId(newPrevId),
-                      );
-                      const newStatus = newPrevId
-                        ? found?.status !== "done" &&
-                          found?.status !== "cancelled"
-                          ? "blocked"
-                          : item.status
-                        : item.status === "blocked"
-                          ? "toDo"
-                          : item.status;
-                      const payload = {
-                        previousTaskId: newPrevId || null,
-                        status: newStatus,
-                      };
-                      await apiReq(
-                        type === "subTask"
-                          ? `subTasks:update?filterByTk=${extractId(item.id)}`
-                          : `tasks:update?filterByTk=${extractId(item.id)}`,
-                        "POST",
-                        payload,
-                      );
-                      onUpdate({ ...item, ...payload });
-                    }
-                    : () => { },
-                }),
-              ),
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                    },
-                  },
-                  "Bước tiếp theo (Next Step)",
-                ),
-                React.createElement(NextStepInlineEditor, {
-                  item,
-                  onUpdate,
-                  currentUser,
-                  readOnly: !canEdit,
-                }),
-              ),
-              React.createElement(
-                "div",
-                null,
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    },
-                  },
-                  "Tệp đính kèm file mẫu" +
-                  (templateFiles.length > 0
-                    ? ` (${templateFiles.length})`
-                    : ""),
-                  React.createElement(ReloadButton, {
-                    onReload: async () => {
-                      const fresh = await fetchFiles(
-                        collectionName,
-                        extractId(item.id),
-                      );
-                      onUpdate({ ...item, _files: fresh });
-                    },
-                    size: "small",
-                  }),
-                ),
-                renderFileList(templateFiles, "Chưa có file mẫu nào.", true),
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: "#262626",
-                      marginBottom: 12,
-                      marginTop: 24,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    },
-                  },
-                  "Tệp đính kèm" +
-                  (regularFiles.length > 0
-                    ? ` (${regularFiles.length})`
-                    : ""),
-                  React.createElement(ReloadButton, {
-                    onReload: async () => {
-                      const fresh = await fetchFiles(
-                        collectionName,
-                        extractId(item.id),
-                      );
-                      onUpdate({ ...item, _files: fresh });
-                    },
-                    size: "small",
-                  }),
-                ),
-                renderFileList(regularFiles, "Chưa có tệp đính kèm nào."),
-              ),
-            ),
-          ),
-        ),
-        // ── CỘT PHẢI (Bình luận - 6 Phần) ──
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              background: "#fff",
-              overflow: "hidden",
-            },
-          },
-          headerBar(
-            "Bình luận & Báo cáo",
-            React.createElement(ReloadButton, {
-              onReload: () => setCmtRefreshTrigger((v) => v + 1),
-              size: "small",
-            }),
-          ),
-          React.createElement(
-            "div",
-            { style: { flex: 1, overflow: "hidden" } },
-            React.createElement(UnifiedNoteThread, {
-              collectionName,
-              recordId: extractId(item.id),
-              currentUser,
-              lawyers,
-              canEdit: true, // 🌟 Mở quyền cho tất cả User bình luận & upload
-              projectFolderId,
-              refreshTrigger: cmtRefreshTrigger,
-              caseId: extractId(item.caseId), // 🌟 Truyền caseId xuống để tạo link
-            }),
-          ),
-        ),
-      ),
     ),
-    React.createElement(
-      Drawer,
-      {
-        title: "Quản lý Timesheet",
-        placement: "right",
-        width: 550,
-        onClose: () => setOpenTimesheet(false),
-        open: openTimesheet,
-        bodyStyle: { padding: "16px", background: "#f5f5f5" },
-      },
-      React.createElement(TimesheetTab, {
-        item,
-        type,
-        lawyers,
-        currentUser,
-        projectManagerId,
-        isManager: canManage,
-        canAccess: true,
-      }),
-    ),
-    React.createElement(
-      Drawer,
-      {
-        title: "Lịch sử hoạt động",
-        placement: "right",
-        width: 700,
-        onClose: () => setOpenActivity(false),
-        open: openActivity,
-        bodyStyle: { padding: "0" },
-      },
-      React.createElement(ActivityTab, {
-        collectionName,
-        recordId: extractId(item.id),
-        lawyers: lawyers,
-      }),
-    ),
-    previewDoc &&
-    React.createElement(PreviewModal, {
-      doc: previewDoc,
-      onClose: () => setPreviewDoc(null),
-    }),
   );
 };
 
@@ -10659,7 +9404,8 @@ const AddTaskModal = ({
       if (
         prevTask &&
         form.titleSection &&
-        String(prevTask.titleSection).trim() !== String(form.titleSection).trim()
+        String(prevTask.titleSection).trim() !==
+          String(form.titleSection).trim()
       ) {
         set("previousTaskId", null);
       }
@@ -10669,7 +9415,9 @@ const AddTaskModal = ({
   const tasksForDependency = useMemo(() => {
     if (!form.titleSection) return allTasksInProject;
     return allTasksInProject.filter(
-      (t) => String(t.titleSection || "").trim() === String(form.titleSection || "").trim(),
+      (t) =>
+        String(t.titleSection || "").trim() ===
+        String(form.titleSection || "").trim(),
     );
   }, [allTasksInProject, form.titleSection]);
 
@@ -10850,50 +9598,53 @@ const AddTaskModal = ({
               setTimeout(() => setShowSuggestions(false), 250);
             },
           }),
-          showSuggestions && filteredSuggestions.length > 0 &&
-          React.createElement(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                background: "#fff",
-                border: "1px solid #d9d9d9",
-                borderRadius: 4,
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                zIndex: 1050,
-                maxHeight: 180,
-                overflowY: "auto",
-                marginTop: 2,
-              },
-            },
-            ...filteredSuggestions.map((s) =>
-              React.createElement(
-                "div",
-                {
-                  key: s,
-                  onMouseDown: () => {
-                    set("titleSection", s);
-                    setShowSuggestions(false);
-                  },
-                  style: {
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    borderBottom: "1px solid #f0f0f0",
-                    transition: "background 0.2s",
-                    textAlign: "left",
-                  },
-                  onMouseEnter: (e) => (e.currentTarget.style.background = "#f5f5f5"),
-                  onMouseLeave: (e) => (e.currentTarget.style.background = "transparent"),
+          showSuggestions &&
+            filteredSuggestions.length > 0 &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  background: "#fff",
+                  border: "1px solid #d9d9d9",
+                  borderRadius: 4,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  zIndex: 1050,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  marginTop: 2,
                 },
-                s
-              )
-            )
-          )
+              },
+              ...filteredSuggestions.map((s) =>
+                React.createElement(
+                  "div",
+                  {
+                    key: s,
+                    onMouseDown: () => {
+                      set("titleSection", s);
+                      setShowSuggestions(false);
+                    },
+                    style: {
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      borderBottom: "1px solid #f0f0f0",
+                      transition: "background 0.2s",
+                      textAlign: "left",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.background = "#f5f5f5"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.background = "transparent"),
+                  },
+                  s,
+                ),
+              ),
+            ),
         ),
         fld(
           "📅 Ngày bắt đầu",
@@ -10924,63 +9675,63 @@ const AddTaskModal = ({
           onChange: (v) => set("previousTaskId", v),
         }),
         prevTask &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              marginTop: 6,
-              padding: "7px 12px",
-              background: prevTask.status === "done" ? "#f6ffed" : "#f9f0ff",
-              border: `1px solid ${prevTask.status === "done" ? "#b7eb8f" : "#d3adf7"}`,
-              borderRadius: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            },
-          },
-          React.createElement(StatusBadge, { status: prevTask.status }),
           React.createElement(
-            "span",
+            "div",
             {
               style: {
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#262626",
-                fontWeight: 500,
-                flex: 1,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                marginTop: 6,
+                padding: "7px 12px",
+                background: prevTask.status === "done" ? "#f6ffed" : "#f9f0ff",
+                border: `1px solid ${prevTask.status === "done" ? "#b7eb8f" : "#d3adf7"}`,
+                borderRadius: 6,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
               },
             },
-            prevTask.title,
-          ),
-          prevTask.status === "done"
-            ? React.createElement(
+            React.createElement(StatusBadge, { status: prevTask.status }),
+            React.createElement(
               "span",
               {
                 style: {
                   fontSize: 12,
                   fontFamily: FONT,
-                  color: "#389e0d",
-                  fontWeight: 600,
+                  color: "#262626",
+                  fontWeight: 500,
+                  flex: 1,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 },
               },
-              "✓ Đã xong",
-            )
-            : React.createElement(
-              "span",
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#722ed1",
-                  fontWeight: 600,
-                },
-              },
-              '⏸ Task mới → "Đang chờ"',
+              prevTask.title,
             ),
-        ),
+            prevTask.status === "done"
+              ? React.createElement(
+                  "span",
+                  {
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#389e0d",
+                      fontWeight: 600,
+                    },
+                  },
+                  "✓ Đã xong",
+                )
+              : React.createElement(
+                  "span",
+                  {
+                    style: {
+                      fontSize: 12,
+                      fontFamily: FONT,
+                      color: "#722ed1",
+                      fontWeight: 600,
+                    },
+                  },
+                  '⏸ Task mới → "Đang chờ"',
+                ),
+          ),
       ),
       fld(
         "⚡ Mức độ ưu tiên",
@@ -11062,40 +9813,40 @@ const AddTaskModal = ({
         ),
       ),
       form.isRequiredApproval &&
-      fld(
-        "👤 Người xét duyệt",
-        React.createElement(
-          "div",
-          {
-            style: {
-              padding: "8px 12px",
-              border: "1px solid #ffd591",
-              borderRadius: 6,
-              background: "#fffbe6",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
+        fld(
+          "👤 Người xét duyệt",
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "8px 12px",
+                border: "1px solid #ffd591",
+                borderRadius: 6,
+                background: "#fffbe6",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              },
             },
-          },
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
-            "🔐",
-          ),
-          React.createElement(LawyerPicker, {
-            lawyers,
-            value: form.approvedById,
-            size: 22,
-            onChange: (id) => set("approvedById", id),
-          }),
-          !form.approvedById &&
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-            "Chọn người xét duyệt...",
+            React.createElement(
+              "span",
+              { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
+              "🔐",
+            ),
+            React.createElement(LawyerPicker, {
+              lawyers,
+              value: form.approvedById,
+              size: 22,
+              onChange: (id) => set("approvedById", id),
+            }),
+            !form.approvedById &&
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
+                "Chọn người xét duyệt...",
+              ),
           ),
         ),
-      ),
       fld(
         "📝 Nội dung diễn biến",
         React.createElement("textarea", {
@@ -11191,7 +9942,6 @@ const AddTaskModal = ({
     ),
   );
 };
-
 
 const AddSubtaskModal = ({
   open,
@@ -11458,40 +10208,40 @@ const AddSubtaskModal = ({
         ),
       ),
       form.isRequiredApproval &&
-      fld(
-        "👤 Người xét duyệt",
-        React.createElement(
-          "div",
-          {
-            style: {
-              padding: "8px 12px",
-              border: "1px solid #ffd591",
-              borderRadius: 6,
-              background: "#fffbe6",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
+        fld(
+          "👤 Người xét duyệt",
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "8px 12px",
+                border: "1px solid #ffd591",
+                borderRadius: 6,
+                background: "#fffbe6",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              },
             },
-          },
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
-            "🔐",
-          ),
-          React.createElement(LawyerPicker, {
-            lawyers,
-            value: form.approvedById,
-            size: 22,
-            onChange: (id) => set("approvedById", id),
-          }),
-          !form.approvedById &&
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-            "Chọn người xét duyệt...",
+            React.createElement(
+              "span",
+              { style: { fontSize: 12, color: "#d46b08", flexShrink: 0 } },
+              "🔐",
+            ),
+            React.createElement(LawyerPicker, {
+              lawyers,
+              value: form.approvedById,
+              size: 22,
+              onChange: (id) => set("approvedById", id),
+            }),
+            !form.approvedById &&
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
+                "Chọn người xét duyệt...",
+              ),
           ),
         ),
-      ),
       fld(
         "📝 Mô tả chi tiết",
         React.createElement("textarea", {
@@ -11745,9 +10495,9 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                   : "Định dạng này không hỗ trợ xem trước",
                 onClick: canPreview
                   ? (e) => {
-                    e.stopPropagation();
-                    setPreviewDoc(f);
-                  }
+                      e.stopPropagation();
+                      setPreviewDoc(f);
+                    }
                   : undefined,
               },
               name + fileExt,
@@ -11758,30 +10508,30 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
               "div",
               { style: { display: "flex", gap: 4, flexShrink: 0 } },
               fullUrl &&
-              React.createElement(
-                "span",
-                {
-                  title: "Tải về",
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    window.open(fullUrl, "_blank");
+                React.createElement(
+                  "span",
+                  {
+                    title: "Tải về",
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      window.open(fullUrl, "_blank");
+                    },
+                    style: {
+                      fontSize: 12,
+                      padding: "2px 6px",
+                      borderRadius: 3,
+                      border: "1px solid #91caff",
+                      color: "#096dd9",
+                      cursor: "pointer",
+                      background: "#fff",
+                    },
+                    onMouseEnter: (e) =>
+                      (e.currentTarget.style.background = "#e6f4ff"),
+                    onMouseLeave: (e) =>
+                      (e.currentTarget.style.background = "#fff"),
                   },
-                  style: {
-                    fontSize: 12,
-                    padding: "2px 6px",
-                    borderRadius: 3,
-                    border: "1px solid #91caff",
-                    color: "#096dd9",
-                    cursor: "pointer",
-                    background: "#fff",
-                  },
-                  onMouseEnter: (e) =>
-                    (e.currentTarget.style.background = "#e6f4ff"),
-                  onMouseLeave: (e) =>
-                    (e.currentTarget.style.background = "#fff"),
-                },
-                "⬇️",
-              ),
+                  "⬇️",
+                ),
             ),
           );
         }),
@@ -11862,113 +10612,113 @@ const TaskRow = ({
         },
         canEdit
           ? React.createElement(
-            "div",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                setShowMenu((v) => !v);
+              "div",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  setShowMenu((v) => !v);
+                },
+                style: {
+                  width: 22,
+                  height: 22,
+                  borderRadius: 4,
+                  background: hov ? "#e6f4ff" : "transparent",
+                  border: hov ? "1px solid #91caff" : "1px solid transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: hov ? "pointer" : "default",
+                  fontSize: 12,
+                  color: hov ? "#096dd9" : "transparent",
+                  fontWeight: 700,
+                  transition: "all 0.15s",
+                  userSelect: "none",
+                },
               },
-              style: {
-                width: 22,
-                height: 22,
-                borderRadius: 4,
-                background: hov ? "#e6f4ff" : "transparent",
-                border: hov ? "1px solid #91caff" : "1px solid transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: hov ? "pointer" : "default",
-                fontSize: 12,
-                color: hov ? "#096dd9" : "transparent",
-                fontWeight: 700,
-                transition: "all 0.15s",
-                userSelect: "none",
-              },
-            },
-            "⋮",
-          )
+              "⋮",
+            )
           : React.createElement(
-            "span",
-            { style: { fontSize: 12, color: "#d9d9d9" } },
-            "",
-          ),
+              "span",
+              { style: { fontSize: 12, color: "#d9d9d9" } },
+              "",
+            ),
 
         showMenu &&
-        canEdit &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: 0,
-              bottom: "100%",
-              marginBottom: 4,
-              zIndex: 9999,
-              background: "#fff",
-              border: "1px solid #e8e8e8",
-              borderRadius: 6,
-              boxShadow: "0 6px 20px rgba(0,0,0,0.14)",
-              minWidth: 180,
-              padding: "4px 0",
-            },
-            onMouseLeave: () => setShowMenu(false),
-          },
           canEdit &&
           React.createElement(
             "div",
             {
-              onClick: (e) => {
-                e.stopPropagation();
-                setShowMenu(false);
-                onToggle(task.id, true);
-                onOpenAddSubModal(task.id);
-              },
               style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 14px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#262626",
+                position: "absolute",
+                left: 0,
+                bottom: "100%",
+                marginBottom: 4,
+                zIndex: 9999,
+                background: "#fff",
+                border: "1px solid #e8e8e8",
+                borderRadius: 6,
+                boxShadow: "0 6px 20px rgba(0,0,0,0.14)",
+                minWidth: 180,
+                padding: "4px 0",
               },
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#f5f5f5"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "transparent"),
+              onMouseLeave: () => setShowMenu(false),
             },
-            React.createElement("span", null, "➕"),
-            "Tạo công việc phụ",
+            canEdit &&
+              React.createElement(
+                "div",
+                {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    setShowMenu(false);
+                    onToggle(task.id, true);
+                    onOpenAddSubModal(task.id);
+                  },
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 14px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#262626",
+                  },
+                  onMouseEnter: (e) =>
+                    (e.currentTarget.style.background = "#f5f5f5"),
+                  onMouseLeave: (e) =>
+                    (e.currentTarget.style.background = "transparent"),
+                },
+                React.createElement("span", null, "➕"),
+                "Tạo công việc phụ",
+              ),
+            canEdit &&
+              React.createElement(
+                "div",
+                {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    setShowMenu(false);
+                    onDeleteTask(task.id, "task", task.title);
+                  },
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 14px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#cf1322",
+                  },
+                  onMouseEnter: (e) =>
+                    (e.currentTarget.style.background = "#fff1f0"),
+                  onMouseLeave: (e) =>
+                    (e.currentTarget.style.background = "transparent"),
+                },
+                React.createElement(DeleteIcon),
+                "Xoá công việc",
+              ),
           ),
-          canEdit &&
-          React.createElement(
-            "div",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                setShowMenu(false);
-                onDeleteTask(task.id, "task", task.title);
-              },
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 14px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#cf1322",
-              },
-              onMouseEnter: (e) =>
-                (e.currentTarget.style.background = "#fff1f0"),
-              onMouseLeave: (e) =>
-                (e.currentTarget.style.background = "transparent"),
-            },
-            React.createElement(DeleteIcon),
-            "Xoá công việc",
-          ),
-        ),
       ),
       // STT
       React.createElement(
@@ -12062,25 +10812,25 @@ const TaskRow = ({
         },
         task.title,
         hasSubs &&
-        React.createElement(
-          "span",
-          {
-            style: {
-              display: "inline-block",
-              marginLeft: 6,
-              fontSize: 11,
-              fontFamily: FONT,
-              color: "#8c8c8c",
-              background: "#f0f0f0",
-              borderRadius: 8,
-              padding: "1px 6px",
-              fontWeight: 400,
-              verticalAlign: "middle",
-              whiteSpace: "nowrap",
+          React.createElement(
+            "span",
+            {
+              style: {
+                display: "inline-block",
+                marginLeft: 6,
+                fontSize: 11,
+                fontFamily: FONT,
+                color: "#8c8c8c",
+                background: "#f0f0f0",
+                borderRadius: 8,
+                padding: "1px 6px",
+                fontWeight: 400,
+                verticalAlign: "middle",
+                whiteSpace: "nowrap",
+              },
             },
-          },
-          `${done}/${total}`,
-        ),
+            `${done}/${total}`,
+          ),
       ),
       // Updated At
       React.createElement(
@@ -12131,31 +10881,31 @@ const TaskRow = ({
         },
         task.description
           ? React.createElement(
-            Tooltip,
-            { title: task.description, placement: "topLeft" },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#595959",
-                  overflow: "hidden",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  lineHeight: 1.5,
-                  cursor: "pointer",
+              Tooltip,
+              { title: task.description, placement: "topLeft" },
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#595959",
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    lineHeight: 1.5,
+                    cursor: "pointer",
+                  },
                 },
-              },
-              task.description,
-            ),
-          )
+                task.description,
+              ),
+            )
           : React.createElement(
-            "span",
-            { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
-            "—",
-          ),
+              "span",
+              { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
+              "—",
+            ),
       ),
       // Start date
       React.createElement(
@@ -12208,32 +10958,32 @@ const TaskRow = ({
         },
         task.nextStepDescription
           ? React.createElement(
-            Tooltip,
-            { title: task.nextStepDescription, placement: "topLeft" },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: "#096dd9",
-                  overflow: "hidden",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  lineHeight: 1.5,
-                  cursor: "pointer",
-                  fontWeight: 500,
+              Tooltip,
+              { title: task.nextStepDescription, placement: "topLeft" },
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    color: "#096dd9",
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    lineHeight: 1.5,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                  },
                 },
-              },
-              `→ ${task.nextStepDescription}`,
-            ),
-          )
+                `→ ${task.nextStepDescription}`,
+              ),
+            )
           : React.createElement(
-            "span",
-            { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
-            "—",
-          ),
+              "span",
+              { style: { fontSize: 12, fontFamily: FONT, color: "#d9d9d9" } },
+              "—",
+            ),
       ),
       // Files — hiển thị số lượng file thực, click popup preview
       React.createElement(
@@ -12249,345 +10999,345 @@ const TaskRow = ({
         },
         task._files && task._files.length > 0
           ? React.createElement(
-            React.Fragment,
-            null,
-            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(
+                "div",
+                {
+                  ref: filesBtnRef,
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    const rect = filesBtnRef.current?.getBoundingClientRect();
+                    setFileAnchorRect(rect || null);
+                    setFilePopup((v) => !v);
+                  },
+                  title: `${task._files.length} tài liệu — click để xem`,
+                  style: {
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    padding: "3px 8px",
+                    borderRadius: 4,
+                    border: "1px solid #d3adf7",
+                    color: "#531dab",
+                    cursor: "pointer",
+                    background: filePopup ? "#efe0ff" : "#f9f0ff",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontWeight: 700,
+                    transition: "background 0.1s",
+                  },
+                  onMouseEnter: (e) =>
+                    (e.currentTarget.style.background = "#efe0ff"),
+                  onMouseLeave: (e) => {
+                    if (!filePopup)
+                      e.currentTarget.style.background = "#f9f0ff";
+                  },
+                },
+                React.createElement("span", null, "📎"),
+                React.createElement(
+                  "span",
+                  { style: { fontSize: 12, fontWeight: 700 } },
+                  task._files.length,
+                ),
+              ),
+              filePopup &&
+                React.createElement(TaskFilePreviewPopup, {
+                  files: task._files,
+                  anchorRect: fileAnchorRect,
+                  onClose: () => setFilePopup(false),
+                }),
+            )
+          : React.createElement(
               "div",
               {
-                ref: filesBtnRef,
                 onClick: (e) => {
                   e.stopPropagation();
-                  const rect = filesBtnRef.current?.getBoundingClientRect();
-                  setFileAnchorRect(rect || null);
-                  setFilePopup((v) => !v);
+                  onOpen(task, "task", tasksInService);
                 },
-                title: `${task._files.length} tài liệu — click để xem`,
+                title: "Chưa có tài liệu — mở chi tiết để upload",
                 style: {
                   fontSize: 12,
-                  fontFamily: FONT,
                   padding: "3px 8px",
                   borderRadius: 4,
-                  border: "1px solid #d3adf7",
-                  color: "#531dab",
+                  border: "1px solid #f0f0f0",
+                  color: "#d9d9d9",
                   cursor: "pointer",
-                  background: filePopup ? "#efe0ff" : "#f9f0ff",
+                  background: "transparent",
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
-                  fontWeight: 700,
-                  transition: "background 0.1s",
                 },
-                onMouseEnter: (e) =>
-                  (e.currentTarget.style.background = "#efe0ff"),
+                onMouseEnter: (e) => {
+                  e.currentTarget.style.borderColor = "#d3adf7";
+                  e.currentTarget.style.color = "#bfbfbf";
+                },
                 onMouseLeave: (e) => {
-                  if (!filePopup)
-                    e.currentTarget.style.background = "#f9f0ff";
+                  e.currentTarget.style.borderColor = "#f0f0f0";
+                  e.currentTarget.style.color = "#d9d9d9";
                 },
               },
-              React.createElement("span", null, "📎"),
-              React.createElement(
-                "span",
-                { style: { fontSize: 12, fontWeight: 700 } },
-                task._files.length,
-              ),
+              "📎",
             ),
-            filePopup &&
-            React.createElement(TaskFilePreviewPopup, {
-              files: task._files,
-              anchorRect: fileAnchorRect,
-              onClose: () => setFilePopup(false),
-            }),
-          )
-          : React.createElement(
-            "div",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                onOpen(task, "task", tasksInService);
-              },
-              title: "Chưa có tài liệu — mở chi tiết để upload",
-              style: {
-                fontSize: 12,
-                padding: "3px 8px",
-                borderRadius: 4,
-                border: "1px solid #f0f0f0",
-                color: "#d9d9d9",
-                cursor: "pointer",
-                background: "transparent",
-                display: "flex",
-                alignItems: "center",
-              },
-              onMouseEnter: (e) => {
-                e.currentTarget.style.borderColor = "#d3adf7";
-                e.currentTarget.style.color = "#bfbfbf";
-              },
-              onMouseLeave: (e) => {
-                e.currentTarget.style.borderColor = "#f0f0f0";
-                e.currentTarget.style.color = "#d9d9d9";
-              },
-            },
-            "📎",
-          ),
       ),
       React.createElement(ApprovalIcon, {
         isRequiredApproval: task.isRequiredApproval,
-      })
+      }),
     ),
     // SubTask rows
     expanded &&
-    React.createElement(
-      "div",
-      { style: { background: "#fafcff" } },
-      ...(task._subs || []).map((s, index) => {
-        // 🌟 SỬA ĐOẠN NÀY
-        const subLawyerId = extractId(s.lawyerId) || extractId(s.lawyer);
-        const canEditSub =
-          isManager || (myLawyerId && subLawyerId === extractId(myLawyerId));
-        const isSubBlocked = s.status === "blocked";
-        const i = index + 1;
-        return React.createElement(
-          "div",
-          {
-            key: s.id,
-            style: {
-              display: "flex",
-              alignItems: "center",
-              minHeight: 38,
-              borderBottom: "1px solid #f0f0f0",
-              background: isSubBlocked ? "#fdf6ff" : "#fafcff",
-              borderLeft: "3px solid transparent",
-            },
-          },
-          // 14. Cột Menu
-          React.createElement(
+      React.createElement(
+        "div",
+        { style: { background: "#fafcff" } },
+        ...(task._subs || []).map((s, index) => {
+          // 🌟 SỬA ĐOẠN NÀY
+          const subLawyerId = extractId(s.lawyerId) || extractId(s.lawyer);
+          const canEditSub =
+            isManager || (myLawyerId && subLawyerId === extractId(myLawyerId));
+          const isSubBlocked = s.status === "blocked";
+          const i = index + 1;
+          return React.createElement(
             "div",
             {
+              key: s.id,
               style: {
-                width: COL.menu,
-                flexShrink: 0,
-                display: "flex",
-                justifyContent: "center",
-              },
-            },
-            canEditSub
-              ? React.createElement(
-                "span",
-                {
-                  style: {
-                    fontSize: 14,
-                    color: "#cf1322",
-                    cursor: "pointer",
-                  },
-                  title: "Xoá công việc phụ",
-                  onClick: (e) => {
-                    e.stopPropagation();
-                    onDeleteTask(s.id, "subTask", s.subTaskName);
-                  },
-                },
-                React.createElement(DeleteIcon),
-              )
-              : React.createElement(
-                "span",
-                { style: { fontSize: 12, color: "#d9d9d9" } },
-                "—",
-              ),
-          ),
-          // 1. Cột STT (Để trống hoặc hiển thị ký hiệu con)
-          React.createElement("div", {
-            style: { width: COL.stt, flexShrink: 0 },
-          }),
-          // 2. Cột Toggle (Hiển thị đường dẫn góc L)
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.toggle,
-                flexShrink: 0,
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                minHeight: 38,
+                borderBottom: "1px solid #f0f0f0",
+                background: isSubBlocked ? "#fdf6ff" : "#fafcff",
+                borderLeft: "3px solid transparent",
               },
             },
+            // 14. Cột Menu
             React.createElement(
-              "span",
-              { style: { color: "#d9d9d9", fontSize: 10 } },
-              "└─",
-            ),
-          ),
-          // 3. Cột Status
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: 22,
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+              "div",
+              {
+                style: {
+                  width: COL.menu,
+                  flexShrink: 0,
+                  display: "flex",
+                  justifyContent: "center",
+                },
               },
-            },
-            React.createElement(StatusBtn, {
-              status: s.status,
-              size: 13,
-              onChange: canEditSub
-                ? (st) => onStatus(s.id, st, "subTask")
-                : null,
-              isRequiredApproval: s.isRequiredApproval,
-              isBlocked: isSubBlocked,
-              readOnly: !canEditSub,
-            }),
-          ),
-          // 4. Cột Title (Dùng flex: 1 để khớp với task chính)
-          React.createElement(
-            "div",
-            {
-              onClick: () => onOpen(s, "subTask"),
-              style: {
-                flex: 1,
-                padding: "0 10px",
-                fontSize: 12,
-                fontFamily: FONT,
-                color:
-                  s.status === "done"
-                    ? "#bfbfbf"
-                    : isSubBlocked
-                      ? "#722ed1"
-                      : s._od
-                        ? "#cf1322"
-                        : "#595959",
-                textDecoration: s.status === "done" ? "line-through" : "none",
-                cursor: "pointer",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              },
-            },
-            s.subTaskName,
-          ),
-          // 5. Cột UpdatedAt
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.updatedAt,
-                textAlign: "center",
-                flexShrink: 0,
-                fontSize: 12,
-                fontFamily: FONT,
-                color: s.updatedAt ? "#8c8c8c" : "#d9d9d9",
-              },
-            },
-            s.updatedAt ? fmt(s.updatedAt, "full") : "—",
-          ),
-          // 6. Cột Lawyer Picker
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.assign,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              },
-            },
-            React.createElement(LawyerPicker, {
-              lawyers,
-              value: s.lawyerId,
-              size: 20,
-              readOnly: !isManager || isAssigneeOnly,
-              onChange: (id, n, c) => onAssign(s.id, id, n, c, "subTask"),
-            }),
-          ),
-          // 7. Cột Description
-          React.createElement(
-            "div",
-            { style: { width: COL.desc, flexShrink: 0, padding: "4px 8px" } },
-            s.description
-              ? React.createElement(
-                Tooltip,
-                { title: s.description, placement: "topLeft" },
-                React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 12,
-                      fontFamily: FONT,
-                      color: "#8c8c8c",
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      lineHeight: 1.5,
+              canEditSub
+                ? React.createElement(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 14,
+                        color: "#cf1322",
+                        cursor: "pointer",
+                      },
+                      title: "Xoá công việc phụ",
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        onDeleteTask(s.id, "subTask", s.subTaskName);
+                      },
                     },
-                  },
-                  s.description,
-                ),
-              )
-              : React.createElement(
+                    React.createElement(DeleteIcon),
+                  )
+                : React.createElement(
+                    "span",
+                    { style: { fontSize: 12, color: "#d9d9d9" } },
+                    "—",
+                  ),
+            ),
+            // 1. Cột STT (Để trống hoặc hiển thị ký hiệu con)
+            React.createElement("div", {
+              style: { width: COL.stt, flexShrink: 0 },
+            }),
+            // 2. Cột Toggle (Hiển thị đường dẫn góc L)
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.toggle,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
+              },
+              React.createElement(
                 "span",
-                { style: { fontSize: 12, color: "#d9d9d9" } },
-                "—",
+                { style: { color: "#d9d9d9", fontSize: 10 } },
+                "└─",
               ),
-          ),
-          // 8. Cột Start Date
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.start,
-                textAlign: "center",
-                flexShrink: 0,
-                fontSize: 12,
-                fontFamily: FONT,
-                color: "#8c8c8c",
+            ),
+            // 3. Cột Status
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: 22,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                },
               },
-            },
-            fmt(s.date, "date") || "—",
-          ),
-          // 9. Cột Deadline
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.deadline,
-                textAlign: "center",
-                flexShrink: 0,
-                fontSize: 12,
-                fontFamily: FONT,
-                color: s._od ? "#cf1322" : "#8c8c8c",
+              React.createElement(StatusBtn, {
+                status: s.status,
+                size: 13,
+                onChange: canEditSub
+                  ? (st) => onStatus(s.id, st, "subTask")
+                  : null,
+                isRequiredApproval: s.isRequiredApproval,
+                isBlocked: isSubBlocked,
+                readOnly: !canEditSub,
+              }),
+            ),
+            // 4. Cột Title (Dùng flex: 1 để khớp với task chính)
+            React.createElement(
+              "div",
+              {
+                onClick: () => onOpen(s, "subTask"),
+                style: {
+                  flex: 1,
+                  padding: "0 10px",
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color:
+                    s.status === "done"
+                      ? "#bfbfbf"
+                      : isSubBlocked
+                        ? "#722ed1"
+                        : s._od
+                          ? "#cf1322"
+                          : "#595959",
+                  textDecoration: s.status === "done" ? "line-through" : "none",
+                  cursor: "pointer",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                },
               },
-            },
-            fmt(s.deadline, "date") || "—",
-          ),
-          // 10. Cột Pending Issue (Subtask thường không có dependency phức tạp)
-          React.createElement("div", {
-            style: { width: COL.pendingIssue, flexShrink: 0 },
-          }),
-          // 11. Cột Next Step
-          React.createElement("div", {
-            style: { width: COL.nextStep, flexShrink: 0 },
-          }),
-          // 12. Cột Files
-          React.createElement(
-            "div",
-            {
-              style: {
-                width: COL.files,
-                flexShrink: 0,
-                textAlign: "center",
-                color: "#d9d9d9",
+              s.subTaskName,
+            ),
+            // 5. Cột UpdatedAt
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.updatedAt,
+                  textAlign: "center",
+                  flexShrink: 0,
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: s.updatedAt ? "#8c8c8c" : "#d9d9d9",
+                },
               },
-            },
-            "—",
-          ),
-          // 13. Cột Approval Icon
-          React.createElement(ApprovalIcon, {
-            isRequiredApproval: s.isRequiredApproval,
-          }),
-        );
-      }),
-    ),
+              s.updatedAt ? fmt(s.updatedAt, "full") : "—",
+            ),
+            // 6. Cột Lawyer Picker
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.assign,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                },
+              },
+              React.createElement(LawyerPicker, {
+                lawyers,
+                value: s.lawyerId,
+                size: 20,
+                readOnly: !isManager || isAssigneeOnly,
+                onChange: (id, n, c) => onAssign(s.id, id, n, c, "subTask"),
+              }),
+            ),
+            // 7. Cột Description
+            React.createElement(
+              "div",
+              { style: { width: COL.desc, flexShrink: 0, padding: "4px 8px" } },
+              s.description
+                ? React.createElement(
+                    Tooltip,
+                    { title: s.description, placement: "topLeft" },
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 12,
+                          fontFamily: FONT,
+                          color: "#8c8c8c",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          lineHeight: 1.5,
+                        },
+                      },
+                      s.description,
+                    ),
+                  )
+                : React.createElement(
+                    "span",
+                    { style: { fontSize: 12, color: "#d9d9d9" } },
+                    "—",
+                  ),
+            ),
+            // 8. Cột Start Date
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.start,
+                  textAlign: "center",
+                  flexShrink: 0,
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: "#8c8c8c",
+                },
+              },
+              fmt(s.date, "date") || "—",
+            ),
+            // 9. Cột Deadline
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.deadline,
+                  textAlign: "center",
+                  flexShrink: 0,
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  color: s._od ? "#cf1322" : "#8c8c8c",
+                },
+              },
+              fmt(s.deadline, "date") || "—",
+            ),
+            // 10. Cột Pending Issue (Subtask thường không có dependency phức tạp)
+            React.createElement("div", {
+              style: { width: COL.pendingIssue, flexShrink: 0 },
+            }),
+            // 11. Cột Next Step
+            React.createElement("div", {
+              style: { width: COL.nextStep, flexShrink: 0 },
+            }),
+            // 12. Cột Files
+            React.createElement(
+              "div",
+              {
+                style: {
+                  width: COL.files,
+                  flexShrink: 0,
+                  textAlign: "center",
+                  color: "#d9d9d9",
+                },
+              },
+              "—",
+            ),
+            // 13. Cột Approval Icon
+            React.createElement(ApprovalIcon, {
+              isRequiredApproval: s.isRequiredApproval,
+            }),
+          );
+        }),
+      ),
   );
 };
 // ── Service Section ────────────────────────────────────────
@@ -12613,29 +11363,32 @@ const ServiceSection = ({
 }) => {
   const [collapsed, setCollapsed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editVal, setEditVal] = useState(serviceName);
+  const isNoneGroup = serviceId === "__none__";
+  const baselineName = isNoneGroup ? "" : serviceName;
+  const [editVal, setEditVal] = useState(baselineName);
   const isRenamingRef = useRef(false);
 
   useEffect(() => {
-    setEditVal(serviceName);
-  }, [serviceName]);
+    setEditVal(baselineName);
+  }, [serviceName, serviceId]);
 
   const handleRename = () => {
     if (isRenamingRef.current) return;
     isRenamingRef.current = true;
     setIsEditing(false);
     if (!editVal || !editVal.trim()) {
-      setEditVal(serviceName);
+      setEditVal(baselineName);
       isRenamingRef.current = false;
       return;
     }
     const cleanVal = editVal.trim();
-    if (cleanVal === serviceName) {
+    if (cleanVal === baselineName) {
       isRenamingRef.current = false;
       return;
     }
     if (onRenameSection) {
-      onRenameSection(serviceName, cleanVal, tasks);
+      // oldName truyền cho log — nếu là nhóm chưa đặt tên, dùng chuỗi rỗng
+      onRenameSection(isNoneGroup ? "" : serviceName, cleanVal, tasks);
     }
   };
 
@@ -12687,64 +11440,68 @@ const ServiceSection = ({
         { style: { flex: 1, fontSize: 12 } },
         isEditing
           ? React.createElement("input", {
-            value: editVal,
-            onChange: (e) => setEditVal(e.target.value),
-            onClick: (e) => e.stopPropagation(),
-            onKeyDown: (e) => {
-              if (e.key === "Enter") {
+              value: editVal,
+              onChange: (e) => setEditVal(e.target.value),
+              onClick: (e) => e.stopPropagation(),
+              onKeyDown: (e) => {
+                if (e.key === "Enter") {
+                  e.stopPropagation();
+                  handleRename();
+                }
+                if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setIsEditing(false);
+                  setEditVal(serviceName);
+                  isRenamingRef.current = false;
+                }
+              },
+              onBlur: (e) => {
                 e.stopPropagation();
                 handleRename();
-              }
-              if (e.key === "Escape") {
-                e.stopPropagation();
-                setIsEditing(false);
-                setEditVal(serviceName);
-                isRenamingRef.current = false;
-              }
-            },
-            onBlur: (e) => {
-              e.stopPropagation();
-              handleRename();
-            },
-            autoFocus: true,
-            style: {
-              fontSize: 12,
-              fontFamily: FONT,
-              fontWeight: 700,
-              border: "1px solid #1890ff",
-              borderRadius: 4,
-              padding: "2px 6px",
-              outline: "none",
-              color: "#262626",
-              width: "auto",
-              minWidth: 200,
-              marginRight: 8,
-            },
-          })
-          : React.createElement(
-            React.Fragment,
-            null,
-            React.createElement("span", { style: { marginRight: 8 } }, serviceName),
-            isManager && serviceId !== "__none__" &&
-            React.createElement(
-              "span",
-              {
-                onClick: handleStartEdit,
-                style: {
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  color: "#1890ff",
-                  opacity: 0.7,
-                  transition: "opacity 0.2s",
-                },
-                onMouseEnter: (e) => (e.currentTarget.style.opacity = 1),
-                onMouseLeave: (e) => (e.currentTarget.style.opacity = 0.7),
-                title: "Đổi tên nhóm công việc",
               },
-              React.createElement(EditIcon)
-            )
-          ),
+              autoFocus: true,
+              style: {
+                fontSize: 12,
+                fontFamily: FONT,
+                fontWeight: 700,
+                border: "1px solid #1890ff",
+                borderRadius: 4,
+                padding: "2px 6px",
+                outline: "none",
+                color: "#262626",
+                width: "auto",
+                minWidth: 200,
+                marginRight: 8,
+              },
+            })
+          : React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(
+                "span",
+                { style: { marginRight: 8 } },
+                serviceName,
+              ),
+              isManager &&
+                React.createElement(
+                  "span",
+                  {
+                    onClick: handleStartEdit,
+                    style: {
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      color: "#1890ff",
+                      opacity: 0.7,
+                      transition: "opacity 0.2s",
+                    },
+                    onMouseEnter: (e) => (e.currentTarget.style.opacity = 1),
+                    onMouseLeave: (e) => (e.currentTarget.style.opacity = 0.7),
+                    title: "Đổi tên nhóm công việc",
+                  },
+                  React.createElement(EditIcon),
+                ),
+            ),
       ),
       React.createElement(
         "span",
@@ -12753,32 +11510,32 @@ const ServiceSection = ({
       ),
     ),
     !collapsed &&
-    React.createElement(
-      "div",
-      null,
-      React.createElement(ColHeader),
-      ...tasks.map((t, index) =>
-        React.createElement(TaskRow, {
-          key: t.id,
-          task: t,
-          stt: index + 1,
-          lawyers,
-          expanded: !!expanded[t.id],
-          onToggle,
-          onStatus,
-          onOpen,
-          onAssign,
-          onUpdate,
-          isManager,
-          onOpenAddSubModal,
-          allTasksInProject,
-          tasksInService: tasks,
-          isAssigneeOnly,
-          myLawyerId,
-          onDeleteTask,
-        }),
+      React.createElement(
+        "div",
+        null,
+        React.createElement(ColHeader),
+        ...tasks.map((t, index) =>
+          React.createElement(TaskRow, {
+            key: t.id,
+            task: t,
+            stt: index + 1,
+            lawyers,
+            expanded: !!expanded[t.id],
+            onToggle,
+            onStatus,
+            onOpen,
+            onAssign,
+            onUpdate,
+            isManager,
+            onOpenAddSubModal,
+            allTasksInProject,
+            tasksInService: tasks,
+            isAssigneeOnly,
+            myLawyerId,
+            onDeleteTask,
+          }),
+        ),
       ),
-    ),
   );
 };
 // ============================================================
@@ -12836,11 +11593,11 @@ const ListView = ({
       const colorCfg =
         key === "__none__"
           ? {
-            bg: "#fafafa",
-            border: "#e8e8e8",
-            text: "#8c8c8c",
-            dot: "#bfbfbf",
-          }
+              bg: "#fafafa",
+              border: "#e8e8e8",
+              text: "#8c8c8c",
+              dot: "#bfbfbf",
+            }
           : SERVICE_COLORS[index % SERVICE_COLORS.length];
       const svcName = key === "__none__" ? "Không có Nhóm" : key;
       return React.createElement(ServiceSection, {
@@ -12868,7 +11625,6 @@ const ListView = ({
   );
 };
 
-
 // §10 MAIN — ProjectTasksTab + ctx.render()
 // ============================================================
 const ProjectInternalTasksTab = () => {
@@ -12878,7 +11634,6 @@ const ProjectInternalTasksTab = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [projectManagerId, setProjectManagerId] = useState(null);
   const [expanded, setExpanded] = useState({});
-  const [detail, setDetail] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddSub, setShowAddSub] = useState(false);
   const [addSubForTaskId, setAddSubForTaskId] = useState(null);
@@ -12952,10 +11707,10 @@ const ProjectInternalTasksTab = () => {
         });
         setProjectManagerId(
           projRes?.data?.data?.projectManagerId ||
-          projRes?.data?.projectManagerId ||
-          null,
+            projRes?.data?.projectManagerId ||
+            null,
         );
-      } catch { }
+      } catch {}
 
       const lMap = {};
       allLawyers.forEach((l, i) => {
@@ -12969,24 +11724,10 @@ const ProjectInternalTasksTab = () => {
       let allTaskFiles = [];
 
       if (taskIds.length > 0) {
-        try {
-          const fileRes = await ctx.api.request({
-            url: "documents:list",
-            params: {
-              pageSize: 2000,
-              filter: JSON.stringify({
-                $and: [
-                  { collectionName: { $eq: "Task" } },
-                  { recordId: { $in: taskIds } },
-                ],
-              }),
-              appends: ["fileAttachment", "createdBy", "updatedBy"],
-            },
-          });
-          allTaskFiles = fileRes?.data?.data || [];
-        } catch (e) {
-          console.error("Lỗi lấy danh sách files đính kèm", e);
-        }
+        allTaskFiles = await fetchTaskDocumentsByIds(taskIds, [
+          { moduleScope: { $eq: PROJECT_INTERNAL_DOCUMENT_SCOPE } },
+          { storageType: { $eq: PROJECT_INTERNAL_STORAGE_TYPE } },
+        ]);
       }
 
       const fileMap = {};
@@ -12994,7 +11735,8 @@ const ProjectInternalTasksTab = () => {
         fileMap[id] = [];
       });
       allTaskFiles.forEach((f) => {
-        if (fileMap[f.recordId]) fileMap[f.recordId].push(f);
+        const taskId = getDocumentTaskId(f);
+        if (taskId && fileMap[taskId]) fileMap[taskId].push(f);
       });
 
       const enriched = allTasks.map((t) => ({
@@ -13033,16 +11775,20 @@ const ProjectInternalTasksTab = () => {
   const handleStatus = useCallback(
     async (id, newSt, type) => {
       const isSub = type === "subTask";
-      const pool = isSub
-        ? tasks.flatMap((t) => t._subs || [])
-        : tasks;
+      const pool = isSub ? tasks.flatMap((t) => t._subs || []) : tasks;
       const item = pool.find((t) => extractId(t.id) === extractId(id));
       if (!item) return;
 
       // Check dependency
       if (!isSub && item.previousTaskId) {
-        const prevTask = tasks.find((t) => extractId(t.id) === extractId(item.previousTaskId));
-        if (prevTask && prevTask.status !== "done" && prevTask.status !== "cancelled") {
+        const prevTask = tasks.find(
+          (t) => extractId(t.id) === extractId(item.previousTaskId),
+        );
+        if (
+          prevTask &&
+          prevTask.status !== "done" &&
+          prevTask.status !== "cancelled"
+        ) {
           if (!["cancelled", "blocked"].includes(newSt)) {
             message.warning(`Cần hoàn thành "${prevTask.title}" trước`);
             return;
@@ -13068,15 +11814,13 @@ const ProjectInternalTasksTab = () => {
           return {
             ...t,
             _subs: t._subs.map((s) =>
-              isSub && extractId(s.id) === extractId(id) ? { ...s, ...data, _od: isOD(s.deadline, resolvedSt) } : s
+              isSub && extractId(s.id) === extractId(id)
+                ? { ...s, ...data, _od: isOD(s.deadline, resolvedSt) }
+                : s,
             ),
           };
         }),
       );
-
-      if (detail && extractId(detail.item.id) === extractId(id)) {
-        setDetail((prev) => (prev ? { ...prev, item: { ...prev.item, ...data } } : null));
-      }
 
       try {
         await apiReq(url, "POST", data);
@@ -13092,7 +11836,11 @@ const ProjectInternalTasksTab = () => {
         );
 
         if (!isSub && resolvedSt === "done") {
-          await autoUnblockNextTasks(id, tasks, currentUser?.nickname || currentUser?.username);
+          await autoUnblockNextTasks(
+            id,
+            tasks,
+            currentUser?.nickname || currentUser?.username,
+          );
         }
 
         message.success(`Trạng thái: ${STATUS_CFG[resolvedSt]?.label}`);
@@ -13101,36 +11849,45 @@ const ProjectInternalTasksTab = () => {
         reload();
       }
     },
-    [tasks, currentUser, detail, reload],
+    [tasks, currentUser, reload],
   );
 
-  const autoUnblockNextTasks = useCallback(async (doneTaskId, currentTasks, changedBy) => {
-    const blockedTasks = currentTasks.filter(
-      (t) => extractId(t.previousTaskId) === extractId(doneTaskId) && t.status === "blocked",
-    );
-    for (const t of blockedTasks) {
-      try {
-        await apiReq(`tasks:update?filterByTk=${t.id}`, "POST", { status: "toDo" });
-        setTasks((prev) =>
-          prev.map((item) =>
-            extractId(item.id) === extractId(t.id) ? { ...item, status: "toDo" } : item
-          ),
-        );
-        await logActivity(
-          "Task",
-          extractId(t.id),
-          "updated",
-          "status",
-          "Bị chặn",
-          "Chưa thực hiện",
-          changedBy,
-          `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        );
-      } catch (e) {
-        console.error("Lỗi auto unblock task", t.id, e);
+  const autoUnblockNextTasks = useCallback(
+    async (doneTaskId, currentTasks, changedBy) => {
+      const blockedTasks = currentTasks.filter(
+        (t) =>
+          extractId(t.previousTaskId) === extractId(doneTaskId) &&
+          t.status === "blocked",
+      );
+      for (const t of blockedTasks) {
+        try {
+          await apiReq(`tasks:update?filterByTk=${t.id}`, "POST", {
+            status: "toDo",
+          });
+          setTasks((prev) =>
+            prev.map((item) =>
+              extractId(item.id) === extractId(t.id)
+                ? { ...item, status: "toDo" }
+                : item,
+            ),
+          );
+          await logActivity(
+            "Task",
+            extractId(t.id),
+            "updated",
+            "status",
+            "Bị chặn",
+            "Chưa thực hiện",
+            changedBy,
+            `auto_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          );
+        } catch (e) {
+          console.error("Lỗi auto unblock task", t.id, e);
+        }
       }
-    }
-  }, []);
+    },
+    [],
+  );
 
   const handleAssign = useCallback(
     async (id, lawyerId, name, color, type) => {
@@ -13139,7 +11896,11 @@ const ProjectInternalTasksTab = () => {
         ? `subTasks:update?filterByTk=${extractId(id)}`
         : `tasks:update?filterByTk=${extractId(id)}`;
 
-      const payload = withTaskLinkedUrl({ lawyerId }, { id, caseId: PROJECT_ID }, type);
+      const payload = withTaskLinkedUrl(
+        { lawyerId },
+        { id, caseId: PROJECT_ID },
+        type,
+      );
 
       setTasks((prev) =>
         prev.map((t) => {
@@ -13151,22 +11912,11 @@ const ProjectInternalTasksTab = () => {
             _subs: t._subs.map((s) =>
               isSub && extractId(s.id) === extractId(id)
                 ? { ...s, ...payload, _ln: name, _lc: color || "#8c8c8c" }
-                : s
+                : s,
             ),
           };
         }),
       );
-
-      if (detail && extractId(detail.item.id) === extractId(id)) {
-        setDetail((prev) =>
-          prev
-            ? {
-              ...prev,
-              item: { ...prev.item, ...payload, _ln: name, _lc: color || "#8c8c8c" },
-            }
-            : null
-        );
-      }
 
       try {
         await apiReq(url, "POST", payload);
@@ -13176,7 +11926,7 @@ const ProjectInternalTasksTab = () => {
         reload();
       }
     },
-    [detail, reload],
+    [reload],
   );
 
   const handleDeleteTask = useCallback(
@@ -13197,9 +11947,6 @@ const ProjectInternalTasksTab = () => {
               params: { filterByTk: extractId(id) },
             });
             message.success("Đã xoá thành công");
-            if (detail && detail.item && extractId(detail.item.id) === extractId(id)) {
-              setDetail(null);
-            }
             reload();
           } catch (e) {
             message.error("Xoá thất bại");
@@ -13207,7 +11954,7 @@ const ProjectInternalTasksTab = () => {
         },
       });
     },
-    [detail, reload],
+    [reload],
   );
 
   const handleRenameSection = useCallback(
@@ -13227,7 +11974,7 @@ const ProjectInternalTasksTab = () => {
             method: "POST",
             params: { filterByTk: extractId(t.id) },
             data: { titleSection: cleanNewName },
-          })
+          }),
         );
         await Promise.all(promises);
 
@@ -13244,7 +11991,9 @@ const ProjectInternalTasksTab = () => {
           );
         }
 
-        message.success(`Đã đổi tên nhóm từ "${oldName}" thành "${cleanNewName}"`);
+        message.success(
+          `Đã đổi tên nhóm từ "${oldName}" thành "${cleanNewName}"`,
+        );
         reload();
       } catch (e) {
         message.error("Đổi tên nhóm thất bại");
@@ -13285,74 +12034,91 @@ const ProjectInternalTasksTab = () => {
           _subs: t._subs.map((s) =>
             extractId(s.id) === extractId(updated.id)
               ? { ...s, ...updated }
-              : s
+              : s,
           ),
         };
       }),
     );
-    setDetail((d) => (d ? { ...d, item: { ...d.item, ...updated } } : null));
   }, []);
-
-  const handleDetailStatusChange = useCallback(
-    async (id, resolvedSt, type, data) => {
-      setTasks((prev) =>
-        prev.map((t) => {
-          if (type === "task" && extractId(t.id) === extractId(id))
-            return { ...t, ...data, _od: isOD(t.dueDate, resolvedSt) };
-          return {
-            ...t,
-            _subs: t._subs.map((s) =>
-              extractId(s.id) === extractId(id) && type === "subTask"
-                ? { ...s, ...data }
-                : s
-            ),
-          };
-        }),
-      );
-      if (resolvedSt === "done" && type === "task")
-        await autoUnblockNextTasks(
-          id,
-          tasks,
-          currentUser?.nickname || currentUser?.username,
-        );
-    },
-    [tasks, currentUser, autoUnblockNextTasks],
-  );
 
   const handleOpenAddSubModal = useCallback((taskId) => {
     setAddSubForTaskId(taskId);
     setShowAddSub(true);
   }, []);
 
-  const handleOpen = useCallback(
-    (item, type, tasksInService) => {
-      const itemLawyerId = extractId(item.lawyerId) || extractId(item.lawyer);
-      const isAssignedToThis = myLawyer
-        ? itemLawyerId === extractId(myLawyer.id)
-        : false;
-      setDetail({
-        item,
-        type,
-        tasksInService: tasksInService || tasks,
-        isAssigneeOnly,
-        isAssignedToThis,
-      });
-    },
-    [myLawyer, tasks, isAssigneeOnly],
-  );
+  // ── handleOpen (mở Task Detail popup từ row) ─────────────
+  // Đồng bộ với TaskManagement.js: mở view Task Detail (TaskDetailView.js)
+  // qua ctx.openView theo uid cố định, thay vì render DetailModal inline
+  // như trước — TaskDetailView.js đã tự resolve caseId/projectInternalId
+  // từ chính record task/subtask sau khi fetch, không cần truyền riêng.
+  const buildTaskDetailRoute = (popupUid, taskId) => {
+    const safeTaskId = extractId(taskId);
+    if (!safeTaskId) return null;
+    const pathname = window.location?.pathname || "";
+    const segments = pathname.split("/").filter(Boolean);
+    const adminIndex = segments.findIndex(
+      (segment) => segment.toLowerCase() === "admin",
+    );
+    const appId = adminIndex >= 0 ? segments[adminIndex + 1] : "";
+    const baseSegments = appId ? ["admin", appId] : ["admin"];
+    const nextPathname = `/${baseSegments.join("/")}/view/${popupUid}/filterbytk/${encodeURIComponent(String(safeTaskId))}`;
+    return {
+      recordId: safeTaskId,
+      pathname: nextPathname,
+      url: `${window.location.origin}${nextPathname}`,
+    };
+  };
 
-  const resolveUploadFolderId = useCallback(
-    (detailInfo) =>
-      resolveSectionUploadFolderId({
-        item: detailInfo?.item,
-        type: detailInfo?.type,
-        tasks,
-        allProjectFolders,
-        projectFolderId,
-        projectInternalId: PROJECT_ID,
-      }),
-    [tasks, allProjectFolders, projectFolderId],
-  );
+  const handleOpen = useCallback((item, type) => {
+    const popupUid = "32b72ed2a6a";
+    const taskId =
+      type === "subTask" ? extractId(item.taskId) : extractId(item.id);
+    const subTaskId = type === "subTask" ? extractId(item.id) : null;
+    if (!taskId) return;
+
+    const detailRoute = buildTaskDetailRoute(popupUid, taskId);
+    if (!detailRoute) return;
+
+    const collectionName = subTaskId ? "subTasks" : "tasks";
+    const recordType = subTaskId ? "subTask" : "task";
+    const sharedIdKeys = {
+      filterByTk: detailRoute.recordId,
+      filterbytk: detailRoute.recordId,
+      id: detailRoute.recordId,
+      recordId: detailRoute.recordId,
+      taskId: detailRoute.recordId,
+      sourceRecordId: detailRoute.recordId,
+      sourceTaskId: detailRoute.recordId,
+      parentTaskId: detailRoute.recordId,
+      subTaskId,
+      sourceSubTaskId: subTaskId,
+      selectedSubTaskId: subTaskId,
+      recordType,
+      collectionName,
+      pathname: detailRoute.pathname,
+      linkedUrl: detailRoute.url,
+    };
+    const defineProperties = {};
+    Object.keys(sharedIdKeys).forEach((key) => {
+      defineProperties[key] = {
+        value: sharedIdKeys[key],
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      };
+    });
+
+    ctx.openView(popupUid, {
+      mode: "dialog",
+      size: "large",
+      title: ctx.t ? ctx.t("Task detail") : "Task detail",
+      navigation: false,
+      ...sharedIdKeys,
+      inputArgs: sharedIdKeys,
+      params: sharedIdKeys,
+      defineProperties,
+    });
+  }, []);
 
   // ── Guard ─────────────────────────────────────────────────
   if (!PROJECT_ID)
@@ -13392,33 +12158,33 @@ const ProjectInternalTasksTab = () => {
         React.createElement(
           Text,
           { strong: true, style: { fontSize: 18, fontFamily: FONT } },
-          "Danh sách công việc",
-        )
+          "",
+        ),
       ),
       React.createElement(
         "div",
         { style: { display: "flex", gap: 8 } },
         React.createElement(ReloadButton, { onReload: reload, loading }),
         isManager &&
-        React.createElement(
-          Button,
-          {
-            type: "primary",
-            onClick: () => setShowAddTask(true),
-            style: {
-              background: "#1890ff",
-              borderColor: "#1890ff",
-              borderRadius: 4,
-              fontFamily: FONT,
-              fontSize: 12,
-              padding: "5px 16px",
-              display: "inline-flex",
-              alignItems: "center",
-              fontWeight: 600,
+          React.createElement(
+            Button,
+            {
+              type: "primary",
+              onClick: () => setShowAddTask(true),
+              style: {
+                background: "#1890ff",
+                borderColor: "#1890ff",
+                borderRadius: 4,
+                fontFamily: FONT,
+                fontSize: 12,
+                padding: "5px 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                fontWeight: 600,
+              },
             },
-          },
-          "＋ Tạo công việc chính",
-        ),
+            "＋ Tạo công việc chính",
+          ),
       ),
     ),
 
@@ -13438,50 +12204,50 @@ const ProjectInternalTasksTab = () => {
       },
       loading
         ? React.createElement(
-          "div",
-          {
-            style: {
-              textAlign: "center",
-              padding: "60px 0",
-              color: "#8c8c8c",
-              fontFamily: FONT,
-              fontSize: 12,
-            },
-          },
-          React.createElement(Spin, { tip: "Đang tải dữ liệu..." }),
-        )
-        : tasks.length === 0
-          ? React.createElement(
             "div",
             {
               style: {
                 textAlign: "center",
                 padding: "60px 0",
-                color: "#bfbfbf",
-                fontSize: 12,
+                color: "#8c8c8c",
                 fontFamily: FONT,
+                fontSize: 12,
               },
             },
-            "📭 Chưa có công việc nào",
+            React.createElement(Spin, { tip: "Đang tải dữ liệu..." }),
           )
+        : tasks.length === 0
+          ? React.createElement(
+              "div",
+              {
+                style: {
+                  textAlign: "center",
+                  padding: "60px 0",
+                  color: "#bfbfbf",
+                  fontSize: 12,
+                  fontFamily: FONT,
+                },
+              },
+              "📭 Chưa có công việc nào",
+            )
           : React.createElement(ListView, {
-            tasks,
-            lawyers: assignableLawyers,
-            expanded,
-            toggleExpand,
-            handleStatus,
-            handleOpen,
-            handleAssign,
-            handleDetailUpdate,
-            isManager,
-            handleOpenAddSubModal,
-            isAssigneeOnly,
-            myLawyerId,
-            showAddTask,
-            setShowAddTask,
-            onDeleteTask: handleDeleteTask,
-            onRenameSection: handleRenameSection,
-          }),
+              tasks,
+              lawyers: assignableLawyers,
+              expanded,
+              toggleExpand,
+              handleStatus,
+              handleOpen,
+              handleAssign,
+              handleDetailUpdate,
+              isManager,
+              handleOpenAddSubModal,
+              isAssigneeOnly,
+              myLawyerId,
+              showAddTask,
+              setShowAddTask,
+              onDeleteTask: handleDeleteTask,
+              onRenameSection: handleRenameSection,
+            }),
     ),
 
     /* ── Add Task Modal ── */
@@ -13497,41 +12263,21 @@ const ProjectInternalTasksTab = () => {
 
     /* ── Add SubTask Modal (placeholder) ── */
     showAddSub &&
-    addSubForTaskId != null &&
-    React.createElement(AddSubtaskModal, {
-      key: `submodal-${addSubForTaskId}`,
-      open: showAddSub,
-      parentTaskId: addSubForTaskId,
-      lawyers: assignableLawyers,
-      currentUser: currentUser,
-      onSave: () => {
-        reload();
-      },
-      onClose: () => {
-        setShowAddSub(false);
-        setAddSubForTaskId(null);
-      },
-    }),
-
-    /* ── Detail Modal ── */
-    detail &&
-    React.createElement(DetailModal, {
-      item: detail.item,
-      type: detail.type,
-      lawyers: assignableLawyers,
-      allTasksInProject: tasks,
-      tasksInService: detail.tasksInService || tasks,
-      projectManagerId,
-      onClose: () => setDetail(null),
-      onUpdate: handleDetailUpdate,
-      currentUser,
-      isManager,
-      onStatusChange: handleDetailStatusChange,
-      isAssigneeOnly: detail.isAssigneeOnly || false,
-      isAssignedToThis: detail.isAssignedToThis || false,
-      projectFolderId: resolveUploadFolderId(detail),
-      onOpenAddSubModal: handleOpenAddSubModal,
-    }),
+      addSubForTaskId != null &&
+      React.createElement(AddSubtaskModal, {
+        key: `submodal-${addSubForTaskId}`,
+        open: showAddSub,
+        parentTaskId: addSubForTaskId,
+        lawyers: assignableLawyers,
+        currentUser: currentUser,
+        onSave: () => {
+          reload();
+        },
+        onClose: () => {
+          setShowAddSub(false);
+          setAddSubForTaskId(null);
+        },
+      }),
   );
 };
 

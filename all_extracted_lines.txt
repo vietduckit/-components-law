@@ -1,0 +1,701 @@
+5800:         return (
+5801:           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+5802:             <span style={{ flexShrink: 0, display: "inline-flex" }}>{icon}</span>
+5803:             {canPreview ? (
+5804:               <span
+5805:                 onClick={() => previewRecordFile(docRecord)}
+5806:                 style={{
+5807:                   fontSize: 13,
+5808:                   color: "#185FA5",
+5809:                   fontWeight: 600,
+5810:                   cursor: "pointer",
+5811:                   textDecoration: "none",
+5812:                 }}
+5813:                 onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+5814:                 onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+5815:               >
+5816:                 {name}
+5817:               </span>
+5818:             ) : (
+5819:               <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{name}</span>
+5820:             )}
+5821:           </div>
+5822:         );
+5823:       }
+5824:     },
+5825:     {
+5826:       title: "Mô tả thay đổi",
+5827:       key: "desc",
+5828:       render: (text, log) => {
+5829:         const desc = resolveActivityDesc(log, folders, documents);
+5830:         return (
+5831:           <div style={{ fontSize: 13, color: "#4B5563" }}>{desc}</div>
+5832:         );
+5833:       }
+5834:     },
+5835:     {
+5836:       title: "Thời gian",
+5837:       dataIndex: "changedAt",
+5838:       key: "changedAt",
+5839: 
+5840: [MISSING]
+5841: [MISSING]
+5842: [MISSING]
+5843: [MISSING]
+5844: [MISSING]
+5845: [MISSING]
+5846: [MISSING]
+5847: [MISSING]
+5848: [MISSING]
+5849: [MISSING]
+5850:         return <span style={{ fontSize: 13, color: "#4B5563" }}>{formatted}</span>;
+5851:       }
+5852:     }
+5853:   ], [documents, folders, resolveActivityActionInfo, resolveActivityDesc, previewRecordFile]);
+5854: 
+5855:   if (loading && companies.length === 0 && documents.length === 0) {
+5856:     return (
+5857:       <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+5858:         <Spin size="large" />
+5859:       </div>
+5860:     );
+5861:   }
+5862: 
+5863:   return (
+5864:     <React.Fragment>
+5865:       <Dropdown
+5866:         menu={{ items: contextMenuState.record ? renderContextMenuItems(contextMenuState.record) : [] }}
+5867:         open={contextMenuState.open}
+5868:         onOpenChange={(v) => { if (!v) closeContextMenu(); }}
+5869:         trigger={["contextMenu"]}
+5870:           .split(" ")
+5871:         <div style={{ position: "fixed", left: contextMenuState.x, top: contextMenuState.y, width: 1, height: 1, zIndex: 9999, pointerEvents: "none" }} />
+5872:           .filter(Boolean)
+5873:           .slice(-2)
+5874:       <Layout style={{ background: "#fff", minHeight: "720px", fontFamily: FONT, borderRadius: 8, border: "0.5px solid #e5e7eb", overflow: "hidden" }}>
+5875:           .toUpperCase() || "?";
+5876:           <Sider width={240} style={{ background: "#FFFFFF", borderRight: "0.5px solid #E5E7EB", padding: "16px 12px", overflowY: "auto" }}>
+5877:             <div style={{ display: "flex", flexDirection: "column" }}>
+5878:           ["#E1F5EE", "#085041"],
+5879:               {/* ══ COMPANY HEADER & LOGO ══ */}
+5880:           ["#FAECE7", "#712B13"],
+5881:           ["#EAF3DE", "#27500A"],
+5882:         ];
+5883:         const [bg, fg] = palettes[(displayName.charCodeAt(0) || 0) % palettes.length];
+5884:         return (
+5885:           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+5886:             <div
+5887:               style={{
+5888:                 width: 28,
+5889:                 height: 28,
+5890:                 borderRadius: "50%",
+5891:                 background: bg,
+5892:                 color: fg,
+5893:                 display: "flex",
+5894:                 alignItems: "center",
+5895:                 justifyContent: "center",
+5896:                 fontSize: 11,
+5897:                 fontWeight: 600,
+5898:                 flexShrink: 0,
+5899:               }}
+5900:             >
+5901:               {initials}
+5902:             </div>
+5903:             <span style={{ fontSize: 13, color: "#1F2937", fontWeight: 500 }}>{displayName}</span>
+5904:           </div>
+5905:         );
+5906:       }
+5907:     },
+5908:     {
+5909:       title: "Tài liệu",
+5910:       key: "file",
+5911:       width: 280,
+5912:       render: (text, log) => {
+5913:         const isFolder = log.collectionName === "Folder";
+5914:         const folderRecord = isFolder ? folders.find(f => String(extractId(f.id)) === String(log.recordId)) : null;
+5915:         const docRecord = !isFolder ? documents.find(d => String(extractId(d.id)) === String(log.recordId)) : null;
+5916:         const name = log.resolvedTitle || log.recordTitle || folderRecord?.name || (docRecord ? getDocTitle(docRecord) : null) || log.newValue || log.oldValue || "—";
+5917: 
+5918:         let icon = isFolder ? TYPE_ICONS.folder : TYPE_ICONS.default;
+5919:         if (!isFolder && docRecord) {
+5920:           const ext = getFileExtension(docRecord);
+5921:           icon = getFileSvgIcon(ext);
+5922:         }
+5923: 
+5924:         const canPreview = docRecord && getRecordFileUrl(docRecord);
+5925:               <div style={{ paddingTop: 2, marginBottom: 4 }}>
+5926:                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
+5927:           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+5928:             <span style={{ flexShrink: 0, display: "inline-flex" }}>{icon}</span>
+5929:                       setActiveSpace(LEGAL_STUDY_PARENT_SPACE);
+5930:                       setActiveLegalReferenceId(contextLegalStudyId || activeLegalReferenceId);
+5931:                 onClick={() => previewRecordFile(docRecord)}
+5932:                 style={{
+5933:                     style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", userSelect: "none" }}
+5934:                   color: "#185FA5",
+5935:                   fontWeight: 600,
+5936:                       onClick={(e) => { e.stopPropagation(); setLibraryExpanded(!libraryExpanded); }}
+5937:                       style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center" }}
+5938:                     >
+5939:                 onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+5940:                 onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+5941:                     <span style={{ fontSize: 13, fontWeight: 600, color: activeSpace === LEGAL_STUDY_PARENT_SPACE ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>{DASHBOARD_CONFIG.label.sidebar}</span>
+5942:                   </div>
+5943:                 </div>
+5944:                 {libraryExpanded && (
+5945:               <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{name}</span>
+5946:                     {filteredLegalReferences.length === 0 ? (
+5947:                       <div style={{ padding: "4px 10px" }}>
+5948:                         <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Chưa có Legal Study</Text>
+5949:                       </div>
+5950:                     ) : (
+5951:     {
+5952:       title: "Mô tả thay đổi",
+5953:       key: "desc",
+5954:       render: (text, log) => {
+5955:         const desc = resolveActivityDesc(log, folders, documents);
+5956:         return (
+5957:           <div style={{ fontSize: 13, color: "#4B5563" }}>{desc}</div>
+5958:         );
+5959:       }
+5960:     },
+5961:     {
+5962:       title: "Thời gian",
+5963:       dataIndex: "changedAt",
+5964:       key: "changedAt",
+5965:       width: 160,
+5966:       render: (iso) => {
+5967:         if (!iso) return <span style={{ color: "#9CA3AF" }}>—</span>;
+5968:         const d = new Date(iso);
+5969:         const formatted = d.toLocaleString("vi-VN", {
+5970:           day: "2-digit",
+5971:           month:
+5972: [MISSING]
+5973: [MISSING]
+5974: [MISSING]
+5975: [MISSING]
+5976: [MISSING]
+5977: [MISSING]
+5978: [MISSING]
+5979: [MISSING]
+5980: [MISSING]
+5981: [MISSING]
+5982: [MISSING]
+5983: [MISSING]
+5984: [MISSING]
+5985: [MISSING]
+5986: [MISSING]
+5987: [MISSING]
+5988: [MISSING]
+5989: [MISSING]
+5990:                                     <button
+5991:                                       key={fid}
+5992:         menu={{ items: contextMenuState.record ? renderContextMenuItems(contextMenuState.record) : [] }}
+5993:                                       onClick={() => {
+5994:                                         setActiveSpace(LEGAL_STUDY_PARENT_SPACE);
+5995:                                         setActiveLegalReferenceId(contextLegalStudyId || refId);
+5996:                                         setSelectedFolderId(fid);
+5997:         <div style={{ position: "fixed", left: contextMenuState.x, top: contextMenuState.y, width: 1, height: 1, zIndex: 9999, pointerEvents: "none" }} />
+5998:                                       onContextMenu={(e) => {
+5999:                                         e.preventDefault();
+6000:       <Layout style={{ background: "#fff", minHeight: "720px", fontFamily: FONT, borderRadius: 8, border: "0.5px solid #e5e7eb", overflow: "hidden" }}>
+6001:                                         setContextMenuState({
+6002:           <Sider width={240} style={{ background: "#FFFFFF", borderRight: "0.5px solid #E5E7EB", padding: "16px 12px", overflowY: "auto" }}>
+6003:             <div style={{ display: "flex", flexDirection: "column" }}>
+6004:                                           y: e.clientY,
+6005:                                           record: { ...folder, _type: "folder" }
+6006:               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px 16px 2px", borderBottom: "0.5px solid #E5E7EB", marginBottom: 16 }}>
+6007:                                       }}
+6008:                   width: 36, height: 36, borderRadius: 8, background: "#185FA5",
+6009:                                         width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
+6010:                                         border: "0", borderRadius: 8, cursor: "pointer",
+6011:                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+6012:                     <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+6013:                     <line x1="9" y1="22" x2="9" y2="16" />
+6014:                     <line x1="15" y1="22" x2="15" y2="16" />
+6015:                     <line x1="9" y1="16" x2="15" y2="16" />
+6016:                     <path d="M8 6h2" />
+6017:                     <path d="M14 6h2" />
+6018:                     <path d="M8 10h2" />
+6019:                     <path d="M14 10h2" />
+6020:                   </svg>
+6021:                 </div>
+6022:                 <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+6023:                   <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+6024:                     {activeLegalReference ? getLegalReferenceDisplayName(activeLegalReference) : DASHBOARD_CONFIG.label.sidebar}
+6025:                   </span>
+6026:                 </div>
+6027:                 <Tooltip title="Đóng sidebar">
+6028:                   <Button type="text" icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(true)}
+6029:                     style={{ width: 22, height: 22, minWidth: 22, padding: 0, color: "#9CA3AF" }} />
+6030:                 </Tooltip>
+6031:               </div>
+6032: 
+6033:               {/* ══ SEARCH BOX ══ */}
+6034:               <div style={{ marginBottom: 16 }}>
+6035:                 <Input
+6036:                   placeholder="Tìm kiếm tài liệu..."
+6037:                   value={query}
+6038:                   onChange={(e) => setQuery(e.target.value)}
+6039:                   allowClear
+6040:                   prefix={<span style={{ color: "#9CA3AF", marginRight: 4, display: "flex" }}>
+6041:                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+6042:                       <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+6043:                     </svg>
+6044:                   </span>}
+6045:                   style={{ borderRadius: 8, background: "#F9FAFB", border: "1px solid #E5E7EB" }}
+6046:                 />
+6047:               </div>
+6048: 
+6049:               {/* ══ SECTION 2: THƯ VIỆN (Library) ══ */}
+6050:               <div style={{ paddingTop: 2, marginBottom: 4 }}>
+6051: [MISSING]
+6052: [MISSING]
+6053: [MISSING]
+6054: [MISSING]
+6055: [MISSING]
+6056: [MISSING]
+6057: [MISSING]
+6058: [MISSING]
+6059: [MISSING]
+6060: [MISSING]
+6061: [MISSING]
+6062: [MISSING]
+6063: [MISSING]
+6064: [MISSING]
+6065: [MISSING]
+6066: [MISSING]
+6067: [MISSING]
+6068: [MISSING]
+6069: [MISSING]
+6070: [MISSING]
+6071: [MISSING]
+6072: [MISSING]
+6073: [MISSING]
+6074: [MISSING]
+6075: [MISSING]
+6076: [MISSING]
+6077: [MISSING]
+6078: [MISSING]
+6079: [MISSING]
+6080: [MISSING]
+6081: [MISSING]
+6082: [MISSING]
+6083: [MISSING]
+6084: [MISSING]
+6085: [MISSING]
+6086:                       style={{
+6087:                         width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
+6088:                         border: "0", borderRadius: 8, cursor: "pointer",
+6089:                         borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
+6090:                         background: isActive ? "#E6F1FB" : "transparent",
+6091:                         color: isActive ? "#185FA5" : "#6B7280",
+6092:                         fontFamily: FONT, minWidth: 0, transition: "background 0.15s", textAlign: "left"
+6093:                       }}
+6094:                       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "#F3F4F6"; }}
+6095:                       onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+6096:                     >
+6097:                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isActive ? "#185FA5" : "#6B7280"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+6098:                         <polyline points="3 6 5 6 21 6" />
+6099:                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+6100:                       </svg>
+6101:                       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Thùng rác</span>
+6102:                     </button>
+6103:                   );
+6104:                 })()}
+6105:               </div>
+6106: 
+6107:             </div>
+6108:           </Sider>
+6109:         )}
+6110: 
+6111:         <Layout style={{ background: "#fff" }}>
+6112:           {/* ── TOPBAR ── */}
+6113:           <div style={{ padding: "10px 20px", borderBottom: "0.5px solid #E5E7EB", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "#FFFFFF" }}>
+6114:             {/* Left: sidebar toggle + context label */}
+6115:             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+6116:               {sidebarCollapsed && (
+6117:                 <Tooltip title="Mở sidebar">
+6118:                   <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label="Mở sidebar"
+6119:                     style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "0.5px solid #E5E7EB" }} />
+6120:                 </Tooltip>
+6121:               )}
+6122:               <Text style={{ fontSize: 12, color: "#6B7280", whiteSpace: "nowrap" }}>
+6123:                 {activeSpace === "recent" ? "Lịch sử hoạt động" :
+6124:                   activeSpace === "trash" ? "Thùng rác" :
+6125:                     activeSp
+6126: [MISSING]
+6127: [MISSING]
+6128: [MISSING]
+6129: [MISSING]
+6130: [MISSING]
+6131: [MISSING]
+6132: [MISSING]
+6133: [MISSING]
+6134: [MISSING]
+6135: [MISSING]
+6136: [MISSING]
+6137: [MISSING]
+6138: [MISSING]
+6139: [MISSING]
+6140: [MISSING]
+6141: [MISSING]
+6142: [MISSING]
+6143: [MISSING]
+6144: [MISSING]
+6145: [MISSING]
+6146: [MISSING]
+6147: [MISSING]
+6148: [MISSING]
+6149: [MISSING]
+6150: [MISSING]
+6151: [MISSING]
+6152: [MISSING]
+6153: [MISSING]
+6154: [MISSING]
+6155: [MISSING]
+6156:                   )}
+6157:                   <Button icon={REFRESH_ICON} onClick={loadData} loading={loading}
+6158:                     style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+6159:                     Refresh
+6160:                   </Button>
+6161:                 </React.Fragment>
+6162:               )}
+6163:             </div>
+6164:           </div>
+6165: 
+6166:           <Content
+6167:             style={{ padding: 20, overflowY: "auto", overflowX: "hidden", background: "#F9FAFB", minWidth: 0 }}
+6168:             onDragOver={(event) => event.preventDefault()}
+6169:             onDrop={handleDropToCurrentFolder}
+6170:           >
+6171:             <input
+6172:               ref={folderInputRef}
+6173:               type="file"
+6174:               multiple
+6175:               webkitdirectory="true"
+6176:               directory="true"
+6177:               style={{ display: "none" }}
+6178:               onChange={handleFolderInputTrigger}
+6179:             />
+6180:                     { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Cũ nhất</span> },
+6181:                       style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "grid" ? "#185FA5" : "transparent", color: viewMode === "grid" ? "#fff" : "#6B7280" }} />
+6182:               <div style={{ padding: "8px 4px 24px 4px", fontFamily: FONT }}>
+6183:                   <Tooltip title="Bảng">
+6184:                 <Select allowClear placeholder="Định dạng" style={{ width: 120, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
+6185:                       style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "table" ? "#185FA5" : "transparent", color: viewMode === "table" ? "#fff" : "#6B7280" }} />
+6186:                   loading={activityLoading}
+6187:                     <Button aria-label="Lưới" icon={GRID_ICON} onClick={() => setViewMode("grid")}
+6188:                       style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "grid" ? "#185FA5" : "transparent", color: viewMode === "grid" ? "#fff" : "#6B7280" }} />
+6189:                   scroll={{ x: 1120 }}
+6190:                   <Tooltip title="Bảng">
+6191:                     <Button aria-label="Bảng" icon={TABLE_ICON} onClick={() => setViewMode("table")}
+6192:                       style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "table" ? "#185FA5" : "transparent", color: viewMode === "table" ? "#fff" : "#6B7280" }} />
+6193:                     onChange: (page) => setActivityPage(page),
+6194:             <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+6195:               {activeSpace === "recent" ? (
+6196:                 <Button icon={REFRESH_ICON} onClick={fetchActivityLogs} loading={activityLoading}
+6197:                   style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+6198:             <div style={{ width: 1, height: 20, background: "#E5E7EB", flexShrink: 0 }} />
+6199:                 </Button>
+6200:             {/* Actions */}
+6201:             <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+6202:               {activeSpace === "recent" ? (
+6203:                 <Button icon={REFRESH_ICON} onClick={fetchActivityLogs} loading={activityLoading}
+6204:                   style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+6205:                   Refresh
+6206:                 </Button>
+6207:               ) : (
+6208:                 <React.Fragment>
+6209:                   {activeSpace !== "trash" && (currentFolderPerms.canEdit || currentFolderPerms.isManager) && (
+6210:                     <Dropdown menu={newMenu} trigger={["click"]}>
+6211:                       <Button type="primary" icon={PLUS_ICON}
+6212:                         style={{ background: "#185FA5", borderColor: "#185FA5", borderRadius: 8, fontWeight: 600 }}>
+6213:                         New
+6214:                       </Button>
+6215:                     </Dropdown>
+6216:                   )}
+6217:                   <Button icon={REFRESH_ICON} onClick={loadData} loading={loading}
+6218:                     style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+6219:                     Refresh
+6220:                   </Button>
+6221:                 </React.Fragment>
+6222:               )}
+6223:             </div>
+6224:           </div>
+6225: 
+6226:           <Content
+6227:             style={{ padding: 20, overflowY: "auto", background: "#F9FAFB" }}
+6228:             onDragOver={(event) => event.preventDefault()}
+6229:             onDrop={handleDropToCurrentFolder}
+6230:           >
+6231:             <input
+6232:               ref={fileInputRef}
+6233:               type="file"
+6234:                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+6235:                           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+6236:                           <line x1="12" y1="11" x2="12" y2="17" /><polyline points="9 14 12 17 15 14" />
+6237:                         </svg>
+6238:                         <div style={{ fontSize: 15, fontWeight: 500, color: "#6B7280", fontFamily: FONT }}>
+6239:                           {activeSpace === "trash" ? "Thùng rác trống" :
+6240:                             (query ? "Không tìm thấy kết quả" : "Thư mục trống")}
+6241:                         </div>
+6242:                         <div style={{ fontSize: 13, color: "#9CA3AF", fontFamily: FONT }}>
+6243:                           {activeSpace === "trash" ? "Không có file hay thư mục nào bị xóa" :
+6244:                             (query ? "Thử tìm với từ khóa khác" : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên")}
+6245:               onChange={handleFolderInputTrigger}
+6246:                         {(activeSpace !== "trash" && !query) && (
+6247:                           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+6248:                             <button type="button" onClick={() => { directFileTargetRef.current = selectedFolderId; fileInputRef.current?.click(); }}
+6249:                               style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+6250:                   dataSource={filteredActivityLogs}
+6251:                   columns={activityColumns}
+6252:                   loading={activityLoading}
+6253:                   rowKey={(log) => log.id || log.changedAt}
+6254:                   pagination={{
+6255:                     current: activityPage,
+6256:                     pageSize: 20,
+6257:                     onChange: (page) => setActivityPage(page),
+6258:                     showSizeChanger: false,
+6259:                     total: filteredActivityLogs.length,
+6260:                     showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} hoạt động`,
+6261: [MISSING]
+6262: [MISSING]
+6263: [MISSING]
+6264: [MISSING]
+6265: [MISSING]
+6266: [MISSING]
+6267: [MISSING]
+6268: [MISSING]
+6269: [MISSING]
+6270: [MISSING]
+6271: [MISSING]
+6272: [MISSING]
+6273: [MISSING]
+6274: [MISSING]
+6275: [MISSING]
+6276: [MISSING]
+6277: [MISSING]
+6278: [MISSING]
+6279: [MISSING]
+6280: [MISSING]
+6281: [MISSING]
+6282: [MISSING]
+6283: [MISSING]
+6284: [MISSING]
+6285: [MISSING]
+6286: [MISSING]
+6287: [MISSING]
+6288: [MISSING]
+6289: [MISSING]
+6290: [MISSING]
+6291: [MISSING]
+6292: [MISSING]
+6293: [MISSING]
+6294: [MISSING]
+6295: [MISSING]
+6296: [MISSING]
+6297: [MISSING]
+6298: [MISSING]
+6299: [MISSING]
+6300: [MISSING]
+6301: [MISSING]
+6302: [MISSING]
+6303: [MISSING]
+6304: [MISSING]
+6305: [MISSING]
+6306: [MISSING]
+6307: [MISSING]
+6308: [MISSING]
+6309: [MISSING]
+6310: [MISSING]
+6311: [MISSING]
+6312: [MISSING]
+6313: [MISSING]
+6314: [MISSING]
+6315: [MISSING]
+6316: [MISSING]
+6317: [MISSING]
+6318: [MISSING]
+6319: [MISSING]
+6320: [MISSING]
+6321: [MISSING]
+6322: [MISSING]
+6323: [MISSING]
+6324: [MISSING]
+6325: [MISSING]
+6326: [MISSING]
+6327: [MISSING]
+6328: [MISSING]
+6329: [MISSING]
+6330: [MISSING]
+6331: [MISSING]
+6332: [MISSING]
+6333: [MISSING]
+6334: [MISSING]
+6335: [MISSING]
+6336: [MISSING]
+6337: [MISSING]
+6338: [MISSING]
+6339: [MISSING]
+6340: [MISSING]
+6341: [MISSING]
+6342: [MISSING]
+6343: [MISSING]
+6344: [MISSING]
+6345: [MISSING]
+6346: [MISSING]
+6347: [MISSING]
+6348: [MISSING]
+6349: [MISSING]
+6350:                             }}
+6351:                           >
+6352:                             Khôi phục
+6353:                           </Button>
+6354:                           <Button
+6355:                             size="small"
+6356:                             icon={DELETE_ICON}
+6357:                             onClick={handleBulkPermanentDelete}
+6358:                             style={{
+6359:                               borderRadius: 6,
+6360:                               fontSize: 12,
+6361:                               background: "#FEF2F2",
+6362:                               color: "#991B1B",
+6363:                               borderColor: "#FEE2E2",
+6364:                               display: "inline-flex",
+6365:                               alignItems: "center",
+6366:                               fontFamily: FONT,
+6367:                             }}
+6368:                           >
+6369:                             Xóa vĩnh viễn
+6370:                           </Button>
+6371:                         </React.Fragment>
+6372:                       ) : (
+6373:                         <React.Fragment>
+6374:                           <Button
+6375:                             size="small"
+6376:                             icon={MOVE_ICON}
+6377:                             onClick={handleBulkMove}
+6378:                             style={{
+6379:                               borderRadius: 6,
+6380:                               style={{ padding: "8px 18px", background: "transparent", color: "#185FA5", border: "1px solid #185FA5", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+6381:                               background: "#EFF6FF",
+6382:                               color: "#1E40AF",
+6383:                               borderColor: "#BFDBFE",
+6384:                               display: "inline-flex",
+6385:                               alignItems: "center",
+6386:                               fontFamily: FONT,
+6387:                       <React.Fragment>
+6388:                         {/* ── Section: Case Tham Chiếu ── */}
+6389:                         {tableData.some(r => r._type === "legal_reference_record") && (
+6390:                           <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
+6391:                             {tableData.filter(r => r._type === "legal_reference_record").map((record) => {
+6392:                               const refId = String(extractId(record));
+6393:                               const filesCount = documents.filter(doc => String(getRecordLegalReferenceId(doc)) === refId && !doc.isDeleted).length;
+6394:                               const foldersCount = folders.filter(f => String(getRecordLegalReferenceId(f)) === refId && !f.isDeleted).length;
+6395:                               return (
+6396:                                 <Col {...REFERENCE_COL_PROPS} key={record._key}>
+6397:                               fontSize: 12,
+6398:                               background: "#FEF2F2",
+6399:                                     onClick={() => openLegalReferenceDetail(record)}
+6400:                                     onContextMenu={(e) => {
+6401:                                       e.preventDefault(); e.stopPropagation();
+6402:                                       setContextMenuState({
+6403:                                         open: true,
+6404:                                         x: e.clientX,
+6405:                                         y: e.clientY,
+6406:                                         record: { ...record, _type: "legal_reference_record" }
+6407:                                       });
+6408:                         </React.Fragment>
+6409:                                     style={{
+6410:                                       borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer", height: "100%",
+6411: 
+6412: [MISSING]
+6413: [MISSING]
+6414: [MISSING]
+6415: [MISSING]
+6416: [MISSING]
+6417: [MISSING]
+6418: [MISSING]
+6419: [MISSING]
+6420: [MISSING]
+6421: [MISSING]
+6422: [MISSING]
+6423: [MISSING]
+6424: [MISSING]
+6425: [MISSING]
+6426: [MISSING]
+6427: [MISSING]
+6428: [MISSING]
+6429: [MISSING]
+6430: [MISSING]
+6431: [MISSING]
+6432: [MISSING]
+6433: [MISSING]
+6434: [MISSING]
+6435: [MISSING]
+6436: [MISSING]
+6437: [MISSING]
+6438: [MISSING]
+6439: [MISSING]
+6440: [MISSING]
+6441: [MISSING]
+6442: [MISSING]
+6443: [MISSING]
+6444: [MISSING]
+6445: [MISSING]
+6446: [MISSING]
+6447:                         ).length;
+6448:                         const folderSubFolderCount = permissionFilteredFolders.filter(
+6449:                           (f) => String(getFolderParentId(f) || "") === String(extractId(record))
+6450:                         ).length;
+6451:                         const folderIsEditing = editingTitleId === String(extractId(record));
+6452:                         const isEmpty = folderFileCount === 0 && folderSubFolderCount === 0;
+6453: 
+6454:                         return (
+6455:                           <Col span={4} key={record._key}>
+6456:                             <div style={{ position: "relative", height: "100%" }}>
+6457:                               <Checkbox
+6458:                                 checked={selectedRowKeys.includes(record._key)}
+6459:                                 onChange={(e) => {
+6460:                                   const checked = e.target.checked;
+6461:                                   setSelectedRowKeys(prev => checked ? [...prev, record._key] : prev.filter(k => k !== record._key));
+6462:                                 }}
+6463:                                 onClick={(e) => e.stopPropagation()}
+6464:                                 style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}
+6465:                               />
+6466:                               <Card
+6467:                                 hoverable
+6468:                                 draggable={activeSpace !== "trash"}
+6469:                                 onDragStart={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragStart(event); }}
+6470:                                 onDragOver={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDragOver(event); }}
+6471:                                 onDrop={(event) => { if (activeSpace !== "trash") rowDragProps(record).onDrop(event); }}
+6472:                                 onClick={() => { if (!folderIsEditing && activeSpace !== "trash") setSelectedFolderId(String(extractId(record))); }}
+6473:                                 onContextMenu={(e) => {
+6474:                                   e.preventDefault(); e.stopPropagation();
+6475:                                   const items = renderContextMenuItems(record);
+6476:                                   if (items.length > 0) setContextMenuState({ open: true, x: e.clientX, y: e.clientY, record });
+6477:                                 }}
+6478:                                 style={{
+6479:                                   borderRadius: 12, border: "0.5px solid #E5E7EB", cursor: "pointer", height: "100%",
+6480:                                   borderLeft: !isEmpty ? "2px solid #185FA5" : "0.5px solid #E5E7EB",
+6481: [MISSING]
+6482: [MISSING]
+6483: [MISSING]
+6484: [MISSING]
+6485: [MISSING]
+6486: [MISSING]
+6487: [MISSING]
+6488: [MISSING]
+6489: [MISSING]
+6490: [MISSING]
+6491: [MISSING]
+6492: [MISSING]
+6493: [MISSING]
+6494: [MISSING]
+6495: [MISSING]
+6496: [MISSING]
+6497: [MISSING]
+6498: [MISSING]
+6499: [MISSING]
+6500:                                   </div>

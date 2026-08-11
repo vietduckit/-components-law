@@ -226,6 +226,7 @@ const MODULE_SCOPE = {
   INTERNAL_TEMPLATE: "internal_template",
   LEGAL_REFERENCE: "legal_reference",
   PROJECT_INTERNAL: "project_internal",
+  LEGAL_STUDY: "legal_study",
 };
 
 const MODULE_SCOPE_LABEL = {
@@ -245,6 +246,50 @@ const DOCUMENT_DASHBOARD_CONFIG = {
   // false: render the full folder tree returned by the API for the selected mode.
   // true: additionally filter folders by folderManager/folderMember/creator on the client.
   respectFolderPermissions: true,
+};
+
+// ==================== TAB CONFIG ====================
+const TAB_CONFIG = {
+  customer: {
+    key: "customer",
+    label: "Khách hàng",
+    tabLabel: "Khách hàng",
+    collection: "customers",
+    mode: "customers",
+    entityField: "customerId",
+    moduleScopes: [MODULE_SCOPE.CASE_DOCUMENT],
+    nameField: "customerName",
+  },
+  case_reference: {
+    key: "case_reference",
+    label: "Hồ sơ",
+    tabLabel: "Hồ sơ",
+    collection: "projects",
+    mode: "cases",
+    entityField: "caseId",
+    moduleScopes: [MODULE_SCOPE.CASE_DOCUMENT],
+    nameField: "projectName",
+  },
+  legal_reference: {
+    key: "legal_reference",
+    label: "Tham chiếu pháp lý",
+    tabLabel: "Tham chiếu",
+    collection: "legalReference",
+    mode: "legal_reference",
+    entityField: "legalReferenceId",
+    moduleScopes: [MODULE_SCOPE.LEGAL_REFERENCE],
+    nameField: "title",
+  },
+  legal_study: {
+    key: "legal_study",
+    label: "Nghiên cứu pháp lý",
+    tabLabel: "Nghiên cứu",
+    collection: "legalStudy",
+    mode: "legal_study",
+    entityField: "legalStudyId",
+    moduleScopes: [MODULE_SCOPE.LEGAL_STUDY],
+    nameField: "title",
+  },
 };
 
 const DEBUG_DOCUMENT_DASHBOARD = !!DOCUMENT_DASHBOARD_CONFIG.debug;
@@ -407,6 +452,7 @@ const getDocumentDirectLinkFilter = (context, recordId = null) => {
   if (context?.mode === "contracts") return { contractId: { $eq: safeContextId } };
   if (context?.mode === "legal_reference") return { legalReferenceId: { $eq: safeContextId } };
   if (context?.mode === "internal_templates") return { internalCompanyId: { $eq: safeContextId } };
+  if (context?.mode === "legal_study") return { legalStudyId: { $eq: safeContextId } };
   return null;
 };
 
@@ -449,6 +495,7 @@ const MODE_SCOPE = {
   internal_templates: MODULE_SCOPE.INTERNAL_TEMPLATE,
   legal_reference: MODULE_SCOPE.LEGAL_REFERENCE,
   project_internal: MODULE_SCOPE.PROJECT_INTERNAL,
+  legal_study: MODULE_SCOPE.LEGAL_STUDY,
 };
 
 const getRuntimeOptionCandidates = (key) => {
@@ -781,7 +828,21 @@ const getContext = () => {
   };
 };
 
-const CONTEXT = getContext();
+// Tab-driven: static default — getContext() / mode auto-detection không còn dùng nữa
+const CONTEXT = {
+  mode: "customers",
+  modeSource: "tab",
+  collection: "Customer",
+  moduleScope: MODULE_SCOPE.CASE_DOCUMENT,
+  respectFolderPermissions: DOCUMENT_DASHBOARD_CONFIG.respectFolderPermissions,
+  recordId: null,
+  customerId: null,
+  projectId: null,
+  legalReferenceId: null,
+  legalStudyId: null,
+  internalCompanyId: null,
+  projectInternalId: null,
+};
 
 const resolveLogicalParentId = async (context, currentParentId) => {
   const explicitId = extractId(currentParentId);
@@ -1230,6 +1291,26 @@ const filterFoldersForContext = (folders, context) => {
         .filter((folder) => keep.has(extractId(folder.id)))
         .slice(0, 5)
         .map(debugRecordSnapshot),
+    });
+    return folders.filter((folder) => keep.has(extractId(folder.id)));
+  }
+
+  if (context?.mode === "legal_study") {
+    const legalStudyId = extractId(context.legalStudyId) || extractId(context.recordId);
+    if (!legalStudyId) return folders;
+
+    const studyRootFolders = folders.filter((folder) => {
+      if (extractId(folder.legalStudyId) !== legalStudyId) return false;
+      const parent = byId.get(extractId(folder.parentId));
+      return !parent || extractId(parent.legalStudyId) !== legalStudyId;
+    });
+
+    if (studyRootFolders.length === 0) return [];
+    const keep = new Set();
+    studyRootFolders.forEach((folder) => {
+      const rootId = extractId(folder.id);
+      if (rootId) keep.add(rootId);
+      collectDescendants(folder, keep);
     });
     return folders.filter((folder) => keep.has(extractId(folder.id)));
   }
@@ -1829,51 +1910,60 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
   );
 };
 
+const ROLE_LABEL = {
+  admin:   "Quản trị viên",
+  owner:   "Chủ sở hữu",
+  manager: "Quản lý",
+  editor:  "Chỉnh sửa",
+  viewer:  "Chỉ xem",
+  shared:  "Được chia sẻ",
+};
+
+const roleToPerms = (role) => ({
+  role,
+  canView:              role !== null,
+  canCreate:            ["admin","owner","manager","editor"].includes(role),
+  canRename:            ["admin","owner","manager","editor"].includes(role),
+  canMove:              ["admin","owner","manager"].includes(role),
+  canDelete:            ["admin","owner","manager"].includes(role),
+  canShare:             ["admin","owner","manager"].includes(role),
+  canManagePermissions: ["admin","owner","manager"].includes(role),
+  isManager: ["admin","owner","manager"].includes(role),
+  isMember:  role !== null,
+  canEdit:   ["admin","owner","manager","editor"].includes(role),
+});
+
 const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
-  if (isAdminUser(user))
-    return { isManager: true, isMember: true, canEdit: true };
-  if (!folder) return { isManager: true, isMember: true, canEdit: true };
-  if (!user) return { isManager: false, isMember: false, canEdit: false };
+  if (isAdminUser(user)) return roleToPerms("admin");
+  if (!folder) return roleToPerms("admin");
+  if (!user) return roleToPerms(null);
 
   const uid = extractId(user.id);
   const lwId = extractId(currentLawyerId);
 
-  // Owner check (Nocobase user ID)
-  if (extractId(folder.createdById) === uid) {
-    return { isManager: true, isMember: true, canEdit: true };
-  }
+  if (uid && String(extractId(folder.createdById)) === String(uid)) return roleToPerms("owner");
 
   const managers = getFolderManagerRows(folder);
   const members = getFolderMemberRows(folder);
 
-  // Check explicit permissions using Lawyer ID
   if (lwId) {
-    const isExplicitManager = managers.some(
-      (m) => getPermissionLawyerId(m) === lwId,
-    );
-    if (isExplicitManager)
-      return { isManager: true, isMember: true, canEdit: true };
+    const isExplicitManager = managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId));
+    if (isExplicitManager) return roleToPerms("manager");
 
-    const explicitMember = members.find(
-      (m) => getPermissionLawyerId(m) === lwId,
-    );
+    const explicitMember = members.find((m) => String(getPermissionLawyerId(m)) === String(lwId));
     if (explicitMember) {
-      const role = getPermissionRole(explicitMember);
-      const canEdit = role === "editor";
-      return { isManager: false, isMember: true, canEdit };
+      const r = getPermissionRole(explicitMember, "viewer");
+      if (r === "manager") return roleToPerms("manager");
+      if (r === "editor")  return roleToPerms("editor");
+      return roleToPerms("viewer");
     }
   }
 
-  // Inherit from parent
   const pId = extractId(folder.parentId);
-  if (!pId || pId === "root")
-    return { isManager: false, isMember: false, canEdit: false };
+  if (!pId || pId === "root") return roleToPerms(null);
 
-  const parentFolder = allFolders.find(
-    (f) => String(extractId(f.id)) === String(pId),
-  );
-  if (!parentFolder)
-    return { isManager: false, isMember: false, canEdit: false };
+  const parentFolder = allFolders.find((f) => String(extractId(f.id)) === String(pId));
+  if (!parentFolder) return roleToPerms(null);
 
   return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
 };
@@ -4104,7 +4194,7 @@ function useDynamicDocumentManager(
         else if (context.mode === "project_internal")
           folderFilter = { projectInternalId: { $eq: safeRecordId } };
       }
-      const needsFullFolderTree = ["customers", "cases"].includes(context.mode);
+      const needsFullFolderTree = ["customers", "cases", "legal_study"].includes(context.mode);
       if (!business && needsFullFolderTree) {
         folderFilter = {};
       } else if (!business && context.mode !== "project_internal") {
@@ -5449,6 +5539,97 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
   );
 };
 
+// ==================== SIDEBAR TAB BAR ====================
+const SidebarTabBar = ({ tabs, active, onChange }) =>
+  React.createElement(
+    "div",
+    { style: { display: "flex", borderBottom: "1px solid #e8e8e8", flexShrink: 0 } },
+    tabs.map((tabKey) => {
+      const cfg = TAB_CONFIG[tabKey];
+      const isActive = active === tabKey;
+      return React.createElement(
+        "button",
+        {
+          key: tabKey,
+          onClick: () => onChange(tabKey),
+          style: {
+            flex: 1,
+            padding: "7px 4px",
+            border: "none",
+            borderBottom: isActive ? "2px solid #1677ff" : "2px solid transparent",
+            background: "none",
+            cursor: "pointer",
+            fontSize: 11,
+            fontFamily: FONT,
+            color: isActive ? "#1677ff" : "#595959",
+            fontWeight: isActive ? 600 : 400,
+            transition: "color 0.15s, border-bottom-color 0.15s",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          },
+        },
+        cfg?.tabLabel || cfg?.label || tabKey,
+      );
+    }),
+  );
+
+// ==================== ENTITY LIST (sidebar entity picker) ====================
+const EntityList = ({ items, selectedId, onSelect, nameField, loading }) => {
+  if (loading)
+    return React.createElement(
+      "div",
+      { style: { padding: 20, textAlign: "center" } },
+      React.createElement(Spin, { size: "small" }),
+    );
+  if (!items.length)
+    return React.createElement(
+      "div",
+      { style: { padding: "14px 10px", color: "#bfbfbf", fontSize: 12, fontFamily: FONT } },
+      "Không có dữ liệu",
+    );
+  return React.createElement(
+    "div",
+    { style: { overflowY: "auto", flex: 1, padding: "6px 4px" } },
+    items.map((item) => {
+      const label =
+        item[nameField] || item.name || item.title || `#${item.id}`;
+      const isSelected = selectedId === item.id;
+      return React.createElement(
+        "div",
+        {
+          key: item.id,
+          onClick: () => onSelect(isSelected ? null : item.id),
+          style: {
+            padding: "7px 10px",
+            cursor: "pointer",
+            borderRadius: 6,
+            margin: "1px 0",
+            background: isSelected ? "#e6f4ff" : "transparent",
+            color: isSelected ? "#1677ff" : "#262626",
+            fontWeight: isSelected ? 600 : 400,
+            fontSize: 13,
+            fontFamily: FONT,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            transition: "background 0.15s",
+            userSelect: "none",
+          },
+          onMouseEnter: (e) => {
+            if (!isSelected) e.currentTarget.style.background = "#f5f5f5";
+          },
+          onMouseLeave: (e) => {
+            e.currentTarget.style.background = isSelected ? "#e6f4ff" : "transparent";
+          },
+        },
+        React.createElement("span", { style: { fontSize: 15, lineHeight: 1, color: "#8c6d1f" } }, "▸"),
+        label,
+      );
+    }),
+  );
+};
+
 // ==================== MAIN COMPONENT (UNIVERSAL DOCUMENT DASHBOARD) ====================
 const DocumentDashboard = () => {
   const {
@@ -5527,158 +5708,6 @@ const DocumentDashboard = () => {
     return filtered;
   }, [folders, currentUser, currentLawyerId, loadingUser, resolvedContext.respectFolderPermissions]);
 
-  useEffect(() => {
-    const resolveContext = async () => {
-      console.log("[DEBUG][resolveContext] START");
-      console.log("[DEBUG][resolveContext] pathname:", window.location.pathname);
-      console.log("[DEBUG][resolveContext] href:", window.location.href);
-      console.log("[DEBUG][resolveContext] ctx.record:", ctx.record);
-      console.log("[DEBUG][resolveContext] ctx.filterByTk:", ctx?.filterByTk);
-      console.log("[DEBUG][resolveContext] CONTEXT (static):", JSON.stringify(CONTEXT));
-      console.log("[DEBUG][resolveContext] resolvedContext.mode:", resolvedContext.mode);
-
-      if (resolvedContext.modeSource === "config") {
-        console.log("[DEBUG][resolveContext] BAIL — mode is locked by DOCUMENT_DASHBOARD_CONFIG");
-        return;
-      }
-
-      const urlId = getUrlFilterByTk();
-      console.log("[DEBUG][resolveContext] extracted urlId:", urlId);
-
-      if (!urlId) {
-        console.log("[DEBUG][resolveContext] BAIL — no urlId found (no filterbytk in URL and no ctx.filterByTk)");
-        return;
-      }
-      if (resolvedContext.mode !== "global") {
-        console.log("[DEBUG][resolveContext] BAIL — mode is already", resolvedContext.mode, "(not global), skip re-resolve");
-        return;
-      }
-
-      try {
-        const id = extractId(urlId);
-        console.log("[DEBUG][resolveContext] querying all collections for id:", id);
-
-        // Query NocoBase REST API in parallel using list and eq filters to avoid throwing 404
-        const [projRes, custRes, quotRes, contRes, taskRes, projectInternalRes, legalReferenceRec] = await Promise.all([
-          ctx.api.request({ url: "projects:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] projects:list error", e); return null; }),
-          ctx.api.request({ url: "customers:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] customers:list error", e); return null; }),
-          ctx.api.request({ url: "quotations:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] quotations:list error", e); return null; }),
-          ctx.api.request({ url: "contracts:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] contracts:list error", e); return null; }),
-          ctx.api.request({ url: "tasks:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] tasks:list error", e); return null; }),
-          ctx.api.request({ url: "projectInternal:list", params: { pageSize: 1, filter: JSON.stringify({ id: { $eq: id } }) } }).catch((e) => { console.warn("[DEBUG] projectInternal:list error", e); return null; }),
-          fetchLegalReferenceRecordById(id).catch((e) => { console.warn("[DEBUG] legalReference:list error", e); return null; }),
-        ]);
-
-        console.log("[DEBUG][resolveContext] API results:",
-          "projects hit:", !!(projRes?.data?.data?.[0]),
-          "| customers hit:", !!(custRes?.data?.data?.[0]),
-          "| quotations hit:", !!(quotRes?.data?.data?.[0]),
-          "| contracts hit:", !!(contRes?.data?.data?.[0]),
-          "| tasks hit:", !!(taskRes?.data?.data?.[0]),
-          "| projectInternal hit:", !!(projectInternalRes?.data?.data?.[0]),
-          "| legalReference hit:", !!legalReferenceRec
-        );
-        console.log("[DEBUG][resolveContext] raw projRes:", projRes?.data?.data);
-        console.log("[DEBUG][resolveContext] raw custRes:", custRes?.data?.data);
-
-        let mode = "cases";
-        let collection = "Project";
-        let recordId = id;
-        let customerId = null;
-        let projectId = null;
-        let projectInternalId = null;
-        let internalCompanyId = null;
-        let found = false;
-
-        if (legalReferenceRec) {
-          const rec = legalReferenceRec;
-          mode = "legal_reference";
-          collection = "LegalReference";
-          internalCompanyId = extractId(rec.internalCompanyId) || extractId(rec.internalCompany);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED legalReference -> mode=legal_reference, recordId:", id);
-        } else if (projectInternalRes?.data?.data?.[0]) {
-          const rec = projectInternalRes.data.data[0];
-          mode = "project_internal";
-          collection = "Project Internal";
-          projectInternalId = id;
-          internalCompanyId = extractId(rec.internalCompanyId) || extractId(rec.internalCompany);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED projectInternal -> mode=project_internal, projectInternalId:", projectInternalId);
-        } else if (projRes?.data?.data?.[0]) {
-          const rec = projRes.data.data[0];
-          mode = "cases";
-          collection = "Project";
-          projectId = id;
-          customerId = extractId(rec.customerId) || extractId(rec.customer);
-          internalCompanyId = extractId(rec.internalCompanyId) || extractId(rec.internalCompany);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED projects → mode=cases, projectId:", projectId, "customerId:", customerId);
-        } else if (custRes?.data?.data?.[0]) {
-          mode = "customers";
-          collection = "Customer";
-          customerId = id;
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED customers → mode=customers, customerId:", customerId);
-        } else if (quotRes?.data?.data?.[0]) {
-          const rec = quotRes.data.data[0];
-          mode = "quotations";
-          collection = "Quotation";
-          projectId = extractId(rec.projectId) || extractId(rec.project);
-          customerId = extractId(rec.customerId) || extractId(rec.customer);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED quotations → mode=quotations, projectId:", projectId);
-        } else if (contRes?.data?.data?.[0]) {
-          const rec = contRes.data.data[0];
-          mode = "contracts";
-          collection = "Contract";
-          projectId = extractId(rec.projectId) || extractId(rec.project);
-          customerId = extractId(rec.customerId) || extractId(rec.customer);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED contracts → mode=contracts, projectId:", projectId);
-        } else if (taskRes?.data?.data?.[0]) {
-          const rec = taskRes.data.data[0];
-          mode = "tasks";
-          collection = "Task";
-          projectId = extractId(rec.projectId) || extractId(rec.project);
-          customerId = extractId(rec.customerId) || extractId(rec.customer);
-          found = true;
-          console.log("[DEBUG][resolveContext] MATCHED tasks → mode=tasks, projectId:", projectId);
-        }
-
-        if (!found) {
-          console.warn("[DEBUG][resolveContext] NO collection matched for id:", id, "— context stays global");
-        }
-
-        if (found) {
-          const newContext = {
-            mode,
-            modeSource: "auto",
-            respectFolderPermissions: resolvedContext.respectFolderPermissions,
-            recordId,
-            collection,
-            customerId,
-            projectId,
-            projectInternalId,
-            internalCompanyId,
-            moduleScope:
-              mode === "project_internal"
-                ? MODULE_SCOPE.PROJECT_INTERNAL
-                : MODE_SCOPE[mode] || resolvedContext.moduleScope || MODULE_SCOPE.CASE_DOCUMENT,
-          };
-          console.log("[DEBUG][resolveContext] setResolvedContext →", JSON.stringify(newContext));
-          setResolvedContext(newContext);
-          if (internalCompanyId) {
-            setFilterInternalCompanyId(String(internalCompanyId));
-          }
-        }
-      } catch (err) {
-        console.error("[DEBUG][resolveContext] EXCEPTION:", err);
-      }
-    };
-
-    resolveContext();
-  }, []);
   const {
     companies: internalCompanies,
     loading: loadingCompanies,
@@ -5718,6 +5747,13 @@ const DocumentDashboard = () => {
 
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [activeTab, setActiveTab] = useState("list");
+
+  // ==================== TAB-BASED NAVIGATION ====================
+  const [sidebarTab, setSidebarTab] = useState("customer");
+  const [selectedEntityId, setSelectedEntityId] = useState(null);
+  const [entityList, setEntityList] = useState([]);
+  const [entityLoading, setEntityLoading] = useState(false);
+  const [entitySearch, setEntitySearch] = useState("");
   const [legalMoveOpen, setLegalMoveOpen] = useState(false);
   const [legalMoveDoc, setLegalMoveDoc] = useState(null);
   const [legalMoveCompanyId, setLegalMoveCompanyId] = useState(
@@ -5754,8 +5790,13 @@ const DocumentDashboard = () => {
     activeModuleScope === MODULE_SCOPE.PROJECT_INTERNAL || isProjectInternalMode;
   const isGlobalOrAutoMode =
     activeDashboardMode === "global" || resolvedContext.modeSource === "auto";
-  const showTreeSidebar =
-    (isCaseDocumentScope && isGlobalOrAutoMode) && !isProjectInternalScope;
+  const showTreeSidebar = true; // Tab-based sidebar always visible
+
+  // Role-based tab access: admin sees all 4 tabs, others only Customer
+  const allowedTabs = isAdminUser(currentUser)
+    ? ["customer", "case_reference", "legal_reference", "legal_study"]
+    : ["customer"];
+  const showTabBar = allowedTabs.length > 1;
 
   useEffect(() => {
     setSelectedFolderId("root");
@@ -5767,6 +5808,46 @@ const DocumentDashboard = () => {
     resolvedContext.recordId,
     resolvedContext.moduleScope,
   ]);
+
+  // ==================== ENTITY LIST FETCH (by sidebarTab) ====================
+  useEffect(() => {
+    const cfg = TAB_CONFIG[sidebarTab];
+    if (!cfg) return;
+    let cancelled = false;
+    setEntityLoading(true);
+    setSelectedEntityId(null);
+    setEntityList([]);
+    setEntitySearch("");
+    ctx.api.request({
+      url: `${cfg.collection}:list`,
+      params: { pageSize: 500, sort: [cfg.nameField] },
+    })
+      .then((r) => { if (!cancelled) setEntityList(r?.data?.data || []); })
+      .catch(() => { if (!cancelled) setEntityList([]); })
+      .finally(() => { if (!cancelled) setEntityLoading(false); });
+    return () => { cancelled = true; };
+  }, [sidebarTab]);
+
+  // ==================== SYNC resolvedContext FROM sidebarTab + selectedEntityId ====================
+  useEffect(() => {
+    const cfg = TAB_CONFIG[sidebarTab];
+    if (!cfg) return;
+    setResolvedContext({
+      mode: cfg.mode,
+      modeSource: "tab",
+      collection: MODE_COLLECTION[cfg.mode] || "Project",
+      moduleScope: cfg.moduleScopes[0] || null,
+      respectFolderPermissions: DOCUMENT_DASHBOARD_CONFIG.respectFolderPermissions,
+      recordId: selectedEntityId || null,
+      customerId: sidebarTab === "customer" ? selectedEntityId : null,
+      projectId: sidebarTab === "case_reference" ? selectedEntityId : null,
+      legalReferenceId: sidebarTab === "legal_reference" ? selectedEntityId : null,
+      legalStudyId: sidebarTab === "legal_study" ? selectedEntityId : null,
+      internalCompanyId: null,
+      projectInternalId: null,
+    });
+    setSelectedFolderId("root");
+  }, [sidebarTab, selectedEntityId]);
 
   useEffect(() => {
     const folderKeys = folders
@@ -6817,28 +6898,16 @@ const DocumentDashboard = () => {
   ]);
 
   const currentPerms = useMemo(() => {
-    if (isAdminUser(currentUser))
-      return { isManager: true, canEdit: true, roleName: "Quản trị viên" };
-    if (selectedFolderId === "root")
-      return { isManager: true, canEdit: true, roleName: "Quản lý" };
+    if (isAdminUser(currentUser)) return { ...roleToPerms("admin"), roleName: ROLE_LABEL.admin };
+    if (selectedFolderId === "root") return { ...roleToPerms("manager"), roleName: ROLE_LABEL.manager };
 
     const folder = folders.find(
       (f) => String(extractId(f)) === String(selectedFolderId),
     );
-    if (!folder)
-      return { isManager: false, canEdit: false, roleName: "Chỉ xem" };
+    if (!folder) return { ...roleToPerms(null), roleName: ROLE_LABEL.viewer };
 
-    const perms = getFolderPermissions(
-      folder,
-      currentUser,
-      folders,
-      currentLawyerId,
-    );
-    let roleName = "Chỉ xem";
-    if (perms.isManager) roleName = "Quản lý";
-    else if (perms.canEdit) roleName = "Thao tác";
-
-    return { ...perms, roleName };
+    const perms = getFolderPermissions(folder, currentUser, folders, currentLawyerId);
+    return { ...perms, roleName: ROLE_LABEL[perms.role] || ROLE_LABEL.viewer };
   }, [selectedFolderId, folders, currentUser, currentLawyerId]);
 
   const getFolderSize = useCallback(
@@ -8341,74 +8410,38 @@ const DocumentDashboard = () => {
           ),
         ),
       ),
+      // Tab bar — only shown when user is admin (showTabBar)
+      !sidebarCollapsed && showTabBar && React.createElement(SidebarTabBar, {
+        tabs: allowedTabs,
+        active: sidebarTab,
+        onChange: (tab) => setSidebarTab(tab),
+      }),
+
+      // Entity list — customers / cases / legal reference / legal studies
       !sidebarCollapsed && React.createElement(
         "div",
-        {
-          style: {
-            flex: 1,
-            minHeight: 0,
-            overflow: "auto",
-            padding: "12px 8px",
-          },
-          onDragOver: (e) => {
-            const threshold = 60;
-            const container = e.currentTarget;
-            const rect = container.getBoundingClientRect();
-            const y = e.clientY - rect.top;
-
-            if (y < threshold) {
-              const speed = Math.max(5, (threshold - y) / 2);
-              container.scrollTop -= speed;
-            } else if (y > rect.height - threshold) {
-              const speed = Math.max(5, (y - (rect.height - threshold)) / 2);
-              container.scrollTop += speed;
-            }
-          },
-        },
-        loading && folders.length === 0
-          ? React.createElement(Spin, {
-            style: { display: "block", margin: "20px auto" },
-          })
-          : React.createElement(DirectoryTree, {
-            showIcon: true,
-            draggable: true,
-            onDrop: handleTreeDrop,
-            icon: (nodeProps) => {
-              return React.createElement(
-                "span",
-                {
-                  style: {
-                    fontSize: 16,
-                    lineHeight: 1,
-                    display: "inline-block",
-                    color: "#8c6d1f",
-                  },
-                },
-                nodeProps.expanded ? FolderOpenIcon : FolderIcon,
-              );
-            },
-            multiple: false,
-            expandedKeys: expandedFolderKeys,
-            autoExpandParent: false,
-            onExpand: (keys) => setExpandedFolderKeys(keys.map(String)),
-            treeData: treeData,
-            selectedKeys: [selectedFolderId],
-            onSelect: (keys) => {
-              if (keys.length > 0) {
-                if (isFiltering) {
-                  setSearchText("");
-                  setFilterUploader(null);
-                  setFilterDateRange(null);
-                }
-                setSelectedFolderId(keys[0]);
-              }
-            },
-            style: {
-              background: "transparent",
-              fontFamily: FONT,
-              minWidth: "max-content",
-            },
-          }),
+        { style: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" } },
+        React.createElement(Input.Search, {
+          placeholder: `Tìm ${TAB_CONFIG[sidebarTab]?.label?.toLowerCase() || ""}...`,
+          value: entitySearch,
+          onChange: (e) => setEntitySearch(e.target.value),
+          allowClear: true,
+          size: "small",
+          style: { padding: "6px 8px", borderBottom: "1px solid #f0f0f0", flexShrink: 0 },
+        }),
+        React.createElement(EntityList, {
+          items: entitySearch
+            ? entityList.filter((item) => {
+                const nameField = TAB_CONFIG[sidebarTab]?.nameField || "name";
+                const label = item[nameField] || item.name || item.title || "";
+                return label.toLowerCase().includes(entitySearch.toLowerCase());
+              })
+            : entityList,
+          selectedId: selectedEntityId,
+          onSelect: setSelectedEntityId,
+          nameField: TAB_CONFIG[sidebarTab]?.nameField || "name",
+          loading: entityLoading,
+        }),
       ),
     ),
 

@@ -1,6 +1,3 @@
-// NocoBase JS Item / JS Block: Legal Reference reader for Case detail.
-// Paste this file into a JS Item/JS Block placed on the Case detail page.
-
 const React = ctx.React;
 const h = React.createElement;
 const antd = ctx.antd || {};
@@ -8,65 +5,178 @@ const {
   Alert,
   Badge,
   Button,
-  Card,
+  Checkbox,
   Drawer,
   Empty,
+  Form,
   Input,
   List,
+  Modal,
+  Select,
   Space,
   Spin,
   Tag,
   Tooltip,
   Tree,
   Typography,
+  Upload,
 } = antd;
+
 const DirectoryTree = Tree?.DirectoryTree || Tree;
 const message = ctx.message || antd.message;
 const Text = Typography?.Text;
 
 const CONFIG = {
   pageSize: 200,
-  drawerWidth: 980,
+  drawerWidth: 840,
+  previewWidth: 920,
+
+
+  caseDetailUrlTemplate: "/admin/61j36bn1f6i/view/3l7acumtlsc/tab/6hx8srk0iqs/filterbytk/{id}",
+  legalReferenceDetailUrlTemplate: "/admin/5hu22zyhxgd/view/hgakeuwafzz/tab/67tvoviyl4s/filterbytk/{id}",
+  legalStudyDetailUrlTemplate: "/admin/nx1vuuzjtl2/view/z2psn5kl88e/tab/va81q9kascq/filterbytk/{id}",
+  // Leave empty to follow the NocoBase template: popupUid = ctx.model.uid + "-1".
+  casePopupUid: "3l7acumtlsc",
+  caseViewUid: "3l7acumtlsc",
+  caseViewTitle: "Case detail",
+  caseCollectionName: "projects",
+  dataSourceKey: "main",
+  caseOpenStrategy: "url", // "openView" or "url"
+  caseDetailUrlTemplate: "/admin/61j36bn1f6i/view/3l7acumtlsc/tab/6hx8srk0iqs/filterbytk/{id}",
+  caseUrlTarget: "_blank",
+
+  caseListCandidates: [
+    "projects:list",
+  ],
+  caseGetCandidates: [
+    "projects:get",
+  ],
+  caseUpdateCandidates: [
+    "projects:update",
+  ],
+  caseRelationField: "legalReference",
+  caseOppositeRelationField: "cases",
+  caseReferenceFilterField: "isLegalReference",
+  caseRelationListCandidates: [
+    "projects.legalReference:list",
+  ],
+  caseRelationAddCandidates: [
+    "projects.legalReference:add",
+  ],
+  caseRelationRemoveCandidates: [
+    "projects.legalReference:remove",
+  ],
+
+  linkListCandidates: [
+    "caseLegalReferences:list",
+  ],
+  linkCreateCandidates: [
+    "caseLegalReferences:create",
+  ],
+  linkDestroyCandidates: [
+    "caseLegalReferences:destroy",
+  ],
+  linkUpdateCandidates: [
+    "caseLegalReferences:update",
+  ],
   referenceListCandidates: [
     "legalReference:list",
-    "legalReferences:list",
-    "LegalReference:list",
   ],
   referenceGetCandidates: [
     "legalReference:get",
-    "legalReferences:get",
-    "LegalReference:get",
   ],
-  referenceAppends: ["cases", "createdBy", "internalCompany"],
+  referenceCreateCandidates: [
+    "legalReference:create",
+  ],
+  projectListCandidates: [
+    "projects:list",
+  ],
+  projectGetCandidates: [
+    "projects:get",
+  ],
+
+  // The through collection in this app only has scalar caseId/legalReferenceId fields.
+  // IMPORTANT: appends only accepts RELATION names, NOT scalar FK columns.
+  // createdBy = relation (BelongsTo) → returns { id, nickname, username }
+  // createdById = scalar FK column → causes 404 Not Found if used in appends
+  linkAppends: ["legalReference", "legalReference.legalStudy", "createdBy", "legalReference.createdBy"],
+  referenceAppends: [],
+  projectAppends: [],
   folderAppends: ["createdBy", "updatedBy"],
   documentAppends: ["fileAttachment", "createdBy", "updatedBy"],
-  caseRelationFields: ["cases", "projects", "case", "project"],
-  sourceCaseFields: ["sourceCaseId", "sourceCase", "caseId", "projectId"],
-  referenceFieldsOnCase: [
-    "legalReference",
-    "legalReferences",
-    "legalReferenceId",
-    "legalReferenceRecord",
+  attachmentField: "documents.fileAttachment",
+  caseAppends: ["legalReference"],
+  legalStudyListCandidates: [
+    "legalStudy:list",
   ],
-  referenceFieldsOnDocument: [
-    "legalReferenceId",
-    "legalReference",
-    "legalReferences",
-    "legalReferenceRecord",
+  legalStudyAppends: ["documents", "Folders"],
+  legalStudyRelationFieldCandidates: [
+    "legalStudyId",
+    "legalStudy",
+    "legalStudiesId",
+    "legalStudies",
   ],
+
   legalReferenceModuleScope: "legal_reference",
+  legalReferenceStorageType: "legal_reference",
+  legalStudyModuleScope: "legal_study",
+  legalStudyStorageType: "legal_study",
+  caseStorageType: "cases",
+
+  caseReferenceKind: "case_based",
+  standaloneReferenceKind: "standalone",
+  legalReferenceKind: "legal_reference",
+  legalStudyReferenceKind: "legal_study",
+  sourceTypeDossier: "dossier",
+  sourceTypeFolder: "folder",
+  sourceTypeDocument: "document",
+  sourceTypeMixed: "mixed",
+  activeStatus: "active",
+
+  debugOpenView: true,
 };
 
 const color = {
   blue: "#185FA5",
   blueSoft: "#E6F1FB",
   border: "#E5E7EB",
+  borderDark: "#D1D5DB",
   text: "#111827",
   muted: "#6B7280",
   faint: "#9CA3AF",
   bg: "#F9FAFB",
   white: "#FFFFFF",
 };
+
+const debugOpenView = (label, payload = {}) => {
+  if (!CONFIG.debugOpenView) return;
+  const entry = {
+    label,
+    at: new Date().toISOString(),
+    ...payload,
+  };
+  window.__caseLegalReferenceOpenViewDebug = entry;
+  try {
+    console.log("[CaseLegalReference/openView]", label, entry);
+  } catch {
+    // Console can be unavailable in restricted runtimes.
+  }
+};
+
+const getCasePopupUid = () => {
+  const configuredUid = String(CONFIG.casePopupUid || "").trim();
+  if (configuredUid) return configuredUid;
+  const modelUid = String(ctx.model?.uid || "").trim();
+  if (modelUid) return `${modelUid}-1`;
+  return String(CONFIG.caseViewUid || "").trim();
+};
+
+const serializeOpenViewError = (error) => ({
+  name: error?.name,
+  message: error?.message || String(error || ""),
+  stack: error?.stack,
+  raw: error,
+});
 
 const icon = (children, size = 16) =>
   h(
@@ -91,6 +201,12 @@ const ICONS = {
     h("path", { key: "b", d: "M4 19.5A2.5 2.5 0 0 0 6.5 22H20" }),
     h("path", { key: "c", d: "M4 19.5V3.5A2.5 2.5 0 0 1 6.5 1H20v21H6.5" }),
   ]),
+  caseFile: icon([
+    h("path", { key: "a", d: "M4 4h16v18H4z" }),
+    h("path", { key: "b", d: "M8 8h8" }),
+    h("path", { key: "c", d: "M8 12h8" }),
+    h("path", { key: "d", d: "M8 16h5" }),
+  ]),
   folder: icon([
     h("path", { key: "a", d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" }),
   ]),
@@ -109,6 +225,22 @@ const ICONS = {
     h("path", { key: "a", d: "M23 4v6h-6" }),
     h("path", { key: "b", d: "M20.49 15a9 9 0 1 1-2.12-9.36L23 10" }),
   ]),
+  plus: icon([
+    h("path", { key: "a", d: "M12 5v14" }),
+    h("path", { key: "b", d: "M5 12h14" }),
+  ]),
+  trash: icon([
+    h("path", { key: "a", d: "M3 6h18" }),
+    h("path", { key: "b", d: "M8 6V4h8v2" }),
+    h("path", { key: "c", d: "M19 6l-1 16H6L5 6" }),
+    h("path", { key: "d", d: "M10 11v6" }),
+    h("path", { key: "e", d: "M14 11v6" }),
+  ]),
+  upload: icon([
+    h("path", { key: "a", d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
+    h("path", { key: "b", d: "M17 8l-5-5-5 5" }),
+    h("path", { key: "c", d: "M12 3v12" }),
+  ]),
   download: icon([
     h("path", { key: "a", d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
     h("path", { key: "b", d: "M7 10l5 5 5-5" }),
@@ -121,9 +253,21 @@ const asArray = (value) => {
   return Array.isArray(value) ? value : [value];
 };
 
+const isNilLike = (value) => {
+  if (value === null || value === undefined) return true;
+  if (typeof value !== "string") return false;
+  const text = value.trim().toLowerCase();
+  return !text || text === "undefined" || text === "null";
+};
+
 const extractId = (value) => {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "string" || typeof value === "number") return value;
+  if (isNilLike(value)) return null;
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (isNilLike(text)) return null;
+    return text;
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (Array.isArray(value)) return extractId(value[0]);
   if (typeof value === "object") {
     return (
@@ -135,6 +279,18 @@ const extractId = (value) => {
     );
   }
   return null;
+};
+
+const hasUsableId = (value) => {
+  const id = extractId(value);
+  return id !== null && id !== undefined && id !== "";
+};
+
+const idValue = (value) => {
+  const id = extractId(value);
+  if (id === null || id === undefined || id === "") return id;
+  const numeric = Number(id);
+  return Number.isFinite(numeric) && String(numeric) === String(id) ? numeric : id;
 };
 
 const extractIds = (value) =>
@@ -154,6 +310,22 @@ const uniqById = (items) => {
   return Array.from(map.values());
 };
 
+const activeRows = (rows) =>
+  asArray(rows).filter((row) => row && row.isDeleted !== true && row.status !== "archived");
+
+const stripHtml = (html) => {
+  if (!html) return "";
+  return String(html)
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .trim();
+};
+
+const buildFilter = (filter) => JSON.stringify(filter);
+
 const getResponseData = (response) => {
   const payload = response?.data;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -164,6 +336,28 @@ const getResponseData = (response) => {
 
 const getResponseMeta = (response) => response?.data?.meta || response?.data || {};
 
+const omitNilValues = (record) => {
+  if (!record || typeof record !== "object") return {};
+  return Object.entries(record).reduce((result, [key, value]) => {
+    if (!isNilLike(value)) result[key] = value;
+    return result;
+  }, {});
+};
+
+const getRouteFilterByTk = () => {
+  if (typeof window === "undefined") return null;
+  const pathname = String(window.location?.pathname || "");
+  const pathMatch = pathname.match(/\/filterbytk\/([^/?#]+)/i);
+  if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]);
+
+  try {
+    const params = new URLSearchParams(window.location?.search || "");
+    return params.get("filterByTk") || params.get("filterbytk") || params.get("id");
+  } catch {
+    return null;
+  }
+};
+
 const getCurrentRecord = () => {
   const formValues = (() => {
     try {
@@ -172,15 +366,106 @@ const getCurrentRecord = () => {
       return {};
     }
   })();
+
   return {
-    ...(ctx.record || {}),
-    ...(ctx.popup?.record || {}),
-    ...(ctx.view?.record || {}),
-    ...formValues,
+    ...omitNilValues(ctx.record),
+    ...omitNilValues(ctx.popup?.record),
+    ...omitNilValues(ctx.view?.record),
+    ...omitNilValues(formValues),
   };
 };
 
-const buildFilter = (filter) => JSON.stringify(filter);
+const getCurrentCaseId = (record = null) =>
+  extractId(record?.id) ||
+  extractId(record?._id) ||
+  extractId(record?.targetKey) ||
+  extractId(ctx.record?.id) ||
+  extractId(ctx.record?._id) ||
+  extractId(ctx.popup?.record?.id) ||
+  extractId(ctx.popup?.record?._id) ||
+  extractId(ctx.view?.record?.id) ||
+  extractId(ctx.view?.record?._id) ||
+  extractId(ctx.params?.filterByTk) ||
+  extractId(ctx.params?.filterbytk) ||
+  extractId(ctx.router?.params?.filterByTk) ||
+  extractId(ctx.router?.params?.filterbytk) ||
+  extractId(ctx.view?.params?.filterByTk) ||
+  extractId(ctx.inputArgs?.filterByTk) ||
+  extractId(getRouteFilterByTk());
+
+const relationRows = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.data?.data)) return value.data.data;
+  if (Array.isArray(value?.data)) return value.data;
+  if (Array.isArray(value?.records)) return value.records;
+  if (Array.isArray(value?.rows)) return value.rows;
+  return value && typeof value === "object" && extractId(value) ? [value] : [];
+};
+
+const isTrueLike = (value) =>
+  value === true ||
+  value === 1 ||
+  value === "1" ||
+  String(value || "").toLowerCase() === "true" ||
+  String(value || "").toLowerCase() === "yes";
+
+const getCaseRelationRows = (record, field = CONFIG.caseRelationField) =>
+  relationRows(record?.[field]);
+
+const getCaseRelationIds = (record, field = CONFIG.caseRelationField) => {
+  const directIds = extractIds(record?.[field]);
+  const rowIds = relationRows(record?.[field]).map(extractId).filter(Boolean).map(String);
+  return Array.from(new Set([...directIds, ...rowIds]));
+};
+
+const isLegalReferenceCase = (record) => {
+  if (!record || typeof record !== "object") return false;
+  if (isTrueLike(record?.[CONFIG.caseReferenceFilterField])) return true;
+  return Boolean(
+    record?._caseReference ||
+    record?.caseCode ||
+    record?.caseName ||
+    record?.projectCode ||
+    record?.projectName ||
+    record?.[CONFIG.caseRelationField] ||
+    record?.[CONFIG.caseOppositeRelationField],
+  );
+};
+
+const getLegalStudyTitle = (record) =>
+  record?.title ||
+  record?.name ||
+  record?.studyName ||
+  record?.legalStudyName ||
+  record?.code ||
+  (extractId(record) ? `Legal Study #${extractId(record)}` : "Legal Study");
+
+const getLegalStudyRelationId = (record) => {
+  for (const field of CONFIG.legalStudyRelationFieldCandidates) {
+    const id = extractId(record?.[field]);
+    if (id) return id;
+  }
+  return extractId(record?._legalStudyId);
+};
+
+const withLegalStudyMeta = (row, study) =>
+  row && typeof row === "object"
+    ? {
+      ...row,
+      _legalStudy: study || row._legalStudy,
+      _legalStudyId: extractId(study) || row._legalStudyId || getLegalStudyRelationId(row),
+    }
+    : extractId(row)
+      ? { id: idValue(row), _legalStudy: study || null, _legalStudyId: extractId(study) || null }
+      : row; const buildRelationUrl = (url, parentKey) => {
+        if (url.includes('.')) {
+          const [parentCollection, relationAction] = url.split('.');
+          const [relationName, action] = relationAction.split(':');
+          return `${parentCollection}/${encodeURIComponent(parentKey)}/${relationName}:${action}`;
+        }
+        return `${url}?filterByTk=${encodeURIComponent(parentKey)}`;
+      };
 
 const fetchAllList = async (url, params = {}) => {
   const all = [];
@@ -224,13 +509,398 @@ const fetchWithCandidates = async (urls, params) => {
   throw lastError || new Error("No API candidate worked");
 };
 
-const getReferenceTitle = (record) => {
-  if (!record) return "Legal Reference";
-  const code = record.referenceCode || record.code || "";
-  const title = record.title || record.name || record.referenceName || "";
-  if (code && title) return `${code} - ${title}`;
-  return title || code || `Legal Reference #${extractId(record) || ""}`;
+const createWithCandidates = async (urls, payload) => {
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      const response = await ctx.api.request({
+        url,
+        method: "POST",
+        data: payload,
+      });
+      return getResponseData(response);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No create API candidate worked");
 };
+
+const updateWithCandidates = async (urls, id, payload) => {
+  const safeId = idValue(id);
+  if (!hasUsableId(safeId)) throw new Error("Missing update id");
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      return await ctx.api.request({
+        url: `${url}?filterByTk=${encodeURIComponent(safeId)}`,
+        method: "POST",
+        data: payload,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No update API candidate worked");
+};
+
+const destroyWithCandidates = async (urls, id) => {
+  const safeId = idValue(id);
+  if (!hasUsableId(safeId)) throw new Error("Missing destroy id");
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      return await ctx.api.request({
+        url: `${url}?filterByTk=${encodeURIComponent(safeId)}`,
+        method: "POST",
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("No destroy API candidate worked");
+};
+
+const fetchOneById = async (urls, id, params = {}) => {
+  const safeId = idValue(id);
+  if (!hasUsableId(safeId)) return null;
+  for (const url of urls) {
+    try {
+      const response = await ctx.api.request({
+        url: `${url}?filterByTk=${encodeURIComponent(safeId)}`,
+        params,
+      });
+      const data = getResponseData(response);
+      if (data) return data;
+    } catch {
+      // Try next candidate.
+    }
+  }
+  return null;
+};
+
+const getInternalCompanyId = (record) =>
+  extractId(record?.internalCompanyId) ||
+  extractId(record?.internalCompany) ||
+  extractId(record?.companyId) ||
+  extractId(record?.company);
+
+const getCurrentUserId = () =>
+  extractId(ctx.currentUser?.id) ||
+  extractId(ctx.state?.currentUser?.id) ||
+  extractId(ctx.app?.currentUser?.id) ||
+  extractId(ctx.record?.createdById);
+
+const normalizeKey = (value) => String(value || "").trim().toLowerCase();
+
+const getUploadFileObject = (file) => file?.originFileObj || file;
+
+const getUploadRelativePath = (file) => {
+  const rawFile = getUploadFileObject(file);
+  return String(
+    rawFile?.webkitRelativePath ||
+    file?.webkitRelativePath ||
+    rawFile?.relativePath ||
+    file?.relativePath ||
+    rawFile?.path ||
+    file?.path ||
+    rawFile?.name ||
+    file?.name ||
+    ""
+  ).replace(/\\/g, "/");
+};
+
+const getUploadRootFolderName = (files) => {
+  for (const file of asArray(files)) {
+    const relativePath = getUploadRelativePath(file);
+    const parts = String(relativePath || "").split("/").filter(Boolean);
+    if (parts.length > 1) return parts[0];
+  }
+  return "";
+};
+
+const uploadAttachment = async (file, fileName = null) => {
+  const rawFile = getUploadFileObject(file);
+  const formData = new window.FormData();
+  formData.append("file", rawFile, fileName || rawFile?.name || file?.name || "file");
+  const uploadRes = await ctx.api.request({
+    url: "attachments:create",
+    method: "POST",
+    params: { attachmentField: CONFIG.attachmentField },
+    data: formData,
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  const attachment = uploadRes?.data?.data;
+  if (!attachment?.id) throw new Error("Upload file failed");
+  return attachment;
+};
+
+const createDocumentRecord = (payload) => createWithCandidates(["documents:create"], payload);
+const createFolderRecord = (payload) => createWithCandidates(["folders:create"], payload);
+
+const createLegalReferenceScopePayload = (referenceId, internalCompanyId) => ({
+  storageType: CONFIG.legalReferenceStorageType,
+  moduleScope: CONFIG.legalReferenceModuleScope,
+  legalReferenceId: idValue(referenceId),
+  ...(internalCompanyId ? { internalCompanyId: idValue(internalCompanyId) } : {}),
+});
+
+const createDocumentPayload = ({
+  file,
+  fileName,
+  attachment,
+  fileIndex,
+  folderId,
+  referenceId,
+  internalCompanyId,
+}) => {
+  const nowIso = new Date().toISOString();
+  const userId = getCurrentUserId();
+  const safeFileName = fileName || file?.name || "file";
+  return {
+    name: safeFileName,
+    title: safeFileName,
+    documentCode: "",
+    fileIndex,
+    fileAttachment: [{ id: attachment.id }],
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    uploadedAt: nowIso,
+    uploaded_at: nowIso,
+    ...(folderId ? { folderId: idValue(folderId) } : {}),
+    ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+    ...createLegalReferenceScopePayload(referenceId, internalCompanyId),
+  };
+};
+
+const getReferenceTitle = (record) => {
+  if (!record) return "Case Reference";
+  const title = record.title || record.name || record.referenceName || "";
+  if (title) return title;
+  const sourceCase = getSourceCase(record);
+  if (sourceCase) return getCaseTitle(sourceCase);
+  return `Case Reference #${extractId(record) || ""}`;
+};
+
+const getCaseTitle = (record) => {
+  if (!record) return "Case";
+  const code = record.caseCode || record.projectCode || record.code || "";
+  const title = record.projectName || record.caseName || record.title || record.name || "";
+  if (code && title) return `${code} - ${title}`;
+  return title || code || `Case #${extractId(record) || ""}`;
+};
+
+const getSourceCase = (reference) =>
+  reference?._caseReference ||
+  (isLegalReferenceCase(reference) ? reference : null) ||
+  reference?._sourceCase ||
+  reference?.sourceCase ||
+  reference?.sourceProject ||
+  reference?.caseSource ||
+  reference?.projectSource ||
+  reference?.case ||
+  reference?.project ||
+  null;
+
+const getSourceCaseId = (reference) =>
+  extractId(reference?._caseReference) ||
+  (isLegalReferenceCase(reference) ? extractId(reference) : null) ||
+  extractId(reference?.sourceCaseId) ||
+  extractId(reference?.sourceCase) ||
+  extractId(reference?.sourceProjectId) ||
+  extractId(reference?.sourceProject) ||
+  extractId(reference?.caseSourceId) ||
+  extractId(reference?.caseSource) ||
+  extractId(reference?.projectSourceId) ||
+  extractId(reference?.projectSource) ||
+  extractId(reference?.caseId) ||
+  extractId(reference?.case) ||
+  extractId(reference?.projectId) ||
+  extractId(reference?.project);
+
+const parseStoredIds = (value) => {
+  if (value === null || value === undefined || value === "") return [];
+  if (Array.isArray(value)) return value.map(extractId).filter(Boolean).map(String);
+  if (typeof value === "object") return extractIds(value).map(String);
+  const text = String(value || "").trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed.map(extractId).filter(Boolean).map(String);
+  } catch {
+    // Fall back to comma separated values.
+  }
+  return text.split(",").map((item) => item.trim()).filter(Boolean);
+};
+
+const serializeIds = (ids) =>
+  JSON.stringify(Array.from(new Set(asArray(ids).map(extractId).filter(Boolean).map(String))));
+
+const getSelectionSourceType = (folderIds, documentIds, emptyType = CONFIG.sourceTypeDossier) => {
+  const folderCount = asArray(folderIds).filter(Boolean).length;
+  const documentCount = asArray(documentIds).filter(Boolean).length;
+  if (folderCount && documentCount) return CONFIG.sourceTypeMixed;
+  if (folderCount) return CONFIG.sourceTypeFolder;
+  if (documentCount) return CONFIG.sourceTypeDocument;
+  return emptyType;
+};
+
+const getReferenceSourceSpace = (reference) => {
+  const sourceSpace = normalizeKey(reference?.sourceSpace || reference?.storageType || reference?.moduleScope);
+  if (sourceSpace) return sourceSpace;
+  const kind = normalizeKey(reference?.referenceKind || reference?.kind || reference?.type);
+  if (kind === CONFIG.legalStudyReferenceKind) return CONFIG.legalStudyStorageType;
+  return CONFIG.legalReferenceStorageType;
+};
+
+const getReferenceSourceType = (reference) =>
+  normalizeKey(reference?.sourceType || reference?.selectionType || reference?.itemType);
+
+const getSourceLegalReferenceId = (reference) =>
+  extractId(reference?.sourceLegalReferenceId) ||
+  extractId(reference?.sourceLegalReference) ||
+  extractId(reference?.parentLegalReferenceId) ||
+  extractId(reference?.baseLegalReferenceId);
+
+const isCaseBasedReference = (reference) => {
+  if (!reference) return false;
+  if (reference?._caseReference) return true;
+  const kind = normalizeKey(reference?.referenceKind || reference?.kind || reference?.type);
+  if (kind === CONFIG.standaloneReferenceKind) return false;
+  if (kind === CONFIG.legalStudyReferenceKind || getReferenceSourceSpace(reference) === CONFIG.legalStudyStorageType) return false;
+  if (kind === CONFIG.caseReferenceKind || kind === "case" || kind === "case_reference") return true;
+  if (isLegalReferenceCase(reference)) return true;
+  return !!getSourceCaseId(reference);
+};
+
+const isLegalStudyReference = (reference) =>
+  normalizeKey(reference?.referenceKind || reference?.kind || reference?.type) === CONFIG.legalStudyReferenceKind ||
+  getReferenceSourceSpace(reference) === CONFIG.legalStudyStorageType;
+
+const isStandaloneReference = (reference) => !isCaseBasedReference(reference) && !isLegalStudyReference(reference);
+
+const getReferenceKindLabelMojibake = (reference) =>
+  isCaseBasedReference(reference)
+    ? "Case Reference"
+    : isLegalStudyReference(reference)
+      ? "Legal Study"
+      : "Case Reference";
+
+const getReferenceKindLabelLegacyMojibake = (reference) =>
+  isCaseBasedReference(reference) ? "Case Reference" : "Folder";
+
+const getReferenceSubtitleMojibake = (reference) => {
+  if (isCaseBasedReference(reference)) {
+    const source = getSourceCase(reference);
+    const closedAt = source?.closedDate || source?.closedAt || source?.endDate;
+    const status = source?.status;
+    return [status, closedAt ? `Closed ${formatDate(closedAt)}` : ""].filter(Boolean).join(" · ") ||
+      "Source case in system";
+  }
+  return reference?.description || "Standalone reference dossier";
+};
+
+const getReferenceKindLabel = (reference) =>
+  isLegalStudyReference(reference)
+    ? "Legal Study"
+    : isCaseBasedReference(reference)
+      ? "Case Reference"
+      : "Legal Reference";
+
+const getReferenceKindLabelLegacy = (reference) =>
+  isCaseBasedReference(reference) ? "Case Reference" : "Folder";
+
+const getReferenceSubtitle = (reference) => {
+  if (isCaseBasedReference(reference)) {
+    const source = getSourceCase(reference);
+    const closedAt = source?.closedDate || source?.closedAt || source?.endDate;
+    const status = source?.status;
+    return [status, closedAt ? `Closed ${formatDate(closedAt)}` : ""].filter(Boolean).join(" · ") ||
+      "Case Reference in system";
+  }
+  return reference?.description || "Standalone reference dossier";
+};
+
+const normalizeSearchValue = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .trim();
+
+const matchesSearchParts = (parts, query) => {
+  const q = normalizeSearchValue(query);
+  if (!q) return true;
+  return normalizeSearchValue(parts.filter(Boolean).join(" ")).includes(q);
+};
+
+const toPlainText = (value) =>
+  String(value || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getCaseSummary = (record) => toPlainText(record?.description);
+
+const caseSearchParts = (record) => [
+  getCaseTitle(record),
+  record?.caseCode,
+  record?.projectCode,
+  record?.caseName,
+  record?.projectName,
+  record?.status,
+  record?.projectStatus,
+  record?.description,
+  record?.customer?.name,
+  record?.customers?.name,
+];
+
+const referenceSearchParts = (record) => [
+  getReferenceTitle(record),
+  record?.referenceCode,
+  record?.title,
+  record?.description,
+  record?.status,
+  record?.priority,
+];
+
+const getLinkReference = (link) =>
+  // New normalized format: { id, type, reference, ... }
+  link?.reference ||
+  // Legacy fields kept for backwards compatibility
+  link?._caseReference ||
+  link?.caseReference ||
+  link?.legal_references ||
+  link?.case ||
+  link?.cases ||
+  link?._legalReference ||
+  link?.legalReference ||
+  link?.legalReferences ||
+  link?._legalStudy ||
+  link?.legalStudy ||
+  link?.legalStudies ||
+  link?.legalReferenceId ||
+  null;
+
+const getLinkReferenceId = (link) =>
+  extractId(link?.reference) ||
+  extractId(getLinkReference(link)) ||
+  extractId(link?.caseReferenceId) ||
+  extractId(link?.caseId) ||
+  extractId(link?.case) ||
+  extractId(link?.legalReferenceId) ||
+  extractId(link?.legalReference) ||
+  extractId(link?.legalStudyId) ||
+  extractId(link?.legalStudy);
 
 const getAttachment = (doc) =>
   Array.isArray(doc?.fileAttachment) ? doc.fileAttachment[0] : doc?.fileAttachment;
@@ -254,7 +924,7 @@ const getFileName = (doc) => {
     doc?.title ||
     doc?.name ||
     doc?.googleDriveUrl ||
-    "Tài liệu"
+    "Document"
   );
 };
 
@@ -275,7 +945,7 @@ const formatBytes = (value) => {
   return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 };
 
-const formatDate = (value) => {
+function formatDate(value) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -284,7 +954,7 @@ const formatDate = (value) => {
     month: "2-digit",
     year: "numeric",
   });
-};
+}
 
 const getPreviewKind = (doc) => {
   const ext = getFileExt(doc).toLowerCase();
@@ -309,17 +979,29 @@ const getParentId = (folder) => extractId(folder?.parentId) || extractId(folder?
 const getFolderId = (folder) => extractId(folder?.id) || extractId(folder);
 const getDocFolderId = (doc) => extractId(doc?.folderId) || extractId(doc?.folder);
 
-const getReferenceIdsFromRecord = (record) => {
+const referenceFieldsOnCase = [
+  "legalReference",
+  "legalReferences",
+  "legalReferenceId",
+  "legalReferenceRecord",
+];
+
+const referenceFieldsOnDocument = [
+  "legalReferenceId",
+  "legalReference",
+  "legalReferences",
+  "legalReferenceRecord",
+];
+
+const getDirectReferenceIdsFromCase = (record) => {
   const ids = [];
-  CONFIG.referenceFieldsOnCase.forEach((field) => {
-    ids.push(...extractIds(record?.[field]));
-  });
+  referenceFieldsOnCase.forEach((field) => ids.push(...extractIds(record?.[field])));
   return Array.from(new Set(ids));
 };
 
-const getReferenceObjectsFromRecord = (record) => {
+const getDirectReferenceObjectsFromCase = (record) => {
   const rows = [];
-  CONFIG.referenceFieldsOnCase.forEach((field) => {
+  referenceFieldsOnCase.forEach((field) => {
     asArray(record?.[field]).forEach((item) => {
       if (item && typeof item === "object" && extractId(item)) rows.push(item);
     });
@@ -329,112 +1011,156 @@ const getReferenceObjectsFromRecord = (record) => {
 
 const getRecordReferenceIds = (record) => {
   const ids = [];
-  CONFIG.referenceFieldsOnDocument.forEach((field) => {
-    ids.push(...extractIds(record?.[field]));
-  });
+  referenceFieldsOnDocument.forEach((field) => ids.push(...extractIds(record?.[field])));
   return Array.from(new Set(ids));
 };
 
 const recordMatchesReference = (record, referenceId) =>
   getRecordReferenceIds(record).some((id) => String(id) === String(referenceId));
 
-const activeRows = (rows) => asArray(rows).filter((row) => row?.isDeleted !== true);
-
-const recordMatchesCase = (record, caseId) => {
-  const targetId = String(caseId);
-  const ids = [];
-  CONFIG.caseRelationFields.forEach((field) => ids.push(...extractIds(record?.[field])));
-  CONFIG.sourceCaseFields.forEach((field) => ids.push(...extractIds(record?.[field])));
-  return ids.some((id) => String(id) === targetId);
-};
-
-const scalarCaseFilters = (caseId) =>
-  CONFIG.sourceCaseFields
-    .filter((field) => field.endsWith("Id"))
-    .map((field) => ({ [field]: { $eq: Number(caseId) || caseId } }));
-
 const scalarReferenceFilters = (referenceId) =>
-  CONFIG.referenceFieldsOnDocument
+  referenceFieldsOnDocument
     .filter((field) => field.endsWith("Id"))
-    .map((field) => ({ [field]: { $eq: Number(referenceId) || referenceId } }));
+    .map((field) => ({ [field]: { $eq: idValue(referenceId) } }));
 
-const fetchReferenceByIds = async (ids) => {
-  const safeIds = Array.from(new Set(asArray(ids).map((id) => String(id)).filter(Boolean)));
-  if (!safeIds.length) return [];
-
-  const idFilter = {
-    id: {
-      $in: safeIds.map((id) => Number(id) || id),
-    },
-  };
-
-  try {
-    const rows = await fetchWithCandidates(CONFIG.referenceListCandidates, {
-      filter: buildFilter(idFilter),
-      appends: CONFIG.referenceAppends,
-    });
-    if (rows.length) return uniqById(rows);
-  } catch (error) {
-    console.warn("[JsItemLegalReference] reference list by id failed", error);
+const addRelationLink = async (relationName, sourceCaseId, targetId) => {
+  const sourceValue = idValue(sourceCaseId);
+  const targetValue = idValue(targetId);
+  if (!hasUsableId(sourceValue) || !hasUsableId(targetValue)) {
+    throw new Error("Missing source or target ID");
   }
+  const candidates = [
+    `projects/${encodeURIComponent(sourceValue)}/${relationName}:add`,
+    `cases/${encodeURIComponent(sourceValue)}/${relationName}:add`,
+  ];
+  const payloads = [
+    { tk: targetValue },
+    { tks: [targetValue] },
+  ];
 
-  const result = [];
-  for (const id of safeIds) {
-    for (const url of CONFIG.referenceGetCandidates) {
+  let lastError = null;
+  for (const url of candidates) {
+    for (const data of payloads) {
       try {
-        const response = await ctx.api.request({
-          url: `${url}?filterByTk=${id}`,
-          params: { appends: CONFIG.referenceAppends },
-        });
-        const data = getResponseData(response);
-        if (data) {
-          result.push(data);
-          break;
-        }
-      } catch {
-        // Try next candidate.
+        console.log(`[addRelationLink] trying POST ${url}`, data);
+        const response = await ctx.api.request({ url, method: "POST", data });
+        console.log(`[addRelationLink] SUCCESS ${url}`);
+        return getResponseData(response);
+      } catch (error) {
+        const status = error?.response?.status || error?.status;
+        console.warn(`[addRelationLink] FAIL ${url} status=${status}`, error?.message);
+        lastError = error;
       }
     }
   }
-  return uniqById(result);
+  throw lastError || new Error(`Failed to link ${relationName}`);
 };
 
-const fetchReferencesForCase = async (record) => {
-  const directIds = getReferenceIdsFromRecord(record);
-  if (directIds.length) {
-    const directRows = await fetchReferenceByIds(directIds);
-    if (directRows.length) return directRows;
-    const directObjects = getReferenceObjectsFromRecord(record);
-    if (directObjects.length) return directObjects;
+const removeRelationLink = async (relationName, sourceCaseId, targetId) => {
+  const sourceValue = idValue(sourceCaseId);
+  const targetValue = idValue(targetId);
+  if (!hasUsableId(sourceValue) || !hasUsableId(targetValue)) {
+    throw new Error("Missing source or target ID");
   }
 
-  const caseId = extractId(record?.id);
-  if (!caseId) return [];
+  const candidates = [
+    `projects/${encodeURIComponent(sourceValue)}/${relationName}:remove`,
+    `cases/${encodeURIComponent(sourceValue)}/${relationName}:remove`,
+  ];
 
-  const rows = [];
-  for (const filter of scalarCaseFilters(caseId)) {
-    try {
-      const result = await fetchWithCandidates(CONFIG.referenceListCandidates, {
-        filter: buildFilter(filter),
-        appends: CONFIG.referenceAppends,
-      });
-      rows.push(...result);
-    } catch {
-      // Field names differ across apps; keep trying other filters.
+  const payloads = [
+    { tk: targetValue },
+    { tks: [targetValue] },
+  ];
+
+  let lastError = null;
+  for (const url of candidates) {
+    for (const data of payloads) {
+      try {
+        console.log(`[removeRelationLink] trying POST ${url}`, data);
+        const response = await ctx.api.request({ url, method: "POST", data });
+        console.log(`[removeRelationLink] SUCCESS ${url}`);
+        return getResponseData(response);
+      } catch (error) {
+        const status = error?.response?.status || error?.status;
+        console.warn(`[removeRelationLink] FAIL ${url} status=${status}`, error?.message);
+        lastError = error;
+      }
     }
   }
+  throw lastError || new Error(`Failed to unlink ${relationName}`);
+};
 
-  if (rows.length) return uniqById(rows);
+const fetchLinkedRelationRows = async (caseId, relationName) => {
+  const safeCaseId = idValue(caseId);
+  if (!hasUsableId(safeCaseId)) return [];
 
-  try {
-    const allReferences = await fetchWithCandidates(CONFIG.referenceListCandidates, {
-      appends: CONFIG.referenceAppends,
-      sort: ["-createdAt"],
-    });
-    return uniqById(activeRows(allReferences).filter((item) => recordMatchesCase(item, caseId)));
-  } catch {
-    return [];
+  const candidates = [
+    `projects/${encodeURIComponent(safeCaseId)}/${relationName}:list`,
+    `cases/${encodeURIComponent(safeCaseId)}/${relationName}:list`,
+  ];
+
+  for (const url of candidates) {
+    try {
+      const rows = await fetchAllList(url, { appends: ["createdBy"] });
+      console.log(`[OK] ${url} → ${rows.length} rows`);
+      return activeRows(rows);
+    } catch (error) {
+      console.warn(`[FAIL] ${url} → ${error?.response?.status || error?.message}`);
+    }
   }
+  return [];
+};
+
+// ─── REPLACE: fetchCaseReferenceLinks ────────────────────────────────────────
+const fetchCaseReferenceLinks = async (record) => {
+  const caseId = getCurrentCaseId(record);
+  // Guard: không có caseId thì không fetch gì cả
+  if (!hasUsableId(caseId)) return [];
+
+  const [legalRefs, caseRefs, legalStudies] = await Promise.all([
+    fetchLinkedRelationRows(caseId, "legalReference").catch(() => []),
+    fetchLinkedRelationRows(caseId, "caseReferences").catch(() => []),
+    fetchLinkedRelationRows(caseId, "legalStudy").catch(() => []),
+  ]);
+
+  const normalized = [];
+
+  legalRefs.forEach((row) => {
+    normalized.push({
+      id: `ref-${extractId(row)}`,
+      type: "standalone",
+      reference: row,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+  });
+
+  caseRefs.forEach((row) => {
+    normalized.push({
+      id: `case-${extractId(row)}`,
+      type: "case_based",
+      reference: row,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+  });
+
+  legalStudies.forEach((row) => {
+    normalized.push({
+      id: `study-${extractId(row)}`,
+      type: "legal_study",
+      reference: row,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    });
+  });
+
+  return normalized;
+};
+
+const fetchLinkedCasesForReference = async (referenceId) => {
+  return [];
 };
 
 const fetchRowsForReference = async (resourceUrl, referenceId, appends) => {
@@ -442,12 +1168,19 @@ const fetchRowsForReference = async (resourceUrl, referenceId, appends) => {
   for (const filter of scalarReferenceFilters(referenceId)) {
     try {
       const result = await fetchAllList(resourceUrl, {
-        filter: buildFilter({ $and: [{ isDeleted: { $ne: true } }, filter] }),
+        filter: buildFilter({
+          $and: [
+            { isDeleted: { $ne: true } },
+            { moduleScope: { $eq: CONFIG.legalReferenceModuleScope } },
+            { storageType: { $eq: CONFIG.legalReferenceStorageType } },
+            filter,
+          ],
+        }),
         appends,
       });
       rows.push(...result);
     } catch {
-      // Try next relation field candidate.
+      // Try next field candidate.
     }
   }
 
@@ -459,6 +1192,7 @@ const fetchRowsForReference = async (resourceUrl, referenceId, appends) => {
         $and: [
           { isDeleted: { $ne: true } },
           { moduleScope: { $eq: CONFIG.legalReferenceModuleScope } },
+          { storageType: { $eq: CONFIG.legalReferenceStorageType } },
         ],
       }),
       appends,
@@ -479,6 +1213,412 @@ const fetchLibraryForReference = async (referenceId) => {
     folders: activeRows(uniqById(folders)),
     documents: activeRows(uniqById(documents)),
   };
+};
+
+const fetchRowsForStorageSpace = async (resourceUrl, storageType, moduleScope, appends) => {
+  try {
+    return activeRows(await fetchAllList(resourceUrl, {
+      filter: buildFilter({
+        $and: [
+          { isDeleted: { $ne: true } },
+          { storageType: { $eq: storageType } },
+        ],
+      }),
+      appends,
+      sort: ["-createdAt"],
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const mergeRowsById = (...rowSets) => {
+  const map = new Map();
+  rowSets.flatMap((set) => asArray(set)).forEach((row) => {
+    const id = extractId(row);
+    if (!id) return;
+    const key = String(id);
+    map.set(key, { ...(map.get(key) || {}), ...row });
+  });
+  return Array.from(map.values());
+};
+
+const fetchLegalStudyRecords = async () => {
+  const appendSets = CONFIG.legalStudyAppends.length ? [CONFIG.legalStudyAppends, []] : [[]];
+  for (const appends of appendSets) {
+    try {
+      const rows = await fetchWithCandidates(CONFIG.legalStudyListCandidates, {
+        sort: ["-createdAt"],
+        ...(appends.length ? { appends } : {}),
+      });
+      if (rows.length) return activeRows(rows);
+    } catch {
+      // Try next append/candidate combination.
+    }
+  }
+  return [];
+};
+
+const fetchLegalStudyLibrary = async () => {
+  const [studies, folders, documents] = await Promise.all([
+    fetchLegalStudyRecords(),
+    fetchRowsForStorageSpace("folders:list", CONFIG.legalStudyStorageType, CONFIG.legalStudyModuleScope, CONFIG.folderAppends),
+    fetchRowsForStorageSpace("documents:list", CONFIG.legalStudyStorageType, CONFIG.legalStudyModuleScope, CONFIG.documentAppends),
+  ]);
+  const studyMap = new Map(studies.map((study) => [String(extractId(study)), study]));
+  const studyFolders = studies.flatMap((study) =>
+    [
+      ...relationRows(study?.Folders),
+      ...relationRows(study?.folders),
+    ].map((folder) => withLegalStudyMeta(folder, study)),
+  );
+  const studyDocuments = studies.flatMap((study) =>
+    [
+      ...relationRows(study?.documents),
+      ...relationRows(study?.Documents),
+    ].map((doc) => withLegalStudyMeta(doc, study)),
+  );
+  const attachKnownStudy = (row) => {
+    const studyId = getLegalStudyRelationId(row);
+    return studyId && studyMap.has(String(studyId))
+      ? withLegalStudyMeta(row, studyMap.get(String(studyId)))
+      : row;
+  };
+
+  return {
+    studies: activeRows(uniqById(studies)),
+    folders: activeRows(mergeRowsById(studyFolders, folders.map(attachKnownStudy))),
+    documents: activeRows(mergeRowsById(studyDocuments, documents.map(attachKnownStudy))),
+  };
+};
+
+const fetchCandidateCaseReferences = async () => {
+  let rows = [];
+  try {
+    rows = await fetchWithCandidates(CONFIG.caseListCandidates, {
+      filter: buildFilter({ [CONFIG.caseReferenceFilterField]: { $eq: true } }),
+      sort: ["-updatedAt", "-createdAt"],
+    });
+  } catch (error) {
+    console.warn("[JsItemLegalReference] fetchCandidateCaseReferences failed", error);
+  }
+  return activeRows(rows);
+};
+
+const fetchCandidateStandaloneReferences = async () => {
+  let rows = [];
+  try {
+    rows = await fetchWithCandidates(CONFIG.referenceListCandidates, {
+      sort: ["-updatedAt", "-createdAt"],
+    });
+  } catch (error) {
+    console.warn("[JsItemLegalReference] fetchCandidateStandaloneReferences failed", error);
+  }
+  return activeRows(rows);
+};
+
+const getRowLegalStudyId = (row) =>
+  extractId(row?._legalStudyId) ||
+  extractId(row?._legalStudy) ||
+  getLegalStudyRelationId(row);
+
+const filterLegalStudyLibraryByStudy = (library, studyId) => {
+  const selectedId = extractId(studyId);
+  const studies = activeRows(library?.studies);
+  if (!selectedId) return { studies, folders: [], documents: [] };
+
+  const selectedStudy = studies.find((study) => String(extractId(study)) === String(selectedId)) || null;
+  const folders = activeRows(library?.folders).filter((folder) =>
+    String(getRowLegalStudyId(folder) || "") === String(selectedId),
+  );
+  const folderIds = new Set(folders.map((folder) => String(getFolderId(folder))).filter(Boolean));
+  const documents = activeRows(library?.documents).filter((doc) => {
+    const docStudyId = getRowLegalStudyId(doc);
+    if (docStudyId && String(docStudyId) === String(selectedId)) return true;
+    const folderId = getDocFolderId(doc);
+    return folderId && folderIds.has(String(folderId));
+  });
+
+  return {
+    studies: selectedStudy ? [selectedStudy] : [],
+    folders,
+    documents,
+  };
+};
+
+const sameIdSet = (left, right) => {
+  const leftSet = new Set(asArray(left).map(String).filter(Boolean));
+  const rightSet = new Set(asArray(right).map(String).filter(Boolean));
+  if (leftSet.size !== rightSet.size) return false;
+  for (const id of leftSet) {
+    if (!rightSet.has(id)) return false;
+  }
+  return true;
+};
+
+const legalStudyReferenceTouchesStudy = (reference, studyId, legalStudyLibrary) => {
+  if (!isLegalStudyReference(reference)) return false;
+  const selectedId = extractId(studyId);
+  if (!selectedId) return false;
+  if (String(extractId(reference?.sourceLegalStudyId) || "") === String(selectedId)) return true;
+
+  const scopedLibrary = filterLegalStudyLibraryByStudy(legalStudyLibrary, selectedId);
+  const scopedFolderIds = new Set(scopedLibrary.folders.map((folder) => String(getFolderId(folder))).filter(Boolean));
+  const scopedDocumentIds = new Set(scopedLibrary.documents.map((doc) => String(extractId(doc))).filter(Boolean));
+  const referenceFolderIds = parseStoredIds(reference?.sourceFolderIds);
+  const referenceDocumentIds = parseStoredIds(reference?.sourceDocumentIds);
+
+  return referenceFolderIds.some((id) => scopedFolderIds.has(String(id))) ||
+    referenceDocumentIds.some((id) => scopedDocumentIds.has(String(id)));
+};
+
+const legalStudyReferenceMatchesSelection = (reference, studyId, legalStudyLibrary, folderIds, documentIds) => {
+  if (!isLegalStudyReference(reference)) return false;
+  const referenceFolderIds = parseStoredIds(reference?.sourceFolderIds);
+  const referenceDocumentIds = parseStoredIds(reference?.sourceDocumentIds);
+  return sameIdSet(referenceFolderIds, folderIds) && sameIdSet(referenceDocumentIds, documentIds);
+};
+
+const getLockedLegalStudySelection = (references, studyId, legalStudyLibrary) => {
+  const selectedId = extractId(studyId);
+  if (!selectedId) return { folderIds: [], documentIds: [], blockedFolderIds: [] };
+
+  const scopedLibrary = filterLegalStudyLibraryByStudy(legalStudyLibrary, selectedId);
+  const folderMap = new Map(scopedLibrary.folders.map((folder) => [String(getFolderId(folder)), folder]));
+  const folderIds = new Set();
+  const documentIds = new Set();
+  const blockedFolderIds = new Set();
+
+  const addDocumentsInFolder = (folderId) => {
+    const scopeIds = new Set([String(folderId), ...getDescendantFolderIds(scopedLibrary.folders, folderId).map(String)]);
+    scopedLibrary.documents.forEach((doc) => {
+      if (scopeIds.has(String(getDocFolderId(doc) || ""))) {
+        const docId = extractId(doc);
+        if (docId) documentIds.add(String(docId));
+      }
+    });
+  };
+
+  asArray(references).forEach((reference) => {
+    if (!legalStudyReferenceTouchesStudy(reference, selectedId, legalStudyLibrary)) return;
+
+    const referenceDocumentIds = parseStoredIds(reference?.sourceDocumentIds);
+    const referenceFolderIds = parseStoredIds(reference?.sourceFolderIds);
+
+    if (!referenceDocumentIds.length) {
+      referenceFolderIds.forEach((folderId) => {
+        if (!folderMap.has(String(folderId))) return;
+        folderIds.add(String(folderId));
+        blockedFolderIds.add(String(folderId));
+        getDescendantFolderIds(scopedLibrary.folders, folderId).forEach((id) => blockedFolderIds.add(String(id)));
+        addDocumentsInFolder(folderId);
+      });
+    }
+
+    referenceDocumentIds.forEach((documentId) => {
+      const doc = scopedLibrary.documents.find((item) => String(extractId(item)) === String(documentId));
+      if (!doc) return;
+      documentIds.add(String(documentId));
+      const folderId = getDocFolderId(doc);
+      if (folderId) {
+        blockedFolderIds.add(String(folderId));
+        getAncestorFolderIds(scopedLibrary.folders, folderId).forEach((id) => blockedFolderIds.add(String(id)));
+      }
+    });
+  });
+
+  return {
+    folderIds: Array.from(folderIds),
+    documentIds: Array.from(documentIds),
+    blockedFolderIds: Array.from(blockedFolderIds),
+  };
+};
+
+const getAncestorFolderIds = (folders, folderId) => {
+  const result = [];
+  const folderMap = new Map(activeRows(folders).map((folder) => [String(getFolderId(folder)), folder]));
+  let current = folderMap.get(String(folderId));
+  while (current) {
+    const parentId = getParentId(current);
+    if (!parentId) break;
+    result.push(String(parentId));
+    current = folderMap.get(String(parentId));
+  }
+  return result;
+};
+
+const filterLibraryBySourceSelection = (library, reference) => {
+  const folderIds = parseStoredIds(reference?.sourceFolderIds);
+  const documentIds = parseStoredIds(reference?.sourceDocumentIds);
+  if (!folderIds.length && !documentIds.length) return library;
+
+  const selectedFolderSet = new Set(folderIds.map(String));
+  const shouldExpandFolders = !documentIds.length;
+  if (shouldExpandFolders) {
+    folderIds.forEach((folderId) => {
+      getDescendantFolderIds(library.folders, folderId).forEach((id) => selectedFolderSet.add(String(id)));
+    });
+  }
+
+  const selectedDocumentSet = new Set(documentIds.map(String));
+  const documents = library.documents.filter((doc) => {
+    const docId = String(extractId(doc));
+    const folderId = String(getDocFolderId(doc) || "");
+    return selectedDocumentSet.has(docId) || (shouldExpandFolders && selectedFolderSet.has(folderId));
+  });
+
+  const visibleFolderSet = new Set(selectedFolderSet);
+  documents.forEach((doc) => {
+    const folderId = getDocFolderId(doc);
+    if (folderId) {
+      visibleFolderSet.add(String(folderId));
+      getAncestorFolderIds(library.folders, folderId).forEach((id) => visibleFolderSet.add(String(id)));
+    }
+  });
+
+  return {
+    folders: library.folders.filter((folder) => visibleFolderSet.has(String(getFolderId(folder)))),
+    documents,
+  };
+};
+
+const fetchLibraryForReferenceSource = async (reference) => {
+  if (isLegalStudyReference(reference)) {
+    const library = await fetchLegalStudyLibrary();
+    return filterLibraryBySourceSelection(library, reference);
+  }
+
+  const sourceReferenceId = getSourceLegalReferenceId(reference) || extractId(reference);
+  const library = await fetchLibraryForReference(sourceReferenceId);
+  return filterLibraryBySourceSelection(library, reference);
+};
+
+const getNextReferenceFileIndex = async (referenceId, folderId = null) => {
+  try {
+    const filters = [
+      { isDeleted: { $ne: true } },
+      { moduleScope: { $eq: CONFIG.legalReferenceModuleScope } },
+      { storageType: { $eq: CONFIG.legalReferenceStorageType } },
+      { legalReferenceId: { $eq: idValue(referenceId) } },
+    ];
+    if (folderId) {
+      filters.push({ folderId: { $eq: idValue(folderId) } });
+    }
+    const rows = await fetchAllList("documents:list", {
+      filter: buildFilter({ $and: filters }),
+      fields: "id,fileIndex,folderId",
+      sort: ["-fileIndex"],
+      pageSize: 1,
+    });
+    const maxIndex = Math.max(0, ...rows.map((row) => Number(row.fileIndex || 0)));
+    return maxIndex + 1;
+  } catch {
+    return 1;
+  }
+};
+
+const uploadFilesToLegalReference = async (files, referenceId, internalCompanyId, folderId = null) => {
+  const rows = asArray(files).map(getUploadFileObject).filter(Boolean);
+  if (!rows.length) return true;
+
+  let nextIndex = await getNextReferenceFileIndex(referenceId, folderId);
+  for (const file of rows) {
+    const attachment = await uploadAttachment(file, file.name);
+    await createDocumentRecord(
+      createDocumentPayload({
+        file,
+        fileName: file.name,
+        attachment,
+        fileIndex: nextIndex,
+        folderId,
+        referenceId,
+        internalCompanyId,
+      }),
+    );
+    nextIndex += 1;
+  }
+  return true;
+};
+
+const uploadFolderToLegalReference = async (files, referenceId, internalCompanyId) => {
+  const rows = asArray(files).map(getUploadFileObject).filter(Boolean);
+  if (!rows.length) return true;
+
+  const nowIso = new Date().toISOString();
+  const userId = getCurrentUserId();
+  const folderIdMap = { "": null };
+  const folderPaths = new Set();
+
+  rows.forEach((file) => {
+    const relativePath = getUploadRelativePath(file);
+    const parts = relativePath.split("/");
+    parts.pop();
+    let currentPath = "";
+    parts.forEach((part) => {
+      if (!part) return;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      folderPaths.add(currentPath);
+    });
+  });
+
+  const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
+  for (const path of sortedPaths) {
+    const parts = path.split("/");
+    const folderName = parts.pop();
+    const parentPath = parts.join("/");
+    const parentId = folderIdMap[parentPath] || null;
+    const created = await createFolderRecord({
+      name: folderName,
+      title: folderName,
+      type: "custom",
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      ...(parentId ? { parentId: idValue(parentId) } : {}),
+      ...(userId ? { createdById: userId, updatedById: userId } : {}),
+      ...createLegalReferenceScopePayload(referenceId, internalCompanyId),
+    });
+    folderIdMap[path] = extractId(created);
+  }
+
+  const fileIndexCache = {};
+  const nextIndexForFolder = async (folderId) => {
+    const key = String(folderId || "root");
+    if (fileIndexCache[key] === undefined) {
+      fileIndexCache[key] = await getNextReferenceFileIndex(referenceId, folderId);
+      return fileIndexCache[key];
+    }
+    fileIndexCache[key] += 1;
+    return fileIndexCache[key];
+  };
+
+  for (const file of rows) {
+    const relativePath = getUploadRelativePath(file);
+    const parts = relativePath.split("/");
+    const fileName = parts.pop() || file.name;
+    const parentPath = parts.join("/");
+    const folderId = folderIdMap[parentPath] || null;
+    const attachment = await uploadAttachment(file, fileName);
+    await createDocumentRecord(
+      createDocumentPayload({
+        file,
+        fileName,
+        attachment,
+        fileIndex: await nextIndexForFolder(folderId),
+        folderId,
+        referenceId,
+        internalCompanyId,
+      }),
+    );
+  }
+  return true;
+};
+
+const fetchDocumentCountForLink = async (link) => {
+  const reference = getLinkReference(link);
+  if (!reference) return 0;
+  if (isCaseBasedReference(reference)) return null;
+  const library = await fetchLibraryForReferenceSource(reference);
+  return library.documents.length;
 };
 
 const countDescendantFolders = (folders, folderId) => {
@@ -504,89 +1644,623 @@ const getDescendantFolderIds = (folders, folderId) => {
   return result;
 };
 
-function LegalReferenceReader() {
+function LegalReferenceWorkspace() {
+  const [linkForm] = Form.useForm();
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
-  const [references, setReferences] = React.useState([]);
+  const [links, setLinks] = React.useState([]);
+  const [filterKind, setFilterKind] = React.useState("all");
+  const [searchText, setSearchText] = React.useState("");
+  const [stats, setStats] = React.useState({});
+
+  const [linkModalOpen, setLinkModalOpen] = React.useState(false);
+  const [linkMode, setLinkMode] = React.useState("case");
+  const [standaloneCreateMode, setStandaloneCreateMode] = React.useState("select");
+  const [linkLoading, setLinkLoading] = React.useState(false);
+  const [optionLoading, setOptionLoading] = React.useState(false);
+  const [caseOptions, setCaseOptions] = React.useState([]);
+  const [standaloneOptions, setStandaloneOptions] = React.useState([]);
+  const [sourcePickerLoading, setSourcePickerLoading] = React.useState(false);
+  const [sourcePickerLibrary, setSourcePickerLibrary] = React.useState({ studies: [], folders: [], documents: [] });
+  const [legalStudyLibrary, setLegalStudyLibrary] = React.useState({ studies: [], folders: [], documents: [] });
+  const [selectedSourceFolderIds, setSelectedSourceFolderIds] = React.useState([]);
+  const [selectedSourceDocumentIds, setSelectedSourceDocumentIds] = React.useState([]);
+  const [activeSourceFolderId, setActiveSourceFolderId] = React.useState("root");
+  const [caseOptionSearch, setCaseOptionSearch] = React.useState("");
+  const [standaloneOptionSearch, setStandaloneOptionSearch] = React.useState("");
+  const [legalStudySearch, setLegalStudySearch] = React.useState("");
+  const [selectedLegalStudyId, setSelectedLegalStudyId] = React.useState("");
+  const [newReferenceFiles, setNewReferenceFiles] = React.useState([]);
+  const [newReferenceFolderFiles, setNewReferenceFolderFiles] = React.useState([]);
+
   const [activeReference, setActiveReference] = React.useState(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [libraryLoading, setLibraryLoading] = React.useState(false);
-  const [library, setLibrary] = React.useState({ folders: [], documents: [] });
+  const [library, setLibrary] = React.useState({ studies: [], folders: [], documents: [] });
+  const [linkedCases, setLinkedCases] = React.useState([]);
   const [selectedFolderId, setSelectedFolderId] = React.useState("root");
-  const [query, setQuery] = React.useState("");
+  const [libraryQuery, setLibraryQuery] = React.useState("");
   const [previewDoc, setPreviewDoc] = React.useState(null);
   const [previewText, setPreviewText] = React.useState("");
   const [previewTextLoading, setPreviewTextLoading] = React.useState(false);
   const [previewTextError, setPreviewTextError] = React.useState(false);
 
   const currentRecord = getCurrentRecord();
-  const caseId = extractId(currentRecord?.id);
+  const caseId = getCurrentCaseId(currentRecord);
+  const internalCompanyId = getInternalCompanyId(currentRecord);
 
-  const loadReferences = React.useCallback(async () => {
+  const loadStats = React.useCallback(async (rows) => {
+    const nextStats = {};
+    await Promise.all(
+      rows.map(async (row) => {
+        // Support both new { id, type, reference } and legacy formats
+        const reference = row?.reference || getLinkReference(row);
+        const referenceId = extractId(reference);
+        if (!referenceId) return;
+        if (row?.type === "case_based" || isCaseBasedReference(reference)) {
+          nextStats[String(referenceId)] = { documentCount: null, linkedCaseCount: null };
+          return;
+        }
+        try {
+          const documentCount = await fetchDocumentCountForLink(row);
+          nextStats[String(referenceId)] = {
+            documentCount,
+            linkedCaseCount: null,
+          };
+        } catch {
+          nextStats[String(referenceId)] = {
+            documentCount: null,
+            linkedCaseCount: null,
+          };
+        }
+      }),
+    );
+    setStats(nextStats);
+  }, []);
+
+  const loadLinks = React.useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const rows = await fetchReferencesForCase(getCurrentRecord());
-      setReferences(rows);
+      const rows = await fetchCaseReferenceLinks(getCurrentRecord());
+      setLinks(rows);
+      loadStats(rows);
     } catch (loadError) {
-      console.error("[JsItemLegalReference] load references failed", loadError);
-      setError(loadError?.message || "Không tải được Legal Reference.");
+      console.error("[JsItemLegalReference] load links failed", loadError);
+      setError(loadError?.message || "Failed to load document references.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadStats]);
 
   React.useEffect(() => {
-    loadReferences();
-  }, [loadReferences]);
+    loadLinks();
+  }, [loadLinks]);
 
   React.useEffect(() => {
-    const handler = () => loadReferences();
+    const handler = () => loadLinks();
     ctx.element?.addEventListener?.("js-field:value-change", handler);
     return () => ctx.element?.removeEventListener?.("js-field:value-change", handler);
-  }, [loadReferences]);
+  }, [loadLinks]);
 
-  const openReference = async (record) => {
-    setActiveReference(record);
-    setDrawerOpen(true);
-    setSelectedFolderId("root");
-    setQuery("");
-    setPreviewDoc(null);
-    setLibraryLoading(true);
-    try {
-      const data = await fetchLibraryForReference(extractId(record));
-      setLibrary(data);
-    } catch (loadError) {
-      console.error("[JsItemLegalReference] load library failed", loadError);
-      message?.error?.("Không tải được tài liệu tham chiếu.");
-      setLibrary({ folders: [], documents: [] });
-    } finally {
-      setLibraryLoading(false);
+  const linkedReferenceIds = React.useMemo(
+    () => new Set(links.map((row) => String(getLinkReferenceId(row))).filter(Boolean)),
+    [links],
+  );
+
+  const linkedSourceCaseIds = React.useMemo(
+    () =>
+      new Set(
+        links
+          .filter((row) => row?.type === "case_based")
+          .map((row) => extractId(row?.reference))
+          .filter(Boolean)
+          .map((id) => String(id)),
+      ),
+    [links],
+  );
+
+  const buildCaseDetailUrl = React.useCallback((sourceCaseId) => {
+    const template = CONFIG.caseDetailUrlTemplate || "";
+    const path = template
+      ? template.replace("{id}", encodeURIComponent(sourceCaseId))
+      : `/admin/61j36bn1f6i/view/${CONFIG.caseViewUid}/tab/e4dd54e3dbc/filterbytk/${encodeURIComponent(sourceCaseId)}`;
+    return /^https?:\/\//i.test(path) ? path : `${window.location.origin}${path}`;
+  }, []);
+
+  const openCaseDetailUrl = React.useCallback((sourceCaseId) => {
+    const url = buildCaseDetailUrl(sourceCaseId);
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      // Popup bị browser block → thông báo user thay vì redirect
+      message?.warning?.("Please allow popups for this site to open case details.");
+    }
+  }, [buildCaseDetailUrl]);
+
+  const openCaseViewPopup = async (sourceCaseId, sourceCaseRecord) => {
+    const safeId = idValue(sourceCaseId);
+    if (!hasUsableId(safeId)) {
+      message?.warning?.("Source case not found.");
+      return;
+    }
+    const path = CONFIG.caseDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
+    const url = `${window.location.origin}${path}`;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      message?.warning?.("Please allow popups for this site to open case details.");
     }
   };
 
+  const openLegalReferenceViewPopup = async (referenceId, referenceRecord) => {
+    const safeId = idValue(referenceId);
+    if (!hasUsableId(safeId)) {
+      message?.warning?.("Legal Reference not found.");
+      return;
+    }
+    const path = CONFIG.legalReferenceDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
+    const url = `${window.location.origin}${path}`;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      message?.warning?.("Please allow popups for this site to open Legal Reference details.");
+    }
+  };
+
+  const openLegalStudyViewPopup = async (studyId, studyRecord) => {
+    const safeId = idValue(studyId);
+    if (!hasUsableId(safeId)) {
+      message?.warning?.("Legal Study not found.");
+      return;
+    }
+    const path = CONFIG.legalStudyDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
+    const url = `${window.location.origin}${path}`;
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      message?.warning?.("Please allow popups for this site to open Legal Study details.");
+    }
+  };
+  const handleOpenReference = (link) => {
+    // Support new normalized format { id, type, reference }
+    const linkType = link?.type;
+    const reference = link?.reference || getLinkReference(link);
+    if (!reference) return;
+
+    if (linkType === "legal_study" || isLegalStudyReference(reference)) {
+      // Legal Study: reference IS the study record
+      openLegalStudyViewPopup(extractId(reference), reference);
+    } else if (linkType === "case_based") {
+      // Case Reference: reference IS the case/project record itself
+      openCaseViewPopup(extractId(reference), reference);
+    } else if (isCaseBasedReference(reference)) {
+      // Legacy: look up source case from the reference wrapper
+      openCaseViewPopup(getSourceCaseId(reference), getSourceCase(reference));
+    } else {
+      // Standalone legal reference
+      openLegalReferenceViewPopup(extractId(reference), reference);
+    }
+  };
+
+
   const openPreview = (doc) => {
     if (!getFileUrl(doc)) {
-      message?.warning?.("Tài liệu chưa có file hoặc URL để xem trước.");
+      message?.warning?.("The document does not have a file or URL to preview.");
       return;
     }
     setPreviewDoc(doc);
   };
 
-  const downloadFile = (doc) => {
+  const openFileUrl = (doc) => {
     const fileUrl = getFileUrl(doc);
     if (!fileUrl) {
-      message?.warning?.("Tài liệu chưa có file hoặc URL để tải về.");
+      message?.warning?.("The document does not have a file or URL.");
       return;
     }
-    const anchor = document.createElement("a");
-    anchor.href = fileUrl;
-    anchor.download = getFileName(doc);
-    anchor.target = "_blank";
-    anchor.rel = "noopener noreferrer";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+    const opened = window.open(fileUrl, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.href = fileUrl;
+  };
+  const resetSourceSelection = React.useCallback(() => {
+    setSelectedSourceFolderIds([]);
+    setSelectedSourceDocumentIds([]);
+    setActiveSourceFolderId("root");
+    setSourcePickerLibrary({ studies: [], folders: [], documents: [] });
+    setLegalStudySearch("");
+  }, []);
+
+  const loadSourceLibraryForLegalReference = React.useCallback(async (referenceId) => {
+    setSourcePickerLoading(true);
+    setSelectedSourceFolderIds([]);
+    setSelectedSourceDocumentIds([]);
+    setActiveSourceFolderId("root");
+    setLegalStudySearch("");
+    try {
+      if (!referenceId) {
+        setSourcePickerLibrary({ studies: [], folders: [], documents: [] });
+        return;
+      }
+      setSourcePickerLibrary(await fetchLibraryForReference(referenceId));
+    } catch (error) {
+      console.warn("[JsItemLegalReference] load source library failed", error);
+      setSourcePickerLibrary({ studies: [], folders: [], documents: [] });
+      message?.warning?.("Failed to load folders/files of the legal reference.");
+    } finally {
+      setSourcePickerLoading(false);
+    }
+  }, []);
+
+  const toggleSourceFolder = (folderId, forcedChecked) => {
+    const key = String(folderId || "");
+    if (!key || key === "root") {
+      setActiveSourceFolderId("root");
+      return;
+    }
+
+    const selectionLibrary = linkMode === "legal_study" ? selectedLegalStudyLibrary : sourcePickerLibrary;
+    const lockedFolders = linkMode === "legal_study"
+      ? new Set([
+        ...asArray(selectedLegalStudyLockedSelection.folderIds).map(String),
+        ...asArray(selectedLegalStudyLockedSelection.blockedFolderIds).map(String),
+      ])
+      : new Set();
+    if (lockedFolders.has(key)) return;
+
+    const folderScopeIds = [key, ...getDescendantFolderIds(selectionLibrary.folders, key).map(String)];
+    const currentFolderSet = new Set(selectedSourceFolderIds.map(String));
+    const shouldSelect =
+      typeof forcedChecked === "boolean"
+        ? forcedChecked
+        : !folderScopeIds.every((id) => currentFolderSet.has(id));
+
+    setActiveSourceFolderId(key);
+    setSelectedSourceFolderIds((prev) => {
+      const next = new Set(prev.map(String));
+      folderScopeIds.forEach((id) => {
+        if (shouldSelect) next.add(id);
+        else next.delete(id);
+      });
+      return Array.from(next);
+    });
+  };
+
+  const toggleSourceDocument = (documentId) => {
+    const key = String(documentId);
+    const lockedDocuments = linkMode === "legal_study"
+      ? new Set(asArray(selectedLegalStudyLockedSelection.documentIds).map(String))
+      : new Set();
+    if (lockedDocuments.has(key)) return;
+
+    setSelectedSourceDocumentIds((prev) =>
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key],
+    );
+  };
+
+  const loadLinkOptions = React.useCallback(async () => {
+    setOptionLoading(true);
+    try {
+      const [allCases, standaloneReferences, studyLibrary] = await Promise.all([
+        // ── FIX 1: filter isLegalReference = true ──
+        fetchWithCandidates(CONFIG.caseListCandidates, {
+          filter: buildFilter({ isLegalReference: { $eq: true } }),
+          sort: ["-updatedAt", "-createdAt"],
+        }).catch(() => []),
+        fetchCandidateStandaloneReferences().catch(() => []),
+        fetchLegalStudyLibrary().catch(() => ({ studies: [], folders: [], documents: [] })),
+      ]);
+
+      const linkedCaseIds = new Set(
+        links
+          .filter((row) => row?.type === "case_based")
+          .map((row) => String(extractId(row?.reference)))
+          .filter(Boolean)
+      );
+      if (caseId) linkedCaseIds.add(String(idValue(caseId)));
+
+      setCaseOptions(
+        activeRows(allCases)
+          .filter((item) => !linkedCaseIds.has(String(extractId(item)))),
+      );
+
+      const linkedReferenceIds = new Set(
+        links
+          .filter((row) => row?.type === "standalone" || !row?.type)
+          .map((row) => String(extractId(row?.reference || getLinkReference(row))))
+          .filter(Boolean)
+      );
+
+      setStandaloneOptions(
+        activeRows(standaloneReferences)
+          .filter((item) => !linkedReferenceIds.has(String(extractId(item)))),
+      );
+
+      // ── FIX 2: filter Legal Studies đã linked ──
+      const linkedStudyIds = new Set(
+        links
+          .filter((row) => row?.type === "legal_study")
+          .map((row) => String(extractId(row?.reference)))
+          .filter(Boolean)
+      );
+
+      setLegalStudyLibrary({
+        ...studyLibrary,
+        studies: activeRows(studyLibrary.studies)
+          .filter((study) => !linkedStudyIds.has(String(extractId(study)))),
+      });
+
+    } finally {
+      setOptionLoading(false);
+    }
+  }, [internalCompanyId, links, caseId]);
+
+  const openLinkModal = () => {
+    linkForm.resetFields();
+    setLinkMode("standalone");
+    setStandaloneCreateMode("select");
+    setCaseOptionSearch("");
+    setStandaloneOptionSearch("");
+    setLegalStudySearch("");
+    setSelectedLegalStudyId("");
+    resetSourceSelection();
+    setNewReferenceFiles([]);
+    setNewReferenceFolderFiles([]);
+    setLinkModalOpen(true);
+    loadLinkOptions();
+  };
+
+  const selectedLegalStudy = React.useMemo(
+    () =>
+      activeRows(legalStudyLibrary.studies)
+        .find((study) => String(extractId(study)) === String(selectedLegalStudyId)) || null,
+    [legalStudyLibrary.studies, selectedLegalStudyId],
+  );
+
+  const selectedLegalStudyLibrary = React.useMemo(
+    () => filterLegalStudyLibraryByStudy(legalStudyLibrary, selectedLegalStudyId),
+    [legalStudyLibrary, selectedLegalStudyId],
+  );
+
+  const selectedLegalStudyLockedSelection = React.useMemo(
+    () =>
+      getLockedLegalStudySelection(
+        links.map((row) => getLinkReference(row)),
+        selectedLegalStudyId,
+        legalStudyLibrary,
+      ),
+    [links, selectedLegalStudyId, legalStudyLibrary],
+  );
+
+  const findCaseBasedReference = async (sourceCaseId) => {
+    if (!hasUsableId(sourceCaseId)) return null;
+    try {
+      const rows = await fetchWithCandidates(CONFIG.referenceListCandidates, {
+        filter: buildFilter({ sourceCaseId: { $eq: idValue(sourceCaseId) } }),
+      });
+      const match = activeRows(rows).find((item) => isCaseBasedReference(item));
+      if (match) return (await hydrateSourceCases([match]))[0];
+    } catch (error) {
+      console.warn("[JsItemLegalReference] find case-based reference failed", error);
+    }
+    return null;
+  };
+
+  const createCaseBasedReference = async (sourceCase) => {
+    const sourceCaseId = extractId(sourceCase);
+    if (!hasUsableId(sourceCaseId)) throw new Error("Missing source case id");
+    const existing = await findCaseBasedReference(sourceCaseId);
+    if (existing) return existing;
+
+    const payload = {
+      title: getCaseTitle(sourceCase),
+      referenceKind: CONFIG.caseReferenceKind,
+      sourceCaseId: idValue(sourceCaseId),
+      ...(internalCompanyId ? { internalCompanyId: idValue(internalCompanyId) } : {}),
+      status: CONFIG.activeStatus,
+    };
+
+    const created = await createWithCandidates(CONFIG.referenceCreateCandidates, payload);
+    return {
+      ...created,
+      _sourceCase: sourceCase,
+    };
+  };
+
+  const createStandaloneReference = async (values) => {
+    const fallbackFolderName = getUploadRootFolderName(newReferenceFolderFiles);
+    const payload = {
+      title: String(values.newStandaloneTitle || fallbackFolderName || "").trim(),
+      description: String(values.newStandaloneDescription || "").trim(),
+      referenceKind: CONFIG.standaloneReferenceKind,
+      ...(internalCompanyId ? { internalCompanyId: idValue(internalCompanyId) } : {}),
+      status: CONFIG.activeStatus,
+    };
+    return createWithCandidates(CONFIG.referenceCreateCandidates, payload);
+  };
+
+  const getSelectedSourceTitle = (baseTitle, library, folderIds, documentIds) => {
+    const folderIdSet = new Set(asArray(folderIds).map(String));
+    const documentIdSet = new Set(asArray(documentIds).map(String));
+    const selectedNames = [
+      ...library.folders
+        .filter((folder) => folderIdSet.has(String(getFolderId(folder))))
+        .map((folder) => folder.name || folder.title || "Folder"),
+      ...library.documents
+        .filter((doc) => documentIdSet.has(String(extractId(doc))))
+        .map((doc) => getFileName(doc)),
+    ].filter(Boolean);
+
+    if (selectedNames.length === 1) return selectedNames[0];
+    return baseTitle;
+  };
+
+  const createSourceWrapperReference = async ({
+    sourceSpace,
+    sourceLegalReference = null,
+    sourceFolderIds = [],
+    sourceDocumentIds = [],
+    sourceLibrary = { studies: [], folders: [], documents: [] },
+    fallbackTitle = "",
+  }) => {
+    const folderIds = Array.from(new Set(asArray(sourceFolderIds).map(String).filter(Boolean)));
+    const documentIds = Array.from(new Set(asArray(sourceDocumentIds).map(String).filter(Boolean)));
+    const baseTitle = fallbackTitle || getReferenceTitle(sourceLegalReference) || "Legal Reference";
+    const title = getSelectedSourceTitle(baseTitle, sourceLibrary, folderIds, documentIds);
+    const sourceType = getSelectionSourceType(folderIds, documentIds);
+
+    const payload = {
+      title,
+      description: `Linked ${sourceSpace === CONFIG.legalStudyStorageType ? "Legal Study" : "Case Reference"} for reference and study.`,
+      referenceKind: sourceSpace === CONFIG.legalStudyStorageType
+        ? CONFIG.legalStudyReferenceKind
+        : CONFIG.legalReferenceKind,
+      sourceSpace,
+      sourceType,
+      ...(sourceLegalReference ? { sourceLegalReferenceId: idValue(extractId(sourceLegalReference)) } : {}),
+      sourceFolderIds: serializeIds(folderIds),
+      sourceDocumentIds: serializeIds(documentIds),
+      ...(internalCompanyId ? { internalCompanyId: idValue(internalCompanyId) } : {}),
+      status: CONFIG.activeStatus,
+    };
+
+    return createWithCandidates(CONFIG.referenceCreateCandidates, payload);
+  };
+
+  const createLegacyLinkRecord = async (referenceId) => {
+    if (!hasUsableId(caseId) || !hasUsableId(referenceId)) throw new Error("Missing case or reference id");
+    const payload = {
+      caseId: idValue(caseId),
+      legalReferenceId: idValue(referenceId),
+      ...(internalCompanyId ? { internalCompanyId: idValue(internalCompanyId) } : {}),
+      status: CONFIG.activeStatus,
+    };
+    return createWithCandidates(CONFIG.linkCreateCandidates, payload);
+  };
+
+  const removeLinkRecord = async (link) => {
+    if (!hasUsableId(caseId)) {
+      message?.warning?.("Current case not found.");
+      return;
+    }
+
+    const linkType = link?.type;
+    const reference = link?.reference || getLinkReference(link);
+    const referenceId = extractId(reference);
+
+    if (!hasUsableId(referenceId)) {
+      message?.warning?.("Reference record not found.");
+      return;
+    }
+
+    try {
+      if (linkType === "legal_study") {
+        await removeRelationLink("legalStudy", caseId, referenceId);
+        message?.success?.("Unlinked Legal Study successfully.");
+      } else if (linkType === "case_based") {
+        await removeRelationLink("caseReferences", caseId, referenceId);
+        message?.success?.("Removed Case Reference successfully.");
+      } else {
+        await removeRelationLink("legalReference", caseId, referenceId);
+        message?.success?.("Removed Legal Reference successfully.");
+      }
+      await loadLinks();
+    } catch (err) {
+      console.error("[removeLinkRecord] failed", err);
+      // Không show error vì removeRelationLink đã thử tất cả candidates
+      // Nếu tất cả fail thì reload lại để UI đồng bộ
+      await loadLinks();
+      message?.warning?.("Could not confirm removal. Please refresh.");
+    }
+  };
+
+  const confirmRemoveLink = (link) => {
+    const reference = link?.reference || getLinkReference(link);
+    const linkType = link?.type;
+    const title = linkType === "case_based"
+      ? "Remove Case Reference?"
+      : linkType === "legal_study"
+        ? "Remove Legal Study?"
+        : "Remove Legal Reference?";
+    Modal.confirm({
+      title,
+      content: getReferenceTitle(reference),
+      okText: "Remove link",
+      cancelText: "Cancel",
+      okButtonProps: { danger: true },
+      onOk: () => removeLinkRecord(link),
+    });
+  };
+
+  const handleLinkSubmit = async () => {
+    setLinkLoading(true);
+    try {
+      const values = await linkForm.validateFields();
+      if (!hasUsableId(caseId)) {
+        message?.warning?.("Current case not found.");
+        return;
+      }
+
+      if (linkMode === "case") {
+        // Case Reference: link via caseReferences relation
+        const sourceCaseId = values.caseReferenceId;
+        if (!hasUsableId(sourceCaseId)) {
+          message?.warning?.("Please select a Case.");
+          return;
+        }
+        if (linkedSourceCaseIds.has(String(sourceCaseId))) {
+          message?.info?.("This case is already linked as a reference.");
+          setLinkModalOpen(false);
+          return;
+        }
+        await addRelationLink("caseReferences", caseId, sourceCaseId);
+        message?.success?.("Linked Case Reference successfully.");
+
+      } else if (linkMode === "standalone") {
+        // Legal Reference: link via legalReference relation
+        const referenceId = values.standaloneReferenceId;
+        if (!hasUsableId(referenceId)) {
+          message?.warning?.("Please select a Legal Reference.");
+          return;
+        }
+        if (linkedReferenceIds.has(String(referenceId))) {
+          message?.info?.("This record is already linked to the current case.");
+          setLinkModalOpen(false);
+          return;
+        }
+        await addRelationLink("legalReference", caseId, referenceId);
+        message?.success?.("Linked Legal Reference successfully.");
+
+      } else if (linkMode === "legal_study") {
+        const legalStudyId = values.legalStudyId || selectedLegalStudyId;
+        const legalStudyRecord =
+          selectedLegalStudy ||
+          activeRows(legalStudyLibrary.studies).find((study) => String(extractId(study)) === String(legalStudyId));
+        if (!legalStudyId || !legalStudyRecord) {
+          message?.warning?.("Please select a Legal Study.");
+          return;
+        }
+        const isAlreadyLinked = links.some((row) => row?.type === "legal_study" && String(extractId(row?.reference)) === String(legalStudyId));
+        if (isAlreadyLinked) {
+          message?.info?.("This Legal Study is already linked to the current case.");
+          setLinkModalOpen(false);
+          return;
+        }
+        await addRelationLink("legalStudy", caseId, legalStudyId);
+        message?.success?.("Linked Legal Study successfully.");
+
+      } else {
+        message?.warning?.("Unknown link mode.");
+        return;
+      }
+
+      setLinkModalOpen(false);
+      linkForm.resetFields();
+      resetSourceSelection();
+      setNewReferenceFiles([]);
+      setNewReferenceFolderFiles([]);
+      await loadLinks();
+    } catch (error) {
+      if (error?.errorFields) return;
+      console.error("[JsItemLegalReference] link submit failed", error);
+      message?.error?.("Failed to create link.");
+    } finally {
+      setLinkLoading(false);
+    }
   };
 
   const folderMap = React.useMemo(() => {
@@ -658,9 +2332,10 @@ function LegalReferenceReader() {
         .map((folder) => {
           const folderId = String(getFolderId(folder));
           const directFiles = library.documents.filter((doc) => String(getDocFolderId(doc) || "") === folderId).length;
+          const childFolders = countDescendantFolders(library.folders, folderId);
           return {
             key: folderId,
-            title: `${folder.name || "Folder"}${directFiles ? ` (${directFiles})` : ""}`,
+            title: `${folder.name || "Folder"}${directFiles || childFolders ? ` (${directFiles + childFolders})` : ""}`,
             children: buildTree(folderId),
           };
         }),
@@ -671,7 +2346,7 @@ function LegalReferenceReader() {
     () => [
       {
         key: "root",
-        title: `Tất cả tài liệu (${library.documents.length})`,
+        title: `All documents (${library.documents.length})`,
         children: buildTree(null),
       },
     ],
@@ -679,10 +2354,14 @@ function LegalReferenceReader() {
   );
 
   const visibleDocuments = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let rows = selectedFolderId === "root"
-      ? library.documents
-      : library.documents.filter((doc) => String(getDocFolderId(doc) || "") === String(selectedFolderId));
+    const q = libraryQuery.trim().toLowerCase();
+    const selectedFolderIds = selectedFolderId === "root"
+      ? null
+      : new Set([String(selectedFolderId), ...getDescendantFolderIds(library.folders, selectedFolderId).map(String)]);
+
+    let rows = selectedFolderIds
+      ? library.documents.filter((doc) => selectedFolderIds.has(String(getDocFolderId(doc) || "")))
+      : library.documents;
 
     if (q) {
       rows = rows.filter((doc) => {
@@ -692,123 +2371,251 @@ function LegalReferenceReader() {
     }
 
     return [...rows].sort((a, b) => new Date(b.uploadedAt || b.createdAt || 0) - new Date(a.uploadedAt || a.createdAt || 0));
-  }, [library.documents, selectedFolderId, query]);
+  }, [library.documents, library.folders, selectedFolderId, libraryQuery]);
 
   const selectedFolderName = React.useMemo(() => {
-    if (selectedFolderId === "root") return "Tất cả tài liệu";
-    if (query.trim()) return "Kết quả tìm kiếm";
+    if (selectedFolderId === "root") return "All documents";
+    if (libraryQuery.trim()) return "Search results";
     return folderMap.get(String(selectedFolderId))?.name || "Folder";
-  }, [selectedFolderId, query, folderMap]);
+  }, [selectedFolderId, libraryQuery, folderMap]);
+
+  const filteredLinks = React.useMemo(() => {
+    const q = searchText.trim();
+    return links.filter((link) => {
+      const linkType = link?.type;
+      const reference = link?.reference || getLinkReference(link);
+      if (!reference) return false;
+      // "case" filter key maps to type "case_based"
+      if (filterKind === "case" && linkType !== "case_based") return false;
+      if (filterKind === "standalone" && linkType !== "standalone") return false;
+      if (filterKind === "legal_study" && linkType !== "legal_study") return false;
+
+      if (!q) return true;
+      const title = linkType === "case_based" ? getCaseTitle(reference) : getReferenceTitle(reference);
+      const sourceCase = linkType === "case_based" ? reference : getSourceCase(reference);
+      return matchesSearchParts([
+        title,
+        getCaseTitle(sourceCase),
+        getCaseSummary(sourceCase),
+        reference.description,
+        reference.referenceCode,
+      ], q);
+    });
+  }, [links, filterKind, searchText]);
+
+  const filteredCaseOptions = React.useMemo(
+    () => caseOptions.filter((item) =>
+      matchesSearchParts([
+        getCaseTitle(item),
+        item?.caseCode,
+        item?.projectCode,
+        item?.description,
+      ], caseOptionSearch)
+    ),
+    [caseOptions, caseOptionSearch],
+  );
+
+  const filteredStandaloneOptions = React.useMemo(
+    () => standaloneOptions.filter((item) => matchesSearchParts(referenceSearchParts(item), standaloneOptionSearch)),
+    [standaloneOptions, standaloneOptionSearch],
+  );
+
+  const visibleCaseOptions = React.useMemo(
+    () => filteredCaseOptions.slice(0, caseOptionSearch.trim() ? 150 : 80),
+    [filteredCaseOptions, caseOptionSearch],
+  );
+
+  const visibleStandaloneOptions = React.useMemo(
+    () => filteredStandaloneOptions.slice(0, standaloneOptionSearch.trim() ? 150 : 80),
+    [filteredStandaloneOptions, standaloneOptionSearch],
+  );
+
+  const caseBasedCount = links.filter((row) => row?.type === "case_based").length;
+  const standaloneCount = links.filter((row) => row?.type === "standalone").length;
+  const legalStudyCount = links.filter((row) => row?.type === "legal_study").length;
 
   const renderText = (props, children) => (Text ? h(Text, props, children) : h("span", props, children));
 
-  const renderReferenceCard = (record) => {
-    const id = String(extractId(record));
-    const linkedCases = asArray(record.cases);
-    const title = getReferenceTitle(record);
+  const renderSegmentButton = (key, label, count) => {
+    const isActive = filterKind === key;
     return h(
       "button",
       {
-        key: id,
         type: "button",
-        onClick: () => openReference(record),
+        onClick: () => setFilterKind(key),
         style: {
           border: 0,
-          background: "transparent",
-          padding: 0,
-          margin: 0,
-          cursor: "pointer",
-          color: color.blue,
-          fontSize: 14,
+          background: isActive ? color.white : "transparent",
+          color: isActive ? color.blue : color.muted,
+          borderRadius: 6,
+          padding: "6px 14px",
+          fontSize: 13,
           fontWeight: 600,
-          lineHeight: "22px",
-          textAlign: "left",
-          fontFamily: "inherit",
-        },
-      },
-      title,
-    );
-    return h(
-      Card,
-      {
-        key: id,
-        hoverable: true,
-        onClick: () => openReference(record),
-        style: {
-          borderRadius: 8,
-          border: `1px solid ${color.border}`,
-          borderLeft: `3px solid ${color.blue}`,
-          minWidth: 260,
-          flex: "1 1 280px",
           cursor: "pointer",
+          whiteSpace: "nowrap",
+          boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "none",
+          transition: "all 0.2s ease",
         },
-        bodyStyle: { padding: 14 },
       },
+      h("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
+        label,
+        typeof count === "number" && h(
+          "span",
+          {
+            style: {
+              background: isActive ? color.blueSoft : "#E5E7EB",
+              color: isActive ? color.blue : color.muted,
+              padding: "2px 6px",
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 700,
+            }
+          },
+          count
+        )
+      )
+    );
+  };
+
+  const renderKindBadge = (reference, overrideType) => {
+    const isStudy = overrideType === "legal_study" || (!overrideType && isLegalStudyReference(reference));
+    const isCase = overrideType === "case_based" || (!overrideType && !isStudy && isCaseBasedReference(reference));
+    const badgeColor = isStudy ? "purple" : isCase ? "geekblue" : "blue";
+    const label = isStudy ? "Legal Study" : isCase ? "Case Reference" : "Legal Reference";
+    return h(
+      Tag,
+      { color: badgeColor, style: { margin: 0, borderRadius: 4, fontWeight: 600 } },
+      label,
+    );
+  };
+
+  const renderReferenceRow = (link) => {
+    // Support new normalized format { id, type, reference }
+    const reference = link?.reference || getLinkReference(link);
+    const linkType = link?.type || (isCaseBasedReference(reference) ? "case_based" : isLegalStudyReference(reference) ? "legal_study" : "standalone");
+    const referenceId = String(extractId(reference));
+    const sourceCase = linkType === "case_based" ? (reference?._sourceCase || getSourceCase(reference) || reference) : getSourceCase(reference);
+    const title = (linkType === "case_based" && sourceCase) ? getCaseTitle(sourceCase) : getReferenceTitle(reference);
+    const folderCount = parseStoredIds(reference?.sourceFolderIds).length;
+    const documentCount = parseStoredIds(reference?.sourceDocumentIds).length;
+
+    const getCreatedByName = () => {
+      // Try reference.createdBy first (new format), then fallback to legacy fields
+      const user = reference?.createdBy ||
+        link?.createdBy ||
+        reference?.legalReference?.createdBy ||
+        reference?._legalReference?.createdBy ||
+        reference?.legalStudy?.createdBy ||
+        reference?._legalStudy?.createdBy;
+      return user?.nickname || user?.username || user?.name || "-";
+    };
+
+    return h(
+      "div",
+      {
+        key: String(link?.id || referenceId),
+        style: {
+          display: "grid",
+          gridTemplateColumns: "110px minmax(160px, 1.2fr) minmax(150px, 1.8fr) 110px 90px 36px 36px",
+          gap: 10,
+          alignItems: "center",
+          minWidth: 740,
+          padding: "12px 12px",
+          borderTop: `1px solid ${color.border}`,
+          background: color.white,
+          transition: "background 0.2s ease",
+        },
+      },
+      h("div", null, renderKindBadge(reference, linkType)),
       h(
-        "div",
-        { style: { display: "flex", gap: 10, alignItems: "flex-start" } },
+        "button",
+        {
+          type: "button",
+          onClick: () => handleOpenReference(link),
+          style: {
+            border: 0,
+            padding: 0,
+            background: "transparent",
+            textAlign: "left",
+            cursor: "pointer",
+            minWidth: 0,
+            fontFamily: "inherit",
+          },
+        },
+        h(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: 3, minWidth: 0 } },
+          h(
+            Tooltip,
+            { title },
+            h(
+              "div",
+              {
+                style: {
+                  color: color.text,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                },
+              },
+              title,
+            ),
+          )
+        )
+      ),
+      h(
+        Tooltip,
+        { title: stripHtml(reference?.description) },
         h(
           "div",
           {
             style: {
-              width: 34,
-              height: 34,
-              borderRadius: 8,
-              background: color.blueSoft,
-              color: color.blue,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
+              color: color.muted,
+              fontSize: 13,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             },
           },
-          ICONS.book,
+          stripHtml(reference?.description) || "-",
         ),
-        h(
-          "div",
-          { style: { minWidth: 0, flex: 1 } },
-          h(
-            "div",
-            {
-              style: {
-                fontSize: 14,
-                fontWeight: 700,
-                color: color.text,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              },
-              title,
-            },
-            title,
-          ),
-          record.description
-            ? h(
-              "div",
-              {
-                style: {
-                  marginTop: 4,
-                  fontSize: 12,
-                  color: color.muted,
-                  lineHeight: "18px",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                },
-              },
-              record.description,
-            )
-            : null,
-          h(
-            "div",
-            { style: { marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" } },
-            h(Tag, { color: "blue", style: { margin: 0, borderRadius: 4 } }, "Tài liệu tham chiếu"),
-            linkedCases.length
-              ? h(Tag, { style: { margin: 0, borderRadius: 4 } }, `${linkedCases.length} case liên kết`)
-              : null,
-          ),
-        ),
+      ),
+      h(
+        "div",
+        {
+          style: {
+            color: color.muted,
+            fontSize: 13,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          },
+        },
+        getCreatedByName()
+      ),
+      h("div", { style: { color: color.muted, fontSize: 13 } }, formatDate(link.updatedAt || link.createdAt || reference?.updatedAt || reference?.createdAt) || "-"),
+      h(
+        Button,
+        {
+          type: "link",
+          size: "small",
+          icon: ICONS.open,
+          onClick: () => handleOpenReference(link),
+          style: { padding: 0, width: 32, minWidth: 32, overflow: "hidden" },
+        },
+      ),
+      h(
+        Button,
+        {
+          type: "link",
+          size: "small",
+          danger: true,
+          icon: ICONS.trash,
+          onClick: () => confirmRemoveLink(link),
+          style: { padding: 0, width: 32, minWidth: 32, overflow: "hidden" },
+        },
       ),
     );
   };
@@ -820,6 +2627,7 @@ function LegalReferenceReader() {
     const sizeText = formatBytes(attachment?.size);
     const dateText = formatDate(doc.uploadedAt || doc.createdAt || doc.updatedAt);
     const sourceText = selectedFolderId === "root" ? `Nguồn: ${getFolderPath(getDocFolderId(doc))}` : "";
+
     return h(
       List.Item,
       {
@@ -836,7 +2644,7 @@ function LegalReferenceReader() {
               disabled: !fileUrl,
               onClick: () => openPreview(doc),
             },
-            "Mở",
+            "Open",
           ),
           h(
             Button,
@@ -846,68 +2654,207 @@ function LegalReferenceReader() {
               type: "link",
               icon: ICONS.download,
               disabled: !fileUrl,
-              onClick: () => downloadFile(doc),
+              onClick: (event) => {
+                event?.preventDefault?.();
+                event?.stopPropagation?.();
+                openFileUrl(doc);
+              },
             },
-            "Tải về",
+            "Download",
           ),
         ],
       },
-      h(
-        List.Item.Meta,
-        {
-          avatar: h(
-            "div",
-            {
-              style: {
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                border: `1px solid ${color.border}`,
-                color: color.blue,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: color.white,
-              },
+      h(List.Item.Meta, {
+        avatar: h(
+          "div",
+          {
+            style: {
+              width: 34,
+              height: 34,
+              borderRadius: 6,
+              border: `1px solid ${color.border}`,
+              color: color.blue,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: color.white,
             },
-            ICONS.file,
-          ),
-          title: h(
-            "div",
-            { style: { display: "flex", gap: 8, alignItems: "center", minWidth: 0 } },
+          },
+          ICONS.file,
+        ),
+        title: h(
+          "div",
+          { style: { display: "flex", gap: 8, alignItems: "center", minWidth: 0 } },
+          h(
+            Tooltip,
+            { title: name },
             h(
-              Tooltip,
-              { title: name },
-              h(
-                "span",
-                {
-                  style: {
-                    fontWeight: 600,
-                    color: fileUrl ? color.text : color.muted,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  },
+              "span",
+              {
+                style: {
+                  fontWeight: 600,
+                  color: fileUrl ? color.text : color.muted,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 },
-                name,
-              ),
+              },
+              name,
             ),
-            h(Tag, { style: { margin: 0, borderRadius: 4 } }, getFileExt(doc)),
           ),
-          description: h(
-            "div",
-            { style: { fontSize: 12, color: color.muted } },
-            [
-              doc.description ? h("div", { key: "desc" }, doc.description) : null,
-              sourceText ? h("div", { key: "source", style: { marginTop: doc.description ? 3 : 0 } }, sourceText) : null,
-              h(
-                "div",
-                { key: "meta", style: { marginTop: doc.description || sourceText ? 3 : 0 } },
-                [sizeText, dateText].filter(Boolean).join(" · ") || "Chưa có thông tin file",
-              ),
-            ],
-          ),
+          h(Tag, { style: { margin: 0, borderRadius: 4 } }, getFileExt(doc)),
+        ),
+        description: h(
+          "div",
+          { style: { fontSize: 12, color: color.muted } },
+          [
+            doc.description ? h("div", { key: "desc" }, doc.description) : null,
+            sourceText ? h("div", { key: "source", style: { marginTop: doc.description ? 3 : 0 } }, sourceText) : null,
+            h(
+              "div",
+              { key: "meta", style: { marginTop: doc.description || sourceText ? 3 : 0 } },
+              [sizeText, dateText].filter(Boolean).join(" · ") || "No file information",
+            ),
+          ],
+        ),
+      }),
+    );
+  };
+
+  const renderLinkedCases = () => {
+    const cases = activeRows(linkedCases);
+    if (!cases.length) {
+      return h("div", { style: { color: color.faint, fontSize: 12 } }, "No other cases.");
+    }
+
+    return h(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: 6 } },
+      cases.slice(0, 8).map((item) =>
+        h(
+          "button",
+          {
+            key: String(extractId(item)),
+            type: "button",
+            onClick: () => openCaseViewPopup(extractId(item), item),
+            style: {
+              border: `1px solid ${color.border}`,
+              background: color.white,
+              borderRadius: 6,
+              padding: "6px 8px",
+              textAlign: "left",
+              cursor: "pointer",
+              color: color.text,
+              fontSize: 12,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            },
+            title: getCaseTitle(item),
+          },
+          getCaseTitle(item),
+        ),
+      ),
+    );
+  };
+
+  const renderDrawerBody = () => {
+    if (libraryLoading) {
+      return h(
+        "div",
+        { style: { padding: 60, textAlign: "center" } },
+        h(Spin, { size: "large" }),
+      );
+    }
+
+    const folderCount = library.folders.length;
+    const fileCount = library.documents.length;
+
+    return h(
+      "div",
+      { style: { display: "flex", gap: 16, height: "100%" } },
+      h(
+        "div",
+        {
+          style: {
+            width: 286,
+            flexShrink: 0,
+            borderRight: `1px solid ${color.border}`,
+            paddingRight: 14,
+            overflowY: "auto",
+          },
         },
+        h("div", { style: { fontSize: 12, color: color.muted, marginBottom: 8, fontWeight: 700 } }, "Folders"),
+        folderCount || fileCount
+          ? h(DirectoryTree, {
+            treeData,
+            selectedKeys: [selectedFolderId],
+            defaultExpandAll: true,
+            onSelect: (keys) => setSelectedFolderId(String(keys?.[0] || "root")),
+            style: { background: "transparent" },
+          })
+          : h(Empty, {
+            image: Empty.PRESENTED_IMAGE_SIMPLE,
+            description: "No documents yet.",
+            style: { padding: "18px 0" },
+          }),
+      ),
+      h(
+        "div",
+        { style: { flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" } },
+        h(
+          "div",
+          {
+            style: {
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 12,
+            },
+          },
+          h(
+            "div",
+            { style: { minWidth: 0 } },
+            h("div", { style: { fontSize: 15, fontWeight: 700, color: color.text } }, selectedFolderName),
+            h(
+              "div",
+              { style: { fontSize: 12, color: color.muted, marginTop: 2 } },
+              `${visibleDocuments.length} documents displayed · ${folderCount} folders · ${fileCount} files`,
+            ),
+          ),
+          h(Input.Search, {
+            allowClear: true,
+            placeholder: "Search documents...",
+            value: libraryQuery,
+            onChange: (event) => setLibraryQuery(event.target.value),
+            style: { width: 260 },
+          }),
+        ),
+        h(
+          "div",
+          {
+            style: {
+              flex: 1,
+              overflowY: "auto",
+              border: `1px solid ${color.border}`,
+              borderRadius: 8,
+              padding: "0 14px",
+              background: color.white,
+            },
+          },
+          visibleDocuments.length
+            ? h(List, {
+              itemLayout: "horizontal",
+              dataSource: visibleDocuments,
+              renderItem: renderFileItem,
+            })
+            : h(Empty, {
+              image: Empty.PRESENTED_IMAGE_SIMPLE,
+              description: libraryQuery ? "No matching documents found." : "This folder has no documents yet.",
+              style: { padding: "48px 0" },
+            }),
+        ),
       ),
     );
   };
@@ -947,11 +2894,7 @@ function LegalReferenceReader() {
     }
 
     if (kind === "video") {
-      return h("video", {
-        src: fileUrl,
-        controls: true,
-        style: { ...frameStyle, background: "#000" },
-      });
+      return h("video", { src: fileUrl, controls: true, style: { ...frameStyle, background: "#000" } });
     }
 
     if (kind === "audio") {
@@ -963,15 +2906,12 @@ function LegalReferenceReader() {
     }
 
     if (kind === "text") {
-      if (previewTextLoading) {
-        return h("div", { style: { padding: 60, textAlign: "center" } }, h(Spin, null));
-      }
+      if (previewTextLoading) return h("div", { style: { padding: 60, textAlign: "center" } }, h(Spin, null));
       if (previewTextError) {
         return h(Alert, {
           type: "warning",
           showIcon: true,
           message: "Không đọc được nội dung file trong trình duyệt.",
-          description: "Bạn vẫn có thể mở file ở tab mới hoặc tải về.",
         });
       }
       return h(
@@ -998,158 +2938,1037 @@ function LegalReferenceReader() {
     });
   };
 
-  const renderDrawerBody = () => {
-    if (libraryLoading) {
-      return h(
-        "div",
-        { style: { padding: 60, textAlign: "center" } },
-        h(Spin, { size: "large" }),
-      );
-    }
+  const getUploadListUid = (file) =>
+    file?.uid || `${file?.name || "file"}-${file?.lastModified || ""}-${file?.size || ""}`;
 
-    const folderCount = library.folders.length;
-    const fileCount = library.documents.length;
-
-    if (!folderCount && !fileCount) {
-      return h(Empty, {
-        image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "Legal Reference này chưa có thư mục hoặc tài liệu.",
-        style: { padding: "60px 0" },
+  const addUploadFiles = (setter, files) => {
+    setter((prev) => {
+      const map = new Map(prev.map((item) => [getUploadListUid(item), item]));
+      asArray(files).forEach((file) => {
+        if (file) map.set(getUploadListUid(file), file);
       });
-    }
+      return Array.from(map.values());
+    });
+  };
 
-    return h(
-      "div",
-      { style: { display: "flex", gap: 16, height: "100%" } },
+  const removeUploadFile = (setter, file) => {
+    const uid = getUploadListUid(file);
+    setter((prev) => prev.filter((item) => getUploadListUid(item) !== uid));
+  };
+
+  const renderUploadPicker = ({ type, title, fileList, setFileList }) =>
+    h(
+      Upload,
+      {
+        multiple: true,
+        directory: type === "folder",
+        fileList,
+        beforeUpload: (file) => {
+          if (type === "folder") {
+            const rootFolderName = getUploadRootFolderName([file]);
+            const currentTitle = linkForm.getFieldValue("newStandaloneTitle");
+            if (rootFolderName && !String(currentTitle || "").trim()) {
+              linkForm.setFieldsValue({ newStandaloneTitle: rootFolderName });
+            }
+          }
+          addUploadFiles(setFileList, [file]);
+          return false;
+        },
+        onRemove: (file) => {
+          removeUploadFile(setFileList, file);
+          return false;
+        },
+      },
+      h(
+        Button,
+        {
+          icon: type === "folder" ? ICONS.folder : ICONS.upload,
+        },
+        title,
+      ),
+    );
+
+  const renderStandaloneCreateFields = () =>
+    h(
+      React.Fragment,
+      null,
+      h(
+        Form.Item,
+        {
+          name: "newStandaloneTitle",
+          label: "Tên hồ sơ",
+          rules: [{ required: true, message: "Vui lòng nhập tên hồ sơ" }],
+        },
+        h(Input, { placeholder: "Nhập tên hồ sơ..." }),
+      ),
+      h(
+        Form.Item,
+        {
+          name: "newStandaloneDescription",
+          label: "Mô tả",
+        },
+        h(Input.TextArea, { rows: 3, placeholder: "Mô tả ngắn..." }),
+      ),
       h(
         "div",
         {
           style: {
-            width: 280,
-            flexShrink: 0,
-            borderRight: `1px solid ${color.border}`,
-            paddingRight: 12,
-            overflowY: "auto",
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            padding: 12,
+            background: color.bg,
           },
         },
+        h("div", { style: { fontWeight: 700, color: color.text, marginBottom: 8 } }, "Upload tài liệu cho hồ sơ tham chiếu"),
         h(
-          "div",
-          { style: { fontSize: 12, color: color.muted, marginBottom: 8, fontWeight: 600 } },
-          "Thư mục",
-        ),
-        h(DirectoryTree, {
-          treeData,
-          selectedKeys: [selectedFolderId],
-          defaultExpandAll: true,
-          onSelect: (keys) => setSelectedFolderId(String(keys?.[0] || "root")),
-          style: { background: "transparent" },
-        }),
-      ),
-      h(
-        "div",
-        { style: { flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" } },
-        h(
-          "div",
-          {
-            style: {
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              marginBottom: 12,
-            },
-          },
-          h(
-            "div",
-            { style: { minWidth: 0 } },
-            h(
-              "div",
-              { style: { fontSize: 15, fontWeight: 700, color: color.text } },
-              selectedFolderName,
-            ),
-            h(
-              "div",
-              { style: { fontSize: 12, color: color.muted, marginTop: 2 } },
-              `${visibleDocuments.length} tài liệu hiển thị · ${folderCount} thư mục · ${fileCount} file`,
-            ),
-          ),
-          h(Input.Search, {
-            allowClear: true,
-            placeholder: "Tìm tài liệu tham chiếu...",
-            value: query,
-            onChange: (event) => setQuery(event.target.value),
-            style: { width: 260 },
+          Space,
+          { size: 8, wrap: true },
+          renderUploadPicker({
+            type: "files",
+            title: "Upload file",
+            fileList: newReferenceFiles,
+            setFileList: setNewReferenceFiles,
+          }),
+          renderUploadPicker({
+            type: "folder",
+            title: "Upload thư mục",
+            fileList: newReferenceFolderFiles,
+            setFileList: setNewReferenceFolderFiles,
           }),
         ),
         h(
           "div",
-          {
-            style: {
-              flex: 1,
-              overflowY: "auto",
-              border: `1px solid ${color.border}`,
-              borderRadius: 8,
-              padding: "0 14px",
-              background: color.white,
-            },
-          },
-          visibleDocuments.length
-            ? h(List, {
-              itemLayout: "horizontal",
-              dataSource: visibleDocuments,
-              renderItem: renderFileItem,
-            })
-            : h(Empty, {
-              image: Empty.PRESENTED_IMAGE_SIMPLE,
-              description: query ? "Không tìm thấy tài liệu phù hợp." : "Folder này chưa có tài liệu.",
-              style: { padding: "48px 0" },
-            }),
+          { style: { marginTop: 8, color: color.muted, fontSize: 12 } },
+          `${newReferenceFiles.length} file · ${newReferenceFolderFiles.length} file trong thư mục`,
         ),
       ),
     );
-  };
 
-  if (loading) {
+  const renderSelectionCheckbox = ({ key, checked, disabled, onChange, children }) =>
+    Checkbox
+      ? h(Checkbox, { key, checked, disabled, onChange }, children)
+      : h(
+        "label",
+        { key, style: { display: "flex", gap: 8, alignItems: "center", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.68 : 1 } },
+        h("input", { type: "checkbox", checked, disabled, onChange }),
+        children,
+      );
+
+  const renderSourceSelectionPicker = ({ library, loading, emptyText, hint }) => {
+    {
+      const safeLibrary = library || { studies: [], folders: [], documents: [] };
+      const q = legalStudySearch;
+      const studies = activeRows(safeLibrary.studies);
+      const folders = activeRows(safeLibrary.folders);
+      const documents = activeRows(safeLibrary.documents);
+      const folderMapForSource = new Map(folders.map((folder) => [String(getFolderId(folder)), folder]));
+      const selectedFolderSet = new Set(selectedSourceFolderIds.map(String));
+      const selectedDocumentSet = new Set(selectedSourceDocumentIds.map(String));
+      const shouldUseLocks = linkMode === "legal_study";
+      const lockedDocumentSet = shouldUseLocks
+        ? new Set(asArray(selectedLegalStudyLockedSelection.documentIds).map(String))
+        : new Set();
+      const lockedFolderSet = shouldUseLocks
+        ? new Set(asArray(selectedLegalStudyLockedSelection.folderIds).map(String))
+        : new Set();
+      const blockedFolderSet = shouldUseLocks
+        ? new Set(asArray(selectedLegalStudyLockedSelection.blockedFolderIds).map(String))
+        : new Set();
+
+      const getSourceFolderPath = (folderId) => {
+        const names = [];
+        let current = folderMapForSource.get(String(folderId));
+        let study = current?._legalStudy;
+        while (current) {
+          names.unshift(current.name || current.title || "Folder");
+          study = study || current?._legalStudy;
+          const parentId = getParentId(current);
+          current = parentId ? folderMapForSource.get(String(parentId)) : null;
+        }
+        if (study) names.unshift(getLegalStudyTitle(study));
+        return names.join(" / ");
+      };
+
+      const getFolderScopeIds = (folderId) => {
+        if (!folderId || folderId === "root") return [];
+        return [String(folderId), ...getDescendantFolderIds(folders, folderId).map(String)];
+      };
+
+      const getScopedDocuments = (folderId) => {
+        if (!folderId || folderId === "root") return documents;
+        const folderScopeSet = new Set(getFolderScopeIds(folderId));
+        return documents.filter((doc) => folderScopeSet.has(String(getDocFolderId(doc) || "")));
+      };
+
+      const documentMatchesQuery = (doc) =>
+        matchesSearchParts([
+          getFileName(doc),
+          doc.title,
+          doc.name,
+          doc.description,
+          getLegalStudyTitle(doc?._legalStudy),
+          getSourceFolderPath(getDocFolderId(doc)),
+        ], q);
+
+      const folderMatchesQuery = (folder) => {
+        if (!String(q || "").trim()) return true;
+        const folderId = String(getFolderId(folder));
+        if (matchesSearchParts([folder.name, folder.title, folder.description, getSourceFolderPath(folderId)], q)) {
+          return true;
+        }
+        return getScopedDocuments(folderId).some(documentMatchesQuery);
+      };
+
+      const countFilesInFolder = (folderId) => getScopedDocuments(folderId).length;
+      const activeFolder = activeSourceFolderId === "root" ? null : folderMapForSource.get(String(activeSourceFolderId));
+      const activeFolderLabel = activeFolder ? getSourceFolderPath(activeSourceFolderId) : "All files";
+      const activeScopeFolderIds = activeSourceFolderId === "root" ? [] : getFolderScopeIds(activeSourceFolderId);
+      const activeScopeFolderSet = new Set(activeScopeFolderIds);
+      const activeDocuments = getScopedDocuments(activeSourceFolderId);
+      const visibleDocuments = activeDocuments
+        .filter(documentMatchesQuery)
+        .sort((a, b) => String(getFileName(a)).localeCompare(String(getFileName(b))))
+        .slice(0, 220);
+      const activeDocumentIds = activeDocuments.map((doc) => String(extractId(doc))).filter(Boolean);
+      const selectableActiveDocumentIds = activeDocumentIds.filter((id) => !lockedDocumentSet.has(id));
+      const selectedInActiveFolder = selectableActiveDocumentIds.filter((id) => selectedDocumentSet.has(id)).length;
+
+      const selectActiveDocuments = () => {
+        setSelectedSourceDocumentIds((prev) => Array.from(new Set([...prev.map(String), ...selectableActiveDocumentIds])));
+      };
+
+      const clearActiveSelection = () => {
+        if (activeSourceFolderId === "root") {
+          setSelectedSourceFolderIds([]);
+          setSelectedSourceDocumentIds([]);
+          return;
+        }
+        setSelectedSourceFolderIds((prev) => prev.map(String).filter((id) => !activeScopeFolderSet.has(id)));
+        setSelectedSourceDocumentIds((prev) => {
+          const activeDocSet = new Set(selectableActiveDocumentIds);
+          return prev.map(String).filter((id) => !activeDocSet.has(id));
+        });
+      };
+
+      const renderFolderTitle = (folder) => {
+        const id = String(getFolderId(folder));
+        const fileCount = countFilesInFolder(id);
+        const selected = selectedFolderSet.has(id);
+        const locked = lockedFolderSet.has(id) || blockedFolderSet.has(id);
+        return h(
+          "span",
+          {
+            style: {
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              width: "100%",
+              minWidth: 0,
+            },
+          },
+          h(
+            "span",
+            {
+              style: {
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                minWidth: 0,
+                flex: "1 1 auto",
+              },
+            },
+            h("span", {
+              role: "checkbox",
+              "aria-checked": selected || locked,
+              title: selected ? "Bỏ chọn folder" : "Chọn folder",
+              onClick: (event) => {
+                event.stopPropagation();
+                if (locked) return;
+                toggleSourceFolder(id);
+              },
+              onMouseDown: (event) => event.stopPropagation(),
+              style: {
+                width: 12,
+                height: 12,
+                borderRadius: 3,
+                border: `1px solid ${selected || locked ? color.blue : color.borderDark}`,
+                background: selected || locked ? color.blue : color.white,
+                boxShadow: selected ? `inset 0 0 0 2px ${color.white}` : "none",
+                flex: "0 0 auto",
+                cursor: locked ? "not-allowed" : "pointer",
+                opacity: locked ? 0.45 : 1,
+              },
+            }),
+            h("span", { style: { color: locked ? color.faint : color.blue, flex: "0 0 auto", display: "inline-flex" } }, ICONS.folder),
+            h(
+              Tooltip,
+              { title: getSourceFolderPath(id) },
+              h(
+                "span",
+                {
+                  style: {
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  },
+                },
+                folder.name || folder.title || "Folder",
+              ),
+            ),
+            locked ? h(Tag, { color: "default", style: { marginLeft: 2, borderRadius: 4, fontSize: 11 } }, "Locked") : null,
+          ),
+          h(
+            "span",
+            {
+              style: {
+                color: color.faint,
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              },
+            },
+            `(${fileCount} file)`,
+          ),
+        );
+      };
+
+      const buildSourceTree = (parentId) =>
+        folders
+          .filter((folder) => {
+            const folderParentId = getParentId(folder);
+            if (!parentId) return !folderParentId || !folderMapForSource.has(String(folderParentId));
+            return String(folderParentId || "") === String(parentId);
+          })
+          .filter(folderMatchesQuery)
+          .map((folder) => {
+            const folderId = String(getFolderId(folder));
+            return {
+              key: folderId,
+              title: renderFolderTitle(folder),
+              children: buildSourceTree(folderId),
+            };
+          });
+
+      const sourceTreeData = [
+        {
+          key: "root",
+          title: h(
+            "span",
+            {
+              style: {
+                display: "inline-flex",
+                justifyContent: "space-between",
+                width: "100%",
+                gap: 8,
+              },
+            },
+            h(
+              "span",
+              { style: { display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 } },
+              h("span", { style: { color: color.blue, display: "inline-flex" } }, ICONS.folder),
+              h("span", null, "All files"),
+            ),
+            h("span", { style: { color: color.faint, fontSize: 12 } }, `(${documents.length} file)`),
+          ),
+          children: buildSourceTree(null),
+        },
+      ];
+      const selectionHint = `${selectedSourceFolderIds.length} folders · ${selectedSourceDocumentIds.length} files selected · ${studies.length} Legal Studies`;
+
+      return h(
+        "div",
+        {
+          style: {
+            border: `1px solid ${color.border}`,
+            borderRadius: 8,
+            padding: 12,
+            background: color.bg,
+            marginTop: 8,
+          },
+        },
+        h(Input.Search, {
+          allowClear: true,
+          placeholder: "Search folders or files...",
+          value: legalStudySearch,
+          onChange: (event) => setLegalStudySearch(event.target.value),
+          style: { marginBottom: 8 },
+        }),
+        h(
+          "div",
+          { style: { color: color.muted, fontSize: 12, marginBottom: 10 } },
+          hint || selectionHint,
+        ),
+        loading
+          ? h("div", { style: { padding: 24, textAlign: "center" } }, h(Spin, null))
+          : (!folders.length && !documents.length)
+            ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || "No folders/files found." })
+            : h(
+              "div",
+              {
+                style: {
+                  display: "grid",
+                  gridTemplateColumns: "minmax(260px, 0.9fr) minmax(0, 1.35fr)",
+                  gap: 12,
+                  alignItems: "stretch",
+                },
+              },
+              h(
+                "div",
+                {
+                  style: {
+                    border: `1px solid ${color.border}`,
+                    borderRadius: 8,
+                    background: color.white,
+                    padding: 10,
+                    minHeight: 292,
+                    maxHeight: 340,
+                    overflow: "auto",
+                  },
+                },
+                h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Folders (${folders.length})`),
+                h(DirectoryTree, {
+                  blockNode: true,
+                  showIcon: false,
+                  defaultExpandAll: true,
+                  selectedKeys: [activeSourceFolderId],
+                  treeData: sourceTreeData,
+                  onSelect: (keys, info) => {
+                    const key = String(keys?.[0] || info?.node?.key || "root");
+                    setActiveSourceFolderId(key || "root");
+                  },
+                  style: { background: "transparent" },
+                }),
+              ),
+              h(
+                "div",
+                {
+                  style: {
+                    border: `1px solid ${color.border}`,
+                    borderRadius: 8,
+                    background: color.white,
+                    minHeight: 292,
+                    maxHeight: 340,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                  },
+                },
+                h(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 8,
+                      borderBottom: `1px solid ${color.border}`,
+                      padding: "10px 12px",
+                    },
+                  },
+                  h(
+                    "div",
+                    { style: { minWidth: 0 } },
+                    h(
+                      Tooltip,
+                      { title: activeFolderLabel },
+                      h(
+                        "div",
+                        {
+                          style: {
+                            fontWeight: 700,
+                            color: color.text,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          },
+                        },
+                        activeFolderLabel,
+                      ),
+                    ),
+                    h(
+                      "div",
+                      { style: { color: color.muted, fontSize: 12, marginTop: 2 } },
+                      `${selectedInActiveFolder}/${selectableActiveDocumentIds.length} files selectable`,
+                    ),
+                  ),
+                  h(
+                    Space,
+                    { size: 6 },
+                    h(Button, {
+                      size: "small",
+                      disabled: !selectableActiveDocumentIds.length,
+                      onClick: selectActiveDocuments,
+                    }, "Select all"),
+                    h(Button, {
+                      size: "small",
+                      disabled: activeSourceFolderId === "root"
+                        ? (!selectedSourceFolderIds.length && !selectedSourceDocumentIds.length)
+                        : (!activeScopeFolderIds.some((id) => selectedFolderSet.has(id)) && !selectedInActiveFolder),
+                      onClick: clearActiveSelection,
+                    }, "Deselect"),
+                  ),
+                ),
+                h(
+                  "div",
+                  {
+                    style: {
+                      padding: 12,
+                      overflow: "auto",
+                      flex: 1,
+                    },
+                  },
+                  visibleDocuments.length
+                    ? h(
+                      "div",
+                      { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                      visibleDocuments.map((doc) => {
+                        const id = String(extractId(doc));
+                        const folderPath = getSourceFolderPath(getDocFolderId(doc));
+                        const locked = lockedDocumentSet.has(id);
+                        return renderSelectionCheckbox({
+                          key: `doc-${id}`,
+                          checked: selectedDocumentSet.has(id) || locked,
+                          disabled: locked,
+                          onChange: () => {
+                            if (!locked) toggleSourceDocument(id);
+                          },
+                          children: h(
+                            Tooltip,
+                            { title: locked ? "File này đã được liên kết" : folderPath ? `${folderPath} / ${getFileName(doc)}` : getFileName(doc) },
+                            h(
+                              "span",
+                              {
+                                style: {
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  minWidth: 0,
+                                  fontSize: 13,
+                                },
+                              },
+                              h("span", { style: { color: color.faint, flex: "0 0 auto" } }, ICONS.file),
+                              h(
+                                "span",
+                                {
+                                  style: {
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  },
+                                },
+                                getFileName(doc),
+                              ),
+                              locked ? h(Tag, { color: "default", style: { marginLeft: 4, borderRadius: 4, fontSize: 11 } }, "Locked") : null,
+                            ),
+                          ),
+                        });
+                      }),
+                    )
+                    : h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: "No files in this folder." }),
+                ),
+              ),
+            ),
+      );
+    }
+
+    const q = legalStudySearch;
+    const folderMapForSource = new Map(library.folders.map((folder) => [String(getFolderId(folder)), folder]));
+    const getSourceFolderPath = (folderId) => {
+      const names = [];
+      let current = folderMapForSource.get(String(folderId));
+      while (current) {
+        names.unshift(current.name || current.title || "Folder");
+        const parentId = getParentId(current);
+        current = parentId ? folderMapForSource.get(String(parentId)) : null;
+      }
+      return names.join(" / ");
+    };
+    const filteredFolders = activeRows(library.folders)
+      .filter((folder) => matchesSearchParts([folder.name, folder.title, folder.description, getSourceFolderPath(getFolderId(folder))], q))
+      .slice(0, 120);
+    const filteredDocuments = activeRows(library.documents)
+      .filter((doc) => matchesSearchParts([getFileName(doc), doc.title, doc.name, doc.description, getSourceFolderPath(getDocFolderId(doc))], q))
+      .slice(0, 160);
+
     return h(
       "div",
-      { style: { padding: 16, textAlign: "center" } },
-      h(Spin, null),
+      {
+        style: {
+          border: `1px solid ${color.border}`,
+          borderRadius: 8,
+          padding: 12,
+          background: color.bg,
+          marginTop: 8,
+        },
+      },
+      h(Input.Search, {
+        allowClear: true,
+        placeholder: "Search folders or files...",
+        value: legalStudySearch,
+        onChange: (event) => setLegalStudySearch(event.target.value),
+        style: { marginBottom: 8 },
+      }),
+      h(
+        "div",
+        { style: { color: color.muted, fontSize: 12, marginBottom: 10 } },
+        hint || `${selectedSourceFolderIds.length} folders · ${selectedSourceDocumentIds.length} files selected`,
+      ),
+      loading
+        ? h("div", { style: { padding: 24, textAlign: "center" } }, h(Spin, null))
+        : (!library.folders.length && !library.documents.length)
+          ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || "No folders/files found." })
+          : h(
+            "div",
+            {
+              style: {
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.2fr)",
+                gap: 12,
+              },
+            },
+            h(
+              "div",
+              null,
+              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Folders (${filteredFolders.length})`),
+              h(
+                "div",
+                { style: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflow: "auto" } },
+                filteredFolders.map((folder) => {
+                  const id = String(getFolderId(folder));
+                  return renderSelectionCheckbox({
+                    key: `folder-${id}`,
+                    checked: selectedSourceFolderIds.includes(id),
+                    onChange: () => toggleSourceFolder(id),
+                    children: h(
+                      Tooltip,
+                      { title: getSourceFolderPath(id) },
+                      h("span", { style: { fontSize: 13 } }, folder.name || folder.title || "Folder"),
+                    ),
+                  });
+                }),
+              ),
+            ),
+            h(
+              "div",
+              null,
+              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Files (${filteredDocuments.length})`),
+              h(
+                "div",
+                { style: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflow: "auto" } },
+                filteredDocuments.map((doc) => {
+                  const id = String(extractId(doc));
+                  const folderPath = getSourceFolderPath(getDocFolderId(doc));
+                  return renderSelectionCheckbox({
+                    key: `doc-${id}`,
+                    checked: selectedSourceDocumentIds.includes(id),
+                    onChange: () => toggleSourceDocument(id),
+                    children: h(
+                      Tooltip,
+                      { title: folderPath ? `${folderPath} / ${getFileName(doc)}` : getFileName(doc) },
+                      h("span", { style: { fontSize: 13 } }, getFileName(doc)),
+                    ),
+                  });
+                }),
+              ),
+            ),
+          ),
     );
+  };
+
+  const renderLinkModal = () =>
+    h(
+      Modal,
+      {
+        title: "Link Reference",
+        open: linkModalOpen,
+        width: 920,
+        onCancel: () => {
+          setLinkModalOpen(false);
+          setCaseOptionSearch("");
+          setStandaloneOptionSearch("");
+          setLegalStudySearch("");
+          setSelectedLegalStudyId("");
+          resetSourceSelection();
+          setNewReferenceFiles([]);
+          setNewReferenceFolderFiles([]);
+        },
+        onOk: handleLinkSubmit,
+        okText: "Link",
+        cancelText: "Cancel",
+        confirmLoading: linkLoading,
+        destroyOnClose: true,
+      },
+      h(
+        Form,
+        {
+          form: linkForm,
+          layout: "vertical",
+          initialValues: { sourceType: "standalone" },
+        },
+        h(
+          "div",
+          {
+            style: {
+              display: "inline-flex",
+              gap: 4,
+              background: "#F3F4F6",
+              padding: 4,
+              borderRadius: 8,
+              border: "1px solid #E5E7EB",
+              marginBottom: 20,
+            }
+          },
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setLinkMode("standalone");
+                setCaseOptionSearch("");
+                setSelectedLegalStudyId("");
+                resetSourceSelection();
+                linkForm.setFieldsValue({ sourceType: "standalone" });
+              },
+              style: {
+                border: 0,
+                background: linkMode === "standalone" ? color.white : "transparent",
+                color: linkMode === "standalone" ? color.blue : color.muted,
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: linkMode === "standalone" ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.2s ease",
+              },
+            },
+            "Legal Reference",
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setLinkMode("case");
+                setStandaloneOptionSearch("");
+                setSelectedLegalStudyId("");
+                resetSourceSelection();
+                linkForm.setFieldsValue({ sourceType: "case" });
+              },
+              style: {
+                border: 0,
+                background: linkMode === "case" ? color.white : "transparent",
+                color: linkMode === "case" ? color.blue : color.muted,
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: linkMode === "case" ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.2s ease",
+              },
+            },
+            "Case Reference",
+          ),
+          h(
+            "button",
+            {
+              type: "button",
+              onClick: () => {
+                setLinkMode("legal_study");
+                setCaseOptionSearch("");
+                setStandaloneOptionSearch("");
+                setSelectedLegalStudyId("");
+                resetSourceSelection();
+                linkForm.setFieldsValue({ sourceType: "legal_study", legalStudyId: undefined });
+              },
+              style: {
+                border: 0,
+                background: linkMode === "legal_study" ? color.white : "transparent",
+                color: linkMode === "legal_study" ? color.blue : color.muted,
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: linkMode === "legal_study" ? "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.2s ease",
+              },
+            },
+            "Legal Study",
+          ),
+        ),
+        linkMode === "case"
+          ? [
+            h(
+              "div",
+              {
+                key: "caseSearchCount",
+                style: { marginBottom: 8, color: color.muted, fontSize: 12 },
+              },
+              `Found ${filteredCaseOptions.length} cases${filteredCaseOptions.length > visibleCaseOptions.length ? `, showing ${visibleCaseOptions.length}` : ""}`,
+            ),
+            h(
+              Form.Item,
+              {
+                key: "caseReferenceId",
+                name: "caseReferenceId",
+                label: "Case Reference",
+                rules: [{ required: true, message: "Please select a Case Reference" }],
+              },
+              h(
+                Select,
+                {
+                  showSearch: true,
+                  loading: optionLoading,
+                  placeholder: "Search Case Reference...",
+                  searchValue: caseOptionSearch,
+                  onSearch: setCaseOptionSearch,
+                  onChange: () => setCaseOptionSearch(""),
+                  optionFilterProp: "label",
+                  filterOption: false,
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Case Reference not found",
+                },
+                visibleCaseOptions.map((item) => {
+                  const labelText = getCaseTitle(item);
+                  return h(Select.Option, {
+                    key: String(extractId(item)),
+                    value: String(extractId(item)),
+                    label: labelText,
+                  }, labelText);
+                }),
+              ),
+            ),
+          ]
+          : linkMode === "standalone" ? [
+            h(
+              "div",
+              {
+                key: "standaloneSearchCount",
+                style: { marginBottom: 8, color: color.muted, fontSize: 12 },
+              },
+              `Found ${filteredStandaloneOptions.length} references${filteredStandaloneOptions.length > visibleStandaloneOptions.length ? `, showing ${visibleStandaloneOptions.length}` : ""}`,
+            ),
+            h(
+              Form.Item,
+              {
+                key: "standaloneReferenceId",
+                name: "standaloneReferenceId",
+                label: "Legal Reference",
+                rules: [{ required: true, message: "Please select a Legal Reference" }],
+              },
+              h(
+                Select,
+                {
+                  showSearch: true,
+                  loading: optionLoading,
+                  placeholder: "Select Legal Reference...",
+                  searchValue: standaloneOptionSearch,
+                  onSearch: setStandaloneOptionSearch,
+                  onChange: () => setStandaloneOptionSearch(""),
+                  optionFilterProp: "label",
+                  filterOption: false,
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Legal Reference not found",
+                },
+                visibleStandaloneOptions.map((item) =>
+                  h(Select.Option, {
+                    key: String(extractId(item)),
+                    value: String(extractId(item)),
+                    label: getReferenceTitle(item),
+                  }, getReferenceTitle(item)),
+                ),
+              ),
+            ),
+          ] : [
+            h(
+              Form.Item,
+              {
+                key: "legalStudyId",
+                name: "legalStudyId",
+                label: "Legal Study",
+                rules: [{ required: true, message: "Please select a Legal Study" }],
+              },
+              h(
+                Select,
+                {
+                  showSearch: true,
+                  loading: optionLoading,
+                  placeholder: "Select Legal Study...",
+                  optionFilterProp: "label",
+                  filterOption: (input, option) =>
+                    normalizeSearchValue(option?.label).includes(normalizeSearchValue(input)),
+                  onChange: (value) => {
+                    setSelectedLegalStudyId(String(value || ""));
+                    resetSourceSelection();
+                    linkForm.setFieldsValue({ legalStudyId: value });
+                  },
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Legal Study not found",
+                },
+                activeRows(legalStudyLibrary.studies).map((study) =>
+                  h(Select.Option, {
+                    key: String(extractId(study)),
+                    value: String(extractId(study)),
+                    label: getLegalStudyTitle(study),
+                  }, getLegalStudyTitle(study)),
+                ),
+              ),
+            ),
+          ],
+      ),
+    );
+
+  if (loading) {
+    return h("div", { style: { padding: 28, textAlign: "center" } }, h(Spin, null));
   }
 
   if (error) {
     return h(Alert, {
       type: "error",
       showIcon: true,
-      message: "Không tải được Legal Reference",
+      message: "Failed to load references",
       description: error,
-      action: h(Button, { size: "small", onClick: loadReferences }, "Thử lại"),
+      action: h(Button, { size: "small", onClick: loadLinks }, "Retry"),
     });
   }
 
-  if (!caseId) {
+  if (!hasUsableId(caseId)) {
     return h(Alert, {
       type: "warning",
       showIcon: true,
-      message: "Không xác định được case hiện tại",
-      description: "Hãy đặt JS Item này trong trang chi tiết hoặc form của collection Cases.",
+      message: "Current case not found",
     });
   }
 
   return h(
     React.Fragment,
     null,
-    references.length
-      ? h(
+    h(
+      "div",
+      {
+        style: {
+          width: "100%",
+          border: `1px solid ${color.border}`,
+          borderRadius: 8,
+          background: color.white,
+          overflow: "hidden",
+        },
+      },
+      h(
         "div",
-        { style: { display: "flex", flexDirection: "column", gap: 4 } },
-        references.map(renderReferenceCard),
-      )
-      : h("span", { style: { color: color.faint, fontSize: 13 } }, "Chưa liên kết Legal Reference"),
+        {
+          style: {
+            padding: "14px 16px",
+            borderBottom: `1px solid ${color.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 14,
+          },
+        },
+        h(
+          "div",
+          { style: { minWidth: 0 } },
+          h(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 8 } },
+            h("strong", { style: { color: color.text, fontSize: 15 } }, "References"),
+            h(Badge, { count: links.length, style: { backgroundColor: color.blue } }),
+          ),
+          h("div", { style: { marginTop: 3, fontSize: 12, color: color.muted } }, `${standaloneCount} Legal Reference · ${caseBasedCount} Case Reference · ${legalStudyCount} Legal Study`),
+        ),
+        h(
+          Space,
+          { size: 8 },
+          h(Button, { type: "primary", icon: ICONS.plus, onClick: openLinkModal }, "Link"),
+          h(Button, { icon: ICONS.refresh, onClick: loadLinks }, "Refresh"),
+        ),
+      ),
+      h(
+        "div",
+        {
+          style: {
+            padding: "12px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            borderBottom: `1px solid ${color.border}`,
+            background: color.bg,
+          },
+        },
+        h(
+          "div",
+          {
+            style: {
+              display: "flex",
+              gap: 4,
+              background: "#E5E7EB",
+              padding: 4,
+              borderRadius: 8,
+              border: "1px solid #D1D5DB",
+            }
+          },
+          renderSegmentButton("all", "All", links.length),
+          renderSegmentButton("standalone", "Legal Reference", standaloneCount),
+          renderSegmentButton("case", "Case Reference", caseBasedCount),
+          renderSegmentButton("legal_study", "Legal Study", legalStudyCount),
+        ),
+        h(Input.Search, {
+          allowClear: true,
+          placeholder: "Search...",
+          value: searchText,
+          onChange: (event) => setSearchText(event.target.value),
+          style: { width: 280 },
+        }),
+      ),
+      filteredLinks.length
+        ? h(
+          "div",
+          { style: { overflowX: "auto" } },
+          h(
+            "div",
+            {
+              style: {
+                display: "grid",
+                gridTemplateColumns: "110px minmax(160px, 1.2fr) minmax(150px, 1.8fr) 110px 90px 36px 36px",
+                gap: 10,
+                minWidth: 740,
+                padding: "9px 12px",
+                background: color.white,
+                color: color.muted,
+                fontSize: 12,
+                fontWeight: 700,
+              },
+            },
+            h("div", null, "Type"),
+            h("div", null, "Reference"),
+            h("div", null, "Description"),
+            h("div", null, "Creator"),
+            h("div", null, "Updated At"),
+            h("div", null, ""),
+            h("div", null, ""),
+          ),
+          filteredLinks.map(renderReferenceRow),
+        )
+        : h(Empty, {
+          image: Empty.PRESENTED_IMAGE_SIMPLE,
+          description: links.length ? "No matching references found." : "No references linked yet.",
+          style: { padding: "46px 0" },
+        }),
+    ),
+    renderLinkModal(),
     h(
       Drawer,
       {
-        title: activeReference ? getReferenceTitle(activeReference) : "Tài liệu tham chiếu",
+        title: activeReference
+          ? h(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } },
+            renderKindBadge(activeReference),
+            h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, getReferenceTitle(activeReference)),
+          )
+          : "Folders",
         open: drawerOpen,
         onClose: () => setDrawerOpen(false),
         width: CONFIG.drawerWidth,
@@ -1160,7 +3979,7 @@ function LegalReferenceReader() {
           activeReference
             ? renderText(
               { style: { color: color.muted, fontSize: 12 } },
-              `${library.folders.length} thư mục · ${library.documents.length} tài liệu`,
+              `${library.folders.length} folders · ${library.documents.length} documents`,
             )
             : null,
         ),
@@ -1171,10 +3990,10 @@ function LegalReferenceReader() {
     h(
       Drawer,
       {
-        title: previewDoc ? getFileName(previewDoc) : "Xem trước tài liệu",
+        title: previewDoc ? getFileName(previewDoc) : "Document Preview",
         open: !!previewDoc,
         onClose: () => setPreviewDoc(null),
-        width: 900,
+        width: CONFIG.previewWidth,
         destroyOnClose: true,
         extra: previewDoc
           ? h(
@@ -1184,21 +4003,10 @@ function LegalReferenceReader() {
               Button,
               {
                 size: "small",
-                onClick: () => {
-                  const fileUrl = getFileUrl(previewDoc);
-                  if (fileUrl) window.open(fileUrl, "_blank");
-                },
-              },
-              "Mở tab mới",
-            ),
-            h(
-              Button,
-              {
-                size: "small",
                 icon: ICONS.download,
-                onClick: () => downloadFile(previewDoc),
+                onClick: () => openFileUrl(previewDoc),
               },
-              "Tải về",
+              "Download",
             ),
           )
           : null,
@@ -1207,99 +4015,6 @@ function LegalReferenceReader() {
       renderPreviewBody(),
     ),
   );
-
-  return h(
-    "div",
-    {
-      style: {
-        width: "100%",
-        border: `1px solid ${color.border}`,
-        borderRadius: 8,
-        background: color.white,
-        padding: 14,
-      },
-    },
-    h(
-      "div",
-      {
-        style: {
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 12,
-        },
-      },
-      h(
-        "div",
-        { style: { display: "flex", alignItems: "center", gap: 8 } },
-        h(
-          "span",
-          {
-            style: {
-              color: color.blue,
-              display: "inline-flex",
-              alignItems: "center",
-            },
-          },
-          ICONS.book,
-        ),
-        h("strong", { style: { color: color.text, fontSize: 14 } }, "Legal Reference"),
-        h(Badge, {
-          count: references.length,
-          style: { backgroundColor: color.blue },
-        }),
-      ),
-      h(
-        Button,
-        {
-          size: "small",
-          icon: ICONS.refresh,
-          onClick: loadReferences,
-        },
-        "Làm mới",
-      ),
-    ),
-    references.length
-      ? h(
-        "div",
-        {
-          style: {
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-          },
-        },
-        references.map(renderReferenceCard),
-      )
-      : h(Empty, {
-        image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "Case này chưa liên kết Legal Reference.",
-        style: { padding: "28px 0" },
-      }),
-    h(
-      Drawer,
-      {
-        title: activeReference ? getReferenceTitle(activeReference) : "Tài liệu tham chiếu",
-        open: drawerOpen,
-        onClose: () => setDrawerOpen(false),
-        width: CONFIG.drawerWidth,
-        destroyOnClose: false,
-        extra: h(
-          Space,
-          null,
-          activeReference
-            ? renderText(
-              { style: { color: color.muted, fontSize: 12 } },
-              `${library.folders.length} thư mục · ${library.documents.length} tài liệu`,
-            )
-            : null,
-        ),
-        bodyStyle: { background: color.bg },
-      },
-      renderDrawerBody(),
-    ),
-  );
 }
 
-ctx.render(h(LegalReferenceReader));
+ctx.render(h(LegalReferenceWorkspace));
