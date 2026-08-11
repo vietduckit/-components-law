@@ -79,7 +79,6 @@ const DASHBOARD_CONFIG = {
 // Shorthand constants (để không phải đổi code bên dưới)
 const INTERNAL_TEMPLATE_COLLECTION = DASHBOARD_CONFIG.collection;
 const INTERNAL_TEMPLATE_MODULE_SCOPE = DASHBOARD_CONFIG.moduleScope;
-const INTERNAL_TEMPLATE_MODULE_SCOPES = DASHBOARD_CONFIG.moduleScopes;
 const DOCUMENT_SAFE_FIELDS = [
   "id",
   "documentType",
@@ -1597,10 +1596,6 @@ const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
   { value: "template", label: "Template" },
 ];
 
-const ALLOWED_DOCUMENT_TYPE_VALUES = new Set(
-  DEFAULT_DOCUMENT_TYPE_OPTIONS.map((option) => option.value),
-);
-
 const extractId = (val) =>
   typeof val === "object" && val !== null ? val.id : val;
 const extractRelationId = (val) =>
@@ -1648,25 +1643,6 @@ const getCurrentUser = () => {
 const getLinkedCaseId = (record) =>
   extractId(record?.projectInternalId) ||
   extractRelationId(record?.projectInternal);
-
-// projectInternal has no customer relation (unlike projects/cases) — always
-// null, kept as a no-op so the folder/document payload builders below
-// (which still check it defensively) don't need touching one by one.
-const getCaseCustomerId = (record) => null;
-
-const getCaseDisplayName = (record) => {
-  if (!record) return "Internal Work";
-  const code = record.projectCode || record.caseCode || record.code;
-  const title =
-    record.projectName || record.title || record.name || record.description;
-  if (code && title && String(code) !== String(title))
-    return `${code} - ${title}`;
-  return (
-    title ||
-    code ||
-    (extractId(record) ? `Internal Work #${extractId(record)}` : "Internal Work")
-  );
-};
 
 const getUrlFilterId = () => {
   try {
@@ -1882,15 +1858,6 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
 // field names legalStudyId/legalMembers/...) stay unchanged; only the text
 // shown to the user changes, so this doesn't touch stored data.
 const REFERENCE_LABEL = "Reference";
-
-const ROLE_LABEL = {
-  admin:   "Admin",
-  owner:   "Owner",
-  manager: "Manager",
-  editor:  "Editor",
-  viewer:  "Viewer",
-  shared:  "Shared",
-};
 
 // The 5 fixed template folders CaseCreateForm.js auto-creates per case
 // (see its defaultChildren list) — never renameable by anyone, including
@@ -2147,20 +2114,6 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityC
   return roleToPerms(null);
 };
 
-const canManageFile = (file, folder, user, allFolders, currentLawyerId, entityCtx) => {
-  if (!user) return false;
-  const { isManager, canEdit } = getFolderPermissions(
-    folder,
-    user,
-    allFolders,
-    currentLawyerId,
-    entityCtx,
-  );
-  if (isManager || canEdit) return true;
-  if (extractId(file.createdById) === extractId(user.id)) return true;
-  return false;
-};
-
 const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx) => {
   const uid = extractId(currentUser?.id);
   const lwId = extractId(currentLawyerId);
@@ -2254,57 +2207,6 @@ const getFileExtension = (record) => {
     : `.${String(ext).toLowerCase()}`;
 };
 
-const getPreviewUrl = (record) => {
-  const fullUrl = getRecordFileUrl(record);
-  if (!fullUrl) return null;
-  const ext = getFileExtension(record);
-  const isOffice = [
-    ".doc",
-    ".docx",
-    ".xls",
-    ".xlsx",
-    ".ppt",
-    ".pptx",
-    ".odt",
-  ].includes(ext);
-  const attachment = getAttachment(record);
-  const isExternalPreview = !!record.googleDriveUrl && !attachment;
-
-  if (isOffice && !isExternalPreview) {
-    return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`;
-  }
-  return fullUrl;
-};
-const stripInternalTemplateRelationPayload = (payload = {}) => {
-  // Xóa tất cả các field relation khỏi payload (dựa trên DASHBOARD_CONFIG)
-  const stripped = { ...payload };
-  DASHBOARD_CONFIG.relationFieldCandidates.forEach((field) => {
-    delete stripped[field];
-  });
-  return stripped;
-};
-const buildInternalTemplateRelationPayload = (templateRecordOrId) => {
-  const templateId = extractId(templateRecordOrId);
-  const primaryField = DASHBOARD_CONFIG.relationFieldCandidates[0];
-  return templateId ? { [primaryField]: templateId } : {};
-};
-const buildInternalTemplateRelationVariants = (templateId) => {
-  const id = extractId(templateId);
-  if (!id) return [{}];
-  const [primary, primaryId, singular, singularId] =
-    DASHBOARD_CONFIG.relationFieldCandidates;
-  const variants = [{ [primary]: id }, { [primary]: [{ id }] }];
-  if (primaryId) variants.push({ [primaryId]: id });
-  if (singular) variants.push({ [singular]: id });
-  if (singularId) variants.push({ [singularId]: id });
-  return variants;
-};
-
-const isInternalTemplateScope = (record) => {
-  const scope = normalizeKey(record?.moduleScope);
-  return !scope || INTERNAL_TEMPLATE_MODULE_SCOPES.includes(scope);
-};
-
 const matchesInternalCompany = (record, internalCompanyId) => {
   const companyId = extractId(internalCompanyId);
   if (!companyId) return true;
@@ -2327,33 +2229,6 @@ const decorateDocumentTypeOption = (option) => {
     svgIcon: TYPE_ICONS[key] || TYPE_ICONS.default,
   };
 };
-
-const buildDocumentTypeOptions = (internalTemplateRecords = []) => {
-  const uniqueTypes = new Map();
-  internalTemplateRecords.forEach((record) => {
-    const typeValue = String(record?.documentType || "").trim();
-    if (!typeValue) return;
-    const label = record?.title || record?.name || typeValue;
-    if (!uniqueTypes.has(typeValue)) {
-      uniqueTypes.set(typeValue, {
-        value: typeValue,
-        label: label,
-      });
-    }
-  });
-  return Array.from(uniqueTypes.values()).map((option) =>
-    decorateDocumentTypeOption(option),
-  );
-};
-
-const FALLBACK_DOCUMENT_TYPES = [];
-
-const buildScopePayload = (internalCompanyId) => ({
-  moduleScope: INTERNAL_TEMPLATE_MODULE_SCOPE,
-  ...(internalCompanyId
-    ? { internalCompanyId: extractId(internalCompanyId) }
-    : {}),
-});
 
 const getFolderParentId = (folder) => extractId(folder?.parentId);
 const normalizeParentId = (parentId) =>
@@ -2461,10 +2336,6 @@ const fetchAllList = async (url, params = {}) => {
   return all;
 };
 
-// Các URL candidates cho parent list/create được lấy từ DASHBOARD_CONFIG
-const LEGAL_REFERENCE_RESOURCE_CANDIDATES =
-  DASHBOARD_CONFIG.parentListCandidates;
-
 const getLegalReferenceDisplayName = (record) => {
   if (!record) return "";
   const code =
@@ -2477,31 +2348,8 @@ const getLegalReferenceDisplayName = (record) => {
   return code && String(code) !== String(title) ? `${code} - ${title}` : title;
 };
 
-const getDocumentLegalReferenceId = (doc) =>
-  DASHBOARD_CONFIG.getParentListId(doc);
-
 const getRecordLegalReferenceId = (record) =>
   DASHBOARD_CONFIG.getParentListId(record);
-
-const fetchLegalReferenceRecords = async (internalCompanyId = null) => {
-  let lastError = null;
-  for (const url of DASHBOARD_CONFIG.parentListCandidates) {
-    try {
-      let items;
-      items = await fetchAllList(url, {
-        sort: ["-createdAt"],
-        appends: ["internalCompany", "cases", "createdBy"],
-      });
-      return items.filter((item) =>
-        matchesInternalCompany(item, internalCompanyId),
-      );
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  console.warn("Failed to fetch parent records:", lastError);
-  return [];
-};
 
 const createLegalReferenceRecord = async (payload) => {
   let lastError = null;
@@ -2605,10 +2453,22 @@ const createEntityMemberRow = async (fkField, recordId, memberId, role) => {
 };
 
 const fetchFoldersForInternalTemplates = async () => {
+  // $or with projectInternalId $ne null — a folder created by the
+  // "auto-create root folder" workflow may not carry the exact
+  // moduleScope string this file filters on (or may leave it blank), so
+  // gatekeeping on moduleScope alone can silently drop it. Any folder
+  // tagged with a projectInternalId is always included regardless of its
+  // moduleScope, matching folders/documents by their actual FK instead of
+  // a fragile scope string.
   const scopeFilter = JSON.stringify({
-    moduleScope: {
-      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
-    },
+    $or: [
+      {
+        moduleScope: {
+          $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+        },
+      },
+      { projectInternalId: { $ne: null } },
+    ],
   });
   const params = {
     sort: ["createdAt"],
@@ -2636,10 +2496,17 @@ const fetchFoldersForInternalTemplates = async () => {
 };
 
 const fetchDocumentsForInternalTemplates = async () => {
+  // Same $or as fetchFoldersForInternalTemplates — a document tagged with
+  // a projectInternalId is always included regardless of its moduleScope.
   const scopeFilter = JSON.stringify({
-    moduleScope: {
-      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
-    },
+    $or: [
+      {
+        moduleScope: {
+          $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+        },
+      },
+      { projectInternalId: { $ne: null } },
+    ],
   });
   const params = {
     sort: ["fileIndex", "-createdAt"],
@@ -2656,29 +2523,6 @@ const fetchDocumentsForInternalTemplates = async () => {
       appends: ["fileAttachment", "createdBy", "updatedBy"],
     }).catch(() => []);
   }
-};
-
-const requestCreateWithInternalTemplateRelation = async (url, payload) => {
-  const templateId = getInternalTemplateRelationId(payload);
-  if (!templateId) {
-    return ctx.api.request({ url, method: "POST", data: payload });
-  }
-
-  const basePayload = stripInternalTemplateRelationPayload(payload);
-  let lastError = null;
-  const variants = buildInternalTemplateRelationVariants(templateId);
-  for (let index = 0; index < variants.length; index++) {
-    try {
-      return await ctx.api.request({
-        url,
-        method: "POST",
-        data: { ...basePayload, ...variants[index] },
-      });
-    } catch (e) {
-      lastError = e;
-    }
-  }
-  throw lastError;
 };
 
 const requestDocumentApi = async ({ params, data, ...options }) =>
@@ -3899,9 +3743,6 @@ const InternalTemplates = () => {
   const [legalMemberRows, setLegalMemberRows] = useState([]);
   const [activeCaseReferenceId, setActiveCaseReferenceId] = useState(null);
   const [activeLegalStudyId, setActiveLegalStudyId] = useState(null);
-  const [legalReferenceExpanded, setLegalReferenceExpanded] = useState(true);
-  const [caseReferenceExpanded, setCaseReferenceExpanded] = useState(true);
-  const [legalStudyExpanded, setLegalStudyExpanded] = useState(true);
   const [selectedExt, setSelectedExt] = useState(null);
   const [activeCompanyId, setActiveCompanyId] = useState(null);
   const [activeLegalReferenceId, setActiveLegalReferenceId] = useState(null);
@@ -4033,12 +3874,6 @@ const InternalTemplates = () => {
     setContextMenuState((prev) => ({ ...prev, open: false }));
 
   const [spacesExpanded, setSpacesExpanded] = useState(true);
-  const [libraryExpanded, setLibraryExpanded] = useState(true);
-  const [workspaceExpanded, setWorkspaceExpanded] = useState(true);
-
-  const [showAllCompanies, setShowAllCompanies] = useState(false);
-  const [showAllLegalReferences, setShowAllLegalReferences] = useState(false);
-  const [showAllPersonalFolders, setShowAllPersonalFolders] = useState(false);
 
   const activeCompany = useMemo(
     () =>
@@ -4059,6 +3894,64 @@ const InternalTemplates = () => {
     () => extractId(activeCaseId) || extractId(activeCase),
     [activeCaseId, activeCase],
   );
+
+  // Direct, projectInternalId-filtered lookup of the current record's root
+  // folder — independent of the bulk `folders` state (which only refreshes
+  // on loadData()). Used as the fallback source inside activeCaseRootFolder
+  // below so a folder the "auto-create root folder" workflow just created
+  // (right after the projectInternal record itself was created) still
+  // resolves immediately, even before the next full loadData() reload picks
+  // it up. Re-runs whenever the current record's id changes.
+  const [directCaseRootFolder, setDirectCaseRootFolder] = useState(null);
+  useEffect(() => {
+    const caseId = extractId(activeCaseIdValue);
+    if (!caseId) {
+      setDirectCaseRootFolder(null);
+      return;
+    }
+    let cancelled = false;
+    ctx.api
+      .request({
+        url: "folders:list",
+        params: {
+          pageSize: 100,
+          filter: JSON.stringify({ projectInternalId: { $eq: caseId } }),
+          sort: ["createdAt"],
+          appends: [
+            "createdBy",
+            "updatedBy",
+            "folderManager",
+            "folderManagers",
+            "folderMember",
+            "folderMembers",
+          ],
+        },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const rows = (res?.data?.data || []).filter((f) => !f.isDeleted);
+        if (!rows.length) {
+          setDirectCaseRootFolder(null);
+          return;
+        }
+        const idSet = new Set(rows.map((f) => String(extractId(f))));
+        const rootCandidates = rows.filter((f) => {
+          const parentId = normalizeParentId(f.parentId);
+          return !parentId || !idSet.has(String(parentId));
+        });
+        const root = (rootCandidates.length ? rootCandidates : rows).sort(
+          sortByCreatedAt,
+        )[0];
+        setDirectCaseRootFolder(root || null);
+      })
+      .catch(() => {
+        if (!cancelled) setDirectCaseRootFolder(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCaseIdValue]);
+
   // Lấy danh sách các định dạng file có trong dữ liệu hiện tại để hiển thị tùy chọn lọc
   const fileExtOptions = useMemo(() => {
     const exts = new Set();
@@ -4151,6 +4044,12 @@ const InternalTemplates = () => {
 
       setCompanies(fetchedCompanies);
       const isAllowedScope = (record) => {
+        // A folder/document tagged with a projectInternalId always passes,
+        // regardless of moduleScope — matches the $or in
+        // fetchFoldersForInternalTemplates/fetchDocumentsForInternalTemplates
+        // so a workflow-created record isn't stripped back out here by a
+        // moduleScope string it doesn't happen to use.
+        if (extractId(record?.projectInternalId)) return true;
         const scope = normalizeKey(record?.moduleScope);
         return (
           !scope ||
@@ -5229,18 +5128,22 @@ const InternalTemplates = () => {
   );
 
   const activeCaseRootFolder = useMemo(() => {
-    if (!caseFolders.length || !activeCaseIdValue) return null;
-    const rootCandidates = caseFolders.filter((folder) => {
-      if (folder.isDeleted) return false;
-      const parentId = normalizeParentId(folder?.parentId);
-      // A folder counts as "root" if it has no parent, OR its parent isn't
-      // itself one of this case's own folders (e.g. a dangling/legacy
-      // parentId pointing outside this case's fetched folder scope).
-      return !parentId || !caseFolderIdSet.has(String(parentId));
-    });
-    if (!rootCandidates.length) return null;
-    return [...rootCandidates].sort(sortByCreatedAt)[0];
-  }, [caseFolders, activeCaseIdValue, caseFolderIdSet]);
+    if (caseFolders.length && activeCaseIdValue) {
+      const rootCandidates = caseFolders.filter((folder) => {
+        if (folder.isDeleted) return false;
+        const parentId = normalizeParentId(folder?.parentId);
+        return !parentId || !caseFolderIdSet.has(String(parentId));
+      });
+      if (rootCandidates.length) {
+        return [...rootCandidates].sort(sortByCreatedAt)[0];
+      }
+    }
+    // Fallback: fetched directly by projectInternalId (see
+    // directCaseRootFolder above) when the bulk folders list hasn't
+    // caught up yet — e.g. right after the workflow creates the folder,
+    // before the next loadData() reload.
+    return directCaseRootFolder;
+  }, [caseFolders, activeCaseIdValue, caseFolderIdSet, directCaseRootFolder]);
 
   const activeCaseRootFolderId = useMemo(
     () => extractId(activeCaseRootFolder),
@@ -6202,191 +6105,6 @@ const InternalTemplates = () => {
     legalStudies,
     activeLegalStudyId,
   ]);
-
-  const companySharedCounts = useMemo(() => {
-    const fCount = folders.filter((f) => {
-      return (
-        !f.isDeleted &&
-        matchesInternalCompany(f, activeCompanyId) &&
-        (f.storageType === "company_shared" ||
-          (!f.storageType &&
-            !getRecordDocumentType(f) &&
-            !getInternalTemplateRelationId(f) &&
-            !getRecordLegalReferenceId(f)))
-      );
-    }).length;
-
-    const dCount = documents.filter((doc) => {
-      return (
-        !doc.isDeleted &&
-        matchesInternalCompany(doc, activeCompanyId) &&
-        (doc.storageType === "company_shared" ||
-          (!doc.storageType &&
-            !getRecordDocumentType(doc) &&
-            !getInternalTemplateRelationId(doc) &&
-            !getRecordLegalReferenceId(doc)))
-      );
-    }).length;
-
-    return { folders: fCount, files: dCount };
-  }, [folders, documents, activeCompanyId]);
-
-  const personalCounts = useMemo(() => {
-    const fCount = folders.filter((f) => {
-      if (f.isDeleted) return false;
-      const isPersonal = f.storageType === "personal";
-      if (!isPersonal) return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
-        entityPermissionContext,
-      );
-      return accessible.has(extractId(f.id));
-    }).length;
-
-    const dCount = documents.filter((doc) => {
-      if (doc.isDeleted) return false;
-      const isPersonal = doc.storageType === "personal";
-      const isCreatedByMe =
-        extractId(doc.createdById) === currentLawyerId ||
-        extractId(doc.uploadedById) === currentLawyerId;
-      return isPersonal && isCreatedByMe;
-    }).length;
-
-    return { folders: fCount, files: dCount };
-  }, [folders, documents, currentUserState, currentLawyerId, entityPermissionContext]);
-
-  const personalRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (f.storageType !== "personal") return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root") return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
-        entityPermissionContext,
-      );
-      return accessible.has(extractId(f.id));
-    });
-  }, [folders, currentUserState, currentLawyerId, entityPermissionContext]);
-
-  const companyRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (!matchesInternalCompany(f, activeCompanyId)) return false;
-      const isShared =
-        f.storageType === "company_shared" ||
-        (!f.storageType &&
-          !getRecordDocumentType(f) &&
-          !getInternalTemplateRelationId(f) &&
-          !getRecordLegalReferenceId(f));
-      if (!isShared) return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root") return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
-        entityPermissionContext,
-      );
-      return accessible.has(extractId(f.id));
-    });
-  }, [folders, activeCompanyId, currentUserState, currentLawyerId, entityPermissionContext]);
-
-  const legalReferenceRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (
-        String(getRecordLegalReferenceId(f)) !== String(activeLegalReferenceId)
-      )
-        return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root") return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
-        entityPermissionContext,
-      );
-      return accessible.has(extractId(f.id));
-    });
-  }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId, entityPermissionContext]);
-
-  // Sidebar for Linked Cases / Reference no longer drills into subfolders —
-  // each entry shows its own root folder directly instead of the entity's
-  // name (matching the Current Case entry). Resolved per-entity (not just
-  // the active one) since the sidebar lists every linked case/reference.
-  const linkedCaseRootFolderById = useMemo(() => {
-    const map = new Map();
-    const currentUser = currentUserState;
-    const isAdmin = isAdminUser(currentUser);
-    const accessible =
-      currentUser && !isAdmin
-        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
-        : null;
-    caseReferences.forEach((ref) => {
-      const refId = String(extractId(ref));
-      const scoped = folders.filter(
-        (f) => !f.isDeleted && String(getLinkedCaseId(f)) === refId,
-      );
-      if (!scoped.length) return;
-      const idSet = new Set(scoped.map((f) => String(extractId(f))));
-      const rootCandidates = scoped.filter((f) => {
-        const parentId = normalizeParentId(f.parentId);
-        return !parentId || !idSet.has(String(parentId));
-      });
-      if (!rootCandidates.length) return;
-      const root = [...rootCandidates].sort(sortByCreatedAt)[0];
-      if (accessible && !accessible.has(extractId(root.id))) return;
-      map.set(refId, root);
-    });
-    return map;
-  }, [folders, caseReferences, currentUserState, currentLawyerId, entityPermissionContext]);
-
-  const legalStudyRootFolderById = useMemo(() => {
-    const map = new Map();
-    const currentUser = currentUserState;
-    const isAdmin = isAdminUser(currentUser);
-    const accessible =
-      currentUser && !isAdmin
-        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
-        : null;
-    legalStudies.forEach((ref) => {
-      const refId = String(extractId(ref));
-      const scoped = folders.filter(
-        (f) =>
-          !f.isDeleted &&
-          f.storageType === "legal_study" &&
-          String(f.legalStudyId) === refId,
-      );
-      if (!scoped.length) return;
-      const idSet = new Set(scoped.map((f) => String(extractId(f))));
-      const rootCandidates = scoped.filter((f) => {
-        const parentId = normalizeParentId(f.parentId);
-        return !parentId || !idSet.has(String(parentId));
-      });
-      if (!rootCandidates.length) return;
-      const root = [...rootCandidates].sort(sortByCreatedAt)[0];
-      if (accessible && !accessible.has(extractId(root.id))) return;
-      map.set(refId, root);
-    });
-    return map;
-  }, [folders, legalStudies, currentUserState, currentLawyerId, entityPermissionContext]);
 
   const treeData = useMemo(() => {
     const build = (parentId) =>
@@ -7630,37 +7348,6 @@ const InternalTemplates = () => {
         label: value || "Document",
       }),
     [documentTypes],
-  );
-
-  const renderTypePill = (type, compact = false) => (
-    <Tag
-      style={{
-        margin: 0,
-        borderRadius: 999,
-        border: "0.5px solid transparent",
-        background: type.background,
-        color: type.color,
-        fontWeight: 600,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        lineHeight: "22px",
-        maxWidth: compact ? 150 : "100%",
-      }}
-    >
-      <span style={{ display: "inline-flex", alignItems: "center" }}>
-        {type.svgIcon}
-      </span>
-      <span
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {type.label}
-      </span>
-    </Tag>
   );
 
   const startEditTitle = (record) => {
@@ -12876,7 +12563,7 @@ const InternalTemplates = () => {
             }}
           >
             Move
-          </Button>,
+          </Button>
         ]}
       >
         <Text>

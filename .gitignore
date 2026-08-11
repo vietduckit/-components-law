@@ -20,3 +20,6 @@ Desktop.ini
 
 # Local/sensitive schema exports
 schema/
+
+# Node dependencies (local tooling only, not part of the Nocobase runtime)
+node_modules/

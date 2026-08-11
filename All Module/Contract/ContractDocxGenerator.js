@@ -7,9 +7,128 @@ const TEMPLATE_COLLECTION_NAME = "template";
 const TEMPLATE_FILE_FIELD = "fileAttachment";
 const SERVICE_TASK_RELATION = "templateId";
 const TASK_NAME_FIELD = "templateName";
+const DEFAULT_CURRENCY_CODE = "VND";
+const CURRENCY_RESOURCE_CANDIDATES = [
+  "currencies:list",
+  "currency:list",
+  "Currency:list",
+];
+const EXCHANGE_RATE_RESOURCE_CANDIDATES = [
+  "exchangeRates:list",
+  "exchangeRate:list",
+  "ExchangeRates:list",
+];
 // ==========================================================
 
 const RECORD_ID = ctx.record?.id;
+
+// ==================== HELPER: CURRENCY CONVERSION ====================
+const extractCurrencyId = (value) => {
+  if (!value) return null;
+  if (Array.isArray(value)) return extractCurrencyId(value[0]);
+  if (typeof value === "object")
+    return extractCurrencyId(value.id || value.value || value.key);
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const extractCurrencyCode = (value) => {
+  if (!value) return "";
+  if (Array.isArray(value)) return extractCurrencyCode(value[0]);
+  if (typeof value === "object")
+    return extractCurrencyCode(
+      value.code ||
+        value.currencyCode ||
+        value.isoCode ||
+        value.title ||
+        value.label ||
+        value.name,
+    );
+  const match = String(value).trim().toUpperCase().match(/\b[A-Z]{3}\b/);
+  return match ? match[0] : "";
+};
+const getCurrencyCode = (currency) =>
+  String(
+    currency?.code || currency?.currencyCode || currency?.name || DEFAULT_CURRENCY_CODE,
+  ).toUpperCase();
+const getRecordCurrencyId = (record) =>
+  extractCurrencyId(
+    record?.currencyId || record?.currency || record?.currencies,
+  );
+const findDefaultCurrency = (currencies = []) =>
+  currencies.find(
+    (c) => c?.isBaseCurrency || getCurrencyCode(c) === DEFAULT_CURRENCY_CODE,
+  ) || null;
+
+async function fetchAllFromCandidates(urls = [], params = {}) {
+  for (const url of urls) {
+    try {
+      const res = await ctx.api.request({
+        url,
+        params: { pageSize: 500, page: 1, ...params },
+      });
+      const rows = res?.data?.data || [];
+      if (Array.isArray(rows) && rows.length) return rows;
+    } catch {}
+  }
+  return [];
+}
+
+const isUsableExchangeRateStatus = (status) => {
+  const value = String(status || "").trim().toLowerCase();
+  if (!value) return true;
+  return ![
+    "inactive",
+    "disabled",
+    "archived",
+    "cancelled",
+    "canceled",
+    "draft",
+  ].includes(value);
+};
+const rateSideCurrencyId = (rate, side) =>
+  extractCurrencyId(rate?.[`${side}CurrencyId`] || rate?.[`${side}Currency`]);
+const rateSideCurrencyCode = (rate, side) =>
+  extractCurrencyCode(rate?.[`${side}Currency`] || rate?.[`${side}CurrencyCode`]);
+const rateMatchesSide = (rate, side, currencyId, currencyCode) => {
+  const rId = rateSideCurrencyId(rate, side);
+  if (rId && currencyId) return rId === currencyId;
+  const rCode = rateSideCurrencyCode(rate, side);
+  return !!rCode && !!currencyCode && rCode === currencyCode;
+};
+// Finds the most recent usable exchange rate converting fromCurrency ->
+// toCurrency, trying the inverse pair (1/rate) if no direct rate exists.
+function findConversionRate(
+  rates,
+  fromCurrencyId,
+  fromCurrencyCode,
+  toCurrencyId,
+  toCurrencyCode,
+) {
+  const usable = (rates || []).filter(
+    (r) => isUsableExchangeRateStatus(r.status) && parseFloat(r.rate) > 0,
+  );
+  const direct = usable
+    .filter(
+      (r) =>
+        rateMatchesSide(r, "from", fromCurrencyId, fromCurrencyCode) &&
+        rateMatchesSide(r, "to", toCurrencyId, toCurrencyCode),
+    )
+    .sort(
+      (a, b) => new Date(b.effectiveDate || 0) - new Date(a.effectiveDate || 0),
+    )[0];
+  if (direct) return parseFloat(direct.rate);
+  const inverse = usable
+    .filter(
+      (r) =>
+        rateMatchesSide(r, "from", toCurrencyId, toCurrencyCode) &&
+        rateMatchesSide(r, "to", fromCurrencyId, fromCurrencyCode),
+    )
+    .sort(
+      (a, b) => new Date(b.effectiveDate || 0) - new Date(a.effectiveDate || 0),
+    )[0];
+  if (inverse && parseFloat(inverse.rate) > 0) return 1 / parseFloat(inverse.rate);
+  return null;
+}
 
 // ==================== HELPER: NUMBER TO TEXT (VN) ====================
 function readVietnameseNumber(n) {
@@ -111,6 +230,16 @@ async function fetchServices(quotationId) {
   }
 }
 
+async function fetchCurrencies() {
+  return fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES);
+}
+
+async function fetchExchangeRates() {
+  return fetchAllFromCandidates(EXCHANGE_RATE_RESOURCE_CANDIDATES, {
+    appends: ["fromCurrency", "toCurrency"],
+  });
+}
+
 async function fetchServiceDetails(serviceIds) {
   if (!serviceIds.length) return {};
   try {
@@ -178,6 +307,8 @@ const ContractDocxGenerator = () => {
   const [data, setData] = useState(null);
   const [services, setServices] = useState([]);
   const [svcDetails, setSvcDetails] = useState({});
+  const [currencies, setCurrencies] = useState([]);
+  const [exchangeRates, setExchangeRates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Track separate loading states
@@ -198,8 +329,14 @@ const ContractDocxGenerator = () => {
     }
     setLoading(true);
     try {
-      const contractData = await fetchContract(RECORD_ID);
+      const [contractData, currs, rates] = await Promise.all([
+        fetchContract(RECORD_ID),
+        fetchCurrencies(),
+        fetchExchangeRates(),
+      ]);
       setData(contractData);
+      setCurrencies(currs);
+      setExchangeRates(rates);
 
       if (contractData?.quotationId) {
         const svcs = await fetchServices(contractData.quotationId);
@@ -292,14 +429,47 @@ const ContractDocxGenerator = () => {
       vatAmount = 0,
       totalAmount = 0;
 
+    // Every amount in the generated document is denominated in VND (the
+    // template hardcodes "Phí dịch vụ (VND)"), so a line service quoted in
+    // another currency (USD, SGD, ...) must be converted before it's summed
+    // into the document totals — otherwise a USD subtotal would be printed
+    // (and added into the VND grand total) as if it were already VND.
+    const vndCurrency = findDefaultCurrency(currencies);
+    const vndCurrencyId = extractCurrencyId(vndCurrency);
+    const missingRateServiceNames = [];
+
     const mappedServices = services.map((s, index) => {
       const detail = svcDetails[s.serviceId] || {};
       const name = detail.serviceName || `Service #${s.serviceId}`;
       const qty = Number(s.quantity) || 1;
       const price = Number(s.basePrice) || 0;
       const vatPct = Number(s.vat) || 0;
-      const sLine = price * qty;
-      const vLine = (sLine * vatPct) / 100;
+      const sLineRaw = price * qty;
+      const vLineRaw = (sLineRaw * vatPct) / 100;
+
+      const lineCurrencyId = getRecordCurrencyId(s);
+      const lineCurrencyCode = extractCurrencyCode(s.currency || s.currencies);
+      let sLine = sLineRaw;
+      let vLine = vLineRaw;
+      if (
+        lineCurrencyId &&
+        vndCurrencyId &&
+        lineCurrencyId !== vndCurrencyId
+      ) {
+        const rate = findConversionRate(
+          exchangeRates,
+          lineCurrencyId,
+          lineCurrencyCode,
+          vndCurrencyId,
+          DEFAULT_CURRENCY_CODE,
+        );
+        if (rate) {
+          sLine = sLineRaw * rate;
+          vLine = vLineRaw * rate;
+        } else {
+          missingRateServiceNames.push(name);
+        }
+      }
 
       const rawTasks =
         detail[SERVICE_TASK_RELATION] || s[SERVICE_TASK_RELATION];
@@ -324,8 +494,15 @@ const ContractDocxGenerator = () => {
         tasksArray.length > 0
           ? tasksArray.map((t) => ({
               task_name: t[TASK_NAME_FIELD] || t.title || t.name || "Task",
+              description:
+                t.description || t.taskDescription || t.note || "",
             }))
-          : [{ task_name: "(No specific tasks configured)" }];
+          : [
+              {
+                task_name: "(No specific tasks configured)",
+                description: "",
+              },
+            ];
 
       subTotalAmount += sLine;
       vatAmount += vLine;
@@ -336,10 +513,20 @@ const ContractDocxGenerator = () => {
         service_name: name,
         task_list: tasksText, // Biến cũ (string)
         tasks: mappedTasks, // Biến mới (array)
-        sub_total: sLine.toLocaleString("en-US"),
-        service_vat: vLine.toLocaleString("en-US"),
+        sub_total: Math.round(sLine).toLocaleString("en-US"),
+        service_vat: Math.round(vLine).toLocaleString("en-US"),
       };
     });
+
+    if (missingRateServiceNames.length) {
+      message.warning(
+        `Thiếu tỷ giá quy đổi sang VND cho dịch vụ: ${missingRateServiceNames.join(", ")} — số tiền của dòng này được giữ nguyên theo tiền tệ gốc trong file.`,
+      );
+    }
+
+    subTotalAmount = Math.round(subTotalAmount);
+    vatAmount = Math.round(vatAmount);
+    totalAmount = Math.round(totalAmount);
 
     const currentDate = new Date();
     const dd = String(currentDate.getDate()).padStart(2, "0");

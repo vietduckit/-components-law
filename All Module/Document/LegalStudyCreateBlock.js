@@ -394,6 +394,20 @@ const emitLibraryDataChanged = (detail = {}) => {
       } catch {}
     }
   });
+
+  // window/window.parent only reach a listener in the SAME browsing
+  // context (or a direct iframe parent). ctx.openView may render this
+  // popup in a context Library.js's window can't see at all (separate
+  // window, sibling iframe...), so also write to localStorage —
+  // changing it fires a `storage` event in every OTHER same-origin
+  // tab/window/iframe automatically, which is the one channel guaranteed
+  // to reach Library.js regardless of how the popup was rendered.
+  try {
+    window.localStorage.setItem(
+      LIBRARY_DATA_CHANGED_EVENT,
+      JSON.stringify({ ...detail, _t: Date.now() }),
+    );
+  } catch {}
 };
 
 const closeCurrentPopup = () => {
@@ -1014,7 +1028,7 @@ const LegalStudyCreateBlock = () => {
   return React.createElement(
     Card,
     {
-      title: "Create Legal Study",
+      // title: "Create Legal Study",
       bordered: false,
       style: { width: "100%", fontFamily: FONT },
     },
@@ -1039,7 +1053,7 @@ const LegalStudyCreateBlock = () => {
               label: "Title",
               rules: [{ required: true, message: "Please enter a title" }],
             },
-            React.createElement(Input, { placeholder: "Enter title..." }),
+            React.createElement(Input, { placeholder: "Enter legal study title..." }),
           ),
         ),
         React.createElement(
@@ -1064,10 +1078,10 @@ const LegalStudyCreateBlock = () => {
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Description" },
+        { name: "description", label: "Summary" },
         React.createElement(Input.TextArea, {
           rows: 4,
-          placeholder: "Describe the legal study...",
+          placeholder: "Summarize the legal study...",
         }),
       ),
       React.createElement(
@@ -1075,7 +1089,7 @@ const LegalStudyCreateBlock = () => {
         { gutter: 16 },
         React.createElement(
           Col,
-          { xs: 24, md: 12 },
+          { xs: 24, md: 24 },
           React.createElement(
             Form.Item,
             {
@@ -1094,26 +1108,7 @@ const LegalStudyCreateBlock = () => {
             }),
           ),
         ),
-        React.createElement(
-          Col,
-          { xs: 24, md: 12 },
-          React.createElement(
-            Form.Item,
-            {
-              name: "legalReferenceIds",
-              label: "Reference To Case Reference",
-              extra: "Link this legal study to existing case references.",
-            },
-            React.createElement(Select, {
-              mode: "multiple",
-              showSearch: true,
-              allowClear: true,
-              placeholder: "Select linked case references...",
-              optionFilterProp: "label",
-              options: legalReferenceOptions,
-            }),
-          ),
-        ),
+        
       ),
       React.createElement(
         "div",
@@ -1199,7 +1194,7 @@ const LegalStudyCreateBlock = () => {
         React.createElement(
           Button,
           { type: "primary", htmlType: "submit", loading: saving },
-          "Create",
+          "Submit",
         ),
       ),
     ),

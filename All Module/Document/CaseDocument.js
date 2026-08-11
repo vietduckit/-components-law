@@ -1869,6 +1869,42 @@ const getPermissionRole = (row, fallback = "viewer") =>
   row?.role ||
   fallback;
 
+// documentShares — per-document view grant to a specific Nocobase user
+// (not a lawyerId, unlike folderManagers/folderMembers). Matches Library.js's
+// getShareRowUserId/getRecordShareRows/getDocumentSharedUserIds/
+// isRecordSharedWithUser exactly. Used to gate access to a document linked
+// directly (not via a folder) through the "Link" > "Case" flow's per-item
+// grant step — see linkCaseGrantableTeam / handleLinkCaseTabSubmit.
+const getShareRowUserId = (row) =>
+  extractId(row?.userId) ||
+  extractRelationId(row?.users) ||
+  extractRelationId(row?.user);
+const getShareRowDocumentId = (row) =>
+  extractId(row?.documentId) ||
+  extractRelationId(row?.documents) ||
+  extractRelationId(row?.document);
+const getRecordShareRows = (record) => {
+  const rows =
+    record?._shareRows ||
+    record?.documentShares ||
+    record?.documentShare ||
+    record?.shares ||
+    [];
+  return Array.isArray(rows) ? rows : [rows].filter(Boolean);
+};
+const getDocumentSharedUserIds = (record) => {
+  const ids = [];
+  getRecordShareRows(record).forEach((row) => {
+    const userId = getShareRowUserId(row);
+    if (userId) ids.push(userId);
+  });
+  return Array.from(new Set(ids.filter(Boolean).map((id) => String(id))));
+};
+const isRecordSharedWithUser = (record, user) => {
+  const userId = extractId(user?.id);
+  return !!userId && getDocumentSharedUserIds(record).includes(String(userId));
+};
+
 const getLawyerDisplayName = (record, fallback = "Lawyer") => {
   const lawyer = getRelationLawyerRecord(record);
   return (
@@ -1890,15 +1926,15 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
 // Internal keys (activeSpace "legal_study", storageType "legal_study",
 // field names legalStudyId/legalMembers/...) stay unchanged; only the text
 // shown to the user changes, so this doesn't touch stored data.
-const REFERENCE_LABEL = "Reference";
+const REFERENCE_LABEL = "Case Study";
 
 const ROLE_LABEL = {
-  admin:   "Admin",
-  owner:   "Owner",
+  admin: "Admin",
+  owner: "Owner",
   manager: "Manager",
-  editor:  "Editor",
-  viewer:  "Viewer",
-  shared:  "Shared",
+  editor: "Editor",
+  viewer: "Viewer",
+  shared: "Shared",
 };
 
 // The 5 fixed template folders CaseCreateForm.js auto-creates per case
@@ -1926,7 +1962,9 @@ const isRenameLockedFolder = (record) =>
   Boolean(getLinkedCaseId(record)) &&
   (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
     SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
-      String(record?.name || "").trim().toLowerCase(),
+      String(record?.name || "")
+        .trim()
+        .toLowerCase(),
     ));
 
 // Matches Library.js's roleToPerms exactly — "editor"/"viewer" here are
@@ -1937,16 +1975,16 @@ const isRenameLockedFolder = (record) =>
 // explicit folder Members through.
 const roleToPerms = (role) => ({
   role,
-  canView:              role !== null,
-  canCreate:            ["admin","owner","manager","editor","viewer"].includes(role),
-  canRename:            ["admin","owner","manager","editor"].includes(role),
-  canMove:              ["admin","owner","manager","editor"].includes(role),
-  canDelete:            ["admin","owner","manager","editor"].includes(role),
-  canShare:             ["admin","owner","manager","editor"].includes(role),
-  canManagePermissions: ["admin","owner","manager"].includes(role),
-  isManager: ["admin","owner","manager"].includes(role),
-  isMember:  role !== null,
-  canEdit:   ["admin","owner","manager","editor"].includes(role),
+  canView: role !== null,
+  canCreate: ["admin", "owner", "manager", "editor", "viewer"].includes(role),
+  canRename: ["admin", "owner", "manager", "editor"].includes(role),
+  canMove: ["admin", "owner", "manager", "editor"].includes(role),
+  canDelete: ["admin", "owner", "manager", "editor"].includes(role),
+  canShare: ["admin", "owner", "manager", "editor"].includes(role),
+  canManagePermissions: ["admin", "owner", "manager"].includes(role),
+  isManager: ["admin", "owner", "manager"].includes(role),
+  isMember: role !== null,
+  canEdit: ["admin", "owner", "manager", "editor"].includes(role),
 });
 
 // Standalone Reference (legalStudy collection, linked to this case via the
@@ -2117,8 +2155,71 @@ const isFolderTreeRoot = (folder, allFolders) => {
   return String(extractId(root)) === String(extractId(folder));
 };
 
-const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityCtx) => {
-  if (isAdminUser(user)) return lockDeleteIfReferenceEntityRoot(folder, roleToPerms("admin"));
+// Level-2 grants — a folder one level below the Case's absolute root (e.g.
+// "Legal Study", "LSC & Related") may carry its own folderManagers/
+// folderMembers rows, checked BEFORE falling back to the Case root. This is
+// what lets a cross-case link (see the "Link" > "Folder" flow) scope a
+// grant to exactly the linked folder instead of the whole target Case.
+// Folders at level 3+ are never permission-bearing on their own — they
+// always resolve through this same walk to whichever of level-2/level-1
+// actually has explicit rows.
+const resolvePermissionFolder = (folder, allFolders) => {
+  if (!folder) return null;
+  const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+  const rootId = String(extractId(root));
+  if (String(extractId(folder)) === rootId) return root;
+
+  const folderById = new Map(
+    (allFolders || []).map((f) => [String(extractId(f.id)), f]),
+  );
+  let current = folder;
+  let level2 = null;
+  const visited = new Set();
+  while (current) {
+    const parentId = String(extractId(current.parentId) || "");
+    if (parentId === rootId) {
+      level2 = current;
+      break;
+    }
+    if (!parentId || parentId === "root" || visited.has(parentId)) break;
+    visited.add(parentId);
+    const parent = folderById.get(parentId);
+    if (!parent) break;
+    current = parent;
+  }
+
+  if (level2) {
+    const hasOwnGrant =
+      getFolderManagerRows(level2).length > 0 ||
+      getFolderMemberRows(level2).length > 0;
+    if (hasOwnGrant) return level2;
+  }
+
+  return root;
+};
+
+// Gates the "Permissions" UI action only — deliberately NOT used for
+// canDelete (that still uses isFolderTreeRoot unchanged, so an ordinary
+// level-2 folder stays deletable; only the 5 system template folders keep
+// their separate isRenameLockedFolder lock). True for the Case's absolute
+// root OR any of its direct (level-2) children.
+const isPermissionBearingFolder = (folder, allFolders) => {
+  if (!folder) return false;
+  if (isFolderTreeRoot(folder, allFolders)) return true;
+  const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+  const parentId = String(getFolderParentId(folder) || "");
+  return parentId !== "" && parentId === String(extractId(root));
+};
+
+const getFolderPermissions = (
+  folder,
+  user,
+  allFolders,
+  currentLawyerId,
+  entityCtx,
+) => {
+  if (isAdminUser(user))
+    return lockDeleteIfReferenceEntityRoot(folder, roleToPerms("admin"));
   if (!folder) return roleToPerms("admin");
   if (!user) return roleToPerms(null);
 
@@ -2135,21 +2236,27 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityC
   if (entityStudyId) {
     return lockDeleteIfReferenceEntityRoot(
       folder,
-      resolveLegalEntityFolderPerms(entityStudyId, lwId, entityCtx) || roleToPerms(null),
+      resolveLegalEntityFolderPerms(entityStudyId, lwId, entityCtx) ||
+        roleToPerms(null),
     );
   }
 
-  const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+  const root = resolvePermissionFolder(folder, allFolders) || folder;
 
-  if (uid && String(extractId(root.createdById)) === String(uid)) return roleToPerms("owner");
+  if (uid && String(extractId(root.createdById)) === String(uid))
+    return roleToPerms("owner");
 
   if (lwId) {
     const managers = getFolderManagerRows(root);
     const members = getFolderMemberRows(root);
-    const isExplicitManager = managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId));
+    const isExplicitManager = managers.some(
+      (m) => String(getPermissionLawyerId(m)) === String(lwId),
+    );
     if (isExplicitManager) return roleToPerms("manager");
 
-    const explicitMember = members.find((m) => String(getPermissionLawyerId(m)) === String(lwId));
+    const explicitMember = members.find(
+      (m) => String(getPermissionLawyerId(m)) === String(lwId),
+    );
     if (explicitMember) {
       // Capability tiers (viewer/editor/contributed) — same table used for
       // Reference (legalStudy) Members above, unified with folder Members
@@ -2164,7 +2271,14 @@ const getFolderPermissions = (folder, user, allFolders, currentLawyerId, entityC
   return roleToPerms(null);
 };
 
-const canManageFile = (file, folder, user, allFolders, currentLawyerId, entityCtx) => {
+const canManageFile = (
+  file,
+  folder,
+  user,
+  allFolders,
+  currentLawyerId,
+  entityCtx,
+) => {
   if (!user) return false;
   const { isManager, canEdit } = getFolderPermissions(
     folder,
@@ -2178,7 +2292,12 @@ const canManageFile = (file, folder, user, allFolders, currentLawyerId, entityCt
   return false;
 };
 
-const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx) => {
+const getVisibleFolderIds = (
+  allFolders,
+  currentUser,
+  currentLawyerId,
+  entityCtx,
+) => {
   const uid = extractId(currentUser?.id);
   const lwId = extractId(currentLawyerId);
 
@@ -2193,7 +2312,7 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx
   const resolveRoot = (folder) => {
     const key = String(extractId(folder.id));
     if (rootCache.has(key)) return rootCache.get(key);
-    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+    const root = resolvePermissionFolder(folder, allFolders) || folder;
     rootCache.set(key, root);
     return root;
   };
@@ -2520,6 +2639,26 @@ const fetchLegalReferenceRecords = async (internalCompanyId = null) => {
   return [];
 };
 
+// Full list of every Reference (legalStudy) record in the system — used to
+// populate the Link modal's "Reference" tab picker, which needs to offer
+// records NOT yet linked to the current case. Distinct from this file's
+// `legalStudies` state (fetchLinkedRelationRows), which only ever contains
+// records ALREADY linked to the current case and so can't serve as a
+// picker's source list. Matches Library.js's fetchLegalStudyRecords.
+const fetchAllLegalStudyRecords = async () => {
+  for (const url of ["legalStudy:list", "legalStudies:list"]) {
+    try {
+      return await fetchAllList(url, {
+        sort: ["-createdAt"],
+        appends: ["manager", "members"],
+      });
+    } catch (e) {
+      // try next candidate
+    }
+  }
+  return [];
+};
+
 const createLegalReferenceRecord = async (payload) => {
   let lastError = null;
   for (const url of DASHBOARD_CONFIG.parentCreateCandidates) {
@@ -2536,7 +2675,11 @@ const createLegalReferenceRecord = async (payload) => {
   throw lastError || new Error("Failed to create parent record");
 };
 
-const fetchLinkedRelationRows = async (caseId, relationName, extraAppends = []) => {
+const fetchLinkedRelationRows = async (
+  caseId,
+  relationName,
+  extraAppends = [],
+) => {
   const safeCaseId = extractId(caseId);
   if (!safeCaseId) return [];
 
@@ -2547,7 +2690,9 @@ const fetchLinkedRelationRows = async (caseId, relationName, extraAppends = []) 
 
   for (const url of candidates) {
     try {
-      const rows = await fetchAllList(url, { appends: ["createdBy", ...extraAppends] });
+      const rows = await fetchAllList(url, {
+        appends: ["createdBy", ...extraAppends],
+      });
       console.log(`[OK] ${url} → ${rows.length} rows`);
       return rows.filter((r) => !r.isDeleted);
     } catch (error) {
@@ -2584,7 +2729,11 @@ const fetchEntityMemberRows = async (fkField, recordId) => {
   const filter = JSON.stringify({ [fkField]: { $eq: recordId } });
   for (const url of ["legalMembers:list", "legalMember:list"]) {
     try {
-      return await fetchAllList(url, { pageSize: 1000, filter, appends: ["member"] });
+      return await fetchAllList(url, {
+        pageSize: 1000,
+        filter,
+        appends: ["member"],
+      });
     } catch (e) {
       try {
         return await fetchAllList(url, { pageSize: 1000, filter });
@@ -2622,10 +2771,24 @@ const createEntityMemberRow = async (fkField, recordId, memberId, role) => {
 };
 
 const fetchFoldersForInternalTemplates = async () => {
+  // $or with an explicit null branch — folders created while activeCaseIdValue
+  // hadn't resolved yet (applyCaseFolderPayload's early-return guard) end up
+  // with no moduleScope at all; a plain $in would silently drop those rows
+  // server-side, which is exactly what made "Test A"/"Test B" invisible here
+  // despite existing in the folders table with a valid case relation.
   const scopeFilter = JSON.stringify({
-    moduleScope: {
-      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
-    },
+    $or: [
+      {
+        moduleScope: {
+          $in: [
+            ...DASHBOARD_CONFIG.moduleScopes,
+            "legal_reference",
+            "legal_study",
+          ],
+        },
+      },
+      { moduleScope: null },
+    ],
   });
   const params = {
     sort: ["createdAt"],
@@ -2653,10 +2816,22 @@ const fetchFoldersForInternalTemplates = async () => {
 };
 
 const fetchDocumentsForInternalTemplates = async () => {
+  // Same $or-with-null relaxation as fetchFoldersForInternalTemplates —
+  // documents created during the same activeCaseIdValue race would
+  // otherwise vanish from every view for the same reason.
   const scopeFilter = JSON.stringify({
-    moduleScope: {
-      $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
-    },
+    $or: [
+      {
+        moduleScope: {
+          $in: [
+            ...DASHBOARD_CONFIG.moduleScopes,
+            "legal_reference",
+            "legal_study",
+          ],
+        },
+      },
+      { moduleScope: null },
+    ],
   });
   const params = {
     sort: ["fileIndex", "-createdAt"],
@@ -3749,7 +3924,8 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
       width={640}
       title={
         <span style={{ fontFamily: FONT }}>
-          Document Information {files.length > 1 ? `(${files.length} files)` : ""}
+          Document Information{" "}
+          {files.length > 1 ? `(${files.length} files)` : ""}
         </span>
       }
       footer={[
@@ -3901,6 +4077,201 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
   );
 };
 
+// Shared checklist used by BOTH the Link modal's "Case" tab (folders +
+// documents sitting in a target Case's root) and its "Reference" tab
+// (folders sitting in a target Reference's root) — one render path instead
+// of two near-duplicate blocks. An item already present as a
+// caseLegalStudyLinks target (see linkTargetLinkedFolderIds/
+// linkTargetLinkedDocumentIds) shows a disabled "Already linked" row
+// instead of a normal selectable one.
+const LinkTargetPicker = ({
+  folders = [],
+  documents = [],
+  selectedFolderIds,
+  selectedDocumentIds,
+  disabledFolderIds,
+  disabledDocumentIds,
+  onToggleFolder,
+  onToggleDocument,
+  emptyDescription = "No folders or documents found",
+}) => {
+  if (folders.length === 0 && documents.length === 0) {
+    return (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />
+    );
+  }
+
+  const renderRow = (record, isFolder) => {
+    const id = String(extractId(record));
+    const disabledSet = isFolder ? disabledFolderIds : disabledDocumentIds;
+    const selectedIds = isFolder ? selectedFolderIds : selectedDocumentIds;
+    const onToggle = isFolder ? onToggleFolder : onToggleDocument;
+    const disabled = !!disabledSet?.has(id);
+    const selected = (selectedIds || []).includes(id);
+    const label = isFolder
+      ? record.name || "Folder"
+      : getAttachment(record)?.title ||
+        getAttachment(record)?.filename ||
+        record.name ||
+        record.title ||
+        "Document";
+    return (
+      <div
+        key={`${isFolder ? "folder" : "document"}_${id}`}
+        onClick={() => !disabled && onToggle?.(id)}
+        style={{
+          padding: "10px 12px",
+          cursor: disabled ? "not-allowed" : "pointer",
+          borderBottom: "1px solid #F3F4F6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: selected ? "#E6F1FB" : "transparent",
+          opacity: disabled ? 0.55 : 1,
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              display: "inline-flex",
+              color: isFolder ? "#185FA5" : "inherit",
+            }}
+          >
+            {isFolder ? TYPE_ICONS.folder : getFileSvgIcon(getFileExtension(record))}
+          </span>
+          {label}
+          {disabled && (
+            <Tag color="blue" style={{ marginLeft: 8, borderRadius: 4 }}>
+              Already linked
+            </Tag>
+          )}
+        </span>
+        <Checkbox checked={selected} disabled={disabled} onChange={() => {}} />
+      </div>
+    );
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #E5E7EB",
+        borderRadius: 8,
+        maxHeight: 260,
+        overflowY: "auto",
+      }}
+    >
+      {folders.map((f) => renderRow(f, true))}
+      {documents.map((d) => renderRow(d, false))}
+    </div>
+  );
+};
+
+// Shared sidebar row button — used by every entry under the consolidated
+// "Case's Ref" section (whole-case links, folder/document shortcut links,
+// and the nested Reference sub-group) so the same hover/active/tooltip
+// styling isn't triplicated per list.
+const SidebarLinkRow = ({
+  icon,
+  label,
+  subLabel,
+  tooltip,
+  isActive,
+  onClick,
+  onContextMenu,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    onContextMenu={onContextMenu}
+    style={{
+      width: "100%",
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "7px 10px",
+      border: "0",
+      borderRadius: 8,
+      cursor: "pointer",
+      borderLeft: isActive ? "2px solid #185FA5" : "2px solid transparent",
+      background: isActive ? "#E6F1FB" : "transparent",
+      color: isActive ? "#185FA5" : "#6B7280",
+      fontFamily: FONT,
+      minWidth: 0,
+      transition: "background 0.15s",
+      textAlign: "left",
+    }}
+    onMouseEnter={(e) => {
+      if (!isActive) e.currentTarget.style.background = "#F3F4F6";
+    }}
+    onMouseLeave={(e) => {
+      if (!isActive) e.currentTarget.style.background = "transparent";
+    }}
+  >
+    <span
+      style={{
+        width: 15,
+        height: 15,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: isActive ? "#185FA5" : "#6B7280",
+      }}
+    >
+      {icon}
+    </span>
+    <Tooltip title={tooltip || label} placement="right" mouseEnterDelay={0.5}>
+      {subLabel ? (
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 1,
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: 12.5,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: isActive ? "#185FA5" : "#374151",
+            }}
+          >
+            {label}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: "#9CA3AF",
+            }}
+          >
+            {subLabel}
+          </span>
+        </span>
+      ) : (
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+      )}
+    </Tooltip>
+  </button>
+);
+
 const InternalTemplates = () => {
   const initialCaseContext = useMemo(() => getInitialCaseContext(), []);
   const [loading, setLoading] = useState(true);
@@ -3910,15 +4281,33 @@ const InternalTemplates = () => {
   const [legalReferences, setLegalReferences] = useState([]);
   const [caseReferences, setCaseReferences] = useState([]);
   const [legalStudies, setLegalStudies] = useState([]);
+  // caseLegalStudyLinks rows for the current case — cross-case links into
+  // OTHER cases' auto-created "Legal Study" folders (folderTemplateKey
+  // "legal_study", case-bound), granted via folderMembers on that target
+  // case's root folder. Distinct from `legalStudies` above, which is the
+  // standalone legalStudy collection (now labeled "Case Study").
+  const [caseLegalStudyLinks, setCaseLegalStudyLinks] = useState([]);
+  // documentShares rows for whichever documents caseLegalStudyLinks rows
+  // above point at directly (targetDocumentId set) — used to gate the
+  // "Preview" action on a document-type Legal Study Link sidebar entry to
+  // only the specific members granted access, matching how a folder-type
+  // link's content is gated by resolvePermissionFolder. Fetched in one
+  // batch per loadData() rather than per row.
+  const [legalStudyLinkDocumentShares, setLegalStudyLinkDocumentShares] =
+    useState([]);
   // Legal Member rows (legalMembers table) — Reference (legalStudy) Manager/
   // Member roles, bridged into folder/document permission resolution via
   // entityPermissionContext below. See resolveLegalEntityFolderPerms.
   const [legalMemberRows, setLegalMemberRows] = useState([]);
   const [activeCaseReferenceId, setActiveCaseReferenceId] = useState(null);
   const [activeLegalStudyId, setActiveLegalStudyId] = useState(null);
+  const [activeLegalStudyLinkId, setActiveLegalStudyLinkId] = useState(null);
   const [legalReferenceExpanded, setLegalReferenceExpanded] = useState(true);
+  // Shared expand/collapse for the consolidated "Case's Ref" sidebar section
+  // (whole-case links + specific folder/document links + the nested
+  // "Reference" sub-group) — used to be 3 independently-toggled sections
+  // (Linked Cases / Case Study / Legal Study Links).
   const [caseReferenceExpanded, setCaseReferenceExpanded] = useState(true);
-  const [legalStudyExpanded, setLegalStudyExpanded] = useState(true);
   const [selectedExt, setSelectedExt] = useState(null);
   const [activeCompanyId, setActiveCompanyId] = useState(null);
   const [activeLegalReferenceId, setActiveLegalReferenceId] = useState(null);
@@ -3933,6 +4322,39 @@ const InternalTemplates = () => {
   const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
   const [linkCaseRecord, setLinkCaseRecord] = useState(null);
   const [linkCaseLoading, setLinkCaseLoading] = useState(false);
+  // New "Link" button/modal — cross-case linking initiated FROM this Case's
+  // own document view (Case / Reference / Folder tabs). Distinct from
+  // isLinkCaseOpen above, which is an unrelated feature (attaching Cases to
+  // a legalReference record's own .cases field).
+  const [isLinkOpen, setIsLinkOpen] = useState(false);
+  const [linkTabMode, setLinkTabMode] = useState("case"); // "case" | "reference" | "folder"
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+  // "Case" tab — pick a target Case, then (optionally) pick one or more of
+  // its root-level folders/documents to scope the link to instead of the
+  // whole Case. Empty selection = link the whole Case (caseReferences +
+  // grant on the Case root); any selection = one caseLegalStudyLinks row
+  // per selected item, each with its own scoped grant.
+  const [linkCaseTargetCaseId, setLinkCaseTargetCaseId] = useState(null);
+  const [linkCaseSelectedFolderIds, setLinkCaseSelectedFolderIds] = useState(
+    [],
+  );
+  const [linkCaseSelectedDocumentIds, setLinkCaseSelectedDocumentIds] =
+    useState([]);
+  const [linkCaseGrantMemberIds, setLinkCaseGrantMemberIds] = useState([]);
+  // "Reference" tab — same 2-step shape as "Case" above: pick ONE target
+  // Reference from the FULL system-wide Reference (legalStudy) list
+  // (allLegalStudyRecords, lazy-loaded below, not the already-linked
+  // `legalStudies` state), then optionally pick specific root-level
+  // folders of that Reference as navigation shortcuts. Unlike the Case
+  // tab, a folder selection here does NOT narrow the access grant — see
+  // handleLinkReferenceTabSubmit for why (Reference folder permissions
+  // route through the entity's own Manager/Members, not folderMembers).
+  const [linkReferenceTargetId, setLinkReferenceTargetId] = useState(null);
+  const [linkReferenceSelectedFolderIds, setLinkReferenceSelectedFolderIds] =
+    useState([]);
+  const [allLegalStudyRecords, setAllLegalStudyRecords] = useState([]);
+  const [allLegalStudyRecordsLoading, setAllLegalStudyRecordsLoading] =
+    useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
   const [bulkMoveTargetId, setBulkMoveTargetId] = useState("root");
@@ -4204,18 +4626,33 @@ const InternalTemplates = () => {
       let fetchedLegalRefs = [];
       let fetchedCaseRefs = [];
       let fetchedLegalStds = [];
+      let fetchedLegalStudyLinks = [];
       if (nextCaseId) {
         try {
-          const [lRefs, cRefs, lStds] = await Promise.all([
+          const [lRefs, cRefs, lStds, lStdLinks] = await Promise.all([
             fetchLinkedRelationRows(nextCaseId, "legalReference"),
             fetchLinkedRelationRows(nextCaseId, "caseReferences"),
             // manager/members appended: needed to resolve Reference
             // Manager/Member permissions (resolveLegalEntityFolderPerms).
-            fetchLinkedRelationRows(nextCaseId, "legalStudy", ["manager", "members"]),
+            fetchLinkedRelationRows(nextCaseId, "legalStudy", [
+              "manager",
+              "members",
+            ]),
+            // Cross-case Legal Study folder links — same relation name as
+            // LegalReferenceWorkspace.js's CONFIG.legalStudyFolderLinkRelationName.
+            // "folders" append is the linked target folder record itself
+            // (carries .projectId of the case that owns it, .name);
+            // "documents" is the linked target DOCUMENT record itself, for
+            // links created via the "Case" tab's per-document selection.
+            fetchLinkedRelationRows(nextCaseId, "legalStudyFolderLinks", [
+              "folders",
+              "documents",
+            ]),
           ]);
           fetchedLegalRefs = lRefs;
           fetchedCaseRefs = cRefs;
           fetchedLegalStds = lStds;
+          fetchedLegalStudyLinks = lStdLinks;
         } catch (err) {
           console.warn("Error fetching relation rows:", err);
         }
@@ -4223,6 +4660,36 @@ const InternalTemplates = () => {
       setLegalReferences(fetchedLegalRefs);
       setCaseReferences(fetchedCaseRefs);
       setLegalStudies(fetchedLegalStds);
+      setCaseLegalStudyLinks(fetchedLegalStudyLinks);
+
+      // Batch-fetch documentShares for every document-type link's target —
+      // a separate, targeted query (rather than a nested append on
+      // legalStudyFolderLinks, which Nocobase may not support cleanly for a
+      // 2-level-deep relation) so a single-row lookup failure can't take
+      // down the whole caseLegalStudyLinks fetch above.
+      const linkedDocumentIds = Array.from(
+        new Set(
+          fetchedLegalStudyLinks
+            .map((l) => extractId(l.documents) || extractId(l.targetDocumentId))
+            .filter(Boolean),
+        ),
+      );
+      if (linkedDocumentIds.length) {
+        try {
+          setLegalStudyLinkDocumentShares(
+            await fetchAllList("documentShares:list", {
+              filter: JSON.stringify({
+                documentId: { $in: linkedDocumentIds },
+              }),
+            }),
+          );
+        } catch (err) {
+          console.warn("Error fetching documentShares for linked documents:", err);
+          setLegalStudyLinkDocumentShares([]);
+        }
+      } else {
+        setLegalStudyLinkDocumentShares([]);
+      }
 
       // Legal Member rows — Reference Manager/Member role source of truth,
       // consumed by entityPermissionContext below.
@@ -4483,7 +4950,8 @@ const InternalTemplates = () => {
             recordId,
             action,
             fieldName:
-              options.fieldName || (isFolder ? "permissions" : "fileAttachment"),
+              options.fieldName ||
+              (isFolder ? "permissions" : "fileAttachment"),
             oldValue: toNullableString(options.oldValue),
             newValue: toNullableString(
               options.newValue !== undefined ? options.newValue : title,
@@ -5377,7 +5845,9 @@ const InternalTemplates = () => {
           const payload = {
             isDeleted: true,
             deletedAt:
-              ancestor.deletedAt || ancestor.updatedAt || new Date().toISOString(),
+              ancestor.deletedAt ||
+              ancestor.updatedAt ||
+              new Date().toISOString(),
             ...(extractId(ancestor.updatedById)
               ? { updatedById: extractId(ancestor.updatedById) }
               : {}),
@@ -5530,6 +6000,258 @@ const InternalTemplates = () => {
     [quickScopeFolders, quickScopeDocs],
   );
 
+  // ── Cross-case Legal Study folder links ──────────────────────────────
+  // Each caseLegalStudyLinks row points at ONE folder (`.folders`, the
+  // linked target) inside a DIFFERENT case's own tree — not a separate
+  // entity with its own storageType tag, so it can't be flat-matched like
+  // legalStudy/legalReference above. Browsing must walk the real physical
+  // parentId chain, scoped to the target case (matchesCaseFolder), then
+  // restricted display-side to the target folder's own subtree. Declared
+  // before visibleDocs/visibleFolders/currentFolderPerms below since they
+  // all reference these.
+  const activeLegalStudyLink = useMemo(() => {
+    if (!activeLegalStudyLinkId) return null;
+    return (
+      caseLegalStudyLinks.find(
+        (l) => String(extractId(l)) === String(activeLegalStudyLinkId),
+      ) || null
+    );
+  }, [caseLegalStudyLinks, activeLegalStudyLinkId]);
+
+  const activeLegalStudyLinkFolderId = useMemo(
+    () =>
+      extractId(activeLegalStudyLink?.folders) ||
+      extractId(activeLegalStudyLink?.targetFolderId) ||
+      null,
+    [activeLegalStudyLink],
+  );
+
+  const activeLegalStudyLinkCaseId = useMemo(
+    () => extractId(activeLegalStudyLink?.folders?.projectId) || null,
+    [activeLegalStudyLink],
+  );
+
+  // Full target case tree — NOT subtree-limited. resolveFolderTreeRoot
+  // (permission resolution) walks parentId up to the case root; handing it
+  // a subtree-only list would make that walk stop at the Legal Study
+  // folder itself instead of reaching the case root's folderMembers grant.
+  const legalStudyLinkCaseFolders = useMemo(() => {
+    if (!activeLegalStudyLinkCaseId) return [];
+    return folders.filter((f) =>
+      matchesCaseFolder(f, activeLegalStudyLinkCaseId),
+    );
+  }, [folders, activeLegalStudyLinkCaseId]);
+
+  // Level-2 folders of whichever Case is picked as the link target in the
+  // "Folder" tab — client-side filter over the already-loaded `folders`
+  // state (company-wide), no extra fetch needed. A folder is level-2 if
+  // its own parent is that target Case's root (isFolderTreeRoot's own
+  // definition of "root": no parentId, or the folder is that Case's
+  // resolved absolute root via resolveFolderTreeRoot).
+  const linkCaseTargetCaseFolders = useMemo(() => {
+    if (!linkCaseTargetCaseId) return [];
+    return folders.filter(
+      (f) => !f.isDeleted && matchesCaseFolder(f, linkCaseTargetCaseId),
+    );
+  }, [folders, linkCaseTargetCaseId]);
+
+  const linkCaseTargetCaseRootFolder = useMemo(() => {
+    if (!linkCaseTargetCaseFolders.length) return null;
+    return (
+      linkCaseTargetCaseFolders.find((f) =>
+        isFolderTreeRoot(f, linkCaseTargetCaseFolders),
+      ) || null
+    );
+  }, [linkCaseTargetCaseFolders]);
+
+  const linkCaseTargetCaseLevel2Folders = useMemo(() => {
+    if (!linkCaseTargetCaseRootFolder) return [];
+    const rootId = String(extractId(linkCaseTargetCaseRootFolder));
+    return linkCaseTargetCaseFolders.filter(
+      (f) => String(getFolderParentId(f) || "") === rootId,
+    );
+  }, [linkCaseTargetCaseFolders, linkCaseTargetCaseRootFolder]);
+
+  // Documents sitting directly in the target Case's root folder (not
+  // inside any of its level-2 subfolders) — the other half of "all
+  // folder/file of that Case's root folder" the Case tab's picker offers
+  // alongside linkCaseTargetCaseLevel2Folders.
+  const linkCaseTargetCaseRootDocuments = useMemo(() => {
+    if (!linkCaseTargetCaseRootFolder) return [];
+    const rootId = String(extractId(linkCaseTargetCaseRootFolder));
+    return documents.filter(
+      (d) => !d.isDeleted && String(extractId(d.folderId) || "") === rootId,
+    );
+  }, [documents, linkCaseTargetCaseRootFolder]);
+
+  // The current Case's own team (Manager + Members already granted on its
+  // root folder) — the picker for "who gets to see the linked item(s)" is
+  // deliberately restricted to this list, not the full company lawyer
+  // directory, so a link can't grant access to someone unrelated to
+  // either Case. Carries each lawyer's own linked Nocobase `userId` too
+  // (not just their lawyerId) — a document-target grant is written to
+  // documentShares, which is keyed by Nocobase user id, unlike a
+  // folder-target grant (folderMembers, keyed by lawyerId).
+  const linkCaseGrantableTeam = useMemo(() => {
+    if (!activeCaseRootFolder) return [];
+    const rows = [
+      ...getFolderManagerRows(activeCaseRootFolder),
+      ...getFolderMemberRows(activeCaseRootFolder),
+    ];
+    const seen = new Map();
+    rows.forEach((row) => {
+      const lawyerId = String(getPermissionLawyerId(row) || "");
+      if (!lawyerId || seen.has(lawyerId)) return;
+      const lawyerRecord = getRelationLawyerRecord(row);
+      seen.set(lawyerId, {
+        id: lawyerId,
+        userId:
+          extractId(lawyerRecord?.userId) ||
+          extractId(lawyerRecord?.user) ||
+          null,
+        name: getLawyerDisplayName(row),
+      });
+    });
+    return Array.from(seen.values());
+  }, [activeCaseRootFolder]);
+
+  // Every folder/document id already recorded as a caseLegalStudyLinks
+  // target for the current case — used to disable the corresponding row in
+  // both the "Case" tab's and the "Reference" tab's item picker so the same
+  // item can't be linked twice. A folder/document id is globally unique
+  // (belongs to exactly one tree), so no need to further scope this by
+  // target case/reference.
+  const linkTargetLinkedFolderIds = useMemo(() => {
+    const ids = new Set();
+    caseLegalStudyLinks.forEach((l) => {
+      const id = extractId(l.folders) || extractId(l.targetFolderId);
+      if (id) ids.add(String(id));
+    });
+    return ids;
+  }, [caseLegalStudyLinks]);
+
+  const linkTargetLinkedDocumentIds = useMemo(() => {
+    const ids = new Set();
+    caseLegalStudyLinks.forEach((l) => {
+      const id = extractId(l.documents) || extractId(l.targetDocumentId);
+      if (id) ids.add(String(id));
+    });
+    return ids;
+  }, [caseLegalStudyLinks]);
+
+  // Cases/References already linked whole (caseReferences / legalStudy
+  // relations) — disables the corresponding option in the "Case"/
+  // "Reference" tab's target Select so the same whole-Case or whole-
+  // Reference link can't be created twice.
+  const linkedCaseIdSet = useMemo(
+    () => new Set(caseReferences.map((r) => String(extractId(r)))),
+    [caseReferences],
+  );
+
+  const linkedReferenceIdSet = useMemo(
+    () => new Set(legalStudies.map((r) => String(extractId(r)))),
+    [legalStudies],
+  );
+
+  // Reference (legalStudy) ids that already have at least one specific
+  // folder shortcut linked via caseLegalStudyLinks (the "Folder" checklist
+  // in the Reference tab — see handleLinkReferenceTabSubmit). The
+  // whole-Reference row in the flat Case's Ref list is hidden for these —
+  // otherwise linking just "Test" from Reference "Legal Study" would show
+  // BOTH the "Test" shortcut AND the whole-Reference row ("Legal Study"'s
+  // root folder), 2 entries pointing into overlapping content for what the
+  // user did as a single link action. The whole-Reference relation itself
+  // is still created (legalStudy:add always runs — Reference folder
+  // permissions can only be resolved via the entity's own Manager/Members,
+  // never scoped per-folder), only its sidebar row is suppressed.
+  const legalStudyIdsWithFolderShortcut = useMemo(() => {
+    const ids = new Set();
+    caseLegalStudyLinks.forEach((l) => {
+      const studyId = extractId(l.folders?.legalStudyId);
+      if (studyId) ids.add(String(studyId));
+    });
+    return ids;
+  }, [caseLegalStudyLinks]);
+
+  // Root-level folders of whichever Reference is picked as the link target
+  // in the "Reference" tab — same shape as linkCaseTargetCaseFolders/
+  // linkCaseTargetCaseLevel2Folders above, but scoped by legalStudyId
+  // instead of by Case, and rooted via isReferenceEntityRootFolder instead
+  // of isFolderTreeRoot (a Reference's own root-detection rule).
+  const linkReferenceTargetFolders = useMemo(() => {
+    if (!linkReferenceTargetId) return [];
+    return folders.filter(
+      (f) =>
+        !f.isDeleted &&
+        f.storageType === "legal_study" &&
+        String(f.legalStudyId) === String(linkReferenceTargetId),
+    );
+  }, [folders, linkReferenceTargetId]);
+
+  const linkReferenceTargetRootFolder = useMemo(() => {
+    if (!linkReferenceTargetFolders.length) return null;
+    return (
+      linkReferenceTargetFolders.find((f) => isReferenceEntityRootFolder(f)) ||
+      linkReferenceTargetFolders.find((f) => !getFolderParentId(f)) ||
+      null
+    );
+  }, [linkReferenceTargetFolders]);
+
+  const linkReferenceTargetLevel2Folders = useMemo(() => {
+    if (!linkReferenceTargetFolders.length) return [];
+    if (!linkReferenceTargetRootFolder)
+      return linkReferenceTargetFolders.filter((f) => !getFolderParentId(f));
+    const rootId = String(extractId(linkReferenceTargetRootFolder));
+    return linkReferenceTargetFolders.filter(
+      (f) => String(getFolderParentId(f) || "") === rootId,
+    );
+  }, [linkReferenceTargetFolders, linkReferenceTargetRootFolder]);
+
+  // Display-side: only the linked folder's own subtree (never the rest of
+  // the target case) — root folder itself excluded, same "hide root row"
+  // convention as caseReferenceVisibleFolders/legal_study above.
+  const legalStudyLinkVisibleFolders = useMemo(() => {
+    if (!activeLegalStudyLinkFolderId) return [];
+    const rootId = String(activeLegalStudyLinkFolderId);
+    const byId = new Map(
+      legalStudyLinkCaseFolders.map((f) => [String(extractId(f)), f]),
+    );
+    const isInSubtree = (folder) => {
+      let current = folder;
+      let depth = 0;
+      while (current && depth < 50) {
+        const fid = String(extractId(current));
+        if (fid === rootId) return true;
+        const parentId = normalizeParentId(current.parentId);
+        if (!parentId) return false;
+        current = byId.get(String(parentId));
+        depth++;
+      }
+      return false;
+    };
+    return legalStudyLinkCaseFolders.filter(
+      (f) => !f.isDeleted && String(extractId(f)) !== rootId && isInSubtree(f),
+    );
+  }, [legalStudyLinkCaseFolders, activeLegalStudyLinkFolderId]);
+
+  const legalStudyLinkVisibleFolderIdSet = useMemo(
+    () =>
+      new Set(legalStudyLinkVisibleFolders.map((f) => String(extractId(f)))),
+    [legalStudyLinkVisibleFolders],
+  );
+
+  const legalStudyLinkDocs = useMemo(() => {
+    if (!activeLegalStudyLinkFolderId) return [];
+    const rootId = String(activeLegalStudyLinkFolderId);
+    return documents.filter((doc) => {
+      if (doc.isDeleted) return false;
+      const folderId = String(extractId(doc.folderId) || "");
+      return (
+        folderId === rootId || legalStudyLinkVisibleFolderIdSet.has(folderId)
+      );
+    });
+  }, [documents, activeLegalStudyLinkFolderId, legalStudyLinkVisibleFolderIdSet]);
+
   const visibleDocs = useMemo(() => {
     if (activeSpace === "trash") {
       return quickScopeDocs.filter((doc) => doc.isDeleted === true);
@@ -5560,6 +6282,9 @@ const InternalTemplates = () => {
           String(doc.legalStudyId) === String(activeLegalStudyId)
         );
       });
+    }
+    if (activeSpace === "legal_study_folder_link") {
+      return legalStudyLinkDocs;
     }
 
     const activeDocs = companyDocs.filter((doc) => !doc.isDeleted);
@@ -5597,6 +6322,7 @@ const InternalTemplates = () => {
     activeCaseReferenceId,
     caseReferenceDocs,
     activeLegalStudyId,
+    legalStudyLinkDocs,
   ]);
 
   const visibleFolders = useMemo(() => {
@@ -5633,6 +6359,9 @@ const InternalTemplates = () => {
         );
       });
     }
+    if (activeSpace === "legal_study_folder_link") {
+      return legalStudyLinkVisibleFolders;
+    }
 
     const activeFolders = companyFolders.filter((f) => !f.isDeleted);
 
@@ -5663,6 +6392,7 @@ const InternalTemplates = () => {
     activeCaseReferenceId,
     caseReferenceVisibleFolders,
     activeLegalStudyId,
+    legalStudyLinkVisibleFolders,
   ]);
 
   // Same branches as visibleFolders, but using the root-INCLUSIVE folder
@@ -5702,6 +6432,13 @@ const InternalTemplates = () => {
         );
       });
     }
+    if (activeSpace === "legal_study_folder_link") {
+      // Full target-case tree (root-inclusive), NOT the subtree-limited
+      // legalStudyLinkVisibleFolders — the root-only permission walk needs
+      // every ancestor up to the target case's root folder to reach its
+      // folderMembers grant. See legalStudyLinkCaseFolders above.
+      return legalStudyLinkCaseFolders.filter((f) => !f.isDeleted);
+    }
 
     const activeFolders = companyFolders.filter((f) => !f.isDeleted);
 
@@ -5732,6 +6469,7 @@ const InternalTemplates = () => {
     activeCaseReferenceId,
     caseReferenceFolders,
     activeLegalStudyId,
+    legalStudyLinkCaseFolders,
   ]);
 
   // Permission-filtered: hide folders the current user has no access to
@@ -5746,7 +6484,13 @@ const InternalTemplates = () => {
       entityPermissionContext,
     );
     return visibleFolders.filter((f) => accessible.has(extractId(f.id)));
-  }, [visibleFolders, permissionAllFolders, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    visibleFolders,
+    permissionAllFolders,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   // Permission-filtered docs: only show docs whose folder is accessible (or root-level docs)
   const permissionFilteredDocs = useMemo(() => {
@@ -5799,12 +6543,42 @@ const InternalTemplates = () => {
           ) || roleToPerms(null)
         );
       }
-      return isAdminUser(currentUser) ? roleToPerms("admin") : roleToPerms("viewer");
+      // Legal Study folder link: a real physical folder inside ANOTHER
+      // case's tree, gated by folderMembers on THAT case's root — resolve
+      // straight from legalStudyLinkCaseFolders (root-inclusive) instead of
+      // visibleFolders (root-excluded, so a lookup there would miss the
+      // folder and silently fall through to the hardcoded viewer default
+      // below, hiding a granted Manager's own upload/new-folder buttons).
+      if (
+        activeSpace === "legal_study_folder_link" &&
+        activeLegalStudyLinkFolderId
+      ) {
+        const targetFolder = legalStudyLinkCaseFolders.find(
+          (f) =>
+            String(extractId(f)) === String(activeLegalStudyLinkFolderId),
+        );
+        return getFolderPermissions(
+          targetFolder || null,
+          currentUser,
+          legalStudyLinkCaseFolders,
+          currentLawyerId,
+          entityPermissionContext,
+        );
+      }
+      return isAdminUser(currentUser)
+        ? roleToPerms("admin")
+        : roleToPerms("viewer");
     }
     const folder = visibleFolders.find(
       (f) => String(extractId(f.id)) === String(selectedFolderId),
     );
-    return getFolderPermissions(folder || null, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext);
+    return getFolderPermissions(
+      folder || null,
+      currentUser,
+      permissionAllFolders,
+      currentLawyerId,
+      entityPermissionContext,
+    );
   }, [
     selectedFolderId,
     visibleFolders,
@@ -5814,9 +6588,10 @@ const InternalTemplates = () => {
     activeSpace,
     activeCaseIdValue,
     activeLegalStudyId,
+    activeLegalStudyLinkFolderId,
+    legalStudyLinkCaseFolders,
     entityPermissionContext,
   ]);
-
   // "Manager: ... / Member: ..." summary shown below the breadcrumb,
   // matching Library.js's currentRootFolderPermissionSummary — always
   // resolved from the TREE ROOT's own data (never the currently-browsed
@@ -5864,7 +6639,9 @@ const InternalTemplates = () => {
       if (!study) return null;
       const managerId = getLegalEntityManagerId(study);
       const managerNames = managerId
-        ? [getLawyerDisplayName(getRelationLawyerRecord(study.manager))].filter(Boolean)
+        ? [getLawyerDisplayName(getRelationLawyerRecord(study.manager))].filter(
+            Boolean,
+          )
         : [];
       // The Legal Member table backs BOTH the Manager row and every
       // regular Member row, so the manager's own row resurfaces inside
@@ -5876,12 +6653,44 @@ const InternalTemplates = () => {
       return { managerNames, memberNames };
     }
 
+    // Legal Study folder link: resolve the same way as Linked Cases above,
+    // but the tree root here is the TARGET case's root folder (not this
+    // case's) — found by walking up from the linked folder itself within
+    // legalStudyLinkCaseFolders (root-inclusive, unlike visibleFolders).
+    // Uses resolvePermissionFolder (not the plain absolute-root walk) so
+    // this summary reflects a level-2 grant set directly on the linked
+    // folder itself, if one exists, instead of always jumping to the
+    // target case's root.
+    if (
+      activeSpace === "legal_study_folder_link" &&
+      activeLegalStudyLinkFolderId
+    ) {
+      const targetFolder = legalStudyLinkCaseFolders.find(
+        (f) => String(extractId(f)) === String(activeLegalStudyLinkFolderId),
+      );
+      if (!targetFolder) return null;
+      const root =
+        resolvePermissionFolder(targetFolder, legalStudyLinkCaseFolders) ||
+        targetFolder;
+      const managerNames = getFolderManagerRows(root)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      const memberNames = getFolderMemberRows(root)
+        .map((row) => getLawyerDisplayName(row))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }
+
     if (selectedFolderId === "root") return null;
     const folder =
-      visibleFolders.find((f) => String(extractId(f)) === String(selectedFolderId)) ||
-      permissionAllFolders.find((f) => String(extractId(f)) === String(selectedFolderId));
+      visibleFolders.find(
+        (f) => String(extractId(f)) === String(selectedFolderId),
+      ) ||
+      permissionAllFolders.find(
+        (f) => String(extractId(f)) === String(selectedFolderId),
+      );
     if (!folder) return null;
-    const root = resolveFolderTreeRoot(folder, permissionAllFolders) || folder;
+    const root = resolvePermissionFolder(folder, permissionAllFolders) || folder;
 
     const managerNames = getFolderManagerRows(root)
       .map((row) => getLawyerDisplayName(row))
@@ -5896,6 +6705,8 @@ const InternalTemplates = () => {
     activeCaseReferenceRootFolder,
     activeLegalStudyId,
     legalStudyById,
+    activeLegalStudyLinkFolderId,
+    legalStudyLinkCaseFolders,
     selectedFolderId,
     visibleFolders,
     permissionAllFolders,
@@ -6071,7 +6882,10 @@ const InternalTemplates = () => {
     const logicalRootFolderId =
       activeSpace === "case_reference" && activeCaseReferenceRootFolderId
         ? String(activeCaseReferenceRootFolderId)
-        : null;
+        : activeSpace === "legal_study_folder_link" &&
+            activeLegalStudyLinkFolderId
+          ? String(activeLegalStudyLinkFolderId)
+          : null;
     const currentFolderKey =
       selectedFolderId === "root" ||
       (logicalRootFolderId && String(selectedFolderId) === logicalRootFolderId)
@@ -6244,6 +7058,7 @@ const InternalTemplates = () => {
     activeCaseReferenceId,
     legalStudies,
     activeLegalStudyId,
+    activeLegalStudyLinkFolderId,
   ]);
 
   const companySharedCounts = useMemo(() => {
@@ -6301,7 +7116,13 @@ const InternalTemplates = () => {
     }).length;
 
     return { folders: fCount, files: dCount };
-  }, [folders, documents, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    folders,
+    documents,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   const personalRootFolders = useMemo(() => {
     return folders.filter((f) => {
@@ -6346,7 +7167,13 @@ const InternalTemplates = () => {
       );
       return accessible.has(extractId(f.id));
     });
-  }, [folders, activeCompanyId, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    folders,
+    activeCompanyId,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   const legalReferenceRootFolders = useMemo(() => {
     return folders.filter((f) => {
@@ -6368,7 +7195,13 @@ const InternalTemplates = () => {
       );
       return accessible.has(extractId(f.id));
     });
-  }, [folders, activeLegalReferenceId, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    folders,
+    activeLegalReferenceId,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   // Sidebar for Linked Cases / Reference no longer drills into subfolders —
   // each entry shows its own root folder directly instead of the entity's
@@ -6380,7 +7213,12 @@ const InternalTemplates = () => {
     const isAdmin = isAdminUser(currentUser);
     const accessible =
       currentUser && !isAdmin
-        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
+        ? getVisibleFolderIds(
+            folders,
+            currentUser,
+            currentLawyerId,
+            entityPermissionContext,
+          ).accessible
         : null;
     caseReferences.forEach((ref) => {
       const refId = String(extractId(ref));
@@ -6399,7 +7237,13 @@ const InternalTemplates = () => {
       map.set(refId, root);
     });
     return map;
-  }, [folders, caseReferences, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    folders,
+    caseReferences,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   const legalStudyRootFolderById = useMemo(() => {
     const map = new Map();
@@ -6407,7 +7251,12 @@ const InternalTemplates = () => {
     const isAdmin = isAdminUser(currentUser);
     const accessible =
       currentUser && !isAdmin
-        ? getVisibleFolderIds(folders, currentUser, currentLawyerId, entityPermissionContext).accessible
+        ? getVisibleFolderIds(
+            folders,
+            currentUser,
+            currentLawyerId,
+            entityPermissionContext,
+          ).accessible
         : null;
     legalStudies.forEach((ref) => {
       const refId = String(extractId(ref));
@@ -6429,7 +7278,13 @@ const InternalTemplates = () => {
       map.set(refId, root);
     });
     return map;
-  }, [folders, legalStudies, currentUserState, currentLawyerId, entityPermissionContext]);
+  }, [
+    folders,
+    legalStudies,
+    currentUserState,
+    currentLawyerId,
+    entityPermissionContext,
+  ]);
 
   const treeData = useMemo(() => {
     const build = (parentId) =>
@@ -6515,7 +7370,16 @@ const InternalTemplates = () => {
   const applyCaseFolderPayload = useCallback(
     (payload) => {
       const caseId = extractId(activeCaseIdValue);
-      if (!caseId) return payload;
+      // Was a silent no-op (return payload as-is) when activeCaseIdValue
+      // hadn't resolved yet — that let folders get created with no
+      // moduleScope/projectId at all, which fetchFoldersForInternalTemplates'
+      // filter then silently excluded from every future load ("Test A"/
+      // "Test B" ghost-folder bug). Fail loudly instead so the caller's
+      // existing try/catch surfaces it and the user can retry.
+      if (!caseId)
+        throw new Error(
+          "Case context not ready yet — please try again in a moment",
+        );
       payload.type = "cases";
       payload.storageType = "cases";
       payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
@@ -6531,7 +7395,11 @@ const InternalTemplates = () => {
   const applyCaseDocumentPayload = useCallback(
     (payload) => {
       const caseId = extractId(activeCaseIdValue);
-      if (!caseId) return payload;
+      // Same fail-loud fix as applyCaseFolderPayload — see comment there.
+      if (!caseId)
+        throw new Error(
+          "Case context not ready yet — please try again in a moment",
+        );
       payload.storageType = "cases";
       payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
       payload.caseId = caseId;
@@ -6895,6 +7763,389 @@ const InternalTemplates = () => {
     [linkCaseForm],
   );
 
+  const openLinkModal = useCallback(() => {
+    setLinkTabMode("case");
+    setLinkCaseTargetCaseId(null);
+    setLinkCaseSelectedFolderIds([]);
+    setLinkCaseSelectedDocumentIds([]);
+    setLinkCaseGrantMemberIds([]);
+    setLinkReferenceTargetId(null);
+    setLinkReferenceSelectedFolderIds([]);
+    setIsLinkOpen(true);
+  }, []);
+
+  const closeLinkModal = useCallback(() => {
+    setIsLinkOpen(false);
+  }, []);
+
+  // Lazy-load the full system-wide Reference (legalStudy) list only when
+  // the "Reference" tab is actually opened — this list is unrelated to the
+  // rest of loadData()'s per-Case fetches and would otherwise be dead
+  // weight on every page load.
+  useEffect(() => {
+    if (!isLinkOpen || linkTabMode !== "reference") return;
+    if (allLegalStudyRecords.length > 0 || allLegalStudyRecordsLoading) return;
+    setAllLegalStudyRecordsLoading(true);
+    fetchAllLegalStudyRecords()
+      .then(setAllLegalStudyRecords)
+      .finally(() => setAllLegalStudyRecordsLoading(false));
+  }, [
+    isLinkOpen,
+    linkTabMode,
+    allLegalStudyRecords.length,
+    allLegalStudyRecordsLoading,
+  ]);
+
+  // caseReferences is a symmetric belongsToMany — linking A to B also
+  // shows up when browsing from B, matching how LegalReferenceWorkspace.js's
+  // "Case" tab behaves (addRelationLink pattern).
+  // Grants access to a specific level-2 folder of another Case, scoped to
+  // exactly that folder — see resolvePermissionFolder above. This cross-case
+  // write is authorized simply by the current user managing THIS Case (the
+  // same authorization boundary LegalReferenceWorkspace.js's
+  // handleLinkSubmit already uses for its own cross-case grants) — no
+  // target-Case Manager role is required.
+  const grantFolderAccessForLink = (folder, lawyerIds) => {
+    if (!lawyerIds.length) return Promise.resolve();
+    return Promise.all(
+      lawyerIds.map((lawyerId) =>
+        ctx.api.request({
+          url: "folderMembers:create",
+          method: "POST",
+          data: {
+            folderId: extractId(folder),
+            lawyerId: Number(lawyerId),
+            role: "viewer",
+          },
+        }),
+      ),
+    );
+  };
+
+  // Grants access to a single document via documentShares (per Nocobase
+  // user, not per lawyer — see linkCaseGrantableTeam's userId field). Skips
+  // any grantee whose lawyer record has no linked Nocobase user, warning
+  // once rather than failing the whole submit.
+  const grantDocumentAccessForLink = async (document, grantees) => {
+    const usable = grantees.filter((g) => g.userId);
+    const skipped = grantees.length - usable.length;
+    if (skipped > 0) {
+      message.warning(
+        `${skipped} selected member(s) have no linked user account and were not granted access to "${document.name || document.title || "document"}".`,
+      );
+    }
+    if (!usable.length) return;
+    await Promise.all(
+      usable.map((g) =>
+        ctx.api.request({
+          url: "documentShares:create",
+          method: "POST",
+          data: {
+            documentId: extractId(document),
+            userId: g.userId,
+          },
+        }),
+      ),
+    );
+  };
+
+  // "Case" tab submit — covers both modes:
+  //  - No folder/document selected: link the WHOLE target Case
+  //    (caseReferences relation) and grant the picked members on the
+  //    target Case's own root folder — this is the correct, intentional
+  //    root-level grant for "share everything", not the anti-pattern this
+  //    feature set otherwise avoids.
+  //  - One or more folders/documents selected: create one
+  //    caseLegalStudyLinks row per selected item (targetFolderId for a
+  //    folder, targetDocumentId for a document) and grant the picked
+  //    members scoped to exactly that item — folderMembers for a folder,
+  //    documentShares for a document.
+  const handleLinkCaseTabSubmit = async () => {
+    if (!linkCaseTargetCaseId) {
+      message.warning("Please select a target Case.");
+      return;
+    }
+    const grantees = linkCaseGrantableTeam.filter((m) =>
+      linkCaseGrantMemberIds.includes(m.id),
+    );
+    const hasSpecificSelection =
+      linkCaseSelectedFolderIds.length > 0 ||
+      linkCaseSelectedDocumentIds.length > 0;
+
+    setLinkSubmitting(true);
+    try {
+      if (!hasSpecificSelection) {
+        await ctx.api.request({
+          url: `projects/${encodeURIComponent(activeCaseId)}/caseReferences:add`,
+          method: "POST",
+          data: { tk: linkCaseTargetCaseId },
+        });
+        if (linkCaseTargetCaseRootFolder && grantees.length) {
+          await grantFolderAccessForLink(
+            linkCaseTargetCaseRootFolder,
+            grantees.map((g) => g.id),
+          );
+        }
+        message.success("Linked Case successfully.");
+        closeLinkModal();
+        loadData();
+        return;
+      }
+
+      const targetCase = projects.find(
+        (p) => String(extractId(p)) === String(linkCaseTargetCaseId),
+      );
+      const targetCaseLabel = targetCase
+        ? [targetCase.caseCode, targetCase.projectName]
+            .filter(Boolean)
+            .join(" - ")
+        : "";
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const folderId of linkCaseSelectedFolderIds) {
+        const targetFolder = linkCaseTargetCaseLevel2Folders.find(
+          (f) => String(extractId(f)) === String(folderId),
+        );
+        if (!targetFolder) {
+          failedCount += 1;
+          continue;
+        }
+        try {
+          await ctx.api.request({
+            url: "caseLegalStudyLinks:create",
+            method: "POST",
+            data: {
+              caseId: activeCaseId,
+              targetFolderId: extractId(targetFolder),
+              folderName: targetFolder.name || "Folder",
+              caseName: targetCaseLabel,
+            },
+          });
+          await grantFolderAccessForLink(
+            targetFolder,
+            grantees.map((g) => g.id),
+          );
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error("[CaseDocument] link folder failed", folderId, error);
+        }
+      }
+
+      for (const documentId of linkCaseSelectedDocumentIds) {
+        const targetDocument = linkCaseTargetCaseRootDocuments.find(
+          (d) => String(extractId(d)) === String(documentId),
+        );
+        if (!targetDocument) {
+          failedCount += 1;
+          continue;
+        }
+        try {
+          await ctx.api.request({
+            url: "caseLegalStudyLinks:create",
+            method: "POST",
+            data: {
+              caseId: activeCaseId,
+              targetDocumentId: extractId(targetDocument),
+              folderName:
+                targetDocument.name || targetDocument.title || "Document",
+              caseName: targetCaseLabel,
+            },
+          });
+          await grantDocumentAccessForLink(targetDocument, grantees);
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error(
+            "[CaseDocument] link document failed",
+            documentId,
+            error,
+          );
+        }
+      }
+
+      if (successCount > 0 && failedCount === 0) {
+        message.success(
+          successCount === 1
+            ? "Linked successfully."
+            : `Linked ${successCount} item(s) successfully.`,
+        );
+      } else if (successCount > 0) {
+        message.warning(`Linked ${successCount} item(s), ${failedCount} failed.`);
+      } else {
+        message.error("Failed to link.");
+        return;
+      }
+      closeLinkModal();
+      loadData();
+    } catch (error) {
+      console.error("[CaseDocument] link case failed", error);
+      message.error("Failed to link Case.");
+    } finally {
+      setLinkSubmitting(false);
+    }
+  };
+
+  // "Reference" tab submit — always links the whole target Reference
+  // (legalStudy:add), since that entity's own Manager/Members are the only
+  // working access boundary for its folders (getFolderPermissions routes
+  // any folder with legalStudyId set straight through
+  // resolveLegalEntityFolderPerms, bypassing folderMembers entirely — see
+  // that function's comments). Any selected root folder(s) additionally get
+  // a caseLegalStudyLinks row (targetFolderId) purely as a sidebar
+  // navigation shortcut into that specific folder — it does NOT narrow who
+  // can see it beyond what the whole-Reference link already grants.
+  const handleLinkReferenceTabSubmit = async () => {
+    if (!linkReferenceTargetId) {
+      message.warning("Please select a target Reference.");
+      return;
+    }
+    setLinkSubmitting(true);
+    try {
+      await ctx.api.request({
+        url: `projects/${encodeURIComponent(activeCaseId)}/legalStudy:add`,
+        method: "POST",
+        data: { tk: linkReferenceTargetId },
+      });
+
+      let successCount = 0;
+      let failedCount = 0;
+      if (linkReferenceSelectedFolderIds.length > 0) {
+        const targetReference = allLegalStudyRecords.find(
+          (s) => String(extractId(s)) === String(linkReferenceTargetId),
+        );
+        const targetLabel =
+          targetReference?.title || targetReference?.name || "";
+        for (const folderId of linkReferenceSelectedFolderIds) {
+          const targetFolder = linkReferenceTargetLevel2Folders.find(
+            (f) => String(extractId(f)) === String(folderId),
+          );
+          if (!targetFolder) {
+            failedCount += 1;
+            continue;
+          }
+          try {
+            await ctx.api.request({
+              url: "caseLegalStudyLinks:create",
+              method: "POST",
+              data: {
+                caseId: activeCaseId,
+                targetFolderId: extractId(targetFolder),
+                folderName: targetFolder.name || "Folder",
+                caseName: targetLabel,
+              },
+            });
+            successCount += 1;
+          } catch (error) {
+            failedCount += 1;
+            console.error(
+              "[CaseDocument] link reference folder failed",
+              folderId,
+              error,
+            );
+          }
+        }
+      }
+
+      if (failedCount > 0) {
+        message.warning(
+          `Linked Reference. ${successCount} folder shortcut(s) added, ${failedCount} failed.`,
+        );
+      } else {
+        message.success("Linked Reference successfully.");
+      }
+      closeLinkModal();
+      loadData();
+    } catch (error) {
+      console.error("[CaseDocument] link reference failed", error);
+      message.error("Failed to link Reference.");
+    } finally {
+      setLinkSubmitting(false);
+    }
+  };
+
+  // Removes a whole-case link (the caseReferences relation) — right-click
+  // "Remove Link" on a "Cases" sub-group entry in the sidebar's Case's Ref
+  // section. Symmetric relation, so this also removes it from the other
+  // Case's own "Cases" sub-group.
+  const handleRemoveCaseReferenceLink = async (targetCaseId) => {
+    try {
+      await ctx.api.request({
+        url: `projects/${encodeURIComponent(activeCaseId)}/caseReferences:remove`,
+        method: "POST",
+        data: { tk: targetCaseId },
+      });
+      message.success("Case link removed.");
+      if (
+        activeSpace === "case_reference" &&
+        activeCaseReferenceId === String(targetCaseId)
+      ) {
+        setActiveSpace("cases");
+        setSelectedFolderId("root");
+      }
+      loadData();
+    } catch (error) {
+      console.error("[CaseDocument] remove case reference link failed", error);
+      message.error("Failed to remove the link.");
+    }
+  };
+
+  // Removes a single specific folder/document shortcut link (one
+  // caseLegalStudyLinks row) — right-click "Remove Link" on a "Folders &
+  // Documents" sub-group entry. Does NOT revoke the folderMembers/
+  // documentShares grant created alongside it at link time (see
+  // grantFolderAccessForLink/grantDocumentAccessForLink) — only the link
+  // record itself, matching the literal ask ("remove link").
+  const handleRemoveLegalStudyLink = async (linkId) => {
+    try {
+      await ctx.api.request({
+        url: `caseLegalStudyLinks:destroy?filterByTk=${linkId}`,
+        method: "POST",
+      });
+      message.success("Link removed.");
+      if (
+        activeSpace === "legal_study_folder_link" &&
+        activeLegalStudyLinkId === String(linkId)
+      ) {
+        setActiveSpace("cases");
+        setSelectedFolderId("root");
+      }
+      loadData();
+    } catch (error) {
+      console.error("[CaseDocument] remove legal study link failed", error);
+      message.error("Failed to remove the link.");
+    }
+  };
+
+  // Removes a whole-Reference link (the legalStudy relation) — right-click
+  // "Remove Link" on a "Reference" sub-group entry.
+  const handleRemoveReferenceEntityLink = async (targetLegalStudyId) => {
+    try {
+      await ctx.api.request({
+        url: `projects/${encodeURIComponent(activeCaseId)}/legalStudy:remove`,
+        method: "POST",
+        data: { tk: targetLegalStudyId },
+      });
+      message.success("Reference link removed.");
+      if (
+        activeSpace === "legal_study" &&
+        activeLegalStudyId === String(targetLegalStudyId)
+      ) {
+        setActiveSpace("cases");
+        setSelectedFolderId("root");
+      }
+      loadData();
+    } catch (error) {
+      console.error(
+        "[CaseDocument] remove reference entity link failed",
+        error,
+      );
+      message.error("Failed to remove the link.");
+    }
+  };
+
   const handleLinkCaseSubmit = async (values) => {
     setLinkCaseLoading(true);
     try {
@@ -6946,7 +8197,9 @@ const InternalTemplates = () => {
 
   const handleCreateFolder = async (values) => {
     if (!currentFolderPerms.canCreate) {
-      message.warning("You do not have permission to create a folder at this location");
+      message.warning(
+        "You do not have permission to create a folder at this location",
+      );
       return;
     }
     if (activeSpace !== "personal" && !requireCompany()) return;
@@ -6991,13 +8244,18 @@ const InternalTemplates = () => {
   // canCreate on the real target folder before this runs; re-checking
   // after a "grouped" folder was just created would false-block since
   // that folder isn't in `folders` state yet (loadData() hasn't run).
-  const uploadFilesToTarget = async (selectedFiles, targetFolderId, metadata) => {
+  const uploadFilesToTarget = async (
+    selectedFiles,
+    targetFolderId,
+    metadata,
+  ) => {
     const filesToUpload = Array.from(selectedFiles || []).filter(Boolean);
     if (!filesToUpload.length) return true;
     try {
       const userId = getCurrentUserId();
       let nextIndex = await getNextFileIndex(targetFolderId);
-      const applyTitleOverride = !!metadata?.title && filesToUpload.length === 1;
+      const applyTitleOverride =
+        !!metadata?.title && filesToUpload.length === 1;
       const sharedFields = {
         documentType: metadata?.documentType || "",
         documentCode: metadata?.documentCode || "",
@@ -7053,17 +8311,23 @@ const InternalTemplates = () => {
     event.target.value = null;
     if (!files.length) return;
     const targetSelector =
-      directFileTargetRef.current === undefined || directFileTargetRef.current === null
+      directFileTargetRef.current === undefined ||
+      directFileTargetRef.current === null
         ? selectedFolderId
         : directFileTargetRef.current;
     directFileTargetRef.current = null;
     if (activeSpace !== "personal" && !requireCompany()) return;
     if (!requireCaseRootFolderForUpload(targetSelector)) return;
     if (!currentFolderPerms.canCreate) {
-      message.warning("You do not have permission to upload documents to this folder");
+      message.warning(
+        "You do not have permission to upload documents to this folder",
+      );
       return;
     }
-    setUploadFieldsTarget({ files, folderId: getEffectiveFolderId(targetSelector) });
+    setUploadFieldsTarget({
+      files,
+      folderId: getEffectiveFolderId(targetSelector),
+    });
   };
 
   // Submits DocumentUploadFieldsModal — creates the "grouped" folder first
@@ -7076,7 +8340,9 @@ const InternalTemplates = () => {
 
     if (metadata.uploadMode === "grouped") {
       if (!currentFolderPerms.canCreate) {
-        message.warning("You do not have permission to create a folder at this location");
+        message.warning(
+          "You do not have permission to create a folder at this location",
+        );
         return;
       }
       const userId = getCurrentUserId();
@@ -7090,10 +8356,10 @@ const InternalTemplates = () => {
         ...(targetFolderId ? { parentId: targetFolderId } : {}),
         ...(userId ? { createdById: userId, updatedById: userId } : {}),
       };
-      applySpaceFolderPayload(folderPayload);
 
       let folderRes;
       try {
+        applySpaceFolderPayload(folderPayload);
         folderRes = await createFolderRecord(folderPayload);
       } catch (e) {
         message.error("Failed to create folder");
@@ -7106,7 +8372,11 @@ const InternalTemplates = () => {
       }
     }
 
-    const ok = await uploadFilesToTarget(target.files, targetFolderId, metadata);
+    const ok = await uploadFilesToTarget(
+      target.files,
+      targetFolderId,
+      metadata,
+    );
     if (ok) setUploadFieldsTarget(null);
   };
 
@@ -7378,7 +8648,9 @@ const InternalTemplates = () => {
               }),
             ),
           );
-          message.success(`Deleted ${selectedRowKeys.length} item(s) successfully!`);
+          message.success(
+            `Deleted ${selectedRowKeys.length} item(s) successfully!`,
+          );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
@@ -7402,7 +8674,10 @@ const InternalTemplates = () => {
     const deletableKeys = selectedRowKeys.filter((key) => {
       const record = tableData.find((r) => r._key === key);
       if (!record) return false;
-      if (record._type === "folder" && isFolderTreeRoot(record, permissionAllFolders)) {
+      if (
+        record._type === "folder" &&
+        isFolderTreeRoot(record, permissionAllFolders)
+      ) {
         return false;
       }
       return true;
@@ -7452,9 +8727,7 @@ const InternalTemplates = () => {
               createTrashActivityLog(record, "trash_deleted"),
             ),
           );
-          message.success(
-            `Moved ${deletableKeys.length} item(s) to Trash!`,
-          );
+          message.success(`Moved ${deletableKeys.length} item(s) to Trash!`);
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
@@ -7845,7 +9118,10 @@ const InternalTemplates = () => {
       ),
       content: (
         <div style={{ fontFamily: FONT, marginTop: 8 }}>
-          <p>You are about to delete this folder. The following data will also be deleted:</p>
+          <p>
+            You are about to delete this folder. The following data will also be
+            deleted:
+          </p>
           {contentElements.length > 0 ? (
             <div
               style={{
@@ -7988,7 +9264,8 @@ const InternalTemplates = () => {
 
   const handlePermanentDelete = (record) => {
     Modal.confirm({
-      title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
+      title:
+        record._type === "folder" ? "Delete this folder?" : "Delete this file?",
       icon: React.createElement(
         "span",
         { style: { color: "#ff4d4f", marginRight: 16 } },
@@ -8487,17 +9764,36 @@ const InternalTemplates = () => {
       if (!currentUser) return roleToPerms("admin");
       if (isAdminUser(currentUser)) return roleToPerms("admin");
       if (record._type === "folder") {
-        return getFolderPermissions(record, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext);
+        return getFolderPermissions(
+          record,
+          currentUser,
+          permissionAllFolders,
+          currentLawyerId,
+          entityPermissionContext,
+        );
       }
       const parentFolder = visibleFolders.find(
-        (f) => String(extractId(f.id)) === String(extractId(record.folderId) || ""),
+        (f) =>
+          String(extractId(f.id)) === String(extractId(record.folderId) || ""),
       );
       const fp = parentFolder
-        ? getFolderPermissions(parentFolder, currentUser, permissionAllFolders, currentLawyerId, entityPermissionContext)
+        ? getFolderPermissions(
+            parentFolder,
+            currentUser,
+            permissionAllFolders,
+            currentLawyerId,
+            entityPermissionContext,
+          )
         : roleToPerms(null);
       return fp;
     },
-    [currentUserState, currentLawyerId, visibleFolders, permissionAllFolders, entityPermissionContext],
+    [
+      currentUserState,
+      currentLawyerId,
+      visibleFolders,
+      permissionAllFolders,
+      entityPermissionContext,
+    ],
   );
 
   // Routes a "Permissions" click to the right permissionTarget kind — a
@@ -8520,6 +9816,33 @@ const InternalTemplates = () => {
     setPermissionTarget({ kind: "folder", folder: record });
   };
 
+  // Gates the "Preview" click on a document-type Legal Study Link sidebar
+  // entry — the equivalent of resolvePermissionFolder's gate for a
+  // folder-type link, but for a single document shared via documentShares
+  // (see legalStudyLinkDocumentShares, fetched once in loadData). Admin and
+  // the document's own creator/uploader always pass, matching the rest of
+  // this file's permission checks.
+  const isDocumentLinkAccessible = useCallback(
+    (doc) => {
+      if (!doc) return false;
+      if (isAdminUser(currentUserState)) return true;
+      const uid = String(extractId(currentUserState?.id) || "");
+      if (!uid) return false;
+      if (
+        String(extractId(doc.createdById) || "") === uid ||
+        String(extractId(doc.uploadedById) || "") === uid
+      )
+        return true;
+      const docId = String(extractId(doc));
+      return legalStudyLinkDocumentShares.some(
+        (row) =>
+          String(getShareRowDocumentId(row)) === docId &&
+          String(getShareRowUserId(row)) === uid,
+      );
+    },
+    [currentUserState, legalStudyLinkDocumentShares],
+  );
+
   const renderContextMenuItems = useCallback(
     (record) => {
       if (!record) return [];
@@ -8528,6 +9851,27 @@ const InternalTemplates = () => {
       const isTemplate =
         record._type === "template" || record._type === "document_type";
       const isLegalReferenceRecord = record._type === "legal_reference_record";
+
+      // A specific folder/document shortcut link (caseLegalStudyLinks row)
+      // in the "Folders & Documents" sub-group — it isn't a real folder/file
+      // record here (just a link summary), so it only ever offers one
+      // action: unlinking it.
+      if (record._type === "case_legal_study_link") {
+        return [
+          {
+            key: "remove_link",
+            label: renderContextMenuItemLabel(
+              DELETE_ICON,
+              "Remove Link",
+              "#cf1322",
+            ),
+            onClick: () => {
+              closeContextMenu();
+              record._linkRemoveHandler?.();
+            },
+          },
+        ];
+      }
 
       if (isLegalReferenceRecord) {
         items.push({
@@ -8640,11 +9984,11 @@ const InternalTemplates = () => {
       // folds that into rawCanManagePermissions (true only when this user
       // IS that entity's Manager), so no separate legalStudyId exclusion
       // is needed here; openPermissionsForFolder below routes the click to
-      // the right adapter. Permissions is root-folder-only — never offered
-      // on a subfolder.
+      // the right adapter. Permissions is now offered on the Case root OR
+      // any of its direct (level-2) children — see isPermissionBearingFolder.
       const canManagePermissions =
         rawCanManagePermissions &&
-        isFolderTreeRoot(record, permissionAllFolders);
+        isPermissionBearingFolder(record, permissionAllFolders);
 
       if (!isFolder) {
         items.push({
@@ -8710,6 +10054,26 @@ const InternalTemplates = () => {
             closeContextMenu();
             if (isFolder) showDeleteConfirm(record);
             else handleDeleteFile(record);
+          },
+        });
+      }
+
+      // "Cases" / "Reference" sidebar sub-group entries carry this when
+      // right-clicked (see Case's Ref rendering below) — adds an "Remove
+      // Link" action on top of whatever the underlying root folder record
+      // already offers (rename/permissions/etc.), so unlinking doesn't
+      // replace the existing folder-management menu.
+      if (record._linkRemoveHandler) {
+        items.unshift({
+          key: "remove_link",
+          label: renderContextMenuItemLabel(
+            DELETE_ICON,
+            record._linkRemoveLabel || "Remove Link",
+            "#cf1322",
+          ),
+          onClick: () => {
+            closeContextMenu();
+            record._linkRemoveHandler();
           },
         });
       }
@@ -8860,16 +10224,22 @@ const InternalTemplates = () => {
         (activeSpace === "personal" || isAdminUser(currentUser));
       const canManagePermissions =
         rawCanManagePermissions &&
-        isFolderTreeRoot(record, permissionAllFolders);
-      if (!canRename && !canMove && !canDelete && !canManagePermissions) return null;
+        isPermissionBearingFolder(record, permissionAllFolders);
+      if (!canRename && !canMove && !canDelete && !canManagePermissions)
+        return null;
       return (
-        <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
+        <div
+          style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}
+        >
           {canManagePermissions && (
             <Tooltip title="Permissions">
               <Button
                 size="small"
                 icon={LOCK_ICON}
-                onClick={(event) => { event.stopPropagation(); openPermissionsForFolder(record); }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openPermissionsForFolder(record);
+                }}
               />
             </Tooltip>
           )}
@@ -8878,7 +10248,10 @@ const InternalTemplates = () => {
               <Button
                 size="small"
                 icon={EDIT_ICON}
-                onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  startEditTitle(record);
+                }}
               />
             </Tooltip>
           )}
@@ -8887,7 +10260,11 @@ const InternalTemplates = () => {
               <Button
                 size="small"
                 icon={MOVE_ICON}
-                onClick={(event) => { event.stopPropagation(); setMoveRecord(record); setMoveTargetId("root"); }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMoveRecord(record);
+                  setMoveTargetId("root");
+                }}
               />
             </Tooltip>
           )}
@@ -8897,7 +10274,10 @@ const InternalTemplates = () => {
                 size="small"
                 danger
                 icon={DELETE_ICON}
-                onClick={(event) => { event.stopPropagation(); showDeleteConfirm(record); }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  showDeleteConfirm(record);
+                }}
               />
             </Tooltip>
           )}
@@ -9361,8 +10741,7 @@ const InternalTemplates = () => {
         title: "Signed Date",
         key: "signedAt",
         width: 120,
-        sorter: (a, b) =>
-          new Date(a.signedAt || 0) - new Date(b.signedAt || 0),
+        sorter: (a, b) => new Date(a.signedAt || 0) - new Date(b.signedAt || 0),
         render: (_, record) =>
           record._type === "file" ? (
             <InlineEditCell
@@ -9869,7 +11248,10 @@ const InternalTemplates = () => {
         key: "folder",
         label: renderNewMenuLabel(TYPE_ICONS.folder, "New Folder"),
       },
-      { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload File") },
+      {
+        key: "upload",
+        label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload File"),
+      },
       {
         key: "upload_folder",
         label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload Folder"),
@@ -10233,14 +11615,24 @@ const InternalTemplates = () => {
     };
   };
 
-  const saveEntityPermissions = async (record, kind, fkField, managerId, members) => {
+  const saveEntityPermissions = async (
+    record,
+    kind,
+    fkField,
+    managerId,
+    members,
+  ) => {
     const recordId = extractId(record);
     const numericManagerId = managerId ? Number(managerId) : null;
     // Keep the parent record's own single-value "manager" field in sync
     // (still a plain belongsTo column, separate from the role-tracking
     // Legal Member table below).
-    const parentPayload = { manager: numericManagerId, managerId: numericManagerId };
-    const updateCandidates = ENTITY_PERMISSION_UPDATE_CANDIDATES[kind] || (() => []);
+    const parentPayload = {
+      manager: numericManagerId,
+      managerId: numericManagerId,
+    };
+    const updateCandidates =
+      ENTITY_PERMISSION_UPDATE_CANDIDATES[kind] || (() => []);
     for (const url of updateCandidates(recordId)) {
       try {
         await ctx.api.request({ url, method: "POST", data: parentPayload });
@@ -10259,7 +11651,9 @@ const InternalTemplates = () => {
     // manager/managerId field, written above.
     await destroyEntityMemberRows(fkField, recordId);
     await Promise.all(
-      members.map((s) => createEntityMemberRow(fkField, recordId, s.id, s.role)),
+      members.map((s) =>
+        createEntityMemberRow(fkField, recordId, s.id, s.role),
+      ),
     );
   };
 
@@ -10280,7 +11674,13 @@ const InternalTemplates = () => {
       title: `${REFERENCE_LABEL} permissions: ${record?.title || record?.name || ""}`,
       loadPermissions: () => loadEntityPermissions(record, fkField),
       savePermissions: (managerId, members) =>
-        saveEntityPermissions(record, "legal_study", fkField, managerId, members),
+        saveEntityPermissions(
+          record,
+          "legal_study",
+          fkField,
+          managerId,
+          members,
+        ),
     };
   }, [permissionTarget, activeCaseRootFolderId, activeCaseIdValue]);
 
@@ -10461,7 +11861,9 @@ const InternalTemplates = () => {
                         onClick={() => {
                           setActiveSpace("cases");
                           setActiveLegalReferenceId(null);
-                          setSelectedFolderId(String(extractId(activeCaseRootFolder)));
+                          setSelectedFolderId(
+                            String(extractId(activeCaseRootFolder)),
+                          );
                         }}
                         onContextMenu={(e) => {
                           e.preventDefault();
@@ -10475,7 +11877,10 @@ const InternalTemplates = () => {
                               open: true,
                               x: e.clientX,
                               y: e.clientY,
-                              record: { ...activeCaseRootFolder, _type: "folder" },
+                              record: {
+                                ...activeCaseRootFolder,
+                                _type: "folder",
+                              },
                             });
                           }
                         }}
@@ -10499,7 +11904,8 @@ const InternalTemplates = () => {
                               : "2px solid transparent",
                           background:
                             activeSpace === "cases" ? "#E6F1FB" : "transparent",
-                          color: activeSpace === "cases" ? "#185FA5" : "#6B7280",
+                          color:
+                            activeSpace === "cases" ? "#185FA5" : "#6B7280",
                           fontWeight: activeSpace === "cases" ? 600 : 400,
                           fontFamily: FONT,
                           fontSize: 13,
@@ -10577,7 +11983,10 @@ const InternalTemplates = () => {
                 )}
               </div>
 
-              {/* ══ SECTION 3: CASE REFERENCE ══ */}
+              {/* ══ SECTION 3: CASE'S REF (whole-case links + specific ══
+                  folder/document shortcut links + nested Reference group —
+                  consolidated from the former Linked Cases / Case Study /
+                  Legal Study Links sections) ══ */}
               <div
                 style={{
                   borderTop: "0.5px solid #E5E7EB",
@@ -10594,10 +12003,10 @@ const InternalTemplates = () => {
                   }}
                 >
                   <div
-                    // Title click no longer navigates — each linked case's
-                    // own row is the sole entry point into it, so the
-                    // header stays a plain (non-clickable) label plus its
-                    // own expand/collapse chevron.
+                    // Title click no longer navigates — each row below is
+                    // the sole entry point into it, so the header stays a
+                    // plain (non-clickable) label plus its own
+                    // expand/collapse chevron.
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -10606,7 +12015,9 @@ const InternalTemplates = () => {
                     }}
                   >
                     <span
-                      onClick={() => setCaseReferenceExpanded(!caseReferenceExpanded)}
+                      onClick={() =>
+                        setCaseReferenceExpanded(!caseReferenceExpanded)
+                      }
                       style={{
                         color: "#9CA3AF",
                         display: "inline-flex",
@@ -10621,8 +12032,12 @@ const InternalTemplates = () => {
                         fontSize: 10,
                         fontWeight: 600,
                         color:
-                          activeSpace === "case_reference" &&
-                          !activeCaseReferenceId
+                          (activeSpace === "case_reference" &&
+                            !activeCaseReferenceId) ||
+                          (activeSpace === "legal_study_folder_link" &&
+                            !activeLegalStudyLinkId) ||
+                          (activeSpace === "legal_study" &&
+                            !activeLegalStudyId)
                             ? "#185FA5"
                             : "#9CA3AF",
                         textTransform: "uppercase",
@@ -10630,7 +12045,7 @@ const InternalTemplates = () => {
                         fontFamily: FONT,
                       }}
                     >
-                      Linked Cases
+                      Case's Ref
                     </span>
                   </div>
                 </div>
@@ -10638,7 +12053,14 @@ const InternalTemplates = () => {
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 1 }}
                   >
-                    {caseReferences.length === 0 ? (
+                    {/* No sub-labels — a whole-Case link, a specific folder/
+                        document shortcut link, and a whole-Reference link are
+                        all fundamentally "a root folder to jump into" from
+                        this sidebar's point of view, so they render as one
+                        flat list instead of 3 separately-managed groups. */}
+                    {caseReferences.length === 0 &&
+                    caseLegalStudyLinks.length === 0 &&
+                    legalStudies.length === 0 ? (
                       <div style={{ padding: "4px 10px" }}>
                         <span
                           style={{
@@ -10651,292 +12073,216 @@ const InternalTemplates = () => {
                         </span>
                       </div>
                     ) : (
-                      caseReferences.map((ref) => {
-                        const refId = String(extractId(ref));
-                        const isActive =
-                          activeSpace === "case_reference" &&
-                          refId === activeCaseReferenceId;
-                        const rootFolder = linkedCaseRootFolderById.get(refId);
-                        const displayLabel =
-                          rootFolder?.name ||
-                          ref.projectName ||
-                          ref.title ||
-                          getCaseDisplayName(ref);
-                        return (
-                          <button
-                            key={refId}
-                            type="button"
-                            onClick={() => {
-                              setActiveSpace("case_reference");
-                              setActiveCaseReferenceId(refId);
-                              setSelectedFolderId("root");
-                            }}
-                            style={{
-                              width: "100%",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "7px 10px",
-                              border: "0",
-                              borderRadius: 8,
-                              cursor: "pointer",
-                              borderLeft: isActive
-                                ? "2px solid #185FA5"
-                                : "2px solid transparent",
-                              background: isActive ? "#E6F1FB" : "transparent",
-                              color: isActive ? "#185FA5" : "#6B7280",
-                              fontFamily: FONT,
-                              minWidth: 0,
-                              transition: "background 0.15s",
-                              textAlign: "left",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isActive)
-                                e.currentTarget.style.background = "#F3F4F6";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isActive)
-                                e.currentTarget.style.background =
-                                  "transparent";
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const record = rootFolder
-                                ? { ...rootFolder, _type: "folder" }
-                                : { ...ref, _type: "case_reference_record" };
-                              setContextMenuState({
-                                open: true,
-                                x: e.clientX,
-                                y: e.clientY,
-                                record,
-                              });
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 15,
-                                height: 15,
-                                flexShrink: 0,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: isActive ? "#185FA5" : "#6B7280",
-                              }}
-                            >
-                              {React.cloneElement(TYPE_ICONS.folder, {
+                      <React.Fragment>
+                        {caseReferences.map((ref) => {
+                          const refId = String(extractId(ref));
+                          const isActive =
+                            activeSpace === "case_reference" &&
+                            refId === activeCaseReferenceId;
+                          const rootFolder = linkedCaseRootFolderById.get(refId);
+                          const displayLabel =
+                            rootFolder?.name ||
+                            ref.projectName ||
+                            ref.title ||
+                            getCaseDisplayName(ref);
+                          return (
+                            <SidebarLinkRow
+                              key={`case_${refId}`}
+                              icon={React.cloneElement(TYPE_ICONS.folder, {
                                 size: 14,
                               })}
-                            </span>
-                            <Tooltip
-                              title={displayLabel}
-                              placement="right"
-                              mouseEnterDelay={0.5}
-                            >
-                              <span
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {displayLabel}
-                              </span>
-                            </Tooltip>
-                          </button>
-                        );
-                      })
+                              label={displayLabel}
+                              isActive={isActive}
+                              onClick={() => {
+                                setActiveSpace("case_reference");
+                                setActiveCaseReferenceId(refId);
+                                setSelectedFolderId("root");
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const baseRecord = rootFolder
+                                  ? { ...rootFolder, _type: "folder" }
+                                  : { ...ref, _type: "case_reference_record" };
+                                setContextMenuState({
+                                  open: true,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  record: {
+                                    ...baseRecord,
+                                    _linkRemoveHandler: () =>
+                                      handleRemoveCaseReferenceLink(refId),
+                                    _linkRemoveLabel: "Remove Case Link",
+                                  },
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                        {caseLegalStudyLinks.map((link) => {
+                          const linkId = String(extractId(link));
+                          const linkedDocument = link.documents || null;
+                          const isDocumentLink =
+                            !!(linkedDocument || link.targetDocumentId) &&
+                            !(link.folders || link.targetFolderId);
+                          const isActive =
+                            !isDocumentLink &&
+                            activeSpace === "legal_study_folder_link" &&
+                            linkId === activeLegalStudyLinkId;
+                          // A folder/document under a Reference (legalStudyId
+                          // set) tracks that Reference's LIVE title via
+                          // legalStudyById — link.caseName is a name snapshot
+                          // taken once at link-create time (see
+                          // handleLinkReferenceTabSubmit), so it goes stale
+                          // the moment the Reference is renamed afterward
+                          // (e.g. "Legal Study" → "Lĩnh vực nào đó"). Case-
+                          // bound folders have no legalStudyId, so they keep
+                          // falling back to the stored snapshot / the live
+                          // folders.projectId.projectName join.
+                          const linkedTargetStudyId =
+                            extractId(link.folders?.legalStudyId) ||
+                            extractId(linkedDocument?.legalStudyId) ||
+                            null;
+                          const liveReferenceTitle = linkedTargetStudyId
+                            ? legalStudyById.get(String(linkedTargetStudyId))
+                                ?.title ||
+                              legalStudyById.get(String(linkedTargetStudyId))
+                                ?.name
+                            : null;
+                          const caseLabel =
+                            liveReferenceTitle ||
+                            link.caseName ||
+                            link.folders?.projectId?.projectName ||
+                            "—";
+                          // The link's own target name, stored at link-create
+                          // time (see handleLinkCaseTabSubmit/
+                          // handleLinkReferenceTabSubmit) — shown as the
+                          // primary label so multiple links from the same
+                          // Case/Reference are distinguishable, instead of
+                          // every row just reading "Folder"/"Document".
+                          const displayLabel =
+                            link.folderName ||
+                            (linkedDocument &&
+                              (getAttachment(linkedDocument)?.title ||
+                                getAttachment(linkedDocument)?.filename ||
+                                linkedDocument.name ||
+                                linkedDocument.title)) ||
+                            link.folders?.name ||
+                            (isDocumentLink ? "Document" : "Folder");
+                          const icon = isDocumentLink
+                            ? getFileSvgIcon(getFileExtension(linkedDocument))
+                            : React.cloneElement(TYPE_ICONS.folder, {
+                                size: 14,
+                              });
+                          return (
+                            <SidebarLinkRow
+                              key={`item_${linkId}`}
+                              icon={icon}
+                              label={displayLabel}
+                              subLabel={caseLabel}
+                              tooltip={`${displayLabel} — ${caseLabel}`}
+                              isActive={isActive}
+                              onClick={() => {
+                                if (isDocumentLink) {
+                                  if (
+                                    !isDocumentLinkAccessible(linkedDocument)
+                                  ) {
+                                    message.warning(
+                                      "You do not have access to view this document.",
+                                    );
+                                    return;
+                                  }
+                                  previewRecordFile(linkedDocument);
+                                  return;
+                                }
+                                setActiveSpace("legal_study_folder_link");
+                                setActiveLegalStudyLinkId(linkId);
+                                setSelectedFolderId("root");
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setContextMenuState({
+                                  open: true,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  record: {
+                                    _type: "case_legal_study_link",
+                                    _linkRemoveHandler: () =>
+                                      handleRemoveLegalStudyLink(linkId),
+                                  },
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                        {legalStudies.map((ref) => {
+                          const refId = String(extractId(ref));
+                          // Hidden when a specific folder shortcut already
+                          // covers this Reference — see
+                          // legalStudyIdsWithFolderShortcut above.
+                          if (legalStudyIdsWithFolderShortcut.has(refId))
+                            return null;
+                          const isActive =
+                            activeSpace === "legal_study" &&
+                            refId === activeLegalStudyId;
+                          const rootFolder = legalStudyRootFolderById.get(refId);
+                          const displayLabel =
+                            rootFolder?.name ||
+                            ref.title ||
+                            ref.name ||
+                            ref.projectName ||
+                            REFERENCE_LABEL;
+                          return (
+                            <SidebarLinkRow
+                              key={`ref_${refId}`}
+                              icon={React.cloneElement(TYPE_ICONS.folder, {
+                                size: 14,
+                              })}
+                              label={displayLabel}
+                              isActive={isActive}
+                              onClick={() => {
+                                setActiveSpace("legal_study");
+                                setActiveLegalStudyId(refId);
+                                // Jump straight into this Reference's root
+                                // folder (not the "root" sentinel) — same
+                                // reasoning as the Case entry above: New/
+                                // Upload should always land inside it, not
+                                // beside it.
+                                setSelectedFolderId(
+                                  rootFolder
+                                    ? String(extractId(rootFolder))
+                                    : "root",
+                                );
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const baseRecord = rootFolder
+                                  ? { ...rootFolder, _type: "folder" }
+                                  : { ...ref, _type: "legal_study_record" };
+                                setContextMenuState({
+                                  open: true,
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  record: {
+                                    ...baseRecord,
+                                    _linkRemoveHandler: () =>
+                                      handleRemoveReferenceEntityLink(refId),
+                                    _linkRemoveLabel: "Remove Reference Link",
+                                  },
+                                });
+                              }}
+                            />
+                          );
+                        })}
+                      </React.Fragment>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* ══ SECTION 4: LEGAL STUDY ══ */}
-              <div
-                style={{
-                  borderTop: "0.5px solid #E5E7EB",
-                  paddingTop: 12,
-                  marginTop: 4,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "0 2px 6px 2px",
-                  }}
-                >
-                  <div
-                    // Title click no longer navigates — each Reference's
-                    // own row is the sole entry point into it, so the
-                    // header stays a plain (non-clickable) label plus its
-                    // own expand/collapse chevron.
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      userSelect: "none",
-                    }}
-                  >
-                    <span
-                      onClick={() => setLegalStudyExpanded(!legalStudyExpanded)}
-                      style={{
-                        color: "#9CA3AF",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {legalStudyExpanded ? ChevronDown : ChevronRight}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        color:
-                          activeSpace === "legal_study" && !activeLegalStudyId
-                            ? "#185FA5"
-                            : "#9CA3AF",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        fontFamily: FONT,
-                      }}
-                    >
-                      {REFERENCE_LABEL}
-                    </span>
-                  </div>
-                </div>
-                {legalStudyExpanded && (
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 1 }}
-                  >
-                    {legalStudies.length === 0 ? (
-                      <div style={{ padding: "4px 10px" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            color: "#9CA3AF",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          No Reference records yet
-                        </span>
-                      </div>
-                    ) : (
-                      legalStudies.map((ref) => {
-                        const refId = String(extractId(ref));
-                        const isActive =
-                          activeSpace === "legal_study" &&
-                          refId === activeLegalStudyId;
-                        const rootFolder = legalStudyRootFolderById.get(refId);
-                        const displayLabel =
-                          rootFolder?.name ||
-                          ref.title ||
-                          ref.name ||
-                          ref.projectName ||
-                          REFERENCE_LABEL;
-                        return (
-                          <button
-                            key={refId}
-                            type="button"
-                            onClick={() => {
-                              setActiveSpace("legal_study");
-                              setActiveLegalStudyId(refId);
-                              // Jump straight into this Reference's root
-                              // folder (not the "root" sentinel) — same
-                              // reasoning as the Case entry above: New/
-                              // Upload should always land inside it, not
-                              // beside it.
-                              setSelectedFolderId(
-                                rootFolder ? String(extractId(rootFolder)) : "root",
-                              );
-                            }}
-                            style={{
-                              width: "100%",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "7px 10px",
-                              border: "0",
-                              borderRadius: 8,
-                              cursor: "pointer",
-                              borderLeft: isActive
-                                ? "2px solid #185FA5"
-                                : "2px solid transparent",
-                              background: isActive ? "#E6F1FB" : "transparent",
-                              color: isActive ? "#185FA5" : "#6B7280",
-                              fontFamily: FONT,
-                              minWidth: 0,
-                              transition: "background 0.15s",
-                              textAlign: "left",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isActive)
-                                e.currentTarget.style.background = "#F3F4F6";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isActive)
-                                e.currentTarget.style.background =
-                                  "transparent";
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              const record = rootFolder
-                                ? { ...rootFolder, _type: "folder" }
-                                : { ...ref, _type: "legal_study_record" };
-                              setContextMenuState({
-                                open: true,
-                                x: e.clientX,
-                                y: e.clientY,
-                                record,
-                              });
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 15,
-                                height: 15,
-                                flexShrink: 0,
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: isActive ? "#185FA5" : "#6B7280",
-                              }}
-                            >
-                              {React.cloneElement(TYPE_ICONS.folder, {
-                                size: 14,
-                              })}
-                            </span>
-                            <Tooltip
-                              title={displayLabel}
-                              placement="right"
-                              mouseEnterDelay={0.5}
-                            >
-                              <span
-                                style={{
-                                  flex: 1,
-                                  minWidth: 0,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {displayLabel}
-                              </span>
-                            </Tooltip>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* ══ SECTION 4: NHANH (Quick/Recent/Trash) ══ */}
+              {/* ══ SECTION 6: NHANH (Quick/Recent/Trash) ══ */}
               <div
                 style={{
                   borderTop: "0.5px solid #E5E7EB",
@@ -11172,10 +12518,16 @@ const InternalTemplates = () => {
                     { value: "uploaded", label: "Uploaded File" },
                     { value: "previewed", label: "Preview" },
                     { value: "downloaded", label: "Download" },
-                    { value: "linked_legal_study", label: `Added to ${REFERENCE_LABEL}` },
+                    {
+                      value: "linked_legal_study",
+                      label: `Added to ${REFERENCE_LABEL}`,
+                    },
                     { value: "shared_file", label: "Shared File" },
                     { value: "unshared_file", label: "Unshared" },
-                    { value: "permission_updated", label: "Updated Permissions" },
+                    {
+                      value: "permission_updated",
+                      label: "Updated Permissions",
+                    },
                     { value: "created", label: "Created Folder" },
                     { value: "updated", label: "Other Update" },
                     { value: "moved", label: "Moved" },
@@ -11358,9 +12710,22 @@ const InternalTemplates = () => {
                 </Button>
               ) : (
                 <React.Fragment>
+                  {activeSpace === "cases" && (
+                    <Button
+                      icon={LINK_CASE_ICON}
+                      onClick={openLinkModal}
+                      style={{
+                        borderRadius: 8,
+                        border: "0.5px solid #E5E7EB",
+                        color: "#185FA5",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Link
+                    </Button>
+                  )}
                   {activeSpace !== "trash" &&
-                    (currentFolderPerms.canEdit ||
-                      currentFolderPerms.isManager ||
+                    (currentFolderPerms.canCreate ||
                       (activeSpace === "legal_reference" &&
                         !activeLegalReferenceId)) && (
                       <Dropdown
@@ -11506,7 +12871,8 @@ const InternalTemplates = () => {
                     const isDisabledRootCrumb =
                       index === 0 &&
                       breadcrumbs.length > 1 &&
-                      (activeSpace === "cases" || activeSpace === "legal_study");
+                      (activeSpace === "cases" ||
+                        activeSpace === "legal_study");
                     return (
                       <React.Fragment key={item.id}>
                         {index > 0 && (
@@ -11578,7 +12944,9 @@ const InternalTemplates = () => {
                       <span style={{ color: "#9CA3AF" }}>Manager: </span>
                       <strong style={{ color: "#374151", fontWeight: 500 }}>
                         {currentRootFolderPermissionSummary.managerNames.length
-                          ? currentRootFolderPermissionSummary.managerNames.join(", ")
+                          ? currentRootFolderPermissionSummary.managerNames.join(
+                              ", ",
+                            )
                           : "—"}
                       </strong>
                     </span>
@@ -11586,7 +12954,9 @@ const InternalTemplates = () => {
                       <span style={{ color: "#9CA3AF" }}>Member: </span>
                       <strong style={{ color: "#374151", fontWeight: 500 }}>
                         {currentRootFolderPermissionSummary.memberNames.length
-                          ? currentRootFolderPermissionSummary.memberNames.join(", ")
+                          ? currentRootFolderPermissionSummary.memberNames.join(
+                              ", ",
+                            )
                           : "—"}
                       </strong>
                     </span>
@@ -11765,7 +13135,7 @@ const InternalTemplates = () => {
                           !activeCaseRootFolderId
                             ? "This case has no root folder yet"
                             : activeSpace === "legal_reference" &&
-                              !activeLegalReferenceId
+                                !activeLegalReferenceId
                               ? "No Reference Cases yet"
                               : activeSpace === "trash"
                                 ? "Trash is empty"
@@ -11785,7 +13155,7 @@ const InternalTemplates = () => {
                           !activeCaseRootFolderId
                             ? "Please create the case's root folder before uploading documents"
                             : activeSpace === "legal_reference" &&
-                              !activeLegalReferenceId
+                                !activeLegalReferenceId
                               ? "Click + Create Reference Case below to get started"
                               : activeSpace === "trash"
                                 ? "No deleted files or folders"
@@ -11825,7 +13195,8 @@ const InternalTemplates = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  directFileTargetRef.current = selectedFolderId;
+                                  directFileTargetRef.current =
+                                    selectedFolderId;
                                   fileInputRef.current?.click();
                                 }}
                                 style={{
@@ -12061,7 +13432,12 @@ const InternalTemplates = () => {
                                 folderSubFolderCount === 0;
                               return (
                                 <Col {...GRID_COL_PROPS} key={record._key}>
-                                  <div style={{ position: "relative", height: "100%" }}>
+                                  <div
+                                    style={{
+                                      position: "relative",
+                                      height: "100%",
+                                    }}
+                                  >
                                     <Checkbox
                                       checked={selectedRowKeys.includes(
                                         record._key,
@@ -12090,11 +13466,15 @@ const InternalTemplates = () => {
                                       draggable={activeSpace !== "trash"}
                                       onDragStart={(event) => {
                                         if (activeSpace !== "trash")
-                                          rowDragProps(record).onDragStart(event);
+                                          rowDragProps(record).onDragStart(
+                                            event,
+                                          );
                                       }}
                                       onDragOver={(event) => {
                                         if (activeSpace !== "trash")
-                                          rowDragProps(record).onDragOver(event);
+                                          rowDragProps(record).onDragOver(
+                                            event,
+                                          );
                                       }}
                                       onDrop={(event) => {
                                         if (activeSpace !== "trash")
@@ -12149,7 +13529,9 @@ const InternalTemplates = () => {
                                           background: isEmpty
                                             ? "#F3F4F6"
                                             : "#E6F1FB",
-                                          color: isEmpty ? "#9CA3AF" : "#185FA5",
+                                          color: isEmpty
+                                            ? "#9CA3AF"
+                                            : "#185FA5",
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "center",
@@ -12169,7 +13551,9 @@ const InternalTemplates = () => {
                                             value={editingTitleValue}
                                             autoFocus
                                             onChange={(e) =>
-                                              setEditingTitleValue(e.target.value)
+                                              setEditingTitleValue(
+                                                e.target.value,
+                                              )
                                             }
                                             onPressEnter={() =>
                                               handleSaveFileTitle(record)
@@ -12234,9 +13618,12 @@ const InternalTemplates = () => {
                                                 whiteSpace: "normal",
                                                 overflowWrap: "anywhere",
                                               }}
-                                              title={getRecordPathString(record)}
+                                              title={getRecordPathString(
+                                                record,
+                                              )}
                                             >
-                                              Source: {getRecordPathString(record)}
+                                              Source:{" "}
+                                              {getRecordPathString(record)}
                                             </span>
                                             <span
                                               style={{
@@ -12248,7 +13635,8 @@ const InternalTemplates = () => {
                                               }}
                                               title={getDeletedUserName(record)}
                                             >
-                                              Deleted by: {getDeletedUserName(record)}
+                                              Deleted by:{" "}
+                                              {getDeletedUserName(record)}
                                             </span>
                                             <span
                                               style={{
@@ -12282,16 +13670,21 @@ const InternalTemplates = () => {
                                                 >
                                                   No documents yet
                                                 </div>
-                                                {getRecordPerms(record).canCreate && (
+                                                {getRecordPerms(record)
+                                                  .canCreate && (
                                                   <button
                                                     type="button"
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      const fid = String(extractId(record));
-                                                      directFileTargetRef.current = fid;
+                                                      const fid = String(
+                                                        extractId(record),
+                                                      );
+                                                      directFileTargetRef.current =
+                                                        fid;
                                                       setSelectedFolderId(fid);
                                                       setTimeout(
-                                                        () => fileInputRef.current?.click(),
+                                                        () =>
+                                                          fileInputRef.current?.click(),
                                                         0,
                                                       );
                                                     }}
@@ -12350,7 +13743,9 @@ const InternalTemplates = () => {
                                                   textOverflow: "ellipsis",
                                                   whiteSpace: "nowrap",
                                                 }}
-                                                title={getUploadUserName(record)}
+                                                title={getUploadUserName(
+                                                  record,
+                                                )}
                                               >
                                                 Created by:{" "}
                                                 {getUploadUserName(record)}
@@ -12396,28 +13791,103 @@ const InternalTemplates = () => {
                               const ext = getFileExtension(record);
 
                               const EXT_BADGE = {
-                                ".pdf":  { bg: "#FCEBEB", color: "#A32D2D", label: "PDF" },
-                                ".doc":  { bg: "#E6F1FB", color: "#185FA5", label: "DOC" },
-                                ".docx": { bg: "#E6F1FB", color: "#185FA5", label: "DOCX" },
-                                ".xls":  { bg: "#EAF3DE", color: "#3B6D11", label: "XLS" },
-                                ".xlsx": { bg: "#EAF3DE", color: "#3B6D11", label: "XLSX" },
-                                ".ppt":  { bg: "#FAEEDA", color: "#854F0B", label: "PPT" },
-                                ".pptx": { bg: "#FAEEDA", color: "#854F0B", label: "PPTX" },
-                                ".png":  { bg: "#F0FDF4", color: "#3B6D11", label: "PNG" },
-                                ".jpg":  { bg: "#F0FDF4", color: "#3B6D11", label: "JPG" },
-                                ".jpeg": { bg: "#F0FDF4", color: "#3B6D11", label: "JPEG" },
-                                ".gif":  { bg: "#F0FDF4", color: "#3B6D11", label: "GIF" },
-                                ".webp": { bg: "#F0FDF4", color: "#3B6D11", label: "WEBP" },
-                                ".svg":  { bg: "#F0FDF4", color: "#3B6D11", label: "SVG" },
-                                ".mp4":  { bg: "#F3F4F6", color: "#6B7280", label: "MP4" },
-                                ".zip":  { bg: "#F3F4F6", color: "#6B7280", label: "ZIP" },
-                                ".rar":  { bg: "#F3F4F6", color: "#6B7280", label: "RAR" },
-                                ".txt":  { bg: "#F3F4F6", color: "#6B7280", label: "TXT" },
-                                ".csv":  { bg: "#EAF3DE", color: "#3B6D11", label: "CSV" },
+                                ".pdf": {
+                                  bg: "#FCEBEB",
+                                  color: "#A32D2D",
+                                  label: "PDF",
+                                },
+                                ".doc": {
+                                  bg: "#E6F1FB",
+                                  color: "#185FA5",
+                                  label: "DOC",
+                                },
+                                ".docx": {
+                                  bg: "#E6F1FB",
+                                  color: "#185FA5",
+                                  label: "DOCX",
+                                },
+                                ".xls": {
+                                  bg: "#EAF3DE",
+                                  color: "#3B6D11",
+                                  label: "XLS",
+                                },
+                                ".xlsx": {
+                                  bg: "#EAF3DE",
+                                  color: "#3B6D11",
+                                  label: "XLSX",
+                                },
+                                ".ppt": {
+                                  bg: "#FAEEDA",
+                                  color: "#854F0B",
+                                  label: "PPT",
+                                },
+                                ".pptx": {
+                                  bg: "#FAEEDA",
+                                  color: "#854F0B",
+                                  label: "PPTX",
+                                },
+                                ".png": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "PNG",
+                                },
+                                ".jpg": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "JPG",
+                                },
+                                ".jpeg": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "JPEG",
+                                },
+                                ".gif": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "GIF",
+                                },
+                                ".webp": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "WEBP",
+                                },
+                                ".svg": {
+                                  bg: "#F0FDF4",
+                                  color: "#3B6D11",
+                                  label: "SVG",
+                                },
+                                ".mp4": {
+                                  bg: "#F3F4F6",
+                                  color: "#6B7280",
+                                  label: "MP4",
+                                },
+                                ".zip": {
+                                  bg: "#F3F4F6",
+                                  color: "#6B7280",
+                                  label: "ZIP",
+                                },
+                                ".rar": {
+                                  bg: "#F3F4F6",
+                                  color: "#6B7280",
+                                  label: "RAR",
+                                },
+                                ".txt": {
+                                  bg: "#F3F4F6",
+                                  color: "#6B7280",
+                                  label: "TXT",
+                                },
+                                ".csv": {
+                                  bg: "#EAF3DE",
+                                  color: "#3B6D11",
+                                  label: "CSV",
+                                },
                               };
                               const extInfo = EXT_BADGE[ext] || {
-                                bg: "#F3F4F6", color: "#6B7280",
-                                label: (ext || "FILE").replace(".", "").toUpperCase(),
+                                bg: "#F3F4F6",
+                                color: "#6B7280",
+                                label: (ext || "FILE")
+                                  .replace(".", "")
+                                  .toUpperCase(),
                               };
 
                               return (
@@ -12769,7 +14239,7 @@ const InternalTemplates = () => {
           >
             <Input placeholder="Enter folder name..." />
           </Form.Item>
-          
+
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Button
               onClick={() => setIsFolderOpen(false)}
@@ -13270,6 +14740,236 @@ const InternalTemplates = () => {
       </Modal>
 
       <Modal
+        title="Link"
+        open={isLinkOpen}
+        onCancel={closeLinkModal}
+        width={640}
+        destroyOnClose
+        footer={[
+          <Button key="cancel" onClick={closeLinkModal}>
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={linkSubmitting}
+            onClick={
+              linkTabMode === "case"
+                ? handleLinkCaseTabSubmit
+                : handleLinkReferenceTabSubmit
+            }
+          >
+            Link
+          </Button>,
+        ]}
+      >
+        <div
+          style={{
+            display: "inline-flex",
+            gap: 4,
+            background: "#F3F4F6",
+            padding: 4,
+            borderRadius: 8,
+            border: "1px solid #E5E7EB",
+            marginBottom: 20,
+          }}
+        >
+          {[
+            { key: "case", label: "Case" },
+            { key: "reference", label: "Reference" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setLinkTabMode(tab.key)}
+              style={{
+                border: 0,
+                background: linkTabMode === tab.key ? "#fff" : "transparent",
+                color: linkTabMode === tab.key ? "#185FA5" : "#6B7280",
+                borderRadius: 6,
+                padding: "6px 14px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {linkTabMode === "case" && (
+          <div>
+            <div style={{ marginBottom: 12 }}>
+              <Text strong style={{ display: "block", marginBottom: 6 }}>
+                Target Case
+              </Text>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Select the Case to link..."
+                style={{ width: "100%" }}
+                value={linkCaseTargetCaseId}
+                onChange={(value) => {
+                  setLinkCaseTargetCaseId(value || null);
+                  setLinkCaseSelectedFolderIds([]);
+                  setLinkCaseSelectedDocumentIds([]);
+                  setLinkCaseGrantMemberIds([]);
+                }}
+                filterOption={(input, option) =>
+                  (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                }
+                options={projects
+                  .filter((p) => String(extractId(p)) !== String(activeCaseId))
+                  .map((p) => {
+                    const pid = String(extractId(p));
+                    const alreadyLinked = linkedCaseIdSet.has(pid);
+                    const label = [p.caseCode, p.projectName]
+                      .filter(Boolean)
+                      .join(" - ");
+                    return {
+                      value: pid,
+                      disabled: alreadyLinked,
+                      label: alreadyLinked ? `${label} (Already linked)` : label,
+                    };
+                  })}
+              />
+            </div>
+
+            {linkCaseTargetCaseId && (
+              <div style={{ marginBottom: 12 }}>
+                <Text strong style={{ display: "block", marginBottom: 6 }}>
+                  Folders / documents in this Case's root (optional)
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginBottom: 8, fontSize: 12 }}
+                >
+                  Leave everything unchecked to link the whole Case. Check one
+                  or more items below to link only those, instead. Items
+                  already linked from this Case are disabled.
+                </Text>
+                <LinkTargetPicker
+                  folders={linkCaseTargetCaseLevel2Folders}
+                  documents={linkCaseTargetCaseRootDocuments}
+                  selectedFolderIds={linkCaseSelectedFolderIds}
+                  selectedDocumentIds={linkCaseSelectedDocumentIds}
+                  disabledFolderIds={linkTargetLinkedFolderIds}
+                  disabledDocumentIds={linkTargetLinkedDocumentIds}
+                  onToggleFolder={(id) =>
+                    setLinkCaseSelectedFolderIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((v) => v !== id)
+                        : [...prev, id],
+                    )
+                  }
+                  onToggleDocument={(id) =>
+                    setLinkCaseSelectedDocumentIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((v) => v !== id)
+                        : [...prev, id],
+                    )
+                  }
+                  emptyDescription="This Case's root has no folders or documents yet"
+                />
+              </div>
+            )}
+
+            {linkCaseTargetCaseId && (
+              <div>
+                <Text strong style={{ display: "block", marginBottom: 6 }}>
+                  Grant access to (from this Case's own team)
+                </Text>
+                {linkCaseGrantableTeam.length === 0 ? (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="This Case has no Manager/Members set yet"
+                  />
+                ) : (
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select who on this Case's team can view the linked item(s)..."
+                    style={{ width: "100%" }}
+                    value={linkCaseGrantMemberIds}
+                    onChange={setLinkCaseGrantMemberIds}
+                    options={linkCaseGrantableTeam.map((m) => ({
+                      value: m.id,
+                      label: m.name,
+                    }))}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {linkTabMode === "reference" && (
+          <div>
+            <div style={{ marginBottom: 12 }}>
+              <Text strong style={{ display: "block", marginBottom: 6 }}>
+                Target Reference
+              </Text>
+              <Select
+                showSearch
+                allowClear
+                loading={allLegalStudyRecordsLoading}
+                placeholder="Select the Reference to link..."
+                style={{ width: "100%" }}
+                value={linkReferenceTargetId}
+                onChange={(value) => {
+                  setLinkReferenceTargetId(value || null);
+                  setLinkReferenceSelectedFolderIds([]);
+                }}
+                filterOption={(input, option) =>
+                  (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                }
+                options={allLegalStudyRecords.map((s) => {
+                  const sid = String(extractId(s));
+                  const alreadyLinked = linkedReferenceIdSet.has(sid);
+                  const label = s.title || s.name || `Reference #${sid}`;
+                  return {
+                    value: sid,
+                    disabled: alreadyLinked,
+                    label: alreadyLinked ? `${label} (Already linked)` : label,
+                  };
+                })}
+              />
+            </div>
+
+            {linkReferenceTargetId && (
+              <div>
+                <Text strong style={{ display: "block", marginBottom: 6 }}>
+                  Folders in this Reference's root (optional)
+                </Text>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginBottom: 8, fontSize: 12 }}
+                >
+                  The whole Reference is always linked. Checking a folder here
+                  also adds a direct shortcut to it in the sidebar. Items
+                  already linked from this Case are disabled.
+                </Text>
+                <LinkTargetPicker
+                  folders={linkReferenceTargetLevel2Folders}
+                  selectedFolderIds={linkReferenceSelectedFolderIds}
+                  disabledFolderIds={linkTargetLinkedFolderIds}
+                  onToggleFolder={(id) =>
+                    setLinkReferenceSelectedFolderIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((v) => v !== id)
+                        : [...prev, id],
+                    )
+                  }
+                  emptyDescription="This Reference's root has no folders yet"
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         title={
           <span
             style={{
@@ -13311,7 +15011,8 @@ const InternalTemplates = () => {
         ]}
       >
         <Text>
-          Choose the destination folder for <b>{selectedRowKeys.length} selected item(s)</b>
+          Choose the destination folder for{" "}
+          <b>{selectedRowKeys.length} selected item(s)</b>
         </Text>
         <TreeSelect
           value={bulkMoveTargetId}

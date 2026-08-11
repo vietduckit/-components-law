@@ -111,7 +111,7 @@ const CONFIG = {
   currentUserScope: {
     enable: false,
     userFields: ['createdById'],   // field scalar (FK phẳng tới users) so trực tiếp với userId hiện tại
-    relationFields: [              // optional — field quan hệ không có FK phẳng
+    relationFields: [              // optional — field quan hệ (association thật) không có FK phẳng
       { field: 'assignees', targetKey: 'userId' }, // so qua assignees.userId
     ],
     emptyWhenUnknown: true,
@@ -121,23 +121,36 @@ const CONFIG = {
 ```
 
 **`currentUserScope` hỗ trợ 2 kiểu điều kiện, kết hợp bằng `$or`:**
-- `userFields`: field scalar (FK phẳng tới `users`, vd `createdById`,
-  `projectManagerId`) — so trực tiếp `{ field: { $eq: userId } }`.
-- `relationFields` (optional): field quan hệ không có cột FK phẳng (vd
-  `assignees` → `lawyers`, giống cơ chế `relationKey` của filter type
-  `relation`) — mỗi entry `{ field, targetKey }` build
-  `{ field: { targetKey: { $eq: userId } } }`. `targetKey` là field trên
-  record liên quan dùng để so với `userId` hiện tại (thường là `userId` nếu
-  quan hệ trỏ tới 1 bảng nhân sự như `lawyers` có sẵn field `userId` liên
+- `userFields`: field scalar (FK phẳng tới `users`, vd `createdById`) — so
+  trực tiếp `{ field: { $eq: userId } }`.
+- `relationFields` (optional): field là **association thật** trong Nocobase,
+  không có cột FK phẳng (vd `assignees` → `lawyers`, giống cơ chế
+  `relationKey` của filter type `relation`) — mỗi entry `{ field, targetKey }`
+  build `{ field: { targetKey: { $eq: userId } } }`. `targetKey` là field
+  trên record liên quan dùng để so với `userId` hiện tại (thường là `userId`
+  nếu quan hệ trỏ tới 1 bảng nhân sự như `lawyers` có sẵn field `userId` liên
   kết tới `users`), mặc định `'id'` nếu không set.
 
-Bổ sung này thay thế phần "không hỗ trợ scope qua quan hệ" trong bản v1 ban
-đầu — được thêm khi module Case cần tái tạo đúng logic "Meet Any" của Data
-scope gốc (`createdById` HOẶC `projectManagerId` HOẶC `assignees.userId`
-bằng current user), xác nhận qua chính "My Cases" — cơ chế cũ trong
-`JsProjectFilter.js` (`assigneeRelationField`) vẫn là tài liệu tham khảo,
-nhưng giờ generic hoá được qua `relationFields` mà không cần các tham số
-phức tạp như `assigneeRelationValueSource`/`assigneeRelationTargetField`.
+**Lưu ý quan trọng khi chọn `field` cho `relationFields`:** một số field
+belongsTo trong Nocobase được cấu hình thành **2 field riêng biệt** — cột FK
+thô (vd `projectManagerId`, kiểu bigInt, chỉ dùng cho so scalar/exact-id) và
+field association thật (vd `projectManager`, kiểu belongsTo, target
+collection Lawyer, target key = lawyers' id) — xác nhận qua screenshot cấu
+hình field "Internal Work" (2026-07-29). `relationFields` PHẢI dùng tên field
+association (`projectManager`), không phải tên cột FK (`projectManagerId`) —
+filter lồng qua tên cột FK (`{ projectManagerId: { userId: { $eq } } }`) trả
+về lỗi 500 vì đó chỉ là 1 cột scalar, không có gì để nested-filter vào. Trước
+khi thêm 1 field vào `relationFields`, luôn xác nhận tên field association
+thật qua Nocobase "Configure fields" > field đó > Edit — đừng suy đoán từ tên
+cột FK.
+
+Bổ sung `relationFields` thay thế phần "không hỗ trợ scope qua quan hệ" trong
+bản v1 ban đầu — được thêm khi module Case cần tái tạo đúng logic "Meet Any"
+của Data scope gốc (`createdById` HOẶC `projectManagerId` HOẶC
+`assignees.userId` bằng current user), xác nhận qua chính "My Cases" — cơ chế
+cũ trong `JsProjectFilter.js` (`assigneeRelationField`) vẫn là tài liệu tham
+khảo, nhưng giờ generic hoá được qua `relationFields` mà không cần các tham
+số phức tạp như `assigneeRelationValueSource`/`assigneeRelationTargetField`.
 
 Ràng buộc:
 

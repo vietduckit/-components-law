@@ -2109,6 +2109,90 @@ const getCustomerDisplayName = (record) => {
         };
       }
 
+      if (action === "previewed") {
+        return {
+          key: "previewed",
+          label: "Xem trước",
+          color: "#0C447C",
+          bg: "#E6F1FB",
+          border: "#B5D4F4",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          )
+        };
+      }
+
+      if (action === "downloaded") {
+        return {
+          key: "downloaded",
+          label: "Tải về",
+          color: "#0C447C",
+          bg: "#E6F1FB",
+          border: "#B5D4F4",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          )
+        };
+      }
+
+      if (action === "shared_file") {
+        return {
+          key: "shared_file",
+          label: "Chia sẻ tài liệu",
+          color: "#0891B2",
+          bg: "#ECFEFF",
+          border: "#A5F3FC",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          )
+        };
+      }
+
+      if (action === "unshared_file") {
+        return {
+          key: "unshared_file",
+          label: "Hủy chia sẻ",
+          color: "#9CA3AF",
+          bg: "#F9FAFB",
+          border: "#E5E7EB",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          )
+        };
+      }
+
+      if (action === "permission_updated") {
+        return {
+          key: "permission_updated",
+          label: "Cập nhật phân quyền",
+          color: "#B45309",
+          bg: "#FFFBEB",
+          border: "#FEF3C7",
+          icon: (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          )
+        };
+      }
+
       if (action === "created") {
         return {
           key: "created",
@@ -2295,7 +2379,33 @@ const getCustomerDisplayName = (record) => {
         updated: "cập nhật",
         moved: "di chuyển",
         deleted: "xóa",
+        previewed: "xem trước",
+        downloaded: "tải về",
+        shared_file: "chia sẻ tài liệu",
+        unshared_file: "hủy chia sẻ tài liệu",
+        permission_updated: "cập nhật phân quyền",
       };
+
+      if (action === "previewed") {
+        return `Đã xem trước ${entityName}`;
+      }
+
+      if (action === "downloaded") {
+        return `Đã tải về ${entityName}`;
+      }
+
+      if (action === "shared_file") {
+        const sharedWith = newV || "";
+        return sharedWith ? `Đã chia sẻ ${entityName} với ${sharedWith}` : `Đã chia sẻ ${entityName}`;
+      }
+
+      if (action === "unshared_file") {
+        return `Đã hủy chia sẻ ${entityName}`;
+      }
+
+      if (action === "permission_updated") {
+        return `Đã cập nhật phân quyền ${entityName}`;
+      }
 
       if (action === "uploaded" || action === "created") {
         return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
@@ -3815,7 +3925,6 @@ const getCustomerDisplayName = (record) => {
             url: `documents:update?filterByTk=${extractId(record)}`,
             method: "POST",
             data: {
-              name: safeTitle,
               title: safeTitle,
               updatedAt: new Date().toISOString(),
               ...(userId ? { updatedById: userId } : {}),
@@ -4099,7 +4208,7 @@ const getCustomerDisplayName = (record) => {
             await ctx.api.request({
               url: `documents:update?filterByTk=${rId}`,
               method: "POST",
-              data: { name: newName, title: newName },
+              data: { title: newName },
             });
             const attachment = getAttachment(renameRecord);
             if (attachment?.id) {
@@ -6078,12 +6187,17 @@ const getCustomerDisplayName = (record) => {
                     options={[
                       { value: "all", label: "Tất cả hoạt động" },
                       { value: "uploaded", label: "Tải lên tài liệu" },
+                      { value: "previewed", label: "Xem trước" },
+                      { value: "downloaded", label: "Tải về" },
+                      { value: "shared_file", label: "Chia sẻ tài liệu" },
+                      { value: "unshared_file", label: "Hủy chia sẻ" },
+                      { value: "permission_updated", label: "Cập nhật phân quyền" },
                       { value: "created", label: "Tạo mới thư mục" },
                       { value: "updated", label: "Cập nhật khác" },
                       { value: "moved", label: "Di chuyển" },
                       { value: "trash_deleted", label: "Xóa vào Thùng rác" },
                       { value: "restored", label: "Khôi phục" },
-                      { value: "deleted", label: "Xóa" },
+                      { value: "deleted", label: "Xóa vĩnh viễn" },
                     ]}
                   />
                 </div>

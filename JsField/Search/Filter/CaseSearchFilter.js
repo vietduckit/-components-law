@@ -113,15 +113,16 @@ const CONFIG = {
       placeholder: 'All',
       source: {
         collection: 'customers',
-        labelFields: ['customerName', 'shortName'],
+        labelFields: ['shortName','customerName'],
         sort: 'createdAt',
+        
       },
     },
     {
       type: 'relation',
       key: 'projectManager',
       field: 'projectManagerId',
-      label: 'Project Manager',
+      label: 'Manager',
       placeholder: 'All',
       source: {
         collection: 'users',

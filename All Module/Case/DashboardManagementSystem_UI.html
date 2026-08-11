@@ -1,0 +1,1259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard Management System UI</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-muted: #fafafa;
+      --border: #e5e7eb;
+      --border-soft: #eef0f3;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --quiet: #9ca3af;
+      --primary: #1677ff;
+      --primary-50: #eef6ff;
+      --primary-100: #e6f4ff;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --radius: 8px;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .04);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      border-radius: 6px;
+      height: 32px;
+      padding: 0 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      border-color: #b9c3d1;
+      background: #fbfdff;
+    }
+
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    button.ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    button.danger {
+      color: var(--danger);
+      border-color: #fecaca;
+      background: #fff;
+    }
+
+    input,
+    select {
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 10px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      min-width: 0;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(22, 119, 255, .12);
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 264px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 2px 12px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, #1677ff, #69b1ff);
+    }
+
+    .brand-title {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .brand-subtitle {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .side-section-title {
+      color: var(--quiet);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin: 8px 0;
+    }
+
+    .dashboard-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 12px;
+      cursor: pointer;
+      display: grid;
+      gap: 6px;
+    }
+
+    .dashboard-card.active {
+      border-color: #91caff;
+      background: var(--primary-50);
+    }
+
+    .dashboard-card-title {
+      font-weight: 650;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .dashboard-card-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .main {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .breadcrumb {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: 20px;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .header-actions,
+    .toolbar-actions,
+    .inline-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .content {
+      padding: 18px 20px 28px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .toolbar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .toolbar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .segmented {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-muted);
+      gap: 2px;
+    }
+
+    .segmented button {
+      height: 28px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 12px;
+    }
+
+    .segmented button.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: var(--shadow);
+      font-weight: 650;
+    }
+
+    .filter-row {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 8px;
+    }
+
+    .chip-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 26px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chip.strong {
+      color: #0958d9;
+      border-color: #91caff;
+      background: var(--primary-100);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 348px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .canvas {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .panel,
+    .metric-card,
+    .widget-card,
+    .config-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head,
+    .widget-head,
+    .config-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .panel-title,
+    .widget-title,
+    .config-title {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .panel-subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric-card {
+      padding: 14px;
+      min-height: 112px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: 750;
+      letter-spacing: -.02em;
+      margin-bottom: 8px;
+    }
+
+    .metric-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .trend {
+      color: var(--success);
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-weight: 650;
+    }
+
+    .widget-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    .widget-body {
+      padding: 14px;
+    }
+
+    .chart {
+      height: 230px;
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .chart-axis {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: var(--quiet);
+      font-size: 11px;
+      text-align: right;
+      padding-bottom: 24px;
+    }
+
+    .bars {
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 10px;
+      align-items: end;
+      border-left: 1px solid var(--border-soft);
+      border-bottom: 1px solid var(--border-soft);
+      padding: 0 10px 24px;
+    }
+
+    .bar-group {
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      gap: 4px;
+      height: 100%;
+      position: relative;
+    }
+
+    .bar {
+      width: 12px;
+      border-radius: 4px 4px 0 0;
+      background: var(--primary);
+    }
+
+    .bar.secondary {
+      background: #8b5cf6;
+    }
+
+    .bar-label {
+      position: absolute;
+      bottom: -20px;
+      color: var(--quiet);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .donut-wrap {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 18px;
+      align-items: center;
+      min-height: 230px;
+    }
+
+    .donut {
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      background: conic-gradient(#1677ff 0 40%, #13c2c2 40% 68%, #faad14 68% 84%, #d9d9d9 84% 100%);
+      position: relative;
+      margin: auto;
+    }
+
+    .donut::after {
+      content: "";
+      position: absolute;
+      inset: 28px;
+      background: var(--surface);
+      border-radius: 50%;
+      border: 1px solid var(--border-soft);
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      background: var(--primary);
+    }
+
+    .table-wrap {
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 920px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-soft);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #fbfbfc;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      z-index: 1;
+    }
+
+    tr:hover td {
+      background: #fbfdff;
+    }
+
+    .checkbox {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      display: inline-block;
+      background: #fff;
+    }
+
+    .record-name {
+      font-weight: 650;
+      color: var(--text);
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: #fff;
+    }
+
+    .badge.blue {
+      color: #0958d9;
+      background: #e6f4ff;
+      border-color: #91caff;
+    }
+
+    .badge.green {
+      color: #15803d;
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+
+    .badge.orange {
+      color: #b45309;
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+
+    .progress {
+      width: 96px;
+      height: 7px;
+      background: #eef2f7;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      background: var(--primary);
+      border-radius: inherit;
+    }
+
+    .builder {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .library {
+      border: 1px dashed #cbd5e1;
+      border-radius: var(--radius);
+      background: #fbfcfe;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .library-item {
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 10px;
+      background: var(--surface);
+      display: grid;
+      gap: 3px;
+    }
+
+    .canvas-grid {
+      min-height: 360px;
+      border: 1px dashed #b6c6dc;
+      border-radius: var(--radius);
+      background:
+        linear-gradient(#eef2f7 1px, transparent 1px),
+        linear-gradient(90deg, #eef2f7 1px, transparent 1px),
+        #fbfdff;
+      background-size: 48px 48px;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 10px;
+      align-content: start;
+    }
+
+    .canvas-widget {
+      min-height: 116px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, .92);
+      padding: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .config-panel {
+      position: sticky;
+      top: 84px;
+      overflow: hidden;
+    }
+
+    .config-body {
+      padding: 12px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .config-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      padding: 4px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .config-tabs button {
+      height: 28px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 0 8px;
+    }
+
+    .config-tabs button.active {
+      background: var(--surface);
+      color: var(--primary);
+      box-shadow: var(--shadow);
+      font-weight: 650;
+    }
+
+    .field-list,
+    .rule-list,
+    .saved-view-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .config-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: var(--surface);
+    }
+
+    .drag {
+      color: var(--quiet);
+      letter-spacing: -2px;
+      cursor: grab;
+    }
+
+    .switch {
+      width: 32px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--primary);
+      position: relative;
+    }
+
+    .switch::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      position: absolute;
+      top: 2px;
+      right: 2px;
+    }
+
+    .switch.off {
+      background: #d1d5db;
+    }
+
+    .switch.off::after {
+      right: auto;
+      left: 2px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .form-field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .form-field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .rule-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .screen-notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .note-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .note-card h3 {
+      margin: 0 0 6px;
+      font-size: 13px;
+    }
+
+    .note-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 1180px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .config-panel {
+        position: static;
+      }
+
+      .summary-grid,
+      .screen-notes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .filter-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .header-actions,
+      .toolbar-actions {
+        width: 100%;
+      }
+
+      .header-actions > *,
+      .toolbar-actions > * {
+        flex: 1;
+      }
+
+      .content {
+        padding: 12px;
+      }
+
+      .summary-grid,
+      .screen-notes,
+      .filter-row,
+      .builder {
+        grid-template-columns: 1fr;
+      }
+
+      .widget-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .span-4,
+      .span-5,
+      .span-7,
+      .span-8,
+      .span-12 {
+        grid-column: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"></div>
+        <div>
+          <div class="brand-title">Dashboard Studio</div>
+          <div class="brand-subtitle">Configurable workspace</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="side-section-title">Dashboards</div>
+        <div class="dashboard-card active">
+          <div class="dashboard-card-title">
+            <span>Operational Overview</span>
+            <span class="badge blue">Active</span>
+          </div>
+          <div class="dashboard-card-meta">Table, chart and widget canvas</div>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">
+            <span>Record Analytics</span>
+          </div>
+          <div class="dashboard-card-meta">Saved by Owner A</div>
+        </div>
+        <div class="dashboard-card">
+          <div class="dashboard-card-title">
+            <span>Review Workspace</span>
+          </div>
+          <div class="dashboard-card-meta">Shared view preset</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="side-section-title">Navigation</div>
+        <div class="chip-row">
+          <span class="chip strong">Dashboard detail</span>
+          <span class="chip">Saved views</span>
+          <span class="chip">Widget library</span>
+          <span class="chip">Settings</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="breadcrumb">Dashboards / Operational Overview</div>
+          <div class="title-row">
+            <h1>Dashboard Management System</h1>
+            <span class="badge orange">Unsaved changes</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <select aria-label="Saved view">
+            <option>Default view</option>
+            <option>Private review view</option>
+            <option>Shared analytics view</option>
+          </select>
+          <button>Share</button>
+          <button>More</button>
+          <button class="primary">Save view</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <section class="toolbar">
+          <div class="toolbar-top">
+            <div class="segmented" aria-label="View mode">
+              <button class="active">Dashboard</button>
+              <button>Table</button>
+              <button>Charts</button>
+              <button>Builder</button>
+            </div>
+            <div class="toolbar-actions">
+              <button>Filter</button>
+              <button>Sort</button>
+              <button>Group</button>
+              <button>Fields</button>
+              <button>Add widget</button>
+              <button>Refresh</button>
+            </div>
+          </div>
+          <div class="filter-row">
+            <input placeholder="Search records..." />
+            <select><option>Status: Any</option><option>Active</option><option>Pending</option></select>
+            <select><option>Owner: Any</option><option>Owner A</option><option>Owner B</option></select>
+            <select><option>Category: Any</option><option>Category A</option><option>Category B</option></select>
+            <select><option>Date: This quarter</option><option>This month</option><option>Custom range</option></select>
+          </div>
+          <div class="chip-row">
+            <span class="chip strong">Status: Active</span>
+            <span class="chip">Owner: Current user</span>
+            <span class="chip">Date: This quarter</span>
+            <button class="ghost">Clear filters</button>
+          </div>
+        </section>
+
+        <section class="summary-grid">
+          <article class="metric-card">
+            <div class="metric-label">Total records</div>
+            <div class="metric-value">12,480</div>
+            <div class="metric-foot">
+              <span class="trend">+12.4%</span>
+              <span>vs previous period</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Active items</div>
+            <div class="metric-value">3,218</div>
+            <div class="metric-foot">
+              <span class="trend">+4.1%</span>
+              <span>stable trend</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Pending items</div>
+            <div class="metric-value">684</div>
+            <div class="metric-foot">
+              <span class="badge orange">Needs review</span>
+              <span>14 overdue</span>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Average value</div>
+            <div class="metric-value">82.6K</div>
+            <div class="metric-foot">
+              <span class="trend">+8.0%</span>
+              <span>rolling average</span>
+            </div>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <div class="canvas">
+            <div class="widget-grid">
+              <article class="widget-card span-7">
+                <div class="widget-head">
+                  <div>
+                    <div class="widget-title">Record trend</div>
+                    <div class="panel-subtitle">Grouped by date and status</div>
+                  </div>
+                  <div class="inline-actions">
+                    <button class="ghost">Configure</button>
+                    <button class="ghost">Expand</button>
+                  </div>
+                </div>
+                <div class="widget-body">
+                  <div class="chart">
+                    <div class="chart-axis">
+                      <span>100</span>
+                      <span>75</span>
+                      <span>50</span>
+                      <span>25</span>
+                      <span>0</span>
+                    </div>
+                    <div class="bars">
+                      <div class="bar-group"><span class="bar" style="height: 42%"></span><span class="bar secondary" style="height: 35%"></span><span class="bar-label">W1</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 52%"></span><span class="bar secondary" style="height: 44%"></span><span class="bar-label">W2</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 64%"></span><span class="bar secondary" style="height: 38%"></span><span class="bar-label">W3</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 58%"></span><span class="bar secondary" style="height: 54%"></span><span class="bar-label">W4</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 74%"></span><span class="bar secondary" style="height: 63%"></span><span class="bar-label">W5</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 68%"></span><span class="bar secondary" style="height: 50%"></span><span class="bar-label">W6</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 82%"></span><span class="bar secondary" style="height: 71%"></span><span class="bar-label">W7</span></div>
+                      <div class="bar-group"><span class="bar" style="height: 76%"></span><span class="bar secondary" style="height: 66%"></span><span class="bar-label">W8</span></div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article class="widget-card span-5">
+                <div class="widget-head">
+                  <div>
+                    <div class="widget-title">Category mix</div>
+                    <div class="panel-subtitle">Distribution by selected field</div>
+                  </div>
+                  <button class="ghost">Configure</button>
+                </div>
+                <div class="widget-body">
+                  <div class="donut-wrap">
+                    <div class="donut"></div>
+                    <div class="legend">
+                      <div class="legend-item"><span><span class="dot"></span>Category A</span><strong>40%</strong></div>
+                      <div class="legend-item"><span><span class="dot" style="background:#13c2c2"></span>Category B</span><strong>28%</strong></div>
+                      <div class="legend-item"><span><span class="dot" style="background:#faad14"></span>Category C</span><strong>16%</strong></div>
+                      <div class="legend-item"><span><span class="dot" style="background:#d9d9d9"></span>Other</span><strong>16%</strong></div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article class="widget-card span-12">
+                <div class="widget-head">
+                  <div>
+                    <div class="widget-title">Table view preview</div>
+                    <div class="panel-subtitle">Configurable fields, density, sorting and grouping</div>
+                  </div>
+                  <div class="inline-actions">
+                    <button>Compact</button>
+                    <button>Manage fields</button>
+                  </div>
+                </div>
+                <div class="widget-body table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th><span class="checkbox"></span></th>
+                        <th>Record name</th>
+                        <th>Status</th>
+                        <th>Owner</th>
+                        <th>Category</th>
+                        <th>Progress</th>
+                        <th>Value</th>
+                        <th>Created date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="checkbox"></span></td>
+                        <td><div class="record-name">Record Alpha</div><div class="subtle">Entity ID 10024</div></td>
+                        <td><span class="badge blue">Active</span></td>
+                        <td>Owner A</td>
+                        <td>Category A</td>
+                        <td><div class="progress"><span style="width: 72%"></span></div></td>
+                        <td>84,200</td>
+                        <td>02 Jul 2026</td>
+                        <td><button class="ghost">More</button></td>
+                      </tr>
+                      <tr>
+                        <td><span class="checkbox"></span></td>
+                        <td><div class="record-name">Record Beta</div><div class="subtle">Entity ID 10025</div></td>
+                        <td><span class="badge orange">Pending</span></td>
+                        <td>Owner B</td>
+                        <td>Category B</td>
+                        <td><div class="progress"><span style="width: 46%"></span></div></td>
+                        <td>52,100</td>
+                        <td>01 Jul 2026</td>
+                        <td><button class="ghost">More</button></td>
+                      </tr>
+                      <tr>
+                        <td><span class="checkbox"></span></td>
+                        <td><div class="record-name">Record Gamma</div><div class="subtle">Entity ID 10026</div></td>
+                        <td><span class="badge green">Completed</span></td>
+                        <td>Owner C</td>
+                        <td>Category A</td>
+                        <td><div class="progress"><span style="width: 100%"></span></div></td>
+                        <td>108,900</td>
+                        <td>30 Jun 2026</td>
+                        <td><button class="ghost">More</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="widget-card span-12">
+                <div class="widget-head">
+                  <div>
+                    <div class="widget-title">Widget builder canvas</div>
+                    <div class="panel-subtitle">Layout lock, snap grid, resize and preview mode</div>
+                  </div>
+                  <div class="inline-actions">
+                    <button>Preview</button>
+                    <button class="primary">Apply layout</button>
+                  </div>
+                </div>
+                <div class="widget-body">
+                  <div class="builder">
+                    <div class="library">
+                      <div class="library-item"><strong>Chart widget</strong><span class="subtle">Metric + dimension</span></div>
+                      <div class="library-item"><strong>Table widget</strong><span class="subtle">Fields + sorting</span></div>
+                      <div class="library-item"><strong>Summary widget</strong><span class="subtle">Aggregated values</span></div>
+                      <div class="library-item"><strong>Text widget</strong><span class="subtle">Custom note block</span></div>
+                    </div>
+                    <div class="canvas-grid">
+                      <div class="canvas-widget span-7">
+                        <strong>Chart widget</strong>
+                        <div class="subtle">Span 7 columns, height 2 rows</div>
+                      </div>
+                      <div class="canvas-widget span-5">
+                        <strong>Summary widget</strong>
+                        <div class="subtle">Span 5 columns</div>
+                      </div>
+                      <div class="canvas-widget span-12">
+                        <strong>Table widget</strong>
+                        <div class="subtle">Full width, compact density</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <aside class="config-panel">
+            <div class="config-head">
+              <div>
+                <div class="config-title">Configuration</div>
+                <div class="panel-subtitle">Context-aware side panel</div>
+              </div>
+              <button class="ghost">Close</button>
+            </div>
+            <div class="config-body">
+              <div class="config-tabs">
+                <button class="active">Fields</button>
+                <button>Filters</button>
+                <button>Widget</button>
+                <button>Views</button>
+              </div>
+
+              <div class="form-field">
+                <label>Search configuration</label>
+                <input placeholder="Search fields, rules, widgets..." />
+              </div>
+
+              <div>
+                <div class="side-section-title">Field configuration</div>
+                <div class="field-list">
+                  <div class="config-item"><span class="drag">::</span><div><strong>Record name</strong><div class="subtle">Text, pinned left</div></div><span class="switch"></span></div>
+                  <div class="config-item"><span class="drag">::</span><div><strong>Status</strong><div class="subtle">Status badge</div></div><span class="switch"></span></div>
+                  <div class="config-item"><span class="drag">::</span><div><strong>Owner</strong><div class="subtle">User field</div></div><span class="switch"></span></div>
+                  <div class="config-item"><span class="drag">::</span><div><strong>Category</strong><div class="subtle">Tag field</div></div><span class="switch"></span></div>
+                  <div class="config-item"><span class="drag">::</span><div><strong>Updated date</strong><div class="subtle">Date, hidden</div></div><span class="switch off"></span></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="side-section-title">Advanced filter builder</div>
+                <div class="rule-list">
+                  <div class="rule-row">
+                    <select><option>Status</option></select>
+                    <select><option>equals</option></select>
+                    <select><option>Active</option></select>
+                    <button class="ghost">Remove</button>
+                  </div>
+                  <div class="rule-row">
+                    <select><option>Value</option></select>
+                    <select><option>greater than</option></select>
+                    <input value="50000" />
+                    <button class="ghost">Remove</button>
+                  </div>
+                  <button>Add condition</button>
+                </div>
+              </div>
+
+              <div>
+                <div class="side-section-title">Widget settings</div>
+                <div class="form-grid">
+                  <div class="form-field"><label>Widget title</label><input value="Record trend" /></div>
+                  <div class="form-field"><label>Widget type</label><select><option>Bar chart</option><option>Line chart</option><option>Table</option></select></div>
+                  <div class="form-field"><label>Metric</label><select><option>Count records</option><option>Sum value</option></select></div>
+                  <div class="form-field"><label>Group by</label><select><option>Date</option><option>Status</option><option>Category</option></select></div>
+                </div>
+              </div>
+
+              <div>
+                <div class="side-section-title">Saved views</div>
+                <div class="saved-view-list">
+                  <div class="config-item"><span class="drag">::</span><div><strong>Default view</strong><div class="subtle">Private, set as default</div></div><span class="badge blue">Current</span></div>
+                  <div class="config-item"><span class="drag">::</span><div><strong>Shared analytics</strong><div class="subtle">Workspace visibility</div></div><button class="ghost">Use</button></div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="screen-notes">
+          <article class="note-card">
+            <h3>Interaction model</h3>
+            <p>Changing Dashboard, Table, Charts or Builder keeps filters in place. Configuration previews update immediately and require Save view to persist.</p>
+          </article>
+          <article class="note-card">
+            <h3>States</h3>
+            <p>Use skeletons for loading, a compact empty state for no widgets, and active chips for no-result troubleshooting before clearing filters.</p>
+          </article>
+          <article class="note-card">
+            <h3>MVP priority</h3>
+            <p>Build saved views, field configuration, filter builder and chart/table widgets first. Add true drag and resize after the static builder is validated.</p>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
