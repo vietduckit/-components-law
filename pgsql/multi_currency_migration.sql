@@ -1,10 +1,21 @@
 -- ══════════════════════════════════════════════════════════════════════════
 -- FILE: multi_currency_migration.sql
--- Purpose: Phase 1 foundation for multi-currency accounting support —
---          new `currencies` + `exchangeRates` catalog tables, plus
---          `currencyId` / `exchangeRateToBase` columns (with VND=1 backfill)
---          on every monetary table. Fully additive and backward compatible:
---          nothing in the app reads these new columns yet.
+-- Purpose: central multi-currency infrastructure for VND-normalized pricing:
+--          create the `currencies` + `exchangeRates` catalog tables, establish
+--          VND as the base currency, and add `currencyId` to every verified
+--          monetary table.
+--
+-- Current model:
+--   - `contractServices` and `quotationServices` carry their own
+--     `currencyId` / `currency` relation. These were added via NocoBase Admin
+--     UI; the earlier assumption that service lines inherit only from their
+--     parent header was wrong.
+--   - `exchangeRateToBase` is actively written by the Contract/Quotation Save
+--     flows. Each service line's `basePrice` remains in the line currency, but
+--     saved `subTotal`, `vatAmount`, and `totalAmount` are auto-converted to
+--     VND and the VND-per-1-line-currency rate is frozen on the row.
+--   - `contracts.currencyId` and `quotations.currencyId` are defaults for new
+--     service lines only; header totals are saved in VND.
 --
 -- How to run: Execute this script once in pgAdmin or psql.
 --             Idempotent — safe to re-run (IF NOT EXISTS / ON CONFLICT /
@@ -14,7 +25,7 @@
 -- the Nocobase admin "Configure fields" UI, not this schema dump):
 --   public."paymentRequests", public."paymentRequestItems"
 -- Add their ADD COLUMN / backfill statements in a follow-up script once
--- their real field names are confirmed — do not guess them here.
+-- their real field names are confirmed; do not guess them here.
 --
 -- Tables touched: currencies (new), exchangeRates (new), contracts,
 --                 quotations, contractServices, quotationServices,
@@ -132,14 +143,16 @@ ON CONFLICT (code) DO NOTHING;
 -- ══════════════════════════════════════════════════════════════════════════
 -- SECTION 4: add currencyId / exchangeRateToBase columns
 -- ══════════════════════════════════════════════════════════════════════════
--- `exchangeRateToBase` = how many units of base currency (VND) 1 unit of
--- this record's currency was worth AT THE MOMENT THE RECORD WAS CREATED —
--- copied once from exchangeRates by the application, then frozen forever.
 -- Root records (contracts, quotations, payments, projectServices) get a
--- real `currencyId` FK-style column since each can independently choose a
--- currency. Line-item tables owned by exactly one parent (contractServices,
--- quotationServices) get ONLY the denormalized rate, not a separate
--- currencyId, to avoid every dashboard summation site needing a parent join.
+-- `currencyId` default. For contracts/quotations this is only the default
+-- currency for new service lines; their saved monetary totals are VND.
+--
+-- Line-item tables (contractServices, quotationServices) get both
+-- `currencyId` and `exchangeRateToBase`. `currencyId` records the entered line
+-- currency, while `exchangeRateToBase` freezes how many VND 1 unit of that
+-- line currency was worth when the row was saved. The application writes this
+-- rate in the Contract/Quotation Save flows and uses it to persist
+-- `subTotal`, `vatAmount`, and `totalAmount` in VND.
 
 ALTER TABLE public.contracts
     ADD COLUMN IF NOT EXISTS "currencyId" bigint,
@@ -158,9 +171,11 @@ ALTER TABLE public.payments
     ADD COLUMN IF NOT EXISTS "exchangeRateToBase" double precision;
 
 ALTER TABLE public."contractServices"
+    ADD COLUMN IF NOT EXISTS "currencyId" bigint,
     ADD COLUMN IF NOT EXISTS "exchangeRateToBase" double precision;
 
 ALTER TABLE public."quotationServices"
+    ADD COLUMN IF NOT EXISTS "currencyId" bigint,
     ADD COLUMN IF NOT EXISTS "exchangeRateToBase" double precision;
 
 
@@ -176,8 +191,8 @@ ALTER TABLE public."quotationServices"
 --     (SELECT count(*) FROM public.quotations WHERE "currencyId" IS NULL) AS quotations_to_backfill,
 --     (SELECT count(*) FROM public."projectServices" WHERE "currencyId" IS NULL) AS project_services_to_backfill,
 --     (SELECT count(*) FROM public.payments WHERE "currencyId" IS NULL) AS payments_to_backfill,
---     (SELECT count(*) FROM public."contractServices" WHERE "exchangeRateToBase" IS NULL) AS contract_services_to_backfill,
---     (SELECT count(*) FROM public."quotationServices" WHERE "exchangeRateToBase" IS NULL) AS quotation_services_to_backfill;
+--     (SELECT count(*) FROM public."contractServices" WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL) AS contract_services_to_backfill,
+--     (SELECT count(*) FROM public."quotationServices" WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL) AS quotation_services_to_backfill;
 
 DO $$
 DECLARE
@@ -202,12 +217,12 @@ BEGIN
     WHERE "currencyId" IS NULL;
 
     UPDATE public."contractServices"
-    SET "exchangeRateToBase" = 1
-    WHERE "exchangeRateToBase" IS NULL;
+    SET "currencyId" = vnd_id, "exchangeRateToBase" = 1
+    WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL;
 
     UPDATE public."quotationServices"
-    SET "exchangeRateToBase" = 1
-    WHERE "exchangeRateToBase" IS NULL;
+    SET "currencyId" = vnd_id, "exchangeRateToBase" = 1
+    WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL;
 END $$;
 
 
@@ -234,8 +249,8 @@ ALTER TABLE public."quotationServices" ALTER COLUMN "exchangeRateToBase" SET DEF
 -- SELECT count(*) FROM public.quotations WHERE "currencyId" IS NULL;  -- must be 0
 -- SELECT count(*) FROM public.payments WHERE "currencyId" IS NULL;    -- must be 0
 -- SELECT count(*) FROM public."projectServices" WHERE "currencyId" IS NULL;      -- must be 0
--- SELECT count(*) FROM public."contractServices" WHERE "exchangeRateToBase" IS NULL;  -- must be 0
--- SELECT count(*) FROM public."quotationServices" WHERE "exchangeRateToBase" IS NULL; -- must be 0
+-- SELECT count(*) FROM public."contractServices" WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL;  -- must be 0
+-- SELECT count(*) FROM public."quotationServices" WHERE "currencyId" IS NULL OR "exchangeRateToBase" IS NULL; -- must be 0
 -- -- Trigger check: this should silently move isBaseCurrency to USD and unset VND's flag.
 -- -- UPDATE public.currencies SET "isBaseCurrency" = true WHERE code = 'USD';
 -- -- SELECT code, "isBaseCurrency" FROM public.currencies ORDER BY sort;  -- only USD should be true; revert manually after testing.
