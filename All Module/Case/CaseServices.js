@@ -1609,9 +1609,9 @@
         let totalAmount = 0;
         let packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
 
-        let canConvert = true;
-
         if (isRetainer) {
+          // Retainer billing has no service line currency to inherit from,
+          // so monthlyFee x retainerDuration is treated as VND.
           subTotal = parseNum(contract.monthlyFee) * parseNum(contract.retainerDuration);
           packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
           vatAmount = roundMoneyForCurrency((subTotal * packageVatRate) / 100, vndCurrency);
@@ -1630,64 +1630,10 @@
             totalAmount = packageAmounts.totalAmount;
             packageVatRate = packageAmounts.packageVatRate || packageVatRate;
           } else {
-            // Group the service rows by their own currency, then convert the
-            // non-base groups to the contract's currency before summing —
-            // because each row may carry a different currencyId than the
-            // contract (multi-currency services).
-            const currs = await fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES);
-            const contractCurrency = currencyFromRecord(contract, currs, findDefaultCurrency(currs));
-            const contractCurrencyId = extractCurrencyId(contractCurrency);
-            const byCurrency = {};
-            lines.forEach((line) => {
-              const amount = getContractLineAmounts(line);
-              const lineCurrency = currencyFromRecord(line, currs, contractCurrency);
-              const key = extractCurrencyId(lineCurrency) || getCurrencyCode(lineCurrency);
-              if (!byCurrency[key]) byCurrency[key] = { currency: lineCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-              byCurrency[key].subTotal += amount.subTotal;
-              byCurrency[key].vatAmount += amount.vatAmount;
-              byCurrency[key].totalAmount += amount.totalAmount;
-            });
-            const groups = Object.values(byCurrency);
-            const nonBaseGroups = groups.filter((g) => !isSameCurrency(g.currency, contractCurrency));
-            const exchangeRates = nonBaseGroups.length
-              ? await fetchExchangeRatesForConversion(
-                nonBaseGroups.map((g) => extractCurrencyId(g.currency)).filter(Boolean),
-                contractCurrencyId,
-              )
-              : [];
-            for (const group of groups) {
-              if (isSameCurrency(group.currency, contractCurrency)) {
-                subTotal += group.subTotal;
-                vatAmount += group.vatAmount;
-                totalAmount += group.totalAmount;
-                continue;
-              }
-              const matched = pickConversionRate(exchangeRates, group.currency, contractCurrency, contract?.signedAt || contract?.date);
-              if (!matched?.rate) {
-                canConvert = false;
-                console.warn(`[syncContractHeaderFromServices] Missing exchange rate ${getCurrencyCode(group.currency)} -> ${getCurrencyCode(contractCurrency)}; skipping totals sync`);
-                break;
-              }
-              const convertedSubTotal = roundMoneyForCurrency(group.subTotal * matched.rate, contractCurrency);
-              const convertedVatAmount = roundMoneyForCurrency(group.vatAmount * matched.rate, contractCurrency);
-              subTotal += convertedSubTotal;
-              vatAmount += convertedVatAmount;
-              totalAmount += convertedSubTotal + convertedVatAmount;
-            }
+            subTotal = lines.reduce((sum, line) => sum + (parseNum(line.subTotal) || 0), 0);
+            vatAmount = lines.reduce((sum, line) => sum + (parseNum(line.vatAmount) || 0), 0);
+            totalAmount = subTotal + vatAmount;
           }
-        }
-
-        if (!canConvert) {
-          await ctx.api.request({
-            url: "contracts:update",
-            method: "POST",
-            params: { filterByTk: safeContractId },
-            data: {
-              ...(extractId(contract.customerId) ? { customerId: extractId(contract.customerId) } : {}),
-              ...(extractId(contract.internalCompanyId) ? { internalCompanyId: extractId(contract.internalCompanyId) } : {}),
-            },
-          });
-          return;
         }
 
         await ctx.api.request({
