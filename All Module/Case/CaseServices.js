@@ -1559,63 +1559,9 @@
           vatAmount = totals.vatAmount;
           totalAmount = totals.totalAmount;
         } else {
-          // Group the service rows by their own currency, then convert the
-          // non-base groups to the quotation's currency before summing —
-          // because each row may carry a different currencyId than the
-          // quotation (multi-currency services).
-          const currs = await fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES);
-          const quotationCurrency = currencyFromRecord(quotation, currs, findDefaultCurrency(currs));
-          const quotationCurrencyId = extractCurrencyId(quotationCurrency);
-          const byCurrency = {};
-          lines.forEach((line) => {
-            const amount = getContractLineAmounts(line);
-            const lineCurrency = currencyFromRecord(line, currs, quotationCurrency);
-            const key = extractCurrencyId(lineCurrency) || getCurrencyCode(lineCurrency);
-            if (!byCurrency[key]) byCurrency[key] = { currency: lineCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-            byCurrency[key].subTotal += amount.subTotal;
-            byCurrency[key].vatAmount += amount.vatAmount;
-            byCurrency[key].totalAmount += amount.totalAmount;
-          });
-          const groups = Object.values(byCurrency);
-          const nonBaseGroups = groups.filter((g) => !isSameCurrency(g.currency, quotationCurrency));
-          const exchangeRates = nonBaseGroups.length
-            ? await fetchExchangeRatesForConversion(
-              nonBaseGroups.map((g) => extractCurrencyId(g.currency)).filter(Boolean),
-              quotationCurrencyId,
-            )
-            : [];
-          let canConvert = true;
-          for (const group of groups) {
-            if (isSameCurrency(group.currency, quotationCurrency)) {
-              subTotal += group.subTotal;
-              vatAmount += group.vatAmount;
-              totalAmount += group.totalAmount;
-              continue;
-            }
-            const matched = pickConversionRate(exchangeRates, group.currency, quotationCurrency, quotation?.date);
-            if (!matched?.rate) {
-              canConvert = false;
-              console.warn(`[syncQuotationHeaderFromServices] Missing exchange rate ${getCurrencyCode(group.currency)} -> ${getCurrencyCode(quotationCurrency)}; skipping totals sync`);
-              break;
-            }
-            const convertedSubTotal = roundMoneyForCurrency(group.subTotal * matched.rate, quotationCurrency);
-            const convertedVatAmount = roundMoneyForCurrency(group.vatAmount * matched.rate, quotationCurrency);
-            subTotal += convertedSubTotal;
-            vatAmount += convertedVatAmount;
-            totalAmount += convertedSubTotal + convertedVatAmount;
-          }
-          if (!canConvert) {
-            await ctx.api.request({
-              url: "quotations:update",
-              method: "POST",
-              params: { filterByTk: safeQuotationId },
-              data: {
-                ...(extractId(quotation.customerId) ? { customerId: extractId(quotation.customerId) } : {}),
-                ...(extractId(quotation.internalCompanyId) ? { internalCompanyId: extractId(quotation.internalCompanyId) } : {}),
-              },
-            });
-            return;
-          }
+          subTotal = lines.reduce((sum, line) => sum + (parseNum(line.subTotal) || 0), 0);
+          vatAmount = lines.reduce((sum, line) => sum + (parseNum(line.vatAmount) || 0), 0);
+          totalAmount = subTotal + vatAmount;
         }
 
         await ctx.api.request({
