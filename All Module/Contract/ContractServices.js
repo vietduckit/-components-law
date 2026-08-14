@@ -2124,30 +2124,6 @@ const ContractServicesBlock = () => {
   // they'd silently keep showing the natural-currency amount even after the
   // user picks a different display currency — the "Quy đổi sang X" label
   // above the table would then be lying about what the numbers show.
-  const needsSingleGroupConversionHint = !hasMixedLineCurrencies && !isSameCurrency(totalsCurrency, displayCurrency);
-  const renderSingleGroupConversionHint = (field) => {
-    if (!needsSingleGroupConversionHint) return null;
-    if (exchangeRatesLoading) return React.createElement(Text, { type: 'secondary', style: { fontSize: 11 } }, 'Đang tra tỷ giá...');
-    if (convertedSummary?.canConvert) {
-      return React.createElement(Text, { style: { fontSize: 11, color: token.colorTextSecondary } }, `≈ ${formatMoney(convertedSummary[field], displayCurrency)}`);
-    }
-    return React.createElement(Text, { style: { fontSize: 11, color: token.colorWarning } }, 'Thiếu tỷ giá quy đổi');
-  };
-
-  // Mixed-currency totals already list each currency group separately, but
-  // that alone never gives a single combined number — show the same "≈
-  // converted" line used for the Total-amount cell in the Subtotal/VAT-amount
-  // cells too, so every summary cell has one readable combined figure
-  // (mirrors CaseServices.js's needsConversionHint, which shows this
-  // regardless of which currency is currently selected).
-  const renderMixedConversionHint = (field) => {
-    if (exchangeRatesLoading) return React.createElement(Text, { type: 'secondary', style: { fontSize: 11 } }, 'Đang tra tỷ giá...');
-    if (convertedSummary?.canConvert) {
-      return React.createElement(Text, { style: { fontSize: 11, color: token.colorTextSecondary } }, `≈ ${formatMoney(convertedSummary[field], displayCurrency)}`);
-    }
-    return React.createElement(Text, { style: { fontSize: 11, color: token.colorWarning } }, 'Thiếu tỷ giá quy đổi');
-  };
-
   if (!CONTRACT_ID) return React.createElement('div', { style: { padding: 20, color: C.danger, fontFamily: FONT } }, 'Contract ID was not found in the URL.');
   if (loading) return React.createElement('div', { style: { textAlign: 'center', padding: 48 } }, React.createElement(Spin, { size: 'large' }));
 
@@ -2196,29 +2172,47 @@ const ContractServicesBlock = () => {
       key: 'basePrice',
       width: 220,
       align: 'right',
-      render: (_, r) => isPackageMode
-        ? React.createElement(Text, { type: 'secondary' }, 'Included')
-        : React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 4, width: '100%' } },
-          React.createElement('div', { style: { flex: 1, minWidth: 0 } },
-            React.createElement(EditableCell, {
-              value: r._basePrice,
-              onSave: val => updateRow(r.id, '_basePrice', val),
-              disabled: isLocked,
-              isMoney: true,
-              currency: getRowCurrency(r),
-              hideCurrencyCode: true,
+      render: (_, r) => {
+        if (isPackageMode) return React.createElement(Text, { type: 'secondary' }, 'Included');
+        const rowCurrency = getRowCurrency(r);
+        const pricing = buildServicePricingPayload({
+          pricingMode: PRICING_MODE_LINE,
+          basePrice: r._basePrice,
+          quantity: 1,
+          vat: r._vat,
+          currency: rowCurrency,
+          vndCurrency,
+          exchangeRatesToVnd: exchangeRates,
+          pricingDate,
+        });
+        return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, width: '100%' } },
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 4, width: '100%' } },
+            React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+              React.createElement(EditableCell, {
+                value: r._basePrice,
+                onSave: val => updateRow(r.id, '_basePrice', val),
+                disabled: isLocked,
+                isMoney: true,
+                currency: rowCurrency,
+                hideCurrencyCode: true,
+              })
+            ),
+            React.createElement(Select, {
+              value: r._currencyId || (extractCurrencyId(rowCurrency) ? String(extractCurrencyId(rowCurrency)) : undefined),
+              disabled: isLocked || !currencyOptions.length,
+              size: 'small',
+              style: { width: 76, flexShrink: 0 },
+              onChange: (v) => updateRow(r.id, '_currencyId', v),
+              options: currencyOptions,
+              placeholder: 'Currency',
             })
           ),
-          React.createElement(Select, {
-            value: r._currencyId || (extractCurrencyId(getRowCurrency(r)) ? String(extractCurrencyId(getRowCurrency(r))) : undefined),
-            disabled: isLocked || !currencyOptions.length,
-            size: 'small',
-            style: { width: 76, flexShrink: 0 },
-            onChange: (v) => updateRow(r.id, '_currencyId', v),
-            options: currencyOptions,
-            placeholder: 'Currency',
-          })
-        ),
+          !isSameCurrency(rowCurrency, vndCurrency) && React.createElement(Text, {
+            type: pricing._convertible ? 'secondary' : 'danger',
+            style: { fontSize: 11 },
+          }, pricing._convertible ? `≈ ${formatMoney(pricing.subTotal, vndCurrency)}` : 'Thiếu tỷ giá quy đổi'),
+        );
+      },
     },
     {
       title: 'VAT (%)',
@@ -2239,18 +2233,30 @@ const ContractServicesBlock = () => {
       key: 'vatAmount',
       width: 150,
       align: 'right',
-      render: (_, r) => isPackageMode
-        ? React.createElement(Text, { type: 'secondary' }, '—')
-        : React.createElement(Text, { style: { color: token.colorWarning, whiteSpace: 'nowrap' } }, formatMoney(calcLine(r._basePrice, 1, r._vat, getRowCurrency(r)).vatAmount, getRowCurrency(r))),
+      render: (_, r) => {
+        if (isPackageMode) return React.createElement(Text, { type: 'secondary' }, '—');
+        const pricing = buildServicePricingPayload({
+          pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
+          currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
+        });
+        return React.createElement(Text, { style: { color: token.colorWarning, whiteSpace: 'nowrap' } },
+          pricing._convertible ? formatMoney(pricing.vatAmount, vndCurrency) : '—');
+      },
     },
     {
       title: 'Total amount',
       key: 'total',
       width: 160,
       align: 'right',
-      render: (_, r) => isPackageMode
-        ? React.createElement(Text, { type: 'secondary' }, '—')
-        : React.createElement(Text, { strong: true, style: { color: token.colorInfo, whiteSpace: 'nowrap' } }, formatMoney(calcLine(r._basePrice, 1, r._vat, getRowCurrency(r)).totalAmount, getRowCurrency(r))),
+      render: (_, r) => {
+        if (isPackageMode) return React.createElement(Text, { type: 'secondary' }, '—');
+        const pricing = buildServicePricingPayload({
+          pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
+          currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
+        });
+        return React.createElement(Text, { strong: true, style: { color: token.colorInfo, whiteSpace: 'nowrap' } },
+          pricing._convertible ? formatMoney(pricing.totalAmount, vndCurrency) : '—');
+      },
     },
     {
       title: 'Action',
@@ -2316,32 +2322,9 @@ const ContractServicesBlock = () => {
             onChange: handlePricingModeChange,
             disabled: isLocked,
           }),
-          isPackageMode && React.createElement(Tag, { color: 'blue' }, `Currency: ${getCurrencyCode(contractCurrency)}`),
+          isPackageMode && React.createElement(Tag, { color: 'blue' }, 'Currency: VND'),
         )
       ),
-    ),
-
-    // Display currency — view all totals converted into a chosen currency,
-    // independent of the contract's own base currency.
-    React.createElement('div', {
-      style: { ...ui.section, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', minHeight: 34, paddingTop: 6, paddingBottom: 6, gap: 12 },
-    },
-      React.createElement(Text, { type: 'secondary', style: { fontSize: 12, whiteSpace: 'nowrap' } }, 'Display currency'),
-      React.createElement(Select, {
-        value: selectedDisplayCurrencyValue,
-        onChange: (val) => setDisplayCurrencyId(val),
-        options: displayCurrencyOptions,
-        style: { width: 150 },
-        size: 'small',
-      }),
-      exchangeRatesLoading
-        ? React.createElement(Spin, { size: 'small' })
-        : React.createElement(Text, {
-          type: convertedTotals.missing.length ? 'warning' : 'secondary',
-          style: { fontSize: 12, whiteSpace: 'nowrap' },
-        }, convertedTotals.missing.length
-          ? `Thiếu tỷ giá: ${formatMissingRatePairs(convertedTotals.missing, displayCurrency)}`
-          : `Quy đổi sang ${targetCurrencyCode} theo tỷ giá hiện hành`),
     ),
 
     // Table
@@ -2362,14 +2345,8 @@ const ContractServicesBlock = () => {
             React.createElement(Space, { direction: 'vertical', size: 0 },
               React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package subtotal' : 'Subtotal'),
               isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageSubTotal, disabled: isLocked, onChange: updatePackageField(setPackageSubTotal), style: { width: 150 }, placeholder: '0', currency: contractCurrency })
-                : hasMixedLineCurrencies
-                  ? React.createElement(Space, { direction: 'vertical', size: 0 },
-                    ...lineTotalsByCurrency.map((g) => React.createElement(Text, { key: getCurrencyCode(g.currency), strong: true, style: { fontFamily: token.fontFamilyCode, display: 'block' } }, formatMoney(g.subTotal, g.currency))),
-                    renderMixedConversionHint('subTotal')
-                  )
-                  : React.createElement(Text, { strong: true, style: { fontFamily: token.fontFamilyCode } }, formatMoney(totals.subTotal, totalsCurrency)),
-              renderSingleGroupConversionHint('subTotal')
+                ? React.createElement(MoneyDraftInput, { value: packageSubTotal, disabled: isLocked, onChange: updatePackageField(setPackageSubTotal), style: { width: 150 }, placeholder: '0', currency: vndCurrency })
+                : React.createElement(Text, { strong: true, style: { fontFamily: token.fontFamilyCode } }, formatMoney(totals.subTotal, vndCurrency))
             )
           ),
           React.createElement(Table.Summary.Cell, { index: 4, align: 'right' },
@@ -2384,29 +2361,16 @@ const ContractServicesBlock = () => {
             React.createElement(Space, { direction: 'vertical', size: 0 },
               React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package VAT amount' : 'VAT amount'),
               isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageTotals.vatAmount, disabled: isLocked, onChange: updatePackageVatAmount, style: { width: 150 }, placeholder: '0', currency: contractCurrency })
-                : hasMixedLineCurrencies
-                  ? React.createElement(Space, { direction: 'vertical', size: 0 },
-                    ...lineTotalsByCurrency.map((g) => React.createElement(Text, { key: getCurrencyCode(g.currency), strong: true, style: { color: token.colorWarning, fontFamily: token.fontFamilyCode, display: 'block' } }, formatMoney(g.vatAmount, g.currency))),
-                    renderMixedConversionHint('vatAmount')
-                  )
-                  : React.createElement(Text, { strong: true, style: { color: token.colorWarning, fontFamily: token.fontFamilyCode } }, formatMoney(totals.vatAmount, totalsCurrency)),
-              renderSingleGroupConversionHint('vatAmount')
+                ? React.createElement(MoneyDraftInput, { value: packageTotals.vatAmount, disabled: isLocked, onChange: updatePackageVatAmount, style: { width: 150 }, placeholder: '0', currency: vndCurrency })
+                : React.createElement(Text, { strong: true, style: { color: token.colorWarning, fontFamily: token.fontFamilyCode } }, formatMoney(totals.vatAmount, vndCurrency))
             )
           ),
           React.createElement(Table.Summary.Cell, { index: 6, align: 'right' },
             React.createElement(Space, { direction: 'vertical', size: 0 },
               React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package total' : 'Total amount'),
               isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageTotals.totalAmount, disabled: isLocked, onChange: updatePackageTotalAmount, style: { width: 150 }, placeholder: '0', currency: contractCurrency })
-                : hasMixedLineCurrencies
-                  ? React.createElement(Space, { direction: 'vertical', size: 0, style: { alignItems: 'flex-end' } },
-                    ...lineTotalsByCurrency.map((g) => React.createElement(Text, { key: getCurrencyCode(g.currency), strong: true, style: { color: token.colorSuccess, fontFamily: token.fontFamilyCode, display: 'block' } }, formatMoney(g.totalAmount, g.currency))),
-                    renderMixedConversionHint('totalAmount'),
-                    React.createElement(Button, { type: 'link', size: 'small', style: { padding: 0, height: 'auto' }, onClick: () => setBreakdownOpen(true) }, 'Xem chi tiết')
-                  )
-                  : React.createElement(Text, { strong: true, style: { color: token.colorSuccess, fontFamily: token.fontFamilyCode } }, formatMoney(totals.totalAmount, totalsCurrency)),
-              renderSingleGroupConversionHint('totalAmount')
+                ? React.createElement(MoneyDraftInput, { value: packageTotals.totalAmount, disabled: isLocked, onChange: updatePackageTotalAmount, style: { width: 150 }, placeholder: '0', currency: vndCurrency })
+                : React.createElement(Text, { strong: true, style: { color: token.colorSuccess, fontFamily: token.fontFamilyCode } }, formatMoney(totals.totalAmount, vndCurrency))
             )
           ),
           React.createElement(Table.Summary.Cell, { index: 7 })
@@ -2426,40 +2390,6 @@ const ContractServicesBlock = () => {
           onClick: saving ? undefined : handleSave,
         }, 'Save & Update contract')
       )
-    ),
-
-    // CURRENCY BREAKDOWN MODAL
-    React.createElement(Modal, {
-      title: 'Chi tiết quy đổi tiền tệ',
-      open: breakdownOpen,
-      onCancel: () => setBreakdownOpen(false),
-      footer: null,
-      width: 800,
-    },
-      React.createElement('div', { style: { fontFamily: FONT } },
-        React.createElement('div', { style: { marginBottom: 12, color: C.textSub, fontSize: 12.5 } },
-          `Quy đổi tất cả dòng dịch vụ sang: ${targetCurrencyCode}.`,
-        ),
-        React.createElement(Table, {
-          dataSource: exchangeBreakdown,
-          rowKey: (r) => getCurrencyCode(r.currency),
-          pagination: false,
-          size: 'small',
-          bordered: true,
-          columns: [
-            { title: 'Tiền tệ', key: 'currencyCode', width: 100, render: (_, r) => getCurrencyCode(r.currency) },
-            { title: 'Tổng gốc', align: 'right', render: (_, r) => formatMoney(r.totalAmount, r.currency) },
-            { title: `Tỷ giá quy đổi sang ${targetCurrencyCode}`, align: 'right', render: (_, r) => (r.canConvert ? formatExchangeRate(r.rate) : React.createElement(Text, { type: 'warning' }, 'Thiếu tỷ giá')) },
-            { title: `Tổng quy đổi (${targetCurrencyCode})`, align: 'right', render: (_, r) => (r.canConvert ? formatMoney(r.convertedTotalAmount, displayCurrency) : '—') },
-          ],
-        }),
-        convertedSummary?.canConvert && React.createElement('div', {
-          style: { marginTop: 12, padding: '10px 12px', borderRadius: 7, background: '#f6ffed', border: '1px solid #b7eb8f', display: 'flex', justifyContent: 'space-between' },
-        },
-          React.createElement(Text, { strong: true }, `Tổng quy đổi (${targetCurrencyCode})`),
-          React.createElement(Text, { strong: true, style: { color: C.successText, fontFamily: FONT_MONO } }, formatMoney(convertedSummary.totalAmount, displayCurrency)),
-        ),
-      ),
     ),
 
     // COMPARE MODAL
