@@ -404,54 +404,6 @@ async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyI
   }
   return [];
 }
-const buildConvertedTotals = ({ groups = [], targetCurrency = null, exchangeRates = [], pricingDate } = {}) => {
-  const target = targetCurrency || defaultCurrencyObject();
-  const missing = [];
-  const breakdown = (groups || []).map((group) => {
-    const matched = isSameCurrency(group.currency, target)
-      ? { rate: 1, direction: "same" }
-      : pickConversionRate(exchangeRates, group.currency, target, pricingDate);
-    if (!matched?.rate) {
-      missing.push(group);
-      return {
-        ...group,
-        rate: null,
-        canConvert: false,
-        convertedSubTotal: 0,
-        convertedVatAmount: 0,
-        convertedTotalAmount: 0,
-      };
-    }
-    return {
-      ...group,
-      rate: matched.rate,
-      canConvert: true,
-      convertedSubTotal: roundMoneyForCurrency(group.subTotal * matched.rate, target),
-      convertedVatAmount: roundMoneyForCurrency(group.vatAmount * matched.rate, target),
-      convertedTotalAmount: roundMoneyForCurrency(group.totalAmount * matched.rate, target),
-    };
-  });
-  const converted = breakdown.reduce(
-    (sum, group) => group.canConvert
-      ? {
-        subTotal: roundMoneyForCurrency(sum.subTotal + group.convertedSubTotal, target),
-        vatAmount: roundMoneyForCurrency(sum.vatAmount + group.convertedVatAmount, target),
-        totalAmount: roundMoneyForCurrency(sum.totalAmount + group.convertedTotalAmount, target),
-      }
-      : sum,
-    { subTotal: 0, vatAmount: 0, totalAmount: 0 },
-  );
-  return {
-    breakdown,
-    missing,
-    converted: {
-      ...converted,
-      currency: target,
-      canConvert: missing.length === 0,
-    },
-  };
-};
-
 const calcLine = (basePrice, quantity, vat, currency = null) => {
   const subTotal = parseNum(basePrice) * parseNum(quantity);
   const vatAmount = roundMoneyForCurrency(subTotal * parseNum(vat) / 100, currency);
@@ -648,9 +600,23 @@ const syncContractHeaderFromServices = async (contractId) => {
   }
 };
 
-const buildServicePricingPayload = ({ pricingMode, basePrice, quantity = 1, vat, packageSubTotal, packageVatRate, currency = null, packageCurrency = null }) => {
+const buildServicePricingPayload = ({
+  pricingMode,
+  basePrice,
+  quantity = 1,
+  vat,
+  packageSubTotal,
+  packageVatRate,
+  currency = null,
+  vndCurrency = null,
+  exchangeRatesToVnd = [],
+  pricingDate = null,
+}) => {
+  const targetVnd = vndCurrency || defaultCurrencyObject();
   if (isPackagePricing(pricingMode)) {
-    const totals = calcPackageTotals(packageSubTotal, packageVatRate, packageCurrency || currency);
+    // Package mode is priced directly in VND — there is no per-line catalog
+    // service to derive a "native" currency from, so no conversion needed.
+    const totals = calcPackageTotals(packageSubTotal, packageVatRate, targetVnd);
     return {
       pricingMode: PRICING_MODE_PACKAGE,
       basePrice: 0,
@@ -659,24 +625,45 @@ const buildServicePricingPayload = ({ pricingMode, basePrice, quantity = 1, vat,
       subTotal: 0,
       vatAmount: 0,
       totalAmount: 0,
+      exchangeRateToBase: 1,
       packageSubTotal: totals.subTotal,
       packageVatRate: parseNum(packageVatRate),
       packageVatAmount: totals.vatAmount,
       packageTotalAmount: totals.totalAmount,
+      _convertible: true,
     };
   }
   const qty = parseNum(quantity) || 1;
-  const line = calcLine(basePrice, qty, vat, currency);
+  // native = the row's totals rounded at ITS OWN currency's precision, before
+  // any VND conversion — this preserves FR-2.1's per-currency rounding step.
+  const native = calcLine(basePrice, qty, vat, currency);
+  let exchangeRateToBase = 1;
+  let convertible = true;
+  if (!isSameCurrency(currency, targetVnd)) {
+    const matched = pickConversionRate(exchangeRatesToVnd, currency, targetVnd, pricingDate);
+    if (matched?.rate) {
+      exchangeRateToBase = matched.rate;
+    } else {
+      convertible = false;
+    }
+  }
+  const subTotal = convertible ? roundMoneyForCurrency(native.subTotal * exchangeRateToBase, targetVnd) : null;
+  const vatAmount = convertible ? roundMoneyForCurrency(native.vatAmount * exchangeRateToBase, targetVnd) : null;
+  const totalAmount = convertible ? subTotal + vatAmount : null;
   return {
     pricingMode: PRICING_MODE_LINE,
     basePrice: parseNum(basePrice),
     quantity: qty,
     vat: parseNum(vat),
-    ...line,
+    subTotal,
+    vatAmount,
+    totalAmount,
+    exchangeRateToBase,
     packageSubTotal: 0,
     packageVatRate: 0,
     packageVatAmount: 0,
     packageTotalAmount: 0,
+    _convertible: convertible,
   };
 };
 
