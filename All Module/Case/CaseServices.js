@@ -278,139 +278,6 @@
     const factor = Math.pow(10, decimals);
     return Math.round(n * factor) / factor;
   };
-  const formatMissingRatePairs = (groups = [], targetCurrency = null) => {
-    const targetCode = getCurrencyCode(targetCurrency || defaultCurrencyObject());
-    return (groups || []).map((group) => `${getCurrencyCode(group.currency)} -> ${targetCode}`).join(", ");
-  };
-  const buildConvertedTotals = ({ groups = [], targetCurrency = null, exchangeRates = [], pricingDate } = {}) => {
-    const target = targetCurrency || defaultCurrencyObject();
-    const missing = [];
-    const breakdown = (groups || []).map((group) => {
-      const matched = isSameCurrency(group.currency, target)
-        ? { rate: 1, direction: "same" }
-        : pickConversionRate(exchangeRates, group.currency, target, pricingDate);
-      if (!matched?.rate) {
-        missing.push(group);
-        return {
-          ...group,
-          rate: null,
-          canConvert: false,
-          convertedSubTotal: 0,
-          convertedVatAmount: 0,
-          convertedTotalAmount: 0,
-        };
-      }
-      return {
-        ...group,
-        rate: matched.rate,
-        canConvert: true,
-        convertedSubTotal: roundMoneyForCurrency(group.subTotal * matched.rate, target),
-        convertedVatAmount: roundMoneyForCurrency(group.vatAmount * matched.rate, target),
-        convertedTotalAmount: roundMoneyForCurrency(group.totalAmount * matched.rate, target),
-      };
-    });
-    const converted = breakdown.reduce(
-      (sum, group) => group.canConvert
-        ? {
-          subTotal: roundMoneyForCurrency(sum.subTotal + group.convertedSubTotal, target),
-          vatAmount: roundMoneyForCurrency(sum.vatAmount + group.convertedVatAmount, target),
-          totalAmount: roundMoneyForCurrency(sum.totalAmount + group.convertedTotalAmount, target),
-        }
-        : sum,
-      { subTotal: 0, vatAmount: 0, totalAmount: 0 },
-    );
-    return {
-      breakdown,
-      missing,
-      converted: {
-        ...converted,
-        currency: target,
-        canConvert: missing.length === 0,
-      },
-    };
-  };
-  const EXCHANGE_RATE_RESOURCE_CANDIDATES = ["exchangeRates:list", "exchangeRate:list", "ExchangeRates:list"];
-  const parseDateMillis = (value) => {
-    if (!value) return null;
-    const ms = new Date(value).getTime();
-    return Number.isFinite(ms) ? ms : null;
-  };
-  const getExchangeRateCurrencyId = (rate, side) => extractCurrencyId(rate?.[`${side}CurrencyId`] || rate?.[`${side}Currency`]);
-  const getExchangeRateCurrencyCode = (rate, side) => extractCurrencyCode(rate?.[`${side}Currency`] || rate?.[`${side}CurrencyCode`]);
-  const isUsableExchangeRateStatus = (status) => {
-    const value = String(status || "").trim().toLowerCase();
-    if (!value) return true;
-    return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
-  };
-  const exchangeRateMatchesCurrency = (rate, side, currency) => {
-    const rateCurrencyId = getExchangeRateCurrencyId(rate, side);
-    const currencyId = extractCurrencyId(currency);
-    if (rateCurrencyId && currencyId) return rateCurrencyId === currencyId;
-    const rateCurrencyCode = getExchangeRateCurrencyCode(rate, side);
-    const currencyCode = extractCurrencyCode(currency);
-    return !!rateCurrencyCode && !!currencyCode && rateCurrencyCode === currencyCode;
-  };
-  const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
-    const cutoff = parseDateMillis(pricingDate) || Date.now();
-    return (rates || [])
-      .map((rate) => {
-        const effectiveMs = parseDateMillis(rate?.effectiveDate);
-        return { record: rate, rate: parseNum(rate?.rate), effectiveMs: effectiveMs || 0 };
-      })
-      .filter((item) =>
-        item.rate > 0 &&
-        isUsableExchangeRateStatus(item.record?.status) &&
-        (!item.effectiveMs || item.effectiveMs <= cutoff) &&
-        exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
-        exchangeRateMatchesCurrency(item.record, "to", toCurrency),
-      )
-      .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
-  };
-  const pickConversionRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
-    const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate);
-    if (direct) return { ...direct, direction: "direct" };
-    const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate);
-    if (inverse?.rate > 0) {
-      return { ...inverse, direction: "inverse", originalRate: inverse.rate, rate: 1 / inverse.rate };
-    }
-    return null;
-  };
-  async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyId) {
-    const toId = extractCurrencyId(toCurrencyId);
-    const fromIds = Array.from(
-      new Set((fromCurrencyIds || []).map((id) => extractCurrencyId(id)).filter((id) => id && id !== toId)),
-    );
-    if (!toId || !fromIds.length) return [];
-    const pageSize = Math.max(100, fromIds.length * 5);
-    const filterProfiles = [
-      { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
-      { fromCurrency: { id: { $in: fromIds } }, toCurrency: { id: { $eq: toId } } },
-      { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
-      { fromCurrency: { id: { $eq: toId } }, toCurrency: { id: { $in: fromIds } } },
-    ];
-    for (const url of EXCHANGE_RATE_RESOURCE_CANDIDATES) {
-      const collected = [];
-      for (const filter of filterProfiles) {
-        try {
-          const r = await ctx.api.request({
-            url,
-            params: {
-              pageSize, page: 1,
-              appends: ["fromCurrency", "toCurrency"],
-              sort: ["-effectiveDate", "-createdAt"],
-              filter: JSON.stringify(filter),
-            },
-          });
-          const rows = r?.data?.data || [];
-          rows.forEach((row) => {
-            if (!collected.some((item) => String(item.id) === String(row.id))) collected.push(row);
-          });
-        } catch { }
-      }
-      if (collected.length) return collected;
-    }
-    return [];
-  }
   const isPackagePricing = (recordOrMode) => {
     const mode = typeof recordOrMode === "object" ? recordOrMode?.pricingMode : recordOrMode;
     return String(mode || "").toLowerCase() === PRICING_MODE_PACKAGE;
@@ -850,27 +717,13 @@
     const [currencies, setCurrencies] = useState([]);
     const caseCurrency = useMemo(() => currencyFromRecord(caseInfo, currencies), [caseInfo, currencies]);
     const vndCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
-    const [displayCurrencyId, setDisplayCurrencyId] = useState(null);
-    const [summaryExchangeRates, setSummaryExchangeRates] = useState([]);
-    const [summaryRatesLoading, setSummaryRatesLoading] = useState(false);
-    const displayCurrency = useMemo(
-      () => resolveCurrency(displayCurrencyId, currencies) || caseCurrency,
-      [displayCurrencyId, currencies, caseCurrency],
-    );
-    const selectedDisplayCurrencyValue = getCurrencySelectValue(displayCurrency);
-    const currencyOptions = useMemo(() => {
-      const options = currencies.map((currency) => ({
+    const currencyOptions = useMemo(
+      () => currencies.map((currency) => ({
         value: getCurrencySelectValue(currency),
         label: currencySelectLabel(currency),
-      }));
-      if (selectedDisplayCurrencyValue && !options.some((option) => option.value === selectedDisplayCurrencyValue)) {
-        options.unshift({
-          value: selectedDisplayCurrencyValue,
-          label: currencySelectLabel(displayCurrency),
-        });
-      }
-      return options;
-    }, [currencies, displayCurrency, selectedDisplayCurrencyValue]);
+      })),
+      [currencies],
+    );
     const getRowCurrency = (row) => currencyFromRecord(row, currencies, caseCurrency);
 
     // Modals
@@ -884,7 +737,7 @@
       pendingContractId: null, // newly detected contractId after the popup closes
     });
     const [serviceSelectSubmitting, setServiceSelectSubmitting] = useState(false);
-    const [selectionAmountsPreview, setSelectionAmountsPreview] = useState({ subTotal: 0, vatAmount: 0, totalAmount: 0, groups: [], canConvert: true });
+    const [selectionAmountsPreview, setSelectionAmountsPreview] = useState({ subTotal: 0, vatAmount: 0, totalAmount: 0, currency: null });
 
     const [form] = Form.useForm();
     const extractId = (val) => {
@@ -1040,76 +893,31 @@
       return getRowSubTotal(record) + getRowVatAmount(record, currency);
     };
     const getSelectionAmounts = async (records = []) => {
-      const packageSource = records.find(
-        (record) =>
-          isPackageServiceRow(record) ||
-          parseNum(record?.packageSubTotal) ||
-          parseNum(record?.packageTotalAmount),
+      const billableRows = records.filter(isMoneyEditableServiceRow);
+      const packageRows = records.filter(isPackageServiceRow);
+      const lineSum = billableRows.reduce(
+        (acc, row) => ({
+          subTotal: acc.subTotal + getRowSubTotal(row),
+          vatAmount: acc.vatAmount + getRowVatAmount(row, vndCurrency),
+        }),
+        { subTotal: 0, vatAmount: 0 },
       );
-      if (packageSource) {
-        const totals = calcPackageTotals(packageSource);
-        const packageCurrency = currencyFromRecord(packageSource, currencies, caseCurrency);
+      const packageSum = packageRows.reduce((acc, row) => {
+        const totals = calcPackageTotals(row, vndCurrency);
         return {
-          ...totals,
-          groups: [{ currency: packageCurrency, subTotal: totals.subTotal, vatAmount: totals.vatAmount, totalAmount: totals.totalAmount }],
-          canConvert: true,
+          subTotal: acc.subTotal + totals.subTotal,
+          vatAmount: acc.vatAmount + totals.vatAmount,
         };
-      }
-
-      // Group the service rows by their own currency, then convert the
-      // non-base groups to caseCurrency before summing — same approach as
-      // syncQuotationHeaderFromServices/syncContractHeaderFromServices.
-      const byCurrency = {};
-      records.forEach((record) => {
-        const rowCurrency = currencyFromRecord(record, currencies, caseCurrency);
-        const key = extractCurrencyId(rowCurrency) || getCurrencyCode(rowCurrency);
-        if (!byCurrency[key]) byCurrency[key] = { currency: rowCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-        byCurrency[key].subTotal += getRowSubTotal(record);
-        byCurrency[key].vatAmount += getRowVatAmount(record);
-        byCurrency[key].totalAmount += getRowTotalAmount(record);
-      });
-      const groups = Object.values(byCurrency);
-      const nonBaseGroups = groups.filter((g) => !isSameCurrency(g.currency, caseCurrency));
-      const exchangeRates = nonBaseGroups.length
-        ? await fetchExchangeRatesForConversion(
-          nonBaseGroups.map((g) => extractCurrencyId(g.currency)).filter(Boolean),
-          extractCurrencyId(caseCurrency),
-        )
-        : [];
-
-      let subTotal = 0;
-      let vatAmount = 0;
-      let totalAmount = 0;
-      let canConvert = true;
-      groups.forEach((group) => {
-        if (isSameCurrency(group.currency, caseCurrency)) {
-          subTotal += group.subTotal;
-          vatAmount += group.vatAmount;
-          totalAmount += group.totalAmount;
-          return;
-        }
-        const matched = pickConversionRate(exchangeRates, group.currency, caseCurrency);
-        if (!matched?.rate) {
-          console.warn(`[getSelectionAmounts] Missing exchange rate ${getCurrencyCode(group.currency)} -> ${getCurrencyCode(caseCurrency)}; summing unconverted`);
-          canConvert = false;
-          subTotal += group.subTotal;
-          vatAmount += group.vatAmount;
-          totalAmount += group.totalAmount;
-          return;
-        }
-        const convertedSubTotal = roundMoneyForCurrency(group.subTotal * matched.rate, caseCurrency);
-        const convertedVatAmount = roundMoneyForCurrency(group.vatAmount * matched.rate, caseCurrency);
-        subTotal += convertedSubTotal;
-        vatAmount += convertedVatAmount;
-        totalAmount += convertedSubTotal + convertedVatAmount;
-      });
-      return { subTotal, vatAmount, totalAmount, groups, canConvert };
+      }, { subTotal: 0, vatAmount: 0 });
+      const subTotal = lineSum.subTotal + packageSum.subTotal;
+      const vatAmount = lineSum.vatAmount + packageSum.vatAmount;
+      return { subTotal, vatAmount, totalAmount: subTotal + vatAmount, currency: vndCurrency };
     };
 
     useEffect(() => {
       let alive = true;
       if (!serviceSelectModal.open || !serviceSelectModal.selectedIds.length) {
-        setSelectionAmountsPreview({ subTotal: 0, vatAmount: 0, totalAmount: 0, groups: [], canConvert: true });
+        setSelectionAmountsPreview({ subTotal: 0, vatAmount: 0, totalAmount: 0, currency: vndCurrency });
         return () => { alive = false; };
       }
       const sel = services.filter((s) => serviceSelectModal.selectedIds.includes(s.id));
@@ -1117,7 +925,7 @@
         if (alive) setSelectionAmountsPreview(amounts);
       });
       return () => { alive = false; };
-    }, [serviceSelectModal.open, serviceSelectModal.selectedIds, services, currencies, caseCurrency]);
+    }, [serviceSelectModal.open, serviceSelectModal.selectedIds, services, vndCurrency]);
 
     const getComparisonRows = (record) => {
       const catalog = getCatalogService(record);
@@ -1683,11 +1491,7 @@
       if (!safeProjectId) return;
 
       try {
-        const [projectRes, linesRes, currs] = await Promise.all([
-          ctx.api.request({
-            url: "projects:get",
-            params: { filterByTk: safeProjectId },
-          }),
+        const [linesRes, currs] = await Promise.all([
           ctx.api.request({
             url: "projectServices:list",
             params: {
@@ -1698,70 +1502,35 @@
           fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES),
         ]);
 
-        const project = projectRes?.data?.data || projectRes?.data || {};
         const lines = (linesRes?.data?.data || []).filter((line) => !isDeletedServiceLine(line));
-        const projectCurrency = currencyFromRecord(project, currs, findDefaultCurrency(currs));
-        const projectCurrencyId = extractCurrencyId(projectCurrency);
-
-        const packageRows = lines.filter(isPackageServiceRow);
+        const vnd = findDefaultCurrency(currs);
         const billableRows = lines.filter(isMoneyEditableServiceRow);
-        const packageRowSource = packageRows.find(
-          (record) => parseNum(record.packageSubTotal) || parseNum(record.packageTotalAmount),
+        const packageRows = lines.filter(isPackageServiceRow);
+        const lineSum = billableRows.reduce(
+          (acc, row) => ({
+            subTotal: acc.subTotal + getRowSubTotal(row),
+            vatAmount: acc.vatAmount + getRowVatAmount(row, vnd),
+          }),
+          { subTotal: 0, vatAmount: 0 },
         );
-        const packageSource = [packageRowSource, project].filter(Boolean).find((record) => isPackagePricing(record));
-        const isPackageMode = !!packageRows.length || !!packageSource;
-
-        let groups;
-        if (isPackageMode) {
-          const packageTotals = packageSource
-            ? calcPackageTotals(packageSource)
-            : { subTotal: 0, vatAmount: 0, totalAmount: 0 };
-          const packageCurrency = currencyFromRecord(packageSource || packageRowSource || project, currs, projectCurrency);
-          groups = [{
-            currency: packageCurrency,
-            subTotal: packageTotals.subTotal,
-            vatAmount: packageTotals.vatAmount,
-            totalAmount: packageTotals.totalAmount,
-          }];
-        } else {
-          const byCurrency = {};
-          billableRows.forEach((row) => {
-            const rowCurrency = currencyFromRecord(row, currs, projectCurrency);
-            const key = extractCurrencyId(rowCurrency) || getCurrencyCode(rowCurrency);
-            if (!byCurrency[key]) byCurrency[key] = { currency: rowCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-            byCurrency[key].subTotal += getRowSubTotal(row);
-            byCurrency[key].vatAmount += getRowVatAmount(row);
-            byCurrency[key].totalAmount += getRowTotalAmount(row);
-          });
-          groups = Object.values(byCurrency);
-        }
-
-        const nonBaseGroups = groups.filter((g) => !isSameCurrency(g.currency, projectCurrency));
-        const exchangeRates = nonBaseGroups.length
-          ? await fetchExchangeRatesForConversion(
-            nonBaseGroups.map((g) => extractCurrencyId(g.currency)).filter(Boolean),
-            projectCurrencyId,
-          )
-          : [];
-        const { converted, missing } = buildConvertedTotals({
-          groups,
-          targetCurrency: projectCurrency,
-          exchangeRates,
-          pricingDate: project?.date || project?.createdAt,
-        });
-
-        if (!converted.canConvert) {
-          console.warn(
-            `[CaseServices] syncCaseTotalAmount: missing exchange rate ${formatMissingRatePairs(missing, projectCurrency)}; skipping totalAmount sync`,
-          );
-          return;
-        }
+        const packageSum = packageRows.reduce((acc, row) => {
+          const totals = calcPackageTotals(row, vnd);
+          return {
+            subTotal: acc.subTotal + totals.subTotal,
+            vatAmount: acc.vatAmount + totals.vatAmount,
+          };
+        }, { subTotal: 0, vatAmount: 0 });
+        const totalAmount =
+          lineSum.subTotal +
+          lineSum.vatAmount +
+          packageSum.subTotal +
+          packageSum.vatAmount;
 
         await ctx.api.request({
           url: "projects:update",
           method: "POST",
           params: { filterByTk: safeProjectId },
-          data: { totalAmount: converted.totalAmount },
+          data: { totalAmount },
         });
       } catch (e) {
         console.error("[CaseServices] syncCaseTotalAmount failed", e);
@@ -1781,10 +1550,9 @@
         const quantity = Number(record.quantity ?? record._quotedQuantity ?? 1) || 1;
         const newPrice = field === "basePrice" ? (Number(newValue) || 0) : (Number(record.basePrice) || 0);
         const newVat = field === "vat" ? (Number(newValue) || 0) : (Number(record.vat) || 0);
-        const rowCurrency = getRowCurrency(record);
 
         const newSubTotal = newPrice * quantity;
-        const newVatAmount = roundMoneyForCurrency((newSubTotal * newVat) / 100, rowCurrency);
+        const newVatAmount = roundMoneyForCurrency((newSubTotal * newVat) / 100, vndCurrency);
         const newTotalAmount = newSubTotal + newVatAmount;
 
         pricePayload = { basePrice: newPrice, vat: newVat, subTotal: newSubTotal, vatAmount: newVatAmount, totalAmount: newTotalAmount };
@@ -3353,41 +3121,16 @@
         .find((record) => isPackagePricing(record));
       const isPackageMode = !!packageRows.length || !!packageSource;
       const packageTotals = packageSource
-        ? calcPackageTotals(packageSource)
+        ? calcPackageTotals(packageSource, vndCurrency)
         : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
       const lineTotals = billableRows.reduce(
         (sum, row) => ({
           subTotal: sum.subTotal + getRowSubTotal(row),
-          vatAmount: sum.vatAmount + getRowVatAmount(row),
-          totalAmount: sum.totalAmount + getRowTotalAmount(row),
+          vatAmount: sum.vatAmount + getRowVatAmount(row, vndCurrency),
+          totalAmount: sum.totalAmount + getRowTotalAmount(row, vndCurrency),
         }),
         { subTotal: 0, vatAmount: 0, totalAmount: 0 },
       );
-      // Group by currency too — billableRows can carry different currencyId
-      // values than each other and than the case's own currency (copied from
-      // whichever catalog service/contract/quotation line they came from).
-      const lineTotalsByCurrencyMap = {};
-      billableRows.forEach((row) => {
-        const rowCurrency = currencyFromRecord(row, currencies, caseCurrency);
-        const key = extractCurrencyId(rowCurrency) || getCurrencyCode(rowCurrency);
-        if (!lineTotalsByCurrencyMap[key]) lineTotalsByCurrencyMap[key] = { currency: rowCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0, lineCount: 0 };
-        lineTotalsByCurrencyMap[key].subTotal += getRowSubTotal(row);
-        lineTotalsByCurrencyMap[key].vatAmount += getRowVatAmount(row);
-        lineTotalsByCurrencyMap[key].totalAmount += getRowTotalAmount(row);
-        lineTotalsByCurrencyMap[key].lineCount += 1;
-      });
-      const lineTotalsByCurrency = Object.values(lineTotalsByCurrencyMap);
-      const hasMixedCurrencies = !isPackageMode && lineTotalsByCurrency.length > 1;
-      const packageCurrency = currencyFromRecord(packageSource || packageRowSource || caseInfo, currencies, caseCurrency);
-      const summarySourceGroups = isPackageMode
-        ? [{
-          currency: packageCurrency,
-          subTotal: packageTotals.subTotal,
-          vatAmount: packageTotals.vatAmount,
-          totalAmount: packageTotals.totalAmount,
-          lineCount: packageRows.length || (packageSource ? 1 : 0),
-        }]
-        : lineTotalsByCurrency;
 
       return {
         isPackageMode,
@@ -3397,10 +3140,6 @@
         packageRecord: packageRowSource || packageRows[0] || null,
         packageTotals,
         lineTotals,
-        lineTotalsByCurrency,
-        hasMixedCurrencies,
-        packageCurrency,
-        summarySourceGroups,
         sourceLabel: packageRowSource?.financialSourceType === SOURCE_CONTRACT
           ? "Contract package"
           : packageRowSource?.financialSourceType === SOURCE_QUOTATION
@@ -3415,172 +3154,16 @@
                     ? "Quotation package"
         : "Case package",
       };
-    }, [services, caseInfo, currencies, caseCurrency]);
+    }, [services, caseInfo, vndCurrency]);
 
-    const summaryConversionSourceIds = useMemo(() => Array.from(
-      new Set(
-        (servicePricingSummary.summarySourceGroups || [])
-          .filter((group) => !isSameCurrency(group.currency, displayCurrency))
-          .map((group) => extractCurrencyId(group.currency))
-          .filter(Boolean),
-      ),
-    ), [servicePricingSummary.summarySourceGroups, displayCurrency]);
-    const summaryConversionSourceKey = summaryConversionSourceIds.slice().sort((a, b) => a - b).join(",");
-    const displayCurrencyResourceId = extractCurrencyId(displayCurrency);
-
-    useEffect(() => {
-      let alive = true;
-      if (!summaryConversionSourceIds.length || !displayCurrencyResourceId) {
-        setSummaryExchangeRates([]);
-        setSummaryRatesLoading(false);
-        return () => { alive = false; };
-      }
-      setSummaryRatesLoading(true);
-      fetchExchangeRatesForConversion(summaryConversionSourceIds, displayCurrencyResourceId)
-        .then((rates) => {
-          if (alive) setSummaryExchangeRates(rates);
-        })
-        .catch((err) => {
-          console.warn("[CaseServices] Could not fetch summary exchange rates", err);
-          if (alive) setSummaryExchangeRates([]);
-        })
-        .finally(() => {
-          if (alive) setSummaryRatesLoading(false);
-        });
-      return () => { alive = false; };
-    }, [summaryConversionSourceKey, displayCurrencyResourceId]);
-
-    const convertedPricingSummary = useMemo(() => buildConvertedTotals({
-      groups: servicePricingSummary.summarySourceGroups,
-      targetCurrency: displayCurrency,
-      exchangeRates: summaryExchangeRates,
-      pricingDate: caseInfo?.date || caseInfo?.createdAt,
-    }), [servicePricingSummary.summarySourceGroups, displayCurrency, summaryExchangeRates, caseInfo]);
-
-    // Primary summary number: the exact amount in each line's own (natural)
-    // currency — never routed through exchange rates. When billableRows span
-    // more than one currency, list each group separately (mirrors
-    // ContractServices.js / QuotationServices.js's lineTotalsByCurrency display).
-    const renderNaturalAmount = (field, color = token.colorText) => {
-      const groups = servicePricingSummary.lineTotalsByCurrency;
-      if (!groups.length) return React.createElement(Text, { type: "secondary" }, "-");
-      if (groups.length > 1) {
-        return React.createElement(Space, { direction: "vertical", size: 0 },
-          ...groups.map((g) => React.createElement(Text, {
-            key: getCurrencyCode(g.currency),
-            strong: true,
-            style: { color, fontFamily: token.fontFamilyCode, display: "block" },
-          }, formatMoney(g[field], g.currency)))
-        );
-      }
-      return React.createElement(Text, {
+    const renderAmount = (value, color = token.colorText) =>
+      React.createElement(Text, {
         strong: true,
         style: { color, fontFamily: token.fontFamilyCode, whiteSpace: "nowrap" },
-      }, formatMoney(groups[0][field], groups[0].currency));
-    };
-
-    // Secondary "≈ converted" hint below the natural amount(s). Shown whenever
-    // there isn't already a single natural-currency number to read directly:
-    // either the display currency differs from the one natural currency, OR
-    // the lines are split across multiple currencies — in the mixed case this
-    // is the only place a single combined total ever appears, so it must show
-    // regardless of which currency is picked (mirrors Contract/Quotation's
-    // Total-amount cell, which always renders this combined line when mixed).
-    const naturalSummaryCurrency = servicePricingSummary.isPackageMode
-      ? servicePricingSummary.packageCurrency
-      : (servicePricingSummary.lineTotalsByCurrency[0]?.currency || caseCurrency);
-    const needsConversionHint =
-      (servicePricingSummary.hasMixedCurrencies || !isSameCurrency(naturalSummaryCurrency, displayCurrency)) &&
-      (servicePricingSummary.summarySourceGroups || []).some((g) => g.lineCount || g.subTotal || g.vatAmount || g.totalAmount);
-    // `highlight: true` renders the converted amount as a bold pill instead of
-    // a small muted line — used for the grand Total amount so the one number
-    // that actually matters for reconciling mixed-currency lines doesn't read
-    // like just another secondary hint next to Subtotal/VAT's hints.
-    const renderConversionHint = (field, { highlight = false } = {}) => {
-      if (!needsConversionHint) return null;
-      if (summaryRatesLoading) {
-        return React.createElement(Text, { type: "secondary", style: { fontSize: highlight ? 12 : 11 } }, "Looking up exchange rate...");
-      }
-      if (convertedPricingSummary.converted.canConvert) {
-        const amountText = `≈ ${formatMoney(convertedPricingSummary.converted[field], displayCurrency)}`;
-        if (highlight) {
-          return React.createElement("span", {
-            style: {
-              display: "inline-flex",
-              alignItems: "center",
-              marginTop: 4,
-              padding: "3px 10px",
-              borderRadius: 999,
-              background: token.colorSuccessBg || "#f6ffed",
-              border: `1px solid ${token.colorSuccessBorder || "#b7eb8f"}`,
-            },
-          }, React.createElement(Text, {
-            strong: true,
-            style: { fontSize: 13, color: token.colorSuccessTextActive || token.colorSuccessText || C.successText, whiteSpace: "nowrap" },
-          }, amountText));
-        }
-        return React.createElement(Text, { style: { fontSize: 11, color: token.colorTextSecondary } }, amountText);
-      }
-      if (highlight) {
-        return React.createElement("span", {
-          style: {
-            display: "inline-flex",
-            alignItems: "center",
-            marginTop: 4,
-            padding: "3px 10px",
-            borderRadius: 999,
-            background: token.colorWarningBg || "#fffbe6",
-            border: `1px solid ${token.colorWarningBorder || "#ffe58f"}`,
-          },
-        }, React.createElement(Text, {
-          strong: true,
-          style: { fontSize: 13, color: token.colorWarningTextActive || token.colorWarning || C.warningText, whiteSpace: "nowrap" },
-        }, "Missing conversion rate"));
-      }
-      return React.createElement(Text, { style: { fontSize: 11, color: token.colorWarning } }, "Missing conversion rate");
-    };
-
-    const renderPricingSummary = () => {
-      const sourceGroups = (servicePricingSummary.summarySourceGroups || []).filter(
-        (group) => group.lineCount || group.subTotal || group.vatAmount || group.totalAmount,
-      );
-      const label = convertedPricingSummary.missing.length
-        ? `Missing rate: ${formatMissingRatePairs(convertedPricingSummary.missing, displayCurrency)}`
-        : `Converted to ${getCurrencyCode(displayCurrency)} using exchange rates`;
-
-      return React.createElement("div", {
-        style: {
-          ...ui.section,
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          minHeight: 34,
-          paddingTop: 6,
-          paddingBottom: 6,
-          background: token.colorBgContainer,
-          gap: 12,
-        },
-      },
-        React.createElement(Select, {
-          value: selectedDisplayCurrencyValue,
-          onChange: (val) => setDisplayCurrencyId(val),
-          options: currencyOptions,
-          style: { width: 150 },
-          size: "small",
-          placeholder: "Display Currency",
-        }),
-        summaryRatesLoading
-          ? React.createElement(Spin, { size: "small" })
-          : React.createElement(Text, {
-            type: convertedPricingSummary.missing.length ? "warning" : "secondary",
-            style: { fontSize: 12, whiteSpace: "nowrap" },
-          }, sourceGroups.length ? label : "")
-      );
-    };
+      }, formatMoney(value, vndCurrency));
 
     const buildPackageSummaryPatch = (field, value) => {
       const current = servicePricingSummary.packageTotals;
-      const packageCurrency = servicePricingSummary.packageCurrency || vndCurrency;
       const nextSubTotal = field === "packageSubTotal" ? parseNum(value) : current.subTotal;
       let nextVatRate = field === "packageVatRate" ? parseNum(value) : current.vatRate;
       let nextVatAmount = current.vatAmount;
@@ -3591,7 +3174,7 @@
         nextVatAmount = Math.max(parseNum(value) - nextSubTotal, 0);
         nextVatRate = inferVatRate(nextSubTotal, nextVatAmount, 0);
       } else {
-        nextVatAmount = roundMoneyForCurrency((nextSubTotal * nextVatRate) / 100, packageCurrency);
+        nextVatAmount = roundMoneyForCurrency((nextSubTotal * nextVatRate) / 100, vndCurrency);
       }
       const nextTotalAmount = nextSubTotal + nextVatAmount;
       return {
@@ -3804,7 +3387,7 @@
               color: "#92400e",
               whiteSpace: "nowrap",
             }
-          }, formatMoney(getRowVatAmount(record), getRowCurrency(record)));
+          }, formatMoney(getRowVatAmount(record, vndCurrency), vndCurrency));
         },
       },
       {
@@ -3825,7 +3408,7 @@
               color: "#096dd9",
               whiteSpace: "nowrap",
             }
-          }, formatMoney(getRowTotalAmount(record), getRowCurrency(record)));
+          }, formatMoney(getRowTotalAmount(record, vndCurrency), vndCurrency));
         },
       },
       {
@@ -4355,8 +3938,6 @@
         )
       ),
 
-      renderPricingSummary(),
-
       React.createElement("div", { style: { width: "100%", overflowX: "auto" } },
         React.createElement(Table, {
           dataSource: services,
@@ -4378,9 +3959,8 @@
                 React.createElement(Space, { direction: "vertical", size: 0 },
                   React.createElement(Text, { type: "secondary" }, servicePricingSummary.isPackageMode ? "Package subtotal" : "Subtotal"),
                   servicePricingSummary.isPackageMode
-                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.subTotal, min: 0, onChange: (value) => handlePackageSummaryEdit("packageSubTotal", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(servicePricingSummary.packageCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
-                    : renderNaturalAmount("subTotal", token.colorText),
-                  renderConversionHint("subTotal")
+                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.subTotal, min: 0, onChange: (value) => handlePackageSummaryEdit("packageSubTotal", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(vndCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
+                    : renderAmount(servicePricingSummary.lineTotals.subTotal, token.colorText)
                 )
               ),
               React.createElement(Table.Summary.Cell, { index: 5, align: "right" },
@@ -4395,18 +3975,16 @@
                 React.createElement(Space, { direction: "vertical", size: 0 },
                   React.createElement(Text, { type: "secondary" }, servicePricingSummary.isPackageMode ? "Package VAT amount" : "VAT amount"),
                   servicePricingSummary.isPackageMode
-                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.vatAmount, min: 0, onChange: (value) => handlePackageSummaryEdit("packageVatAmount", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(servicePricingSummary.packageCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
-                    : renderNaturalAmount("vatAmount", token.colorWarning || C.warningText),
-                  renderConversionHint("vatAmount")
+                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.vatAmount, min: 0, onChange: (value) => handlePackageSummaryEdit("packageVatAmount", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(vndCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
+                    : renderAmount(servicePricingSummary.lineTotals.vatAmount, token.colorWarning || C.warningText)
                 )
               ),
               React.createElement(Table.Summary.Cell, { index: 7, align: "right" },
                 React.createElement(Space, { direction: "vertical", size: 0 },
                   React.createElement(Text, { type: "secondary" }, servicePricingSummary.isPackageMode ? "Package total" : "Total amount"),
                   servicePricingSummary.isPackageMode
-                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.totalAmount, min: 0, onChange: (value) => handlePackageSummaryEdit("packageTotalAmount", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(servicePricingSummary.packageCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
-                    : renderNaturalAmount("totalAmount", token.colorSuccess || C.successText),
-                  renderConversionHint("totalAmount", { highlight: true })
+                    ? React.createElement(InputNumber, { value: servicePricingSummary.packageTotals.totalAmount, min: 0, onChange: (value) => handlePackageSummaryEdit("packageTotalAmount", value), style: { width: 150, textAlign: "right" }, addonAfter: getCurrencyCode(vndCurrency), formatter: v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, "."), parser: v => String(v || "").replace(/\./g, "").replace(/\s/g, "") })
+                    : renderAmount(servicePricingSummary.lineTotals.totalAmount, token.colorSuccess || C.successText)
                 )
               ),
               React.createElement(Table.Summary.Cell, { index: 8, colSpan: 2 })
@@ -4431,47 +4009,16 @@
         open: serviceSelectModal.open,
         onCancel: () => setServiceSelectModal(prev => ({ ...prev, open: false })),
         footer: React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } },
-          // Total of the selected services — listed by each one's natural
-          // currency (like the Service List below), with a highlighted
-          // "≈ converted" line when the rows differ in currency or from
-          // caseCurrency.
           (() => {
-            const selectionGroups = selectionAmountsPreview.groups || [];
-            if (!serviceSelectModal.selectedIds.length || !selectionGroups.length) {
+            if (!serviceSelectModal.selectedIds.length) {
               return React.createElement("div", { style: { fontSize: 13, color: C.textSub } }, "No service selected yet");
             }
-            const needsSelectionConversion =
-              selectionGroups.length > 1 || !isSameCurrency(selectionGroups[0]?.currency, caseCurrency);
             return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0 } },
               React.createElement("span", { style: { fontSize: 12, color: C.textSub } }, `${serviceSelectModal.selectedIds.length} services selected`),
-              React.createElement("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 } },
-                ...selectionGroups.map((g) => React.createElement(Text, {
-                  key: getCurrencyCode(g.currency),
-                  strong: true,
-                  style: { fontFamily: FONT_MONO, fontSize: 13, color: C.text, whiteSpace: "nowrap" },
-                }, formatMoney(g.totalAmount, g.currency))),
-                needsSelectionConversion && React.createElement("span", {
-                  style: {
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "3px 10px",
-                    borderRadius: 999,
-                    background: selectionAmountsPreview.canConvert ? (token.colorSuccessBg || "#f6ffed") : (token.colorWarningBg || "#fffbe6"),
-                    border: `1px solid ${selectionAmountsPreview.canConvert ? (token.colorSuccessBorder || "#b7eb8f") : (token.colorWarningBorder || "#ffe58f")}`,
-                  },
-                }, React.createElement(Text, {
-                  strong: true,
-                  style: {
-                    fontSize: 13,
-                    whiteSpace: "nowrap",
-                    color: selectionAmountsPreview.canConvert
-                      ? (token.colorSuccessTextActive || token.colorSuccessText || C.successText)
-                      : (token.colorWarningTextActive || token.colorWarning || C.warningText),
-                  },
-                }, selectionAmountsPreview.canConvert
-                  ? `≈ ${formatMoney(selectionAmountsPreview.totalAmount, caseCurrency)}`
-                  : "Missing conversion rate")),
-              ),
+              React.createElement(Text, {
+                strong: true,
+                style: { fontFamily: FONT_MONO, fontSize: 13, color: C.text, whiteSpace: "nowrap" },
+              }, formatMoney(selectionAmountsPreview.totalAmount, selectionAmountsPreview.currency || vndCurrency)),
             );
           })(),
           React.createElement("div", { style: { display: "flex", gap: 8 } },
@@ -4583,10 +4130,10 @@
               width: 140,
               align: "right",
               render: (_, record) => {
-                const total = getRowTotalAmount(record);
+                const total = getRowTotalAmount(record, vndCurrency);
                 return React.createElement("span", {
                   style: { fontWeight: 700, color: total > 0 ? "#096dd9" : C.textSub }
-                }, total > 0 ? formatMoney(total, getRowCurrency(record)) : "—");
+                }, total > 0 ? formatMoney(total, vndCurrency) : "—");
               },
             },
             {
