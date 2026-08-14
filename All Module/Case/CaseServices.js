@@ -1,4 +1,4 @@
-  const { useState, useEffect, useMemo } = ctx.React;
+﻿  const { useState, useEffect, useMemo } = ctx.React;
   const { Table, Button, Modal, Form, Select, Input, InputNumber, message, Popconfirm, Tag, Tooltip, Spin, Card, Space, Typography, Descriptions, theme } = ctx.antd;
   const { React } = ctx;
   const { Text } = Typography;
@@ -237,15 +237,15 @@
     return !!leftCode && !!rightCode && leftCode === rightCode;
   };
   const formatMoneyAmount = (value, currency = null) => {
-    if (!value && value !== 0) return "—";
+    if (!value && value !== 0) return "â€”";
     const info = currency || defaultCurrencyObject();
     const n = Number(value);
-    if (!Number.isFinite(n)) return "—";
+    if (!Number.isFinite(n)) return "â€”";
     const decimals = getCurrencyDecimals(info);
     return n.toLocaleString(getCurrencyLocale(info), { minimumFractionDigits: 0, maximumFractionDigits: decimals });
   };
   const formatMoney = (value, currency = null) => {
-    if (!value && value !== 0) return "—";
+    if (!value && value !== 0) return "â€”";
     const info = currency || defaultCurrencyObject();
     return `${formatMoneyAmount(value, info)} ${getCurrencyCode(info)}`;
   };
@@ -512,7 +512,7 @@
   // getCurrencyDecimals) get a decimal separator too, following whatever real
   // grouping convention getCurrencyLocale's locale string uses (derived via
   // Intl.NumberFormat rather than a hardcoded vi-VN-vs-everything-else guess,
-  // since other locales — e.g. "de-DE" — also use "," as the decimal mark) so
+  // since other locales â€” e.g. "de-DE" â€” also use "," as the decimal mark) so
   // the edit draft matches the read-only formatMoney/formatMoneyAmount output.
   // (mirrors ContractServices.js / QuotationServices.js)
   const getLocaleSeparators = (locale) => {
@@ -680,7 +680,7 @@
       onMouseEnter: (e) => { if (!disabled) { e.currentTarget.style.background = C.primarySoft; e.currentTarget.style.borderColor = C.borderStrong; } },
       onMouseLeave: (e) => { if (!disabled) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } },
       title: disabled ? "Locked (Ordered)" : "Click to edit"
-    }, displayVal || React.createElement("span", { style: { color: C.muted, fontStyle: "italic" } }, "—"));
+    }, displayVal || React.createElement("span", { style: { color: C.muted, fontStyle: "italic" } }, "â€”"));
   };
 
   // Currency-aware money input for the "Add service" form (mirrors EditableCell's
@@ -1477,13 +1477,13 @@
     };
 
     // Recomputes the Case's own totalAmount from ALL of its live projectServices
-    // rows — quotation-linked, contract-linked, or fully standalone — and
+    // rows â€” quotation-linked, contract-linked, or fully standalone â€” and
     // persists it directly to `projects.totalAmount`. syncContractHeaderFromServices
     // above also pushes to `projects`, but only as a side effect that never runs
     // for rows without a linked contract (quotation-only or manual rows), so the
     // Case's own total silently went stale for those. Mirrors the
     // recompute-from-scratch pattern of syncQuotationHeaderFromServices /
-    // syncContractHeaderFromServices — refetches everything fresh rather than
+    // syncContractHeaderFromServices â€” refetches everything fresh rather than
     // trusting local `services` state, so it's safe to call right after any
     // mutation regardless of React state batching.
     const syncCaseTotalAmount = async (projectId) => {
@@ -1537,7 +1537,7 @@
       }
     };
 
-    // ── Triple sync: updates projectService + quotationService + contractService together ──
+    // â”€â”€ Triple sync: updates projectService + quotationService + contractService together â”€â”€
     // Called whenever any source changes basePrice/vat/description/serviceName/serviceType
     const syncAllThree = async (record, field, newValue) => {
       const numericFields = ["basePrice", "vat", "subTotal", "vatAmount", "totalAmount"];
@@ -1597,7 +1597,7 @@
 
       // 4. Sync the quotation + contract header totals (if this was a price change)
       // Always recompute from scratch (syncQuotationHeaderFromServices/syncContractHeaderFromServices)
-      // rather than accumulating a diff — diff-based totals drift easily if step 2/3 above partially fails.
+      // rather than accumulating a diff â€” diff-based totals drift easily if step 2/3 above partially fails.
       if ((field === "basePrice" || field === "vat") && record._quotationId) {
         await syncQuotationHeaderFromServices(record._quotationId);
         if (contractHeaderId) {
@@ -1610,14 +1610,14 @@
       }
 
       // Always resync the Case's own totalAmount on a price change, regardless
-      // of whether this row happens to also be linked to a quotation/contract —
+      // of whether this row happens to also be linked to a quotation/contract â€”
       // steps 2-4 above only cover linked rows.
       if (field === "basePrice" || field === "vat") {
         await syncCaseTotalAmount(currentId);
       }
     };
 
-    // ── Create a new contractService record for a single projectService ──
+    // â”€â”€ Create a new contractService record for a single projectService â”€â”€
     const buildProjectServiceContractPatch = (psRecord, contractLine, contractId, contractServiceId) => {
       const source = contractLine || psRecord || {};
       const packageMode =
@@ -2130,7 +2130,7 @@
             _quotedVatAmount: qSvc?.vatAmount,
             _quotedTotalAmount: qSvc?.totalAmount ?? ps.basePrice,
             // The quotation line's own currency can differ from ps.currencyId
-            // (the projectService row) — keep it separately so quoted amounts
+            // (the projectService row) â€” keep it separately so quoted amounts
             // are never displayed under the wrong currency's code.
             _quotedCurrencyId: qSvc ? (getRecordCurrencyId(qSvc) || null) : null,
             _qServiceId: qSvc?.id || psQSvcId || null,
@@ -2609,7 +2609,7 @@
       }
     };
 
-    // ── Open the service-select modal for a contract ──
+    // â”€â”€ Open the service-select modal for a contract â”€â”€
     const openContractWithServiceSelect = (record) => {
       setServiceSelectModal({
         open: true,
@@ -2620,7 +2620,7 @@
       });
     };
 
-    // ── Open the service-select modal for a quotation ──
+    // â”€â”€ Open the service-select modal for a quotation â”€â”€
     const openQuotationWithServiceSelect = (record) => {
       setServiceSelectModal({
         open: true,
@@ -2631,7 +2631,7 @@
       });
     };
 
-    // ── Handles the user clicking "Continue" in ServiceSelectModal (Quotation) ──
+    // â”€â”€ Handles the user clicking "Continue" in ServiceSelectModal (Quotation) â”€â”€
     const handleQuotationServiceSelectConfirm = async () => {
       const { triggerRecord, selectedIds } = serviceSelectModal;
       if (!selectedIds || selectedIds.length === 0) {
@@ -2666,7 +2666,7 @@
 
         await syncCaseTotalAmount(currentId);
         await loadData();
-        message.success(`✅ Quotation created and linked to ${selectedRecords.length} services`);
+        message.success(`âœ… Quotation created and linked to ${selectedRecords.length} services`);
       } catch (err) {
         console.error(err);
         message.error("Error processing quotation: " + (err.message || ""));
@@ -2675,7 +2675,7 @@
       }
     };
 
-    // ── Handles the user clicking "Continue" in ServiceSelectModal (Contract) ──
+    // â”€â”€ Handles the user clicking "Continue" in ServiceSelectModal (Contract) â”€â”€
     const handleContractServiceSelectConfirm = async () => {
       const { triggerRecord, selectedIds } = serviceSelectModal;
       if (!selectedIds || selectedIds.length === 0) {
@@ -2753,13 +2753,13 @@
               }
             }
             await syncContractHeaderFromServices(contractIdAfter);
-            message.success(`✅ Contract created and linked to ${selectedRecords.length} services`);
+            message.success(`âœ… Contract created and linked to ${selectedRecords.length} services`);
           } else {
-            // contractId unchanged — could be an appendix, or the popup was cancelled
+            // contractId unchanged â€” could be an appendix, or the popup was cancelled
             // Capture knownContractIds BEFORE loadData() to avoid a race condition
             const knownContractIds = new Set(services.map(s => s._contractId).filter(Boolean).map(String));
 
-            // Try to detect via the most recent contractServices — a large enough pageSize to not miss any
+            // Try to detect via the most recent contractServices â€” a large enough pageSize to not miss any
             const recentCSRes = await ctx.api.request({
               url: "contractServices:list",
               params: {
@@ -2809,7 +2809,7 @@
                 }
               }
               await syncContractHeaderFromServices(newContractId);
-              message.success(`✅ Linked ${selectedRecords.length} services into the contract/appendix`);
+              message.success(`âœ… Linked ${selectedRecords.length} services into the contract/appendix`);
             }
           }
         } catch (detectErr) {
@@ -2835,277 +2835,9 @@
           record?._isMainQuote ? "Create Contract" : "Create Sub-Contract",
           getContractPopupParams(record)
         );
-        return;
-
-        const qId = record._quotationId;
-        if (!qId) {
-          message.error("Related quotation ID not found.");
-          return;
-        }
-
-        const isMain = record._isMainQuote;
-        let parentContractId = null;
-        let contractTitle = "";
-
-        const thisQuotRes = await ctx.api.request({ url: "quotations:get", params: { filterByTk: qId } });
-        const thisQuot = thisQuotRes?.data?.data || thisQuotRes?.data || {};
-
-        setLoading(true);
-
-        // --- Fetch the current lawyer's info by querying directly ---
-        let currentLawyerId = null;
-        try {
-          const authRes = await ctx.api.request({ url: "auth:check", method: "GET" });
-          const user = authRes?.data?.data || authRes?.data || null;
-          if (user?.id) {
-            const lRes = await ctx.api.request({
-              url: "lawyers:list",
-              params: {
-                filter: JSON.stringify({
-                  userId: user.id
-                }),
-                pageSize: 1
-              }
-            });
-            const lawyer = lRes?.data?.data?.[0];
-            if (lawyer) currentLawyerId = lawyer.id;
-          }
-        } catch (err) {
-          console.warn("Could not fetch current lawyer via filter", err);
-        }
-        // ---------------------------------------
-        // ---------------------------------------
-
-        if (isMain) {
-          contractTitle = `Contract for ${caseInfo.projectName || "Case"}`;
-        } else {
-          const contractId = caseInfo.contractId && typeof caseInfo.contractId === 'object' ? caseInfo.contractId.id : caseInfo.contractId;
-          if (!contractId) {
-            message.error("This case has no original contract yet to create an appendix for.");
-            setLoading(false);
-            return;
-          }
-          parentContractId = contractId;
-          const mainContractRes = await ctx.api.request({
-            url: "contracts:get",
-            params: {
-              filterByTk: contractId,
-              appends: ["cases", "internalCompany", "customers"]
-            }
-          });
-          const mainContract = mainContractRes?.data?.data || mainContractRes?.data || {};
-          const contractCode = mainContract.contractCode || mainContract.contractNumber || mainContract.code || contractId;
-          contractTitle = `Sub-Contract of #${contractCode}`;
-
-          // Get the IDs of the cases already linked to the main contract, to clone
-          const existingCaseIds = (mainContract.cases || []).map(c => extractId(c)).filter(Boolean);
-          if (existingCaseIds.length === 0) existingCaseIds.push(parseInt(currentId));
-
-          // Count the number of appendices for this main contract to compute the correct index
-          let subContractIndex = 1;
-          try {
-            const scListRes = await ctx.api.request({
-              url: "contracts:list",
-              params: {
-                filter: JSON.stringify({ parentId: { $eq: parseInt(parentContractId) } }),
-                pageSize: 1
-              }
-            });
-            subContractIndex = (scListRes?.data?.meta?.count || 0) + 1;
-          } catch (e) {
-            console.warn("Could not fetch sub-contracts count", e);
-          }
-
-          const now = new Date();
-          const mm = String(now.getMonth() + 1).padStart(2, '0');
-          const yyyy = now.getFullYear();
-          const indexStr = String(subContractIndex).padStart(2, '0');
-          const plCode = `PL${indexStr}${mm}${yyyy}`;
-
-          const createData = {
-            // Only take the fields needed from mainContract
-            customerId: extractId(mainContract.customerId),
-            internalCompany: extractId(mainContract.internalCompany),
-            lawyerId: currentLawyerId || extractId(mainContract.lawyerId),
-            templateId: extractId(mainContract.templateId) || extractId(mainContract.template),
-            paymentTerms: mainContract.paymentTerms,
-            contractType: mainContract.contractType,
-            currency: mainContract.currency,
-
-            // New info for the appendix
-            contractCode: plCode,
-            contractNumber: plCode,
-            code: plCode,
-            quotations: parseInt(qId),
-            issuedDate: new Date().toISOString(),
-            title: contractTitle,
-            contractName: contractTitle,
-            status: 'draft',
-            subTotal,
-            vatAmount,
-            totalAmount,
-          };
-
-          const newContractRes = await ctx.api.request({
-            url: `contracts/${parentContractId}/children:create`,
-            method: "POST",
-            data: createData
-          });
-          const newContractId = newContractRes?.data?.data?.id || newContractRes?.data?.id;
-
-          if (newContractId && qId) {
-            await ctx.api.request({
-              url: "quotations:update",
-              method: "POST",
-              params: { filterByTk: qId },
-              data: { contractId: newContractId }
-            });
-
-            // --- Auto-create a folder for the appendix (nested inside the original contract's folder) ---
-            if (AUTO_CREATE_QUOTE_CONTRACT_FOLDERS) try {
-              const allFoldersRes = await ctx.api.request({
-                url: "folders:list",
-                params: { filter: JSON.stringify({ projectId: { $eq: parseInt(currentId) } }), pageSize: 1000 }
-              });
-              const allFolders = allFoldersRes?.data?.data || [];
-
-              // Find the original contract's folder
-              const mainContractFolder = allFolders.find(f => extractId(f.contractId) === extractId(parentContractId));
-              // If not found, find the case's root folder
-              const parentFolder = mainContractFolder || allFolders.find(f =>
-                !f.parentId || (!f.quotationId && !f.contractId && !f.projectServiceId && f.parentId)
-              ) || allFolders.find(f => f.projectId && !f.quotationId && !f.contractId);
-
-              if (parentFolder) {
-                const currentChildren = allFolders.filter(f => extractId(f.parentId) === extractId(parentFolder.id));
-                const maxIdx = currentChildren.reduce((max, f) => Math.max(max, parseInt(f.folderIndex) || 0), 0);
-
-                await ctx.api.request({
-                  url: "folders:create",
-                  method: "POST",
-                  data: {
-                    name: contractTitle,
-                    parentId: extractId(parentFolder.id),
-                    projectId: parseInt(currentId),
-                    customerId: extractId(mainContract.customerId),
-                    moduleScope: CASE_DOCUMENT_SCOPE,
-                    contractId: parseInt(newContractId),
-                    folderIndex: maxIdx + 1,
-                    createdById: user?.id || null
-                  }
-                });
-              }
-            } catch (folderErr) {
-              console.warn("Could not auto-create sub-contract folder:", folderErr);
-            }
-          }
-
-          // Contract creation no longer forces the service status here.
-
-          message.success("📝 Contract appendix created successfully!");
-          loadData();
-          setLoading(false);
-          return; // Return early since the Sub-Contract logic is done
-        }
-
-        // Logic for the main contract (only runs if isMain = true)
-        const createData = {
-          quotations: parseInt(qId),
-          cases: [parseInt(currentId)],
-          customerId: extractId(thisQuot.customerId),
-          internalCompany: extractId(thisQuot.internalCompanyId),
-          lawyerId: currentLawyerId || extractId(thisQuot.lawyerId),
-          issuedDate: new Date().toISOString(),
-          title: contractTitle,
-          contractName: contractTitle,
-          status: 'draft',
-          subTotal,
-          vatAmount,
-          totalAmount,
-        };
-
-        const newContractRes = await ctx.api.request({
-          url: "contracts:create",
-          method: "POST",
-          data: createData
-        });
-
-        const newContractId = newContractRes?.data?.data?.id || newContractRes?.data?.id;
-
-        if (newContractId && qId) {
-          // Explicitly link the quotation (main or sub) to this newly created contract
-          await ctx.api.request({
-            url: "quotations:update",
-            method: "POST",
-            params: { filterByTk: qId },
-            data: { contractId: newContractId }
-          });
-        }
-
-        if (isMain && newContractId) {
-          // 1. Update Project link
-          await ctx.api.request({
-            url: "projects:update",
-            method: "POST",
-            params: { filterByTk: currentId },
-            data: { contractId: newContractId }
-          });
-          setCaseInfo(prev => ({ ...prev, contractId: newContractId }));
-
-          // 2. Auto-create a folder for the main contract
-          if (AUTO_CREATE_QUOTE_CONTRACT_FOLDERS) try {
-            // Fetch the newly created contract's full info to get its code
-            const fullContractRes = await ctx.api.request({
-              url: "contracts:get",
-              params: { filterByTk: newContractId }
-            });
-            const fullContract = fullContractRes?.data?.data || fullContractRes?.data;
-            const cCode = fullContract?.contractCode || fullContract?.contractNumber || fullContract?.code || "";
-            const folderName = `Contract ${cCode}`.trim();
-
-            // Find the case's root folder
-            const allFoldersRes = await ctx.api.request({
-              url: "folders:list",
-              params: { filter: JSON.stringify({ projectId: { $eq: parseInt(currentId) } }), pageSize: 500 }
-            });
-            const allFolders = allFoldersRes?.data?.data || [];
-            const parentCaseFolder = allFolders.find(f =>
-              !f.parentId || (!f.quotationId && !f.contractId && !f.projectServiceId && f.parentId)
-            ) || allFolders.find(f => f.projectId && !f.quotationId && !f.contractId);
-
-            if (parentCaseFolder) {
-              const currentChildren = allFolders.filter(f => parseInt(f.parentId) === parseInt(parentCaseFolder.id));
-              const maxIdx = currentChildren.reduce((max, f) => Math.max(max, parseInt(f.folderIndex) || 0), 0);
-
-              await ctx.api.request({
-                url: "folders:create",
-                method: "POST",
-                data: {
-                  name: folderName,
-                  parentId: parseInt(parentCaseFolder.id),
-                  projectId: parseInt(currentId),
-                  customerId: extractId(thisQuot.customerId),
-                  moduleScope: CASE_DOCUMENT_SCOPE,
-                  contractId: parseInt(newContractId),
-                  folderIndex: maxIdx + 1,
-                  createdById: user?.id || null
-                }
-              });
-            }
-          } catch (folderErr) {
-            console.warn("Could not auto-create main contract folder:", folderErr);
-          }
-        }
-
-        // Contract creation no longer forces the service status here.
-
-        message.success(isMain ? "📝 Original contract created successfully!" : "📝 Contract appendix created successfully!");
-        loadData();
       } catch (err) {
-        console.error(err);
-        message.error("Error creating contract: " + (err.message || ""));
-      } finally {
-        setLoading(false);
+        console.error("[handleCreateSubContract]", err);
+        message.error("Cannot open the contract creation form.");
       }
     };
 
@@ -3300,7 +3032,7 @@
                 gap: 4
               }
             },
-              React.createElement("span", { style: { opacity: 0.6 } }, "↳"),
+              React.createElement("span", { style: { opacity: 0.6 } }, "â†³"),
               subtext
             )
           );
@@ -3377,7 +3109,7 @@
         align: "right",
         render: (_, record) => {
           if (!isMoneyEditableServiceRow(record)) {
-            return React.createElement("span", { style: { color: C.textSub } }, "—");
+            return React.createElement("span", { style: { color: C.textSub } }, "â€”");
           }
           return React.createElement("span", {
             style: {
@@ -3398,7 +3130,7 @@
         align: "right",
         render: (_, record) => {
           if (!isMoneyEditableServiceRow(record)) {
-            return React.createElement("span", { style: { color: C.textSub } }, "—");
+            return React.createElement("span", { style: { color: C.textSub } }, "â€”");
           }
           return React.createElement("span", {
             style: {
@@ -3418,7 +3150,7 @@
         width: 170,
         align: "center",
         render: (status) => {
-          const commercialCfg = COMMERCIAL_STATUS[status || "pending_quote"] || { color: "#8c8c8c", bg: "#fafafa", border: "#d9d9d9", label: status || "—", description: "This status has not been configured." };
+          const commercialCfg = COMMERCIAL_STATUS[status || "pending_quote"] || { color: "#8c8c8c", bg: "#fafafa", border: "#d9d9d9", label: status || "â€”", description: "This status has not been configured." };
           return React.createElement(Tooltip, { title: commercialCfg.description },
             React.createElement("span", {
               style: {
@@ -3478,7 +3210,7 @@
               color: "#1677ff",
             }),
 
-            // Create Contract button — opens the service-select modal first
+            // Create Contract button â€” opens the service-select modal first
             !contractDetailId && !["contracted", "contract_pending_signature", "active", "completed", "cancelled", "deleted"].includes(svcStatus) && React.createElement(ActionIconButton, {
               title: isMain ? "Create contract (select services)" : "Create appendix (select services)",
               icon: "contract",
@@ -3540,12 +3272,12 @@
       const catalog = getCatalogService(record);
       const recordCurrency = getRowCurrency(record);
       // Catalog services can carry their own currencyId, independent of
-      // whatever currency this case line currently uses — don't reuse
+      // whatever currency this case line currently uses â€” don't reuse
       // recordCurrency for the catalog column or the price label lies.
       const catalogCurrency = currencyFromRecord(catalog, currencies, recordCurrency);
       // The linked quotation line's own currency (captured at enrichment time
       // as _quotedCurrencyId) can also differ from the row's current
-      // currencyId — use it for the "quoted" column so _quotedBasePrice etc.
+      // currencyId â€” use it for the "quoted" column so _quotedBasePrice etc.
       // are never displayed under the wrong currency's code.
       const quotedCurrency = resolveCurrency(record._quotedCurrencyId, currencies) || recordCurrency;
       const showCurrencyHint = !!catalog && !isSameCurrency(catalogCurrency, quotedCurrency);
@@ -3602,12 +3334,12 @@
           columns: [
             { title: "Field", dataIndex: "field", width: 150 },
             {
-              title: showCurrencyHint ? `Original Service · ${getCurrencyCode(catalogCurrency)}` : "Original Service",
+              title: showCurrencyHint ? `Original Service Â· ${getCurrencyCode(catalogCurrency)}` : "Original Service",
               dataIndex: "original",
               render: (value, row) => renderCompareCell(value, row.type, catalogCurrency),
             },
             {
-              title: showCurrencyHint ? `Quotation Snapshot · ${getCurrencyCode(quotedCurrency)}` : "Quotation Snapshot",
+              title: showCurrencyHint ? `Quotation Snapshot Â· ${getCurrencyCode(quotedCurrency)}` : "Quotation Snapshot",
               dataIndex: "quoted",
               render: (value, row) => renderCompareCell(value, row.type, quotedCurrency),
             },
@@ -3996,13 +3728,13 @@
         })
       ),
 
-      // SERVICE SELECT MODAL — select services before creating a contract/appendix or quotation
+      // SERVICE SELECT MODAL â€” select services before creating a contract/appendix or quotation
       React.createElement(Modal, {
         title: React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
           React.createElement("span", { style: { fontSize: 16, fontWeight: 700, color: C.primary } },
             serviceSelectModal.mode === "quotation"
-              ? (caseInfo?.quotationId ? "🗂 Select services for the supplemental quotation" : "🗂 Select services for the original quotation")
-              : (serviceSelectModal.triggerRecord?._isMainQuote ? "🗂 Select services for the contract" : "🗂 Select services for the appendix")
+              ? (caseInfo?.quotationId ? "ðŸ—‚ Select services for the supplemental quotation" : "ðŸ—‚ Select services for the original quotation")
+              : (serviceSelectModal.triggerRecord?._isMainQuote ? "ðŸ—‚ Select services for the contract" : "ðŸ—‚ Select services for the appendix")
           ),
           React.createElement(Tag, { color: "blue", style: { marginLeft: 4 } }, `${serviceSelectModal.selectedIds.length} selected`)
         ),
@@ -4032,7 +3764,7 @@
               disabled: serviceSelectModal.selectedIds.length === 0,
               onClick: serviceSelectModal.mode === "quotation" ? handleQuotationServiceSelectConfirm : handleContractServiceSelectConfirm,
               style: DS.primaryButton
-            }, "Continue →")
+            }, "Continue â†’")
           )
         ),
         width: 860,
@@ -4088,16 +3820,16 @@
               dataIndex: "serviceType",
               key: "serviceType",
               width: 120,
-              render: (text) => React.createElement("span", { style: { color: C.textSub, fontSize: 12 } }, text || "—"),
+              render: (text) => React.createElement("span", { style: { color: C.textSub, fontSize: 12 } }, text || "â€”"),
             },
             {
               title: "Service name",
               dataIndex: "serviceName",
               key: "serviceName",
               render: (text, record) => {
-                const val = text || record.services?.serviceName || record.name || "—";
+                const val = text || record.services?.serviceName || record.name || "â€”";
                 const hasCS = serviceSelectModal.mode === "quotation" ? !!record._quotationId : !!record._contractServiceId;
-                const warningText = serviceSelectModal.mode === "quotation" ? "⚠ Already in a quotation" : "⚠ Already in a contract";
+                const warningText = serviceSelectModal.mode === "quotation" ? "âš  Already in a quotation" : "âš  Already in a contract";
                 return React.createElement("div", null,
                   React.createElement("div", { style: { fontWeight: 600, color: hasCS ? C.textSub : C.text } }, val),
                   hasCS && React.createElement("div", { style: { fontSize: 11, color: "#d97706", marginTop: 2 } },
@@ -4122,7 +3854,7 @@
               key: "vat",
               width: 70,
               align: "center",
-              render: (_, record) => React.createElement("span", null, isMoneyEditableServiceRow(record) ? `${record._quotedVat ?? record.vat ?? 0}%` : "—"),
+              render: (_, record) => React.createElement("span", null, isMoneyEditableServiceRow(record) ? `${record._quotedVat ?? record.vat ?? 0}%` : "â€”"),
             },
             {
               title: "Total",
@@ -4133,7 +3865,7 @@
                 const total = getRowTotalAmount(record, vndCurrency);
                 return React.createElement("span", {
                   style: { fontWeight: 700, color: total > 0 ? "#096dd9" : C.textSub }
-                }, total > 0 ? formatMoney(total, vndCurrency) : "—");
+                }, total > 0 ? formatMoney(total, vndCurrency) : "â€”");
               },
             },
             {
@@ -4155,7 +3887,7 @@
                     color: cfg.color || C.textSub,
                     whiteSpace: "nowrap",
                   }
-                }, cfg.label || record.status || "—");
+                }, cfg.label || record.status || "â€”");
               },
             },
           ],
@@ -4214,9 +3946,9 @@
         cancelButtonProps: { style: DS.secondaryButton }
       },
         React.createElement("div", { style: { ...DS.infoBox, marginBottom: 16 } },
-          React.createElement("div", { style: { fontWeight: 600, marginBottom: 4 } }, "📌 Two ways to add a service:"),
+          React.createElement("div", { style: { fontWeight: 600, marginBottom: 4 } }, "ðŸ“Œ Two ways to add a service:"),
           React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
-            React.createElement("li", null, React.createElement("b", null, "From the standard catalog: "), "Pick a service below — the system will auto-fill its info and create sample tasks from the template."),
+            React.createElement("li", null, React.createElement("b", null, "From the standard catalog: "), "Pick a service below â€” the system will auto-fill its info and create sample tasks from the template."),
             React.createElement("li", null, React.createElement("b", null, "Manual (not yet standardized): "), "Skip the catalog step and type the service name directly. Its tasks will be created manually by whoever is assigned.")
           )
         ),
@@ -4227,7 +3959,7 @@
         },
           React.createElement(Form.Item, {
             name: "serviceId",
-            label: "Choose from the service catalog (optional — skip if creating manually)"
+            label: "Choose from the service catalog (optional â€” skip if creating manually)"
           },
             React.createElement(Select, {
               placeholder: "Choose a service from the catalog...",
