@@ -1740,6 +1740,13 @@ const ContractServicesBlock = () => {
     const invalid = activeRows.find(r => !r._svcName?.trim() || (!isPackageMode && parseNum(r._basePrice) <= 0));
     if (invalid) { message.warning(isPackageMode ? 'Vui lòng nhập đầy đủ tên dịch vụ' : 'Vui lòng điền đầy đủ tên dịch vụ và đơn giá'); return; }
     if (isPackageMode && parseNum(packageSubTotal) <= 0) { message.warning('Vui lòng nhập giá trị gói dịch vụ hợp đồng'); return; }
+    if (!isPackageMode && lineTotalsVnd.missingRows.length) {
+      const names = lineTotalsVnd.missingRows
+        .map((r) => `"${r._svcName || 'Dịch vụ chưa đặt tên'}" (${getCurrencyCode(getRowCurrency(r))})`)
+        .join(', ');
+      message.error(`Thiếu tỷ giá quy đổi sang VND cho: ${names} — không thể lưu.`);
+      return;
+    }
     setSaving(true);
     try {
       let projectId = null;
@@ -1805,7 +1812,9 @@ const ContractServicesBlock = () => {
           packageSubTotal,
           packageVatRate,
           currency: getRowCurrency(r),
-          packageCurrency: contractCurrency,
+          vndCurrency,
+          exchangeRatesToVnd: exchangeRates,
+          pricingDate,
         });
 
         // Cố gắng tìm catalog service khớp theo tên để lưu serviceId nếu khớp
@@ -2052,26 +2061,14 @@ const ContractServicesBlock = () => {
         }
       }
 
-      // Step 2: Update contract totals
-      // When rows span multiple currencies, use the already-converted (into the
-      // contract's own currency) grand total rather than just the first group's
-      // raw numbers — otherwise other-currency rows would silently drop out.
-      // Must use baseConvertedSummary (targets contractCurrency), never
-      // convertedSummary (targets whatever displayCurrency the user happens
-      // to have the dropdown set to) — the latter would silently persist
-      // amounts in the wrong currency.
-      const canConvertMixedTotals = !hasMixedLineCurrencies || !!baseConvertedSummary?.canConvert;
-      if (hasMixedLineCurrencies && !canConvertMixedTotals) {
-        message.warning('Thiếu tỷ giá quy đổi giữa các loại tiền tệ dịch vụ — tổng hợp đồng chưa được cập nhật.');
-      }
-      const effectiveTotals = isPackageMode
-        ? packageTotals
-        : (hasMixedLineCurrencies ? (canConvertMixedTotals ? baseConvertedSummary : null) : lineTotals);
-
+      // Step 2: Update contract totals — `totals` (packageTotals or
+      // lineTotalsVnd) is always VND and always fully resolved here, since
+      // the pre-flight check earlier in this function already blocked Save
+      // if any row's currency couldn't be converted to VND.
       const isRetainer = String(contract?.contractType).toLowerCase() === 'retainer';
-      let finalSubTotal = effectiveTotals ? effectiveTotals.subTotal : parseNum(contract?.subTotal);
-      let finalVatAmount = effectiveTotals ? effectiveTotals.vatAmount : parseNum(contract?.vatAmount);
-      let finalTotalAmount = effectiveTotals ? effectiveTotals.totalAmount : parseNum(contract?.totalAmount);
+      let finalSubTotal = totals.subTotal;
+      let finalVatAmount = totals.vatAmount;
+      let finalTotalAmount = totals.totalAmount;
       let finalFixedAmount = undefined;
 
       if (isRetainer) {
@@ -2079,11 +2076,10 @@ const ContractServicesBlock = () => {
         const duration = parseNum(contract?.retainerDuration);
         const vatRate = parseNum(contract?.packageVatRate ?? packageVatRate ?? 0);
         finalSubTotal = monthly * duration;
-        finalVatAmount = Math.round((finalSubTotal * vatRate) / 100);
+        finalVatAmount = roundMoneyForCurrency((finalSubTotal * vatRate) / 100, vndCurrency);
         finalTotalAmount = finalSubTotal + finalVatAmount;
-      } else if (effectiveTotals) {
-        // byCase
-        finalFixedAmount = effectiveTotals.totalAmount; // Đồng bộ fixedAmount với totalAmount (có VAT) theo feedback
+      } else {
+        finalFixedAmount = finalTotalAmount; // Đồng bộ fixedAmount với totalAmount (có VAT) theo feedback
       }
 
       await ctx.api.request({
@@ -2093,7 +2089,9 @@ const ContractServicesBlock = () => {
         data: {
           pricingMode,
           packageVatRate: isPackageMode ? parseNum(packageVatRate) : null,
-          ...((isRetainer || effectiveTotals) ? { subTotal: finalSubTotal, vatAmount: finalVatAmount, totalAmount: finalTotalAmount } : {}),
+          subTotal: finalSubTotal,
+          vatAmount: finalVatAmount,
+          totalAmount: finalTotalAmount,
           ...(finalFixedAmount !== undefined ? { fixedAmount: finalFixedAmount } : {}),
           customerId: extractId(contract.customerId) || extractId(ctx.record?.customerId),
           internalCompanyId: extractId(contract.internalCompanyId) || extractId(ctx.record?.internalCompanyId)
