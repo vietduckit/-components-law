@@ -1158,7 +1158,6 @@ const ContractServicesBlock = () => {
   const [currencies, setCurrencies] = useState([]);
   const [exchangeRates, setExchangeRates] = useState([]);
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false);
-  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const contractCurrency = useMemo(
     () => currencyFromRecord(contract, currencies),
     [contract, currencies],
@@ -1177,26 +1176,6 @@ const ContractServicesBlock = () => {
     () => resolveCurrency(newSvcCurrencyId, currencies) || contractCurrency,
     [newSvcCurrencyId, currencies, contractCurrency],
   );
-  // Display currency: lets the user view converted totals in any loaded
-  // currency, independent of the contract's own base currency (mirrors
-  // CaseServices.js's displayCurrencyId/currencyOptions pattern).
-  const [displayCurrencyId, setDisplayCurrencyId] = useState(null);
-  const displayCurrency = useMemo(
-    () => resolveCurrency(displayCurrencyId, currencies) || contractCurrency,
-    [displayCurrencyId, currencies, contractCurrency],
-  );
-  const selectedDisplayCurrencyValue = getCurrencySelectValue(displayCurrency);
-  const displayCurrencyOptions = useMemo(() => {
-    const options = currencies.map((currency) => ({
-      value: getCurrencySelectValue(currency),
-      label: currencySelectLabel(currency),
-    }));
-    if (selectedDisplayCurrencyValue && !options.some((option) => option.value === selectedDisplayCurrencyValue)) {
-      options.unshift({ value: selectedDisplayCurrencyValue, label: currencySelectLabel(displayCurrency) });
-    }
-    return options;
-  }, [currencies, displayCurrency, selectedDisplayCurrencyValue]);
-
   const openServiceModal = (rowId) => {
     const row = rows.find(r => r.id === rowId);
     setActiveRowId(rowId);
@@ -1342,134 +1321,85 @@ const ContractServicesBlock = () => {
 
   const isPackageMode = pricingMode === PRICING_MODE_PACKAGE;
 
-  const lineTotalsByCurrency = useMemo(() => {
-    if (isPackageMode) return [];
-    const byCurrency = {};
+  // VND is the only currency contracts.subTotal/vatAmount/totalAmount (and
+  // every service line's own subTotal/vatAmount/totalAmount) are ever
+  // denominated in — there is no more "Display currency"/"Record currency"
+  // distinction. Each line keeps its own native currency (getRowCurrency)
+  // purely for the basePrice input; everything downstream of that is VND.
+  const vndCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
+  const vndCurrencyId = extractCurrencyId(vndCurrency);
+  const pricingDate = contract?.signedAt || contract?.date;
+
+  const lineCurrencyIdsNeedingRate = useMemo(() => {
+    const ids = new Set();
     activeRows.forEach((r) => {
-      const rowCurrency = getRowCurrency(r);
-      const c = calcLine(r._basePrice, 1, r._vat, rowCurrency);
-      const key = extractCurrencyId(rowCurrency) || getCurrencyCode(rowCurrency);
-      if (!byCurrency[key]) byCurrency[key] = { currency: rowCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-      byCurrency[key].subTotal += c.subTotal;
-      byCurrency[key].vatAmount += c.vatAmount;
-      byCurrency[key].totalAmount += c.totalAmount;
+      const c = getRowCurrency(r);
+      if (!isSameCurrency(c, vndCurrency)) {
+        const id = extractCurrencyId(c);
+        if (id) ids.add(id);
+      }
     });
-    return Object.values(byCurrency);
-  }, [activeRows, isPackageMode, getRowCurrency]);
-  const hasMixedLineCurrencies = !isPackageMode && lineTotalsByCurrency.length > 1;
+    return Array.from(ids);
+  }, [activeRows, getRowCurrency, vndCurrency]);
+  const lineCurrencyIdsKey = lineCurrencyIdsNeedingRate.slice().sort((a, b) => a - b).join(',');
 
-  const packageTotals = useMemo(() => {
-    const base = calcPackageTotals(packageSubTotal, packageVatRate, contractCurrency);
-    if (packageVatAmountExact === null || packageVatAmountExact === undefined) return base;
-    const vatAmount = roundMoneyForCurrency(parseNum(packageVatAmountExact), contractCurrency);
-    return { subTotal: base.subTotal, vatAmount, totalAmount: base.subTotal + vatAmount };
-  }, [packageSubTotal, packageVatRate, packageVatAmountExact, contractCurrency]);
-  const lineTotals = lineTotalsByCurrency[0] || { subTotal: 0, vatAmount: 0, totalAmount: 0 };
-  const totals = isPackageMode ? packageTotals : lineTotals;
-  const totalsCurrency = isPackageMode ? contractCurrency : (lineTotalsByCurrency[0]?.currency || contractCurrency);
-
-  // Summary groups feeding the display-currency conversion: package mode
-  // collapses to a single group (its own totals, in contractCurrency);
-  // line mode reuses the per-currency line groups.
-  const summarySourceGroups = useMemo(() => {
-    if (isPackageMode) {
-      return [{
-        currency: contractCurrency,
-        subTotal: packageTotals.subTotal,
-        vatAmount: packageTotals.vatAmount,
-        totalAmount: packageTotals.totalAmount,
-        lineCount: activeRows.length || (packageTotals.subTotal ? 1 : 0),
-      }];
-    }
-    return lineTotalsByCurrency;
-  }, [isPackageMode, contractCurrency, packageTotals, lineTotalsByCurrency, activeRows.length]);
-
-  const targetCurrencyId = extractCurrencyId(displayCurrency);
-  const targetCurrencyCode = getCurrencyCode(displayCurrency);
-  const exchangeSourceCurrencyIds = useMemo(
-    () => summarySourceGroups
-      .filter((group) => !isSameCurrency(group.currency, displayCurrency))
-      .map((group) => extractCurrencyId(group.currency))
-      .filter(Boolean),
-    [summarySourceGroups, displayCurrency],
-  );
-  const exchangeSourceCurrencyKey = useMemo(
-    () => exchangeSourceCurrencyIds.slice().sort((a, b) => a - b).join(','),
-    [exchangeSourceCurrencyIds],
-  );
   useEffect(() => {
     let alive = true;
-    if (!targetCurrencyId || !exchangeSourceCurrencyIds.length) {
+    if (!vndCurrencyId || !lineCurrencyIdsNeedingRate.length) {
       setExchangeRates([]);
       setExchangeRatesLoading(false);
       return () => { alive = false; };
     }
     setExchangeRatesLoading(true);
-    fetchExchangeRatesForConversion(exchangeSourceCurrencyIds, targetCurrencyId)
+    fetchExchangeRatesForConversion(lineCurrencyIdsNeedingRate, vndCurrencyId)
       .then((rows) => { if (alive) setExchangeRates(rows || []); })
       .catch(() => { if (alive) setExchangeRates([]); })
       .finally(() => { if (alive) setExchangeRatesLoading(false); });
     return () => { alive = false; };
-  }, [targetCurrencyId, exchangeSourceCurrencyKey]);
+  }, [vndCurrencyId, lineCurrencyIdsKey]);
 
-  const convertedTotals = useMemo(() => buildConvertedTotals({
-    groups: summarySourceGroups,
-    targetCurrency: displayCurrency,
-    exchangeRates,
-    pricingDate: contract?.signedAt || contract?.date,
-  }), [summarySourceGroups, displayCurrency, exchangeRates, contract]);
-  const exchangeBreakdown = convertedTotals.breakdown;
-  const convertedSummary = convertedTotals.converted.canConvert
-    ? convertedTotals.converted
-    : { canConvert: false, missing: convertedTotals.missing };
+  const packageTotals = useMemo(() => {
+    const base = calcPackageTotals(packageSubTotal, packageVatRate, vndCurrency);
+    if (packageVatAmountExact === null || packageVatAmountExact === undefined) return base;
+    const vatAmount = roundMoneyForCurrency(parseNum(packageVatAmountExact), vndCurrency);
+    return { subTotal: base.subTotal, vatAmount, totalAmount: base.subTotal + vatAmount };
+  }, [packageSubTotal, packageVatRate, packageVatAmountExact, vndCurrency]);
 
-  // Base-currency (contractCurrency) conversion — kept independent of the
-  // user-selectable displayCurrency above. This is the ONLY conversion that
-  // may ever be persisted into contracts.subTotal/vatAmount/totalAmount:
-  // those fields are defined to be in contractCurrency regardless of what
-  // the user currently has the "Display currency" dropdown set to, so
-  // handleSave must never use convertedSummary (which tracks displayCurrency)
-  // for the save payload.
-  const baseCurrencyId = extractCurrencyId(contractCurrency);
-  const baseExchangeSourceCurrencyIds = useMemo(
-    () => summarySourceGroups
-      .filter((group) => !isSameCurrency(group.currency, contractCurrency))
-      .map((group) => extractCurrencyId(group.currency))
-      .filter(Boolean),
-    [summarySourceGroups, contractCurrency],
-  );
-  const baseExchangeSourceCurrencyKey = useMemo(
-    () => baseExchangeSourceCurrencyIds.slice().sort((a, b) => a - b).join(','),
-    [baseExchangeSourceCurrencyIds],
-  );
-  const [baseExchangeRates, setBaseExchangeRates] = useState([]);
-  useEffect(() => {
-    let alive = true;
-    if (!baseCurrencyId || !baseExchangeSourceCurrencyIds.length) {
-      setBaseExchangeRates([]);
-      return () => { alive = false; };
-    }
-    fetchExchangeRatesForConversion(baseExchangeSourceCurrencyIds, baseCurrencyId)
-      .then((rows) => { if (alive) setBaseExchangeRates(rows || []); })
-      .catch(() => { if (alive) setBaseExchangeRates([]); });
-    return () => { alive = false; };
-  }, [baseCurrencyId, baseExchangeSourceCurrencyKey]);
-  const baseConvertedTotals = useMemo(() => buildConvertedTotals({
-    groups: summarySourceGroups,
-    targetCurrency: contractCurrency,
-    exchangeRates: baseExchangeRates,
-    pricingDate: contract?.signedAt || contract?.date,
-  }), [summarySourceGroups, contractCurrency, baseExchangeRates, contract]);
-  const baseConvertedSummary = baseConvertedTotals.converted.canConvert
-    ? baseConvertedTotals.converted
-    : { canConvert: false, missing: baseConvertedTotals.missing };
+  const lineTotalsVnd = useMemo(() => {
+    if (isPackageMode) return { subTotal: 0, vatAmount: 0, totalAmount: 0, missingRows: [] };
+    const missingRows = [];
+    const sums = activeRows.reduce((acc, r) => {
+      const pricing = buildServicePricingPayload({
+        pricingMode: PRICING_MODE_LINE,
+        basePrice: r._basePrice,
+        quantity: 1,
+        vat: r._vat,
+        currency: getRowCurrency(r),
+        vndCurrency,
+        exchangeRatesToVnd: exchangeRates,
+        pricingDate,
+      });
+      if (!pricing._convertible) {
+        missingRows.push(r);
+        return acc;
+      }
+      return {
+        subTotal: acc.subTotal + pricing.subTotal,
+        vatAmount: acc.vatAmount + pricing.vatAmount,
+        totalAmount: acc.totalAmount + pricing.totalAmount,
+      };
+    }, { subTotal: 0, vatAmount: 0, totalAmount: 0 });
+    return { ...sums, missingRows };
+  }, [activeRows, isPackageMode, getRowCurrency, vndCurrency, exchangeRates, pricingDate]);
+
+  const totals = isPackageMode ? packageTotals : lineTotalsVnd;
 
   const handlePricingModeChange = (mode) => {
     const nextMode = mode === PRICING_MODE_PACKAGE ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE;
     if (nextMode === pricingMode) return;
     if (nextMode === PRICING_MODE_PACKAGE) {
-      setPackageSubTotal((prev) => prev || lineTotals.subTotal || parseNum(contract?.subTotal));
-      setPackageVatRate((prev) => prev || inferVatRate(lineTotals.subTotal || contract?.subTotal, lineTotals.vatAmount || contract?.vatAmount, 0));
+      setPackageSubTotal((prev) => prev || lineTotalsVnd.subTotal || parseNum(contract?.subTotal));
+      setPackageVatRate((prev) => prev || inferVatRate(lineTotalsVnd.subTotal || contract?.subTotal, lineTotalsVnd.vatAmount || contract?.vatAmount, 0));
       setRows(prev => prev.map(r => ({ ...r, _basePrice: 0, _vat: 0 })));
     }
     setPricingMode(nextMode);
