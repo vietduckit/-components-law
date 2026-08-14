@@ -419,18 +419,20 @@
     const sub = parseNum(subTotal);
     return sub ? Math.round((parseNum(vatAmount) * 10000) / sub) / 100 : parseNum(fallback);
   };
-  const calcPackageTotals = (record = {}) => {
+  const calcPackageTotals = (record = {}, currency = null) => {
+    const moneyCurrency = currency || defaultCurrencyObject();
     const subTotal = parseNum(record.packageSubTotal ?? record.subTotal);
     const totalAmount = parseNum(record.packageTotalAmount ?? record.totalAmount ?? record.grandTotal);
     const vatAmount =
       parseNum(record.packageVatAmount ?? record.vatAmount) ||
       (totalAmount && subTotal ? Math.max(totalAmount - subTotal, 0) : 0);
     const vatRate = parseNum(record.packageVatRate ?? record.vatRate) || inferVatRate(subTotal, vatAmount, 0);
+    const fallbackVatAmount = roundMoneyForCurrency((subTotal * vatRate) / 100, moneyCurrency);
     return {
       subTotal,
       vatRate,
-      vatAmount: vatAmount || Math.round((subTotal * vatRate) / 100),
-      totalAmount: totalAmount || subTotal + (vatAmount || Math.round((subTotal * vatRate) / 100)),
+      vatAmount: vatAmount || fallbackVatAmount,
+      totalAmount: totalAmount || subTotal + (vatAmount || fallbackVatAmount),
     };
   };
   const isDeletedServiceLine = (record = {}) =>
@@ -847,6 +849,7 @@
     const [serviceCatalog, setServiceCatalog] = useState([]);
     const [currencies, setCurrencies] = useState([]);
     const caseCurrency = useMemo(() => currencyFromRecord(caseInfo, currencies), [caseInfo, currencies]);
+    const vndCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
     const [displayCurrencyId, setDisplayCurrencyId] = useState(null);
     const [summaryExchangeRates, setSummaryExchangeRates] = useState([]);
     const [summaryRatesLoading, setSummaryRatesLoading] = useState(false);
@@ -1018,22 +1021,23 @@
       return basePrice * quantity;
     };
 
-    const getRowVatAmount = (record) => {
+    const getRowVatAmount = (record, currency = null) => {
       if (isPackageServiceRow(record) || isScopeOnlyServiceRow(record)) return 0;
       const directVatAmount = record?.vatAmount ?? record?._quotedVatAmount;
       if (hasAmountValue(directVatAmount)) return Number(directVatAmount) || 0;
 
       const subTotal = getRowSubTotal(record);
       const vat = Number(record?.vat ?? record?._quotedVat ?? 0) || 0;
+      const moneyCurrency = currency || getRowCurrency(record) || vndCurrency;
 
-      return Math.round(subTotal * vat / 100);
+      return roundMoneyForCurrency(subTotal * vat / 100, moneyCurrency);
     };
 
-    const getRowTotalAmount = (record) => {
+    const getRowTotalAmount = (record, currency = null) => {
       if (isPackageServiceRow(record) || isScopeOnlyServiceRow(record)) return 0;
       const directTotal = record?.totalAmount ?? record?._quotedTotalAmount;
       if (hasAmountValue(directTotal)) return Number(directTotal) || 0;
-      return getRowSubTotal(record) + getRowVatAmount(record);
+      return getRowSubTotal(record) + getRowVatAmount(record, currency);
     };
     const getSelectionAmounts = async (records = []) => {
       const packageSource = records.find(
@@ -1486,30 +1490,29 @@
     };
 
 
-    const getContractLineAmounts = (line = {}) => {
+    const getContractLineAmounts = (line = {}, currs = currencies, fallbackCurrency = vndCurrency) => {
       const isPackageLine =
         isPackagePricing(line) ||
         parseNum(line.packageSubTotal) ||
         parseNum(line.packageTotalAmount);
 
       if (isPackageLine) {
-        const subTotal = parseNum(line.packageSubTotal ?? line.subTotal);
-        const totalAmount = parseNum(line.packageTotalAmount ?? line.totalAmount);
-        const vatAmount =
-          parseNum(line.packageVatAmount ?? line.vatAmount) ||
-          (totalAmount && subTotal ? Math.max(totalAmount - subTotal, 0) : 0);
+        const totals = calcPackageTotals(line, fallbackCurrency);
         return {
-          subTotal,
-          vatAmount,
-          totalAmount: totalAmount || subTotal + vatAmount,
-          packageVatRate: parseNum(line.packageVatRate ?? line.vat),
+          subTotal: totals.subTotal,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
+          packageVatRate: totals.vatRate || parseNum(line.packageVatRate ?? line.vat),
           isPackageLine,
         };
       }
 
       const quantity = parseNum(line.quantity) || 1;
       const subTotal = parseNum(line.subTotal ?? (parseNum(line.basePrice) * quantity));
-      const vatAmount = parseNum(line.vatAmount ?? Math.round((subTotal * parseNum(line.vat)) / 100));
+      const lineCurrency = currencyFromRecord(line, currs, fallbackCurrency);
+      const vatAmount = parseNum(
+        line.vatAmount ?? roundMoneyForCurrency((subTotal * parseNum(line.vat)) / 100, lineCurrency),
+      );
       return {
         subTotal,
         vatAmount,
@@ -1665,7 +1668,7 @@
         if (isRetainer) {
           subTotal = parseNum(contract.monthlyFee) * parseNum(contract.retainerDuration);
           packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
-          vatAmount = Math.round((subTotal * packageVatRate) / 100);
+          vatAmount = roundMoneyForCurrency((subTotal * packageVatRate) / 100, vndCurrency);
           totalAmount = subTotal + vatAmount;
         } else {
           const packageLine = lines.find((line) =>
@@ -1886,9 +1889,10 @@
         const quantity = Number(record.quantity ?? record._quotedQuantity ?? 1) || 1;
         const newPrice = field === "basePrice" ? (Number(newValue) || 0) : (Number(record.basePrice) || 0);
         const newVat = field === "vat" ? (Number(newValue) || 0) : (Number(record.vat) || 0);
+        const rowCurrency = getRowCurrency(record);
 
         const newSubTotal = newPrice * quantity;
-        const newVatAmount = Math.round((newSubTotal * newVat) / 100);
+        const newVatAmount = roundMoneyForCurrency((newSubTotal * newVat) / 100, rowCurrency);
         const newTotalAmount = newSubTotal + newVatAmount;
 
         pricePayload = { basePrice: newPrice, vat: newVat, subTotal: newSubTotal, vatAmount: newVatAmount, totalAmount: newTotalAmount };
@@ -2050,13 +2054,14 @@
         const quantity = packageMode ? 1 : (Number(psRecord._quotedQuantity ?? psRecord.quantity ?? 1) || 1);
         const vat = packageMode ? 0 : (Number(psRecord._quotedVat ?? psRecord.vat ?? 0) || 0);
         const subTotal = packageMode ? 0 : (Number(psRecord._quotedSubTotal ?? psRecord.subTotal ?? basePrice * quantity) || 0);
-        const vatAmount = packageMode ? 0 : (Number(psRecord._quotedVatAmount ?? psRecord.vatAmount ?? Math.round((subTotal * vat) / 100)) || 0);
+        const lineCurrency = currencyFromRecord(psRecord, currencies, caseCurrency);
+        const vatAmount = packageMode ? 0 : (Number(psRecord._quotedVatAmount ?? psRecord.vatAmount ?? roundMoneyForCurrency((subTotal * vat) / 100, lineCurrency)) || 0);
         const totalAmount = packageMode ? 0 : (Number(psRecord._quotedTotalAmount ?? psRecord.totalAmount ?? (subTotal + vatAmount)) || 0);
 
         // Package mode is priced as a single block on the contract's main
         // currency, so per-line currencyId is only carried over for line mode
         // (mirrors buildProjectServiceContractPatch's lineCurrencyId).
-        const lineCurrencyId = packageMode ? null : (extractCurrencyId(currencyFromRecord(psRecord, currencies, caseCurrency)) || null);
+        const lineCurrencyId = packageMode ? null : (extractCurrencyId(lineCurrency) || null);
 
         const payload = {
           projectId: parseInt(currentId),
@@ -2652,18 +2657,19 @@
         const addAsPackage = servicePricingSummary.isPackageMode;
         const price = addAsPackage ? 0 : Number(values.basePrice) || 0;
         const vat = addAsPackage ? 0 : Number(values.vat) || 0;
-        const subTotal = price;
-        const vatAmount = Math.round((subTotal * vat) / 100);
-        const packageTotals = addAsPackage
-          ? servicePricingSummary.packageTotals
-          : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
         const selectedCatalogService = values.serviceId
           ? serviceCatalog.find((s) => String(s.id) === String(values.serviceId))
           : null;
         const explicitCurrency = values.currencyId ? resolveCurrency(values.currencyId, currencies) : null;
+        const newRowCurrency = explicitCurrency || currencyFromRecord(selectedCatalogService, currencies, caseCurrency);
         const newRowCurrencyId = extractCurrencyId(
-          explicitCurrency || currencyFromRecord(selectedCatalogService, currencies, caseCurrency)
+          newRowCurrency
         );
+        const subTotal = price;
+        const vatAmount = roundMoneyForCurrency((subTotal * vat) / 100, newRowCurrency || vndCurrency);
+        const packageTotals = addAsPackage
+          ? servicePricingSummary.packageTotals
+          : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
         const createData = {
           projectId: parseInt(currentId),
           serviceId: values.serviceId ? parseInt(values.serviceId) : null,
@@ -3682,6 +3688,7 @@
 
     const buildPackageSummaryPatch = (field, value) => {
       const current = servicePricingSummary.packageTotals;
+      const packageCurrency = servicePricingSummary.packageCurrency || vndCurrency;
       const nextSubTotal = field === "packageSubTotal" ? parseNum(value) : current.subTotal;
       let nextVatRate = field === "packageVatRate" ? parseNum(value) : current.vatRate;
       let nextVatAmount = current.vatAmount;
@@ -3692,7 +3699,7 @@
         nextVatAmount = Math.max(parseNum(value) - nextSubTotal, 0);
         nextVatRate = inferVatRate(nextSubTotal, nextVatAmount, 0);
       } else {
-        nextVatAmount = Math.round((nextSubTotal * nextVatRate) / 100);
+        nextVatAmount = roundMoneyForCurrency((nextSubTotal * nextVatRate) / 100, packageCurrency);
       }
       const nextTotalAmount = nextSubTotal + nextVatAmount;
       return {
