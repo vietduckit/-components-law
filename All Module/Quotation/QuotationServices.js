@@ -488,9 +488,13 @@ const syncContractHeaderFromServices = async (contractId) => {
     let packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
 
     if (isRetainer) {
+      // Retainer billing (monthlyFee × retainerDuration) is always computed
+      // in VND — there is no per-service line to derive a currency from.
+      const currs = await fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES);
+      const vndCurrency = findDefaultCurrency(currs);
       subTotal = parseNum(contract.monthlyFee) * parseNum(contract.retainerDuration);
       packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
-      vatAmount = (subTotal * packageVatRate) / 100;
+      vatAmount = roundMoneyForCurrency((subTotal * packageVatRate) / 100, vndCurrency);
       totalAmount = subTotal + vatAmount;
     } else {
       const packageLine = lines.find((line) =>
@@ -506,60 +510,12 @@ const syncContractHeaderFromServices = async (contractId) => {
         totalAmount = packageAmounts.totalAmount;
         packageVatRate = packageAmounts.packageVatRate || packageVatRate;
       } else {
-        // Group lines by their own currency, then convert non-base groups into
-        // the contract's currency before summing (rows can carry a different
-        // currencyId than the contract when copied from a multi-currency service).
-        const currs = await fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES);
-        const contractCurrency = currencyFromRecord(contract, currs);
-        const contractCurrencyId = extractCurrencyId(contractCurrency);
-        const byCurrency = {};
-        lines.forEach((line) => {
-          const amount = getContractLineAmounts(line);
-          const lineCurrency = currencyFromRecord(line, currs, contractCurrency);
-          const key = extractCurrencyId(lineCurrency) || getCurrencyCode(lineCurrency);
-          if (!byCurrency[key]) byCurrency[key] = { currency: lineCurrency, subTotal: 0, vatAmount: 0, totalAmount: 0 };
-          byCurrency[key].subTotal += amount.subTotal;
-          byCurrency[key].vatAmount += amount.vatAmount;
-          byCurrency[key].totalAmount += amount.totalAmount;
-        });
-        const groups = Object.values(byCurrency);
-        const nonBaseGroups = groups.filter((g) => !isSameCurrency(g.currency, contractCurrency));
-        const exchangeRates = nonBaseGroups.length
-          ? await fetchExchangeRatesForConversion(
-            nonBaseGroups.map((g) => extractCurrencyId(g.currency)).filter(Boolean),
-            contractCurrencyId,
-          )
-          : [];
-        let canConvert = true;
-        for (const group of groups) {
-          if (isSameCurrency(group.currency, contractCurrency)) {
-            subTotal += group.subTotal;
-            vatAmount += group.vatAmount;
-            totalAmount += group.totalAmount;
-            continue;
-          }
-          const matched = pickConversionRate(exchangeRates, group.currency, contractCurrency, contract?.signedAt || contract?.date);
-          if (!matched?.rate) {
-            canConvert = false;
-            console.warn(`[syncContractHeaderFromServices] Missing exchange rate ${getCurrencyCode(group.currency)} -> ${getCurrencyCode(contractCurrency)}; skipping totals sync`);
-            break;
-          }
-          subTotal += group.subTotal * matched.rate;
-          vatAmount += group.vatAmount * matched.rate;
-          totalAmount += group.totalAmount * matched.rate;
-        }
-        if (!canConvert) {
-          await ctx.api.request({
-            url: "contracts:update",
-            method: "POST",
-            params: { filterByTk: safeContractId },
-            data: {
-              ...(extractId(contract.customerId) ? { customerId: extractId(contract.customerId) } : {}),
-              ...(extractId(contract.internalCompanyId) ? { internalCompanyId: extractId(contract.internalCompanyId) } : {}),
-            },
-          });
-          return;
-        }
+        // Every contractServices row's subTotal/vatAmount/totalAmount are
+        // already VND (converted at Save time in ContractServices.js) — no
+        // per-currency grouping/conversion is needed here anymore.
+        subTotal = lines.reduce((sum, l) => sum + (parseNum(l.subTotal) || 0), 0);
+        vatAmount = lines.reduce((sum, l) => sum + (parseNum(l.vatAmount) || 0), 0);
+        totalAmount = subTotal + vatAmount;
       }
     }
 
@@ -1601,6 +1557,13 @@ const QuotationServicesBlock = () => {
     const invalid = activeRows.find(r => (!r.serviceId && !r._svcName?.trim()) || (!isPackageMode && parseNum(r._basePrice) <= 0));
     if (invalid) { message.warning(isPackageMode ? 'Vui lòng chọn đầy đủ dịch vụ trong gói' : 'Vui lòng điền đầy đủ dịch vụ và đơn giá'); return; }
     if (isPackageMode && parseNum(packageSubTotal) <= 0) { message.warning('Vui lòng nhập giá trị gói dịch vụ'); return; }
+    if (!isPackageMode && lineTotalsVnd.missingRows.length) {
+      const names = lineTotalsVnd.missingRows
+        .map((r) => `"${r._svcName || 'Dịch vụ chưa đặt tên'}" (${getCurrencyCode(getRowCurrency(r))})`)
+        .join(', ');
+      message.error(`Thiếu tỷ giá quy đổi sang VND cho: ${names} — không thể lưu.`);
+      return;
+    }
     setSaving(true);
     try {
       let PROJECT_ID = null;
@@ -1663,7 +1626,9 @@ const QuotationServicesBlock = () => {
           packageSubTotal,
           packageVatRate,
           currency: getRowCurrency(r),
-          packageCurrency: quotationCurrency,
+          vndCurrency,
+          exchangeRatesToVnd: exchangeRates,
+          pricingDate,
         });
         const rowCurrencyId = extractCurrencyId(getRowCurrency(r));
         const payload = {
@@ -1959,24 +1924,10 @@ const QuotationServicesBlock = () => {
         }
       }
 
-      // Step 2: Update quotation totals
-      // When rows span multiple currencies, use the already-converted (into the
-      // quotation's own currency) grand total rather than just the first
-      // group's raw numbers — otherwise other-currency rows would silently
-      // drop out of the quotation's own subTotal/vatAmount/totalAmount.
-      // Must use baseConvertedSummary (targets quotationCurrency), never
-      // convertedSummary (targets whatever displayCurrency the user happens
-      // to have the dropdown set to) — the latter would silently persist
-      // amounts in the wrong currency, and that corruption would then
-      // cascade into the linked project and any auto-created sub-contract.
-      const canConvertMixedTotals = !hasMixedLineCurrencies || !!baseConvertedSummary?.canConvert;
-      if (hasMixedLineCurrencies && !canConvertMixedTotals) {
-        message.warning('Thiếu tỷ giá quy đổi giữa các loại tiền tệ dịch vụ — tổng báo giá chưa được cập nhật.');
-      }
-      const effectiveTotals = isPackageMode
-        ? packageTotals
-        : (hasMixedLineCurrencies ? (canConvertMixedTotals ? baseConvertedSummary : null) : lineTotals);
-
+      // Step 2: Update quotation totals — `totals` (packageTotals or
+      // lineTotalsVnd) is always VND and always fully resolved here, since
+      // the pre-flight check earlier in this function already blocked Save
+      // if any row's currency couldn't be converted to VND.
       const qRes = await ctx.api.request({
         url: 'quotations:get',
         params: { filterByTk: QUOTATION_ID }
@@ -1990,7 +1941,9 @@ const QuotationServicesBlock = () => {
           pricingMode,
           packageSubTotal: isPackageMode ? totals.subTotal : null,
           packageVatRate: isPackageMode ? parseNum(packageVatRate) : null,
-          ...(effectiveTotals ? { subTotal: effectiveTotals.subTotal, vatAmount: effectiveTotals.vatAmount, totalAmount: effectiveTotals.totalAmount } : {}),
+          subTotal: totals.subTotal,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
           customerId: extractId(currentQ.customerId),
           internalCompanyId: extractId(currentQ.internalCompanyId)
         },
@@ -2006,9 +1959,8 @@ const QuotationServicesBlock = () => {
         linkedContract = cRes?.data?.data?.[0];
         if (linkedContract) {
           // subTotal/vatAmount/totalAmount/fixedAmount are intentionally NOT set here:
-          // effectiveTotals is computed in the quotation's own currency, which can differ
-          // from the linked contract's currency. Writing it directly would silently corrupt
-          // the contract's totals when currencies differ. syncContractHeaderFromServices(),
+          // the quotation's own totals are for the quotation's own service lines,
+          // not necessarily the same set as the linked contract's. syncContractHeaderFromServices(),
           // called after the contractServices reconciliation loop below, recomputes these
           // fields from the persisted lines in the contract's own currency instead.
           await ctx.api.request({
@@ -2101,7 +2053,9 @@ const QuotationServicesBlock = () => {
                     packageSubTotal: qLine.packageSubTotal,
                     packageVatRate: qLine.packageVatRate,
                     currency: resolveCurrency(qLine.currencyId, currencies) || quotationCurrency,
-                    packageCurrency: quotationCurrency,
+                    vndCurrency,
+                    exchangeRatesToVnd: exchangeRates,
+                    pricingDate,
                   }),
                 },
               });
@@ -2115,13 +2069,14 @@ const QuotationServicesBlock = () => {
       if (PROJECT_ID) {
         try {
           const isRetainer = linkedContract && String(linkedContract.contractType).toLowerCase() === 'retainer';
-          let finalProjectAmount = effectiveTotals ? effectiveTotals.totalAmount : null;
+          let finalProjectAmount = totals.totalAmount;
           if (isRetainer) {
             const monthly = parseNum(linkedContract.monthlyFee);
             const duration = parseNum(linkedContract.retainerDuration);
             const vatRate = parseNum(linkedContract.packageVatRate ?? linkedContract.vatRate ?? 0);
             const sub = monthly * duration;
-            finalProjectAmount = sub + (sub * vatRate / 100);
+            const vat = roundMoneyForCurrency((sub * vatRate) / 100, vndCurrency);
+            finalProjectAmount = sub + vat;
           }
           if (finalProjectAmount !== null) {
             await ctx.api.request({
@@ -2190,7 +2145,10 @@ const QuotationServicesBlock = () => {
                   title: subContractTitle,
                   contractName: subContractTitle,
                   status: 'draft',
-                  ...(effectiveTotals ? { subTotal: effectiveTotals.subTotal, vatAmount: effectiveTotals.vatAmount, totalAmount: effectiveTotals.totalAmount } : {}),
+                  currencyId: vndCurrencyId,
+                  subTotal: totals.subTotal,
+                  vatAmount: totals.vatAmount,
+                  totalAmount: totals.totalAmount,
                 },
               });
 
