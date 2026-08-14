@@ -161,6 +161,7 @@
   // ==================== MULTI-CURRENCY HELPERS (mirrors CaseCreateForm.js) ====================
   const DEFAULT_CURRENCY_CODE = "VND";
   const CURRENCY_RESOURCE_CANDIDATES = ["currencies:list", "currency:list", "Currency:list"];
+  const EXCHANGE_RATE_RESOURCE_CANDIDATES = ["exchangeRates:list", "exchangeRate:list", "ExchangeRates:list"];
   const extractCurrencyId = (value) => {
     if (!value) return null;
     if (Array.isArray(value)) return extractCurrencyId(value[0]);
@@ -259,6 +260,101 @@
     }
     return [];
   }
+  const parseDateMillis = (value) => {
+    if (!value) return null;
+    const ms = new Date(value).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+  const getExchangeRateValue = (rate) =>
+    parseNum(rate?.rate ?? rate?.rateToBase ?? rate?.exchangeRateToBase);
+  const getExchangeRateCurrencyId = (rate, side) => {
+    const explicit = extractCurrencyId(rate?.[`${side}CurrencyId`] || rate?.[`${side}Currency`]);
+    if (explicit) return explicit;
+    return side === "from" ? extractCurrencyId(rate?.currencyId || rate?.currency) : null;
+  };
+  const getExchangeRateCurrencyCode = (rate, side) => {
+    const explicit = extractCurrencyCode(rate?.[`${side}Currency`] || rate?.[`${side}CurrencyCode`]);
+    if (explicit) return explicit;
+    if (side === "from") return extractCurrencyCode(rate?.currency || rate?.currencyCode);
+    if (side === "to" && (rate?.rateToBase !== undefined || rate?.currencyId || rate?.currency)) return DEFAULT_CURRENCY_CODE;
+    return "";
+  };
+  const isUsableExchangeRateStatus = (status) => {
+    const value = String(status || "").trim().toLowerCase();
+    if (!value) return true;
+    return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
+  };
+  const exchangeRateMatchesCurrency = (rate, side, currency) => {
+    const rateCurrencyId = getExchangeRateCurrencyId(rate, side);
+    const currencyId = extractCurrencyId(currency);
+    if (rateCurrencyId && currencyId) return rateCurrencyId === currencyId;
+    const rateCurrencyCode = getExchangeRateCurrencyCode(rate, side);
+    const currencyCode = extractCurrencyCode(currency);
+    return !!rateCurrencyCode && !!currencyCode && rateCurrencyCode === currencyCode;
+  };
+  const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+    const cutoff = parseDateMillis(pricingDate) || Date.now();
+    return (rates || [])
+      .map((rate) => {
+        const effectiveMs = parseDateMillis(rate?.effectiveDate);
+        return { record: rate, rate: getExchangeRateValue(rate), effectiveMs: effectiveMs || 0 };
+      })
+      .filter((item) =>
+        item.rate > 0 &&
+        isUsableExchangeRateStatus(item.record?.status) &&
+        (!item.effectiveMs || item.effectiveMs <= cutoff) &&
+        exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
+        exchangeRateMatchesCurrency(item.record, "to", toCurrency),
+      )
+      .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
+  };
+  const pickConversionRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+    const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate);
+    if (direct) return { ...direct, direction: "direct" };
+    const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate);
+    if (inverse?.rate > 0) {
+      return { ...inverse, direction: "inverse", originalRate: inverse.rate, rate: 1 / inverse.rate };
+    }
+    return null;
+  };
+  async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyId) {
+    const toId = extractCurrencyId(toCurrencyId);
+    const fromIds = Array.from(
+      new Set((fromCurrencyIds || []).map((id) => extractCurrencyId(id)).filter((id) => id && id !== toId)),
+    );
+    if (!toId || !fromIds.length) return [];
+    const pageSize = Math.max(100, fromIds.length * 5);
+    const filterProfiles = [
+      { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
+      { fromCurrency: { id: { $in: fromIds } }, toCurrency: { id: { $eq: toId } } },
+      { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
+      { fromCurrency: { id: { $eq: toId } }, toCurrency: { id: { $in: fromIds } } },
+      { currencyId: { $in: fromIds } },
+      { currency: { id: { $in: fromIds } } },
+    ];
+    for (const url of EXCHANGE_RATE_RESOURCE_CANDIDATES) {
+      const collected = [];
+      for (const filter of filterProfiles) {
+        try {
+          const r = await ctx.api.request({
+            url,
+            params: {
+              pageSize, page: 1,
+              appends: ["fromCurrency", "toCurrency", "currency"],
+              sort: ["-effectiveDate", "-createdAt"],
+              filter: JSON.stringify(filter),
+            },
+          });
+          const rows = r?.data?.data || [];
+          rows.forEach((row) => {
+            if (!collected.some((item) => String(item.id) === String(row.id))) collected.push(row);
+          });
+        } catch { }
+      }
+      if (collected.length) return collected;
+    }
+    return [];
+  }
   const findDefaultCurrency = (currencies = []) =>
     currencies.find((currency) => currency?.isBaseCurrency || getCurrencyCode(currency) === DEFAULT_CURRENCY_CODE) ||
     currencies[0] || defaultCurrencyObject();
@@ -300,6 +396,72 @@
       vatRate,
       vatAmount: vatAmount || fallbackVatAmount,
       totalAmount: totalAmount || subTotal + (vatAmount || fallbackVatAmount),
+    };
+  };
+  const calcLine = (basePrice, quantity, vat, currency = null) => {
+    const subTotal = parseNum(basePrice) * (parseNum(quantity) || 1);
+    const vatAmount = roundMoneyForCurrency((subTotal * parseNum(vat)) / 100, currency);
+    return { subTotal, vatAmount, totalAmount: subTotal + vatAmount };
+  };
+  const buildServicePricingPayload = ({
+    pricingMode,
+    basePrice,
+    quantity = 1,
+    vat,
+    packageSubTotal,
+    packageVatRate,
+    currency = null,
+    vndCurrency = null,
+    exchangeRatesToVnd = [],
+    pricingDate = null,
+  }) => {
+    const targetVnd = vndCurrency || defaultCurrencyObject();
+    if (isPackagePricing(pricingMode)) {
+      const totals = calcPackageTotals({ packageSubTotal, packageVatRate }, targetVnd);
+      return {
+        pricingMode: PRICING_MODE_PACKAGE,
+        basePrice: 0,
+        quantity: 1,
+        vat: 0,
+        subTotal: 0,
+        vatAmount: 0,
+        totalAmount: 0,
+        exchangeRateToBase: 1,
+        packageSubTotal: totals.subTotal,
+        packageVatRate: parseNum(packageVatRate),
+        packageVatAmount: totals.vatAmount,
+        packageTotalAmount: totals.totalAmount,
+        _convertible: true,
+      };
+    }
+    const qty = parseNum(quantity) || 1;
+    const native = calcLine(basePrice, qty, vat, currency);
+    let exchangeRateToBase = 1;
+    let convertible = true;
+    if (!isSameCurrency(currency, targetVnd)) {
+      const matched = pickConversionRate(exchangeRatesToVnd, currency, targetVnd, pricingDate);
+      if (matched?.rate) {
+        exchangeRateToBase = matched.rate;
+      } else {
+        convertible = false;
+      }
+    }
+    const subTotal = convertible ? roundMoneyForCurrency(native.subTotal * exchangeRateToBase, targetVnd) : null;
+    const vatAmount = convertible ? roundMoneyForCurrency(native.vatAmount * exchangeRateToBase, targetVnd) : null;
+    return {
+      pricingMode: PRICING_MODE_LINE,
+      basePrice: parseNum(basePrice),
+      quantity: qty,
+      vat: parseNum(vat),
+      subTotal,
+      vatAmount,
+      totalAmount: convertible ? subTotal + vatAmount : null,
+      exchangeRateToBase,
+      packageSubTotal: 0,
+      packageVatRate: 0,
+      packageVatAmount: 0,
+      packageTotalAmount: 0,
+      _convertible: convertible,
     };
   };
   const isDeletedServiceLine = (record = {}) =>
@@ -715,8 +877,12 @@
     const [caseInfo, setCaseInfo] = useState(null);
     const [serviceCatalog, setServiceCatalog] = useState([]);
     const [currencies, setCurrencies] = useState([]);
+    const [exchangeRates, setExchangeRates] = useState([]);
+    const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false);
     const caseCurrency = useMemo(() => currencyFromRecord(caseInfo, currencies), [caseInfo, currencies]);
     const vndCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
+    const vndCurrencyId = extractCurrencyId(vndCurrency);
+    const casePricingDate = caseInfo?.date || caseInfo?.createdAt;
     const currencyOptions = useMemo(
       () => currencies.map((currency) => ({
         value: getCurrencySelectValue(currency),
@@ -724,7 +890,11 @@
       })),
       [currencies],
     );
-    const getRowCurrency = (row) => currencyFromRecord(row, currencies, caseCurrency);
+    const getRowCurrency = (row) => currencyFromRecord({
+      ...row,
+      currencyId: row?.currencyId ?? row?._contractCurrencyId ?? row?._quotedCurrencyId,
+      currency: row?.currency ?? row?._contractCurrency ?? row?._quotedCurrency,
+    }, currencies, caseCurrency);
 
     // Modals
     const [addModal, setAddModal] = useState(false);
@@ -846,8 +1016,6 @@
       return record[field];
     };
 
-    const hasAmountValue = (value) => value !== undefined && value !== null && value !== "";
-
     const getRowBillingMode = (record) =>
       String(record?.billingMode || "").trim();
 
@@ -865,43 +1033,181 @@
     const isMoneyEditableServiceRow = (record) =>
       !isPackageServiceRow(record) && !isScopeOnlyServiceRow(record);
 
+    const lineCurrencyIdsNeedingRate = useMemo(() => {
+      const ids = new Set();
+      services.filter(isMoneyEditableServiceRow).forEach((row) => {
+        const currency = getRowCurrency(row);
+        if (!isSameCurrency(currency, vndCurrency)) {
+          const id = extractCurrencyId(currency);
+          if (id) ids.add(id);
+        }
+      });
+      return Array.from(ids);
+    }, [services, currencies, caseCurrency, vndCurrency]);
+    const lineCurrencyIdsKey = lineCurrencyIdsNeedingRate.slice().sort((a, b) => a - b).join(",");
+
+    useEffect(() => {
+      let alive = true;
+      if (!vndCurrencyId || !lineCurrencyIdsNeedingRate.length) {
+        setExchangeRates([]);
+        setExchangeRatesLoading(false);
+        return () => { alive = false; };
+      }
+      setExchangeRatesLoading(true);
+      fetchExchangeRatesForConversion(lineCurrencyIdsNeedingRate, vndCurrencyId)
+        .then((rows) => { if (alive) setExchangeRates(rows || []); })
+        .catch(() => { if (alive) setExchangeRates([]); })
+        .finally(() => { if (alive) setExchangeRatesLoading(false); });
+      return () => { alive = false; };
+    }, [vndCurrencyId, lineCurrencyIdsKey]);
+
+    const buildLinePricingForRecord = (record = {}, overrides = {}, rates = exchangeRates) => {
+      const row = { ...record, ...overrides };
+      return buildServicePricingPayload({
+        pricingMode: PRICING_MODE_LINE,
+        basePrice: row.basePrice ?? row._quotedBasePrice ?? 0,
+        quantity: row.quantity ?? row._quotedQuantity ?? 1,
+        vat: row.vat ?? row._quotedVat ?? 0,
+        currency: getRowCurrency(row),
+        vndCurrency,
+        exchangeRatesToVnd: rates,
+        pricingDate: casePricingDate,
+      });
+    };
+
+    const getPersistedVndPricing = (record = {}, fallback = {}) => {
+      const subTotal = Number(record?.subTotal ?? record?._quotedSubTotal);
+      const vatAmount = Number(record?.vatAmount ?? record?._quotedVatAmount);
+      const totalAmount = Number(record?.totalAmount ?? record?._quotedTotalAmount);
+      if (!Number.isFinite(subTotal) || !Number.isFinite(vatAmount) || !Number.isFinite(totalAmount)) return null;
+      return {
+        ...fallback,
+        subTotal,
+        vatAmount,
+        totalAmount,
+        exchangeRateToBase: parseNum(record?.exchangeRateToBase ?? record?._contractExchangeRateToBase ?? record?._quotedExchangeRateToBase) || fallback.exchangeRateToBase || 1,
+        _convertible: true,
+        _usedPersistedTotals: true,
+      };
+    };
+
+    const getRowPricing = (record = {}, rates = exchangeRates) => {
+      if (!isMoneyEditableServiceRow(record)) {
+        return { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1, _convertible: true };
+      }
+      const rowCurrency = getRowCurrency(record);
+      const frozenRate = parseNum(record?.exchangeRateToBase ?? record?._contractExchangeRateToBase ?? record?._quotedExchangeRateToBase);
+      if (!isSameCurrency(rowCurrency, vndCurrency) && frozenRate > 0) {
+        const native = calcLine(
+          record.basePrice ?? record._quotedBasePrice ?? 0,
+          record.quantity ?? record._quotedQuantity ?? 1,
+          record.vat ?? record._quotedVat ?? 0,
+          rowCurrency,
+        );
+        const subTotal = roundMoneyForCurrency(native.subTotal * frozenRate, vndCurrency);
+        const vatAmount = roundMoneyForCurrency(native.vatAmount * frozenRate, vndCurrency);
+        return {
+          pricingMode: PRICING_MODE_LINE,
+          basePrice: parseNum(record.basePrice ?? record._quotedBasePrice),
+          quantity: parseNum(record.quantity ?? record._quotedQuantity ?? 1) || 1,
+          vat: parseNum(record.vat ?? record._quotedVat),
+          subTotal,
+          vatAmount,
+          totalAmount: subTotal + vatAmount,
+          exchangeRateToBase: frozenRate,
+          packageSubTotal: 0,
+          packageVatRate: 0,
+          packageVatAmount: 0,
+          packageTotalAmount: 0,
+          _convertible: true,
+          _usedFrozenRate: true,
+        };
+      }
+      const pricing = buildLinePricingForRecord(record, {}, rates);
+      if (pricing._convertible) return pricing;
+      return getPersistedVndPricing(record, pricing) || pricing;
+    };
+
+    const mergeExchangeRates = (left = [], right = []) => {
+      const seen = new Set();
+      return [...left, ...right].filter((row) => {
+        const key = row?.id ? `id:${row.id}` : JSON.stringify(row);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    };
+
+    const fetchRatesForCurrencies = async (currencyList = []) => {
+      const ids = Array.from(new Set(
+        (currencyList || [])
+          .filter((currency) => currency && !isSameCurrency(currency, vndCurrency))
+          .map((currency) => extractCurrencyId(currency))
+          .filter(Boolean),
+      ));
+      if (!vndCurrencyId || !ids.length) return [];
+      return fetchExchangeRatesForConversion(ids, vndCurrencyId);
+    };
+
+    const getWritableLinePricing = async (record = {}, overrides = {}) => {
+      const row = { ...record, ...overrides };
+      if (!isMoneyEditableServiceRow(row)) {
+        return {
+          pricing: { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1, _convertible: true },
+          rowCurrency: getRowCurrency(row),
+          rowCurrencyId: extractCurrencyId(getRowCurrency(row)),
+        };
+      }
+      const rowCurrency = getRowCurrency(row);
+      const freshRates = await fetchRatesForCurrencies([rowCurrency]);
+      const rates = mergeExchangeRates(exchangeRates, freshRates);
+      const pricing = buildLinePricingForRecord(row, {}, rates);
+      if (!pricing._convertible) {
+        const name = row.serviceName || row._quotedServiceName || row.services?.serviceName || row.name || "Unnamed service";
+        throw new Error(`Thiếu tỷ giá quy đổi sang VND cho "${name}" (${getCurrencyCode(rowCurrency)})`);
+      }
+      return { pricing, rowCurrency, rowCurrencyId: extractCurrencyId(rowCurrency) };
+    };
+
     const getRowSubTotal = (record) => {
       if (isPackageServiceRow(record) || isScopeOnlyServiceRow(record)) return 0;
-      const directSubTotal = record?.subTotal ?? record?._quotedSubTotal;
-      if (hasAmountValue(directSubTotal)) return Number(directSubTotal) || 0;
-      const quantity = Number(record?.quantity ?? record?._quotedQuantity ?? 1) || 1;
-      const basePrice = Number(record?.basePrice ?? record?._quotedBasePrice ?? 0) || 0;
-      return basePrice * quantity;
+      return Number(getRowPricing(record).subTotal) || 0;
     };
 
     const getRowVatAmount = (record, currency = null) => {
       if (isPackageServiceRow(record) || isScopeOnlyServiceRow(record)) return 0;
-      const directVatAmount = record?.vatAmount ?? record?._quotedVatAmount;
-      if (hasAmountValue(directVatAmount)) return Number(directVatAmount) || 0;
-
-      const subTotal = getRowSubTotal(record);
-      const vat = Number(record?.vat ?? record?._quotedVat ?? 0) || 0;
-      const moneyCurrency = currency || getRowCurrency(record) || vndCurrency;
-
-      return roundMoneyForCurrency(subTotal * vat / 100, moneyCurrency);
+      return Number(getRowPricing(record).vatAmount) || 0;
     };
 
     const getRowTotalAmount = (record, currency = null) => {
       if (isPackageServiceRow(record) || isScopeOnlyServiceRow(record)) return 0;
-      const directTotal = record?.totalAmount ?? record?._quotedTotalAmount;
-      if (hasAmountValue(directTotal)) return Number(directTotal) || 0;
-      return getRowSubTotal(record) + getRowVatAmount(record, currency);
+      return Number(getRowPricing(record).totalAmount) || 0;
     };
     const getSelectionAmounts = async (records = []) => {
       const billableRows = records.filter(isMoneyEditableServiceRow);
       const packageRows = records.filter(isPackageServiceRow);
+      const rates = mergeExchangeRates(exchangeRates, await fetchRatesForCurrencies(billableRows.map(getRowCurrency)));
+      const missingRows = [];
       const lineSum = billableRows.reduce(
-        (acc, row) => ({
-          subTotal: acc.subTotal + getRowSubTotal(row),
-          vatAmount: acc.vatAmount + getRowVatAmount(row, vndCurrency),
-        }),
+        (acc, row) => {
+          const pricing = getRowPricing(row, rates);
+          if (!pricing._convertible) {
+            missingRows.push(row);
+            return acc;
+          }
+          return {
+            subTotal: acc.subTotal + pricing.subTotal,
+            vatAmount: acc.vatAmount + pricing.vatAmount,
+          };
+        },
         { subTotal: 0, vatAmount: 0 },
       );
+      if (missingRows.length) {
+        const names = missingRows
+          .map((row) => `"${row.serviceName || row._quotedServiceName || row.services?.serviceName || row.name || "Unnamed service"}" (${getCurrencyCode(getRowCurrency(row))})`)
+          .join(", ");
+        throw new Error(`Thiếu tỷ giá quy đổi sang VND cho: ${names}`);
+      }
       const packageSum = packageRows.reduce((acc, row) => {
         const totals = calcPackageTotals(row, vndCurrency);
         return {
@@ -923,9 +1229,11 @@
       const sel = services.filter((s) => serviceSelectModal.selectedIds.includes(s.id));
       getSelectionAmounts(sel).then((amounts) => {
         if (alive) setSelectionAmountsPreview(amounts);
+      }).catch(() => {
+        if (alive) setSelectionAmountsPreview({ subTotal: 0, vatAmount: 0, totalAmount: 0, currency: vndCurrency });
       });
       return () => { alive = false; };
-    }, [serviceSelectModal.open, serviceSelectModal.selectedIds, services, vndCurrency]);
+    }, [serviceSelectModal.open, serviceSelectModal.selectedIds, services, vndCurrency, exchangeRates, currencies, caseCurrency]);
 
     const getComparisonRows = (record) => {
       const catalog = getCatalogService(record);
@@ -1225,19 +1533,15 @@
         isPackageServiceRow(record) ||
         parseNum(record?.packageSubTotal) ||
         parseNum(record?.packageTotalAmount);
-      const packageTotals = packageMode ? calcPackageTotals(record) : null;
+      const packageTotals = packageMode ? calcPackageTotals(record, vndCurrency) : null;
       const basePrice = packageMode ? 0 : (Number(record?._quotedBasePrice ?? record?.basePrice) || 0);
       const quantity = packageMode ? 1 : (Number(record?._quotedQuantity ?? record?.quantity ?? 1) || 1);
       const vat = packageMode ? 0 : (Number(record?._quotedVat ?? record?.vat ?? 0) || 0);
-      const subTotal = packageMode
-        ? packageTotals.subTotal
-        : (Number(record?._quotedSubTotal ?? record?.subTotal ?? basePrice * quantity) || 0);
-      const vatAmount = packageMode
-        ? packageTotals.vatAmount
-        : (Number(record?._quotedVatAmount ?? record?.vatAmount ?? (subTotal * vat / 100)) || 0);
-      const totalAmount = packageMode
-        ? packageTotals.totalAmount
-        : (Number(record?._quotedTotalAmount ?? record?.totalAmount ?? (subTotal + vatAmount)) || 0);
+      const linePricing = packageMode ? null : getRowPricing({ ...record, basePrice, quantity, vat });
+      const subTotal = packageMode ? packageTotals.subTotal : linePricing.subTotal;
+      const vatAmount = packageMode ? packageTotals.vatAmount : linePricing.vatAmount;
+      const totalAmount = packageMode ? packageTotals.totalAmount : linePricing.totalAmount;
+      const rowCurrencyId = packageMode ? null : extractCurrencyId(getRowCurrency(record));
       return {
         contractMode: isMainContract ? "main" : "appendix",
         contractKind: isMainContract ? "main" : "appendix",
@@ -1259,6 +1563,8 @@
         subTotal,
         vatAmount,
         totalAmount,
+        exchangeRateToBase: packageMode ? 1 : linePricing.exchangeRateToBase,
+        currencyId: rowCurrencyId || null,
         pricingMode: packageMode ? PRICING_MODE_PACKAGE : (record?.pricingMode || PRICING_MODE_LINE),
         billingMode: packageMode ? BILLING_PACKAGE_INCLUDED : (record?.billingMode || BILLING_LINE),
         financialSourceType: record?.financialSourceType || (quotationId ? SOURCE_QUOTATION : SOURCE_MANUAL),
@@ -1277,6 +1583,8 @@
       const projectServiceId = extractId(record?.id);
       const parentQuotationId = extractId(caseInfo?.quotationId);
       const quotationKind = parentQuotationId ? "supplement" : "main";
+      const pricing = getRowPricing(record);
+      const rowCurrencyId = extractCurrencyId(getRowCurrency(record));
       return {
         quotationMode: quotationKind === "supplement" ? "sub" : "main",
         quotationKind,
@@ -1291,6 +1599,13 @@
         serviceType: record?.serviceType || record?.services?.serviceType || record?.type || null,
         description: record?.description || record?.services?.description || null,
         basePrice: Number(record?.basePrice) || 0,
+        quantity: Number(record?.quantity) || 1,
+        vat: Number(record?.vat) || 0,
+        subTotal: pricing.subTotal,
+        vatAmount: pricing.vatAmount,
+        totalAmount: pricing.totalAmount,
+        exchangeRateToBase: pricing.exchangeRateToBase,
+        currencyId: rowCurrencyId || null,
         customerId: extractId(caseInfo?.customerId) || extractId(caseInfo?.customer) || extractId(caseInfo?.customers),
         internalCompanyId: extractId(caseInfo?.internalCompanyId) || extractId(caseInfo?.internalCompany),
         lawyerId: extractId(caseInfo?.lawyerId) || extractId(caseInfo?.lawyer),
@@ -1497,6 +1812,7 @@
             params: {
               filter: JSON.stringify({ projectId: { $eq: safeProjectId } }),
               pageSize: 1000,
+              appends: ["currency"],
             },
           }),
           fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES),
@@ -1550,12 +1866,20 @@
         const quantity = Number(record.quantity ?? record._quotedQuantity ?? 1) || 1;
         const newPrice = field === "basePrice" ? (Number(newValue) || 0) : (Number(record.basePrice) || 0);
         const newVat = field === "vat" ? (Number(newValue) || 0) : (Number(record.vat) || 0);
+        const { pricing, rowCurrencyId } = await getWritableLinePricing(record, {
+          basePrice: newPrice,
+          quantity,
+          vat: newVat,
+        });
 
-        const newSubTotal = newPrice * quantity;
-        const newVatAmount = roundMoneyForCurrency((newSubTotal * newVat) / 100, vndCurrency);
-        const newTotalAmount = newSubTotal + newVatAmount;
-
-        pricePayload = { basePrice: newPrice, vat: newVat, subTotal: newSubTotal, vatAmount: newVatAmount, totalAmount: newTotalAmount };
+        pricePayload = {
+          ...pricing,
+          basePrice: newPrice,
+          quantity,
+          vat: newVat,
+          currencyId: rowCurrencyId || null,
+          currency: rowCurrencyId || null,
+        };
       } else {
         pricePayload = { [field]: newValue };
       }
@@ -1628,7 +1952,7 @@
         parseNum(source.packageTotalAmount);
       const status = contractStatusToServiceStatus(source.lineStatus || source.status);
       if (packageMode) {
-        const packageTotals = calcPackageTotals(source);
+        const packageTotals = calcPackageTotals(source, vndCurrency);
         return {
           contractId: parseInt(contractId, 10),
           contractServiceId: contractServiceId ? parseInt(contractServiceId, 10) : undefined,
@@ -1638,6 +1962,10 @@
           financialSourceType: SOURCE_CONTRACT,
           basePrice: 0,
           vat: 0,
+          subTotal: packageTotals.subTotal,
+          vatAmount: packageTotals.vatAmount,
+          totalAmount: packageTotals.totalAmount,
+          exchangeRateToBase: 1,
           packageSubTotal: packageTotals.subTotal,
           packageVatRate: packageTotals.vatRate,
           packageVatAmount: packageTotals.vatAmount,
@@ -1646,6 +1974,17 @@
       }
 
       const lineCurrencyId = extractCurrencyId(source.currencyId) || extractCurrencyId(psRecord?.currencyId) || null;
+      const basePrice = Number(source.basePrice ?? psRecord?.basePrice) || 0;
+      const quantity = Number(source.quantity ?? psRecord?.quantity ?? 1) || 1;
+      const vat = Number(source.vat ?? psRecord?.vat) || 0;
+      const pricing = getRowPricing({
+        ...psRecord,
+        ...source,
+        basePrice,
+        quantity,
+        vat,
+        currencyId: lineCurrencyId || extractCurrencyId(source.currencyId) || extractCurrencyId(psRecord?.currencyId) || null,
+      });
       return {
         contractId: parseInt(contractId, 10),
         contractServiceId: contractServiceId ? parseInt(contractServiceId, 10) : undefined,
@@ -1653,8 +1992,13 @@
         pricingMode: PRICING_MODE_LINE,
         billingMode: BILLING_LINE,
         financialSourceType: SOURCE_CONTRACT,
-        basePrice: Number(source.basePrice ?? psRecord?.basePrice) || 0,
-        vat: Number(source.vat ?? psRecord?.vat) || 0,
+        basePrice,
+        quantity,
+        vat,
+        subTotal: pricing.subTotal,
+        vatAmount: pricing.vatAmount,
+        totalAmount: pricing.totalAmount,
+        exchangeRateToBase: pricing.exchangeRateToBase,
         packageSubTotal: 0,
         packageVatRate: 0,
         packageVatAmount: 0,
@@ -1709,14 +2053,17 @@
           isPackageServiceRow(psRecord) ||
           parseNum(psRecord.packageSubTotal) ||
           parseNum(psRecord.packageTotalAmount);
-        const packageTotals = packageMode ? calcPackageTotals(psRecord) : null;
+        const packageTotals = packageMode ? calcPackageTotals(psRecord, vndCurrency) : null;
         const basePrice = packageMode ? 0 : (Number(psRecord._quotedBasePrice ?? psRecord.basePrice) || 0);
         const quantity = packageMode ? 1 : (Number(psRecord._quotedQuantity ?? psRecord.quantity ?? 1) || 1);
         const vat = packageMode ? 0 : (Number(psRecord._quotedVat ?? psRecord.vat ?? 0) || 0);
-        const subTotal = packageMode ? 0 : (Number(psRecord._quotedSubTotal ?? psRecord.subTotal ?? basePrice * quantity) || 0);
         const lineCurrency = currencyFromRecord(psRecord, currencies, caseCurrency);
-        const vatAmount = packageMode ? 0 : (Number(psRecord._quotedVatAmount ?? psRecord.vatAmount ?? roundMoneyForCurrency((subTotal * vat) / 100, lineCurrency)) || 0);
-        const totalAmount = packageMode ? 0 : (Number(psRecord._quotedTotalAmount ?? psRecord.totalAmount ?? (subTotal + vatAmount)) || 0);
+        const linePricing = packageMode
+          ? { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1 }
+          : (await getWritableLinePricing(psRecord, { basePrice, quantity, vat })).pricing;
+        const subTotal = packageMode ? 0 : linePricing.subTotal;
+        const vatAmount = packageMode ? 0 : linePricing.vatAmount;
+        const totalAmount = packageMode ? 0 : linePricing.totalAmount;
 
         // Package mode is priced as a single block on the contract's main
         // currency, so per-line currencyId is only carried over for line mode
@@ -1742,6 +2089,7 @@
           subTotal,
           vatAmount,
           totalAmount,
+          exchangeRateToBase: linePricing.exchangeRateToBase,
           pricingMode: packageMode ? PRICING_MODE_PACKAGE : (psRecord.pricingMode || PRICING_MODE_LINE),
           billingMode: packageMode ? BILLING_PACKAGE_INCLUDED : (psRecord.billingMode || BILLING_LINE),
           financialSourceType: SOURCE_CONTRACT,
@@ -1769,6 +2117,7 @@
         }
       } catch (err) {
         console.error("[CaseServices] createContractServiceRecord failed", err);
+        throw err;
       }
     };
 
@@ -1783,7 +2132,7 @@
               filter: JSON.stringify({ projectId: { $eq: parseInt(currentId) } }),
               pageSize: 500,
               sort: ["createdAt"],
-              appends: ["services"],
+              appends: ["services", "currency"],
             },
           }),
           ctx.api.request({
@@ -1819,7 +2168,7 @@
               filter: JSON.stringify({ projectId: { $eq: parseInt(currentId) } }),
               pageSize: 1000,
               sort: ["-createdAt"],
-              appends: ["contracts", "projectServices", "quotationServices"],
+              appends: ["contracts", "projectServices", "quotationServices", "currency"],
             }
           });
           allContractServices = contractServicesRes?.data?.data || [];
@@ -1873,7 +2222,8 @@
             url: "quotationServices:list",
             params: {
               filter: JSON.stringify({ quotationId: { $in: allQuoteIds } }),
-              pageSize: 500
+              pageSize: 500,
+              appends: ["currency"],
             }
           });
           const qSvcArr = qSvcsRes?.data?.data || [];
@@ -2100,6 +2450,23 @@
               qSvc?.financialSourceType ||
               (projectServiceContractLine ? SOURCE_CONTRACT : qSvc ? SOURCE_QUOTATION : SOURCE_MANUAL),
             basePrice: ps.basePrice ?? qSvc?.basePrice ?? 0,
+            quantity: ps.quantity ?? projectServiceContractLine?.quantity ?? qSvc?.quantity ?? 1,
+            vat: ps.vat ?? projectServiceContractLine?.vat ?? qSvc?.vat ?? 0,
+            currencyId:
+              ps.currencyId ??
+              projectServiceContractLine?.currencyId ??
+              qSvc?.currencyId ??
+              null,
+            currency:
+              ps.currency ??
+              projectServiceContractLine?.currency ??
+              qSvc?.currency ??
+              null,
+            exchangeRateToBase:
+              ps.exchangeRateToBase ??
+              projectServiceContractLine?.exchangeRateToBase ??
+              qSvc?.exchangeRateToBase ??
+              null,
             packageSubTotal:
               ps.packageSubTotal ??
               projectServiceContractLine?.packageSubTotal ??
@@ -2133,6 +2500,11 @@
             // (the projectService row) â€” keep it separately so quoted amounts
             // are never displayed under the wrong currency's code.
             _quotedCurrencyId: qSvc ? (getRecordCurrencyId(qSvc) || null) : null,
+            _quotedCurrency: qSvc?.currency || null,
+            _quotedExchangeRateToBase: qSvc?.exchangeRateToBase ?? null,
+            _contractCurrencyId: projectServiceContractLine ? (getRecordCurrencyId(projectServiceContractLine) || null) : null,
+            _contractCurrency: projectServiceContractLine?.currency || null,
+            _contractExchangeRateToBase: projectServiceContractLine?.exchangeRateToBase ?? null,
             _qServiceId: qSvc?.id || psQSvcId || null,
             _isMainQuote: qSvc?._isMainQuote,
             _quotationId: qSvc?._quotationId || extractId(ps.quotationId) || extractId(ps.quotations) || null,
@@ -2295,7 +2667,7 @@
         loadData();
       } catch (err) {
         console.error(err);
-        message.error("Failed to update field");
+        message.error(err?.message || "Failed to update field");
       }
     };
 
@@ -2325,8 +2697,20 @@
         const newRowCurrencyId = extractCurrencyId(
           newRowCurrency
         );
-        const subTotal = price;
-        const vatAmount = roundMoneyForCurrency((subTotal * vat) / 100, newRowCurrency || vndCurrency);
+        const linePricing = addAsPackage
+          ? { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1 }
+          : (await getWritableLinePricing({
+            serviceName: values.serviceName?.trim(),
+            serviceType: values.serviceType?.trim(),
+            description: values.description?.trim(),
+            basePrice: price,
+            quantity: 1,
+            vat,
+            currencyId: newRowCurrencyId || null,
+            currency: newRowCurrencyId || null,
+            pricingMode: PRICING_MODE_LINE,
+            billingMode: BILLING_LINE,
+          })).pricing;
         const packageTotals = addAsPackage
           ? servicePricingSummary.packageTotals
           : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
@@ -2340,9 +2724,11 @@
           basePrice: price,
           vat,
           currencyId: newRowCurrencyId || null,
-          subTotal,
-          vatAmount,
-          totalAmount: subTotal + vatAmount,
+          currency: newRowCurrencyId || null,
+          subTotal: linePricing.subTotal,
+          vatAmount: linePricing.vatAmount,
+          totalAmount: linePricing.totalAmount,
+          exchangeRateToBase: linePricing.exchangeRateToBase,
           pricingMode: addAsPackage ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
           packageSubTotal: packageTotals.subTotal,
           packageVatRate: packageTotals.vatRate,
@@ -2886,7 +3272,7 @@
                     ? "Quotation package"
         : "Case package",
       };
-    }, [services, caseInfo, vndCurrency]);
+    }, [services, caseInfo, vndCurrency, exchangeRates, currencies, caseCurrency]);
 
     const renderAmount = (value, color = token.colorText) =>
       React.createElement(Text, {
@@ -3074,13 +3460,21 @@
               }
             }, packageRow ? "Included in package" : "Scope only");
           }
-          return React.createElement(EditableCell, {
-            value: text,
-            isMoney: true,
-            currency: getRowCurrency(record),
-            onSave: (val) => handleInlineEdit(record, "basePrice", val),
-            disabled: isServiceEditLocked(record) || !isMoneyEditableServiceRow(record)
-          });
+          const rowCurrency = getRowCurrency(record);
+          const pricing = getRowPricing(record);
+          return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 2, alignItems: "stretch" } },
+            React.createElement(EditableCell, {
+              value: text,
+              isMoney: true,
+              currency: rowCurrency,
+              onSave: (val) => handleInlineEdit(record, "basePrice", val),
+              disabled: isServiceEditLocked(record) || !isMoneyEditableServiceRow(record)
+            }),
+            !isSameCurrency(rowCurrency, vndCurrency) && React.createElement(Text, {
+              type: pricing._convertible ? "secondary" : "danger",
+              style: { fontSize: 11, textAlign: "right" },
+            }, pricing._convertible ? `≈ ${formatMoney(pricing.subTotal, vndCurrency)}` : "Thiếu tỷ giá quy đổi")
+          );
         },
       },
       {
@@ -3111,15 +3505,16 @@
           if (!isMoneyEditableServiceRow(record)) {
             return React.createElement("span", { style: { color: C.textSub } }, "â€”");
           }
+          const pricing = getRowPricing(record);
           return React.createElement("span", {
             style: {
               display: "inline-block",
               padding: "4px 8px",
               fontWeight: 600,
-              color: "#92400e",
+              color: pricing._convertible ? "#92400e" : C.danger,
               whiteSpace: "nowrap",
             }
-          }, formatMoney(getRowVatAmount(record, vndCurrency), vndCurrency));
+          }, pricing._convertible ? formatMoney(pricing.vatAmount, vndCurrency) : "Thiếu tỷ giá");
         },
       },
       {
@@ -3132,15 +3527,16 @@
           if (!isMoneyEditableServiceRow(record)) {
             return React.createElement("span", { style: { color: C.textSub } }, "â€”");
           }
+          const pricing = getRowPricing(record);
           return React.createElement("span", {
             style: {
               display: "inline-block",
               padding: "4px 8px",
               fontWeight: 700,
-              color: "#096dd9",
+              color: pricing._convertible ? "#096dd9" : C.danger,
               whiteSpace: "nowrap",
             }
-          }, formatMoney(getRowTotalAmount(record, vndCurrency), vndCurrency));
+          }, pricing._convertible ? formatMoney(pricing.totalAmount, vndCurrency) : "Thiếu tỷ giá");
         },
       },
       {
