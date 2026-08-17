@@ -4624,6 +4624,68 @@ const ServiceLinesSection = ({
   );
 };
 
+// ==================== SERVICES TABLE — CASE-STYLE ICON BUTTONS ====================
+// Ported from CaseCreateForm.js's services table (see
+// docs/superpowers/specs/2026-08-17-services-table-case-createform-parity-design.md) — square,
+// bordered icon buttons for the per-row edit-toggle and delete actions, and a minimal
+// truncate/expand text component for read-only descriptions. Reuses this file's own
+// EditIcon/CheckIcon/TrashIcon (already defined above) rather than adding new icon components.
+const iconButtonStyle = (color, active = false) => ({
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: active ? `1px solid ${color}` : `1px solid ${C.border}`,
+  background: active ? "#eff6ff" : "#fff",
+  color,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+});
+
+const ExpandableText = ({ text, limit = 100 }) => {
+  const [expanded, setExpanded] = useState(false);
+  const value = text || "";
+  if (!value) {
+    return React.createElement(
+      "span",
+      { style: { fontSize: 12, color: "#d1d5db", fontStyle: "italic" } },
+      "No description",
+    );
+  }
+  if (value.length <= limit) {
+    return React.createElement(
+      "span",
+      { style: { whiteSpace: "pre-wrap", wordBreak: "break-word" } },
+      value,
+    );
+  }
+  return React.createElement(
+    "span",
+    { style: { whiteSpace: "pre-wrap", wordBreak: "break-word" } },
+    expanded ? value : `${value.slice(0, limit)}…`,
+    React.createElement(
+      "span",
+      {
+        onClick: (e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        },
+        style: {
+          color: C.primary,
+          cursor: "pointer",
+          fontSize: 11.5,
+          fontWeight: 600,
+          marginLeft: 6,
+          whiteSpace: "nowrap",
+        },
+      },
+      expanded ? "Show less" : "Show more",
+    ),
+  );
+};
+
 const ManualContractServicesSection = ({
   rows,
   services,
@@ -8841,10 +8903,19 @@ const ContractCreateForm = () => {
     label: lawyerLabel(item),
   }));
 
-  const templateOptions = templates.map((item) => ({
-    value: String(item.id),
-    label: labelOf(item, ["name", "templateName", "title"], "Template"),
-  }));
+  // templateKey classifies templates by module ("contract" | "quotation" |
+  // "payroll" | "other"); templates without it predate the field and stay
+  // visible everywhere until manually tagged. The currently selected
+  // template is always kept so editing an existing record never blanks it.
+  const matchesTemplateModule = (t, key, selectedId) =>
+    !t.templateKey || t.templateKey === key || String(t.id) === String(selectedId);
+
+  const templateOptions = templates
+    .filter((t) => matchesTemplateModule(t, "contract", form.templateId))
+    .map((item) => ({
+      value: String(item.id),
+      label: labelOf(item, ["name", "templateName", "title"], "Template"),
+    }));
 
   const filteredQuotations = useMemo(
     () =>
