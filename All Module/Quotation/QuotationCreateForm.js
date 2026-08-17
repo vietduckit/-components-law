@@ -5442,6 +5442,14 @@ const ServicesTable = ({
         )
       : null;
 
+  const getBreakdownGroupRate = (group) => {
+    const sameBase = isSameCurrency(group.currency, baseCurrency);
+    const matched = sameBase
+      ? { rate: 1 }
+      : pickConversionRate(exchangeRates, group.currency, baseCurrency);
+    return matched?.rate || null;
+  };
+
   return React.createElement(
     "div",
     {
@@ -5823,166 +5831,78 @@ const ServicesTable = ({
         width: 720,
       },
       breakdownOpen &&
-        React.createElement(
-          "table",
-          { style: { width: "100%", borderCollapse: "collapse" } },
-          React.createElement(
-            "thead",
-            null,
-            React.createElement(
-              "tr",
-              null,
-              React.createElement(
-                "th",
-                {
-                  style: {
-                    padding: "9px 12px",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textSub,
-                    background: C.bgSection,
-                    borderBottom: `2px solid ${C.border}`,
-                    textAlign: "left",
-                    fontFamily: FONT,
-                  },
-                },
-                "Tiền tệ",
-              ),
-              React.createElement(
-                "th",
-                {
-                  style: {
-                    padding: "9px 12px",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textSub,
-                    background: C.bgSection,
-                    borderBottom: `2px solid ${C.border}`,
-                    textAlign: "center",
-                    fontFamily: FONT,
-                  },
-                },
-                "Số dòng",
-              ),
-              React.createElement(
-                "th",
-                {
-                  style: {
-                    padding: "9px 12px",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textSub,
-                    background: C.bgSection,
-                    borderBottom: `2px solid ${C.border}`,
-                    textAlign: "right",
-                    fontFamily: FONT,
-                  },
-                },
-                "Tổng gốc",
-              ),
-              React.createElement(
-                "th",
-                {
-                  style: {
-                    padding: "9px 12px",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textSub,
-                    background: C.bgSection,
-                    borderBottom: `2px solid ${C.border}`,
-                    textAlign: "center",
-                    fontFamily: FONT,
-                  },
-                },
-                "Tỷ giá",
-              ),
-              React.createElement(
-                "th",
-                {
-                  style: {
-                    padding: "9px 12px",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    color: C.textSub,
-                    background: C.bgSection,
-                    borderBottom: `2px solid ${C.border}`,
-                    textAlign: "right",
-                    fontFamily: FONT,
-                  },
-                },
-                "Quy đổi",
-              ),
-            ),
-          ),
-          React.createElement(
-            "tbody",
-            null,
-            financialSummary.groups.map((group, idx) => {
-              const sameBase = isSameCurrency(group.currency, baseCurrency);
-              const matched = sameBase
-                ? { rate: 1 }
-                : pickConversionRate(
-                    exchangeRates,
-                    group.currency,
-                    baseCurrency,
-                  );
-              const rate = matched?.rate || null;
-              const tdStyle = {
-                padding: "8px 12px",
-                fontSize: 13,
-                borderBottom: "1px solid #f3f4f6",
-                fontFamily: FONT,
-              };
-              return React.createElement(
-                "tr",
-                { key: idx },
+        React.createElement(Table, {
+          dataSource: financialSummary.groups.map((group, idx) => ({
+            ...group,
+            _key: idx,
+          })),
+          rowKey: "_key",
+          pagination: false,
+          size: "small",
+          bordered: true,
+          columns: [
+            {
+              title: "Tiền tệ",
+              key: "currency",
+              render: (_, group) =>
                 React.createElement(
-                  "td",
-                  { style: { ...tdStyle, fontWeight: 700 } },
+                  "span",
+                  { style: { fontWeight: 700 } },
                   getCurrencyCode(group.currency),
                 ),
-                React.createElement(
-                  "td",
-                  { style: { ...tdStyle, textAlign: "center" } },
-                  group.lineCount,
-                ),
-                React.createElement(
-                  "td",
-                  { style: { ...tdStyle, textAlign: "right" } },
-                  formatMoneyByCurrency(group.totalAmount, group.currency),
-                ),
-                React.createElement(
-                  "td",
-                  { style: { ...tdStyle, textAlign: "center" } },
-                  rate
-                    ? rate.toLocaleString("en-US", { maximumFractionDigits: 6 })
-                    : React.createElement(
-                        "span",
-                        { style: { color: C.danger } },
-                        "Thiếu",
-                      ),
-                ),
-                React.createElement(
-                  "td",
-                  {
-                    style: {
-                      ...tdStyle,
-                      textAlign: "right",
-                      fontWeight: 700,
-                      color: rate ? "#1d4ed8" : C.danger,
-                    },
-                  },
-                  rate
-                    ? formatMoneyByCurrency(
+            },
+            {
+              title: "Số dòng",
+              key: "lineCount",
+              align: "center",
+              render: (_, group) => group.lineCount,
+            },
+            {
+              title: "Tổng gốc",
+              key: "originalTotal",
+              align: "right",
+              render: (_, group) =>
+                formatMoneyByCurrency(group.totalAmount, group.currency),
+            },
+            {
+              title: "Tỷ giá",
+              key: "rate",
+              align: "center",
+              render: (_, group) => {
+                const rate = getBreakdownGroupRate(group);
+                return rate
+                  ? rate.toLocaleString("en-US", { maximumFractionDigits: 6 })
+                  : React.createElement(
+                      "span",
+                      { style: { color: C.danger } },
+                      "Thiếu",
+                    );
+              },
+            },
+            {
+              title: "Quy đổi",
+              key: "converted",
+              align: "right",
+              render: (_, group) => {
+                const rate = getBreakdownGroupRate(group);
+                return rate
+                  ? React.createElement(
+                      "span",
+                      { style: { fontWeight: 700, color: "#1d4ed8" } },
+                      formatMoneyByCurrency(
                         group.totalAmount * rate,
                         baseCurrency,
-                      )
-                    : "—",
-                ),
-              );
-            }),
-          ),
-        ),
+                      ),
+                    )
+                  : React.createElement(
+                      "span",
+                      { style: { color: C.danger } },
+                      "—",
+                    );
+              },
+            },
+          ],
+        }),
     ),
 
     React.createElement(
