@@ -4345,93 +4345,113 @@ const ServicePickerModal = ({
 };
 
 // ==================== SERVICES TABLE — CASE-STYLE DESIGN TOKENS ====================
-// Local copy of CaseServices.js's design tokens/components, scoped to
-// ServicesTable + its two modals only. Files in this repo cannot share
-// modules (Nocobase single-file constraint), so these are literal copies,
-// not imports. Do NOT rename or touch the file's existing `C` object or
-// other shared primitives (inp, Card, Field, ...) used elsewhere in this
-// file — this is a separate, additive token set.
-const TABLE_DS = {
-  radius: { xs: 4, sm: 6, md: 8, pill: 999 },
-  border: "#d9d9d9",
-  bg: "#ffffff",
-  bgSection: "#fafafa",
-  primary: "#1677ff",
-  primarySoft: "#e6f4ff",
-  danger: "#ff4d4f",
-};
+// Ported from CaseCreateForm.js's services table (see
+// docs/superpowers/specs/2026-08-17-services-table-case-createform-parity-design.md §3.5) —
+// square, bordered icon buttons for the per-row edit-toggle and delete actions, and a minimal
+// truncate/expand text component for read-only descriptions. Files in this repo cannot share
+// modules, so these are literal copies scoped to ServicesTable, not imports.
+const iconButtonStyle = (color, active = false) => ({
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: active ? `1px solid ${color}` : `1px solid ${C.border}`,
+  background: active ? "#eff6ff" : "#fff",
+  color,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+});
 
-const TABLE_BADGE_STYLE = {
-  display: "inline-block",
-  padding: "4px 8px",
-  borderRadius: 10,
-  fontSize: 12,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-};
-
-const TableSvgDeleteIcon = ({ color = "currentColor", size = 15 }) =>
+const RowEditIcon = ({ active }) =>
   React.createElement(
     "svg",
     {
-      width: size,
-      height: size,
+      width: 15,
+      height: 15,
       viewBox: "0 0 24 24",
       fill: "none",
-      stroke: color,
+      stroke: "currentColor",
+      strokeWidth: 2,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      "aria-hidden": true,
+    },
+    active
+      ? React.createElement("path", { d: "M20 6 9 17l-5-5" })
+      : [
+          React.createElement("path", { key: "p1", d: "M12 20h9" }),
+          React.createElement("path", {
+            key: "p2",
+            d: "M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z",
+          }),
+        ],
+  );
+
+const TrashIcon = () =>
+  React.createElement(
+    "svg",
+    {
+      width: 15,
+      height: 15,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
       strokeWidth: 2,
       strokeLinecap: "round",
       strokeLinejoin: "round",
       "aria-hidden": true,
     },
     React.createElement("path", { d: "M3 6h18" }),
-    React.createElement("path", {
-      d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
-    }),
-    React.createElement("path", {
-      d: "M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6",
-    }),
+    React.createElement("path", { d: "M8 6V4h8v2" }),
+    React.createElement("path", { d: "M19 6l-1 14H6L5 6" }),
     React.createElement("path", { d: "M10 11v6" }),
     React.createElement("path", { d: "M14 11v6" }),
   );
 
-// Danger-only icon button, matching CaseServices.js's ActionIconButton look
-// (circular, bordered, small) — used for the "delete row" action.
-const TableActionIconButton = ({ title, onClick }) => {
-  const button = React.createElement(
-    "button",
-    {
-      type: "button",
-      onClick,
-      title,
-      "aria-label": title,
-      style: {
-        width: 30,
-        height: 30,
-        minWidth: 30,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: TABLE_DS.bg,
-        border: "1px solid #fecdd3",
-        borderRadius: TABLE_DS.radius.pill,
-        color: TABLE_DS.danger,
-        cursor: "pointer",
+// Minimal truncate/expand for read-only description cells — matches
+// CaseCreateForm.js's ExpandableText behavior without importing its code.
+const ExpandableText = ({ text, limit = 100 }) => {
+  const [expanded, setExpanded] = useState(false);
+  const value = text || "";
+  if (!value) {
+    return React.createElement(
+      "span",
+      { style: { fontSize: 12, color: "#d1d5db", fontStyle: "italic" } },
+      "No description",
+    );
+  }
+  if (value.length <= limit) {
+    return React.createElement(
+      "span",
+      { style: { whiteSpace: "pre-wrap", wordBreak: "break-word" } },
+      value,
+    );
+  }
+  return React.createElement(
+    "span",
+    { style: { whiteSpace: "pre-wrap", wordBreak: "break-word" } },
+    expanded ? value : `${value.slice(0, limit)}…`,
+    React.createElement(
+      "span",
+      {
+        onClick: (e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        },
+        style: {
+          color: C.primary,
+          cursor: "pointer",
+          fontSize: 11.5,
+          fontWeight: 600,
+          marginLeft: 6,
+          whiteSpace: "nowrap",
+        },
       },
-    },
-    React.createElement(TableSvgDeleteIcon, { color: TABLE_DS.danger }),
+      expanded ? "Show less" : "Show more",
+    ),
   );
-  return Tooltip
-    ? React.createElement(
-        Tooltip,
-        { title },
-        React.createElement(
-          "span",
-          { style: { display: "inline-flex" } },
-          button,
-        ),
-      )
-    : button;
 };
 
 // ==================== SERVICES TABLE ====================
@@ -4942,6 +4962,27 @@ const ServicesTable = ({
         .map(String),
     [rows],
   );
+
+  const th = (ex = {}) => ({
+    padding: "9px 12px",
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: C.textSub,
+    background: C.bgSection,
+    borderBottom: `2px solid ${C.border}`,
+    whiteSpace: "normal",
+    textAlign: "left",
+    fontFamily: FONT,
+    ...ex,
+  });
+  const td = (ex = {}) => ({
+    padding: "8px 10px",
+    fontSize: 13,
+    borderBottom: `1px solid #f3f4f6`,
+    verticalAlign: "top",
+    fontFamily: FONT,
+    ...ex,
+  });
 
   const quotationServiceColumns = [
     {
