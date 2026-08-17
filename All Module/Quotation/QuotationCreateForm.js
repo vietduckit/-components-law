@@ -3774,38 +3774,34 @@ const ServicePickerModal = ({
         },
         React.createElement(
           "div",
-          { style: { display: "flex", alignItems: "center", gap: 10 } },
-          showAdd &&
+          { style: { display: "flex", alignItems: "center", gap: 4 } },
+          [
+            [false, "Select from list"],
+            [true, "Create new service"],
+          ].map(([tabIsAdd, label]) =>
             React.createElement(
-              "span",
+              "button",
               {
+                key: label,
+                type: "button",
                 onClick: () => {
-                  setShowAdd(false);
+                  setShowAdd(tabIsAdd);
                   setErrors({});
                 },
                 style: {
-                  cursor: "pointer",
-                  color: C.primary,
+                  border: "none",
+                  background: showAdd === tabIsAdd ? C.bgHighlight : "transparent",
+                  color: showAdd === tabIsAdd ? C.primary : C.textSub,
+                  fontWeight: showAdd === tabIsAdd ? 700 : 500,
                   fontSize: 13,
-                  padding: "3px 10px",
-                  borderRadius: 4,
-                  background: C.bgHighlight,
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  cursor: "pointer",
                   fontFamily: FONT,
                 },
               },
-              "← Back",
+              label,
             ),
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontFamily: FONT,
-                fontWeight: 700,
-                fontSize: 15,
-                color: C.text,
-              },
-            },
-            showAdd ? "Create New Service" : "Select Service",
           ),
         ),
         React.createElement(
