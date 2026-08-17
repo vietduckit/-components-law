@@ -4459,7 +4459,7 @@ const ServicesTable = ({
   rows,
   svcOpts,
   onUpdate,
-  onAdd,
+  onAddFromService,
   onDelete,
   companyId,
   onAddNewService,
@@ -4475,7 +4475,10 @@ const ServicesTable = ({
   onCurrencyChange,
 }) => {
   const { Table } = ctx.antd;
-  const [pickerRowId, setPickerRowId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [editingRows, setEditingRows] = useState({});
+  const toggleRowEdit = (rowId) =>
+    setEditingRows((p) => ({ ...p, [rowId]: !p[rowId] }));
   const [compareModal, setCompareModal] = useState({ open: false, data: null });
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [exchangeRates, setExchangeRates] = useState([]);
@@ -4984,319 +4987,26 @@ const ServicesTable = ({
     ...ex,
   });
 
-  const quotationServiceColumns = [
-    {
-      title: "#",
-      key: "index",
-      width: 50,
-      align: "center",
-      render: (_, __, index) => index + 1,
-    },
-    {
-      title: "Service Name & Type",
-      key: "serviceName",
-      width: 280,
-      render: (_, r) =>
-        React.createElement(
-          "div",
-          {
-            onClick: () => setPickerRowId(r._id),
-            style: {
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              border: `1px solid ${C.border}`,
-              borderRadius: 5,
-              padding: "5px 10px",
-              cursor: "pointer",
-              background: "#fff",
-              minHeight: 32,
-              fontSize: 13.5,
-              color: r.serviceId ? C.text : C.textSub,
-              lineHeight: "19px",
-            },
-          },
-          React.createElement(
-            "div",
-            {
-              style: {
-                display: "flex",
-                flexDirection: "column",
-                gap: 3,
-                flex: 1,
-              },
-            },
-            React.createElement(
-              "span",
-              {
-                style: {
-                  whiteSpace: "normal",
-                  overflowWrap: "anywhere",
-                },
-              },
-              r.serviceName || "— Select service —",
-            ),
-            r.serviceType &&
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    alignSelf: "flex-start",
-                    fontSize: 10,
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    padding: "1px 6px",
-                    borderRadius: 4,
-                    fontWeight: 500,
-                    lineHeight: "14px",
-                    marginTop: 2,
-                  },
-                },
-                r.serviceType,
-              ),
-          ),
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 11,
-                color: C.primary,
-                marginLeft: 6,
-                flexShrink: 0,
-              },
-            },
-            "Select",
-          ),
-        ),
-    },
-    {
-      title: "Description",
-      key: "description",
-      width: 320,
-      render: (_, r) =>
-        React.createElement(AutoTextarea, {
-          value: r.description || "",
-          onChange: (v) => onUpdate(r._id, "description", v),
-          placeholder: "Service scope or row note...",
-          minRows: 2,
-        }),
-    },
-    {
-      title: "Unit Price",
-      key: "basePrice",
-      width: 250,
-      align: "right",
-      render: (_, r) => {
-        const rowCurrency =
-          findCurrencyById(currencies, r.currencyId) ||
-          currencyFromRecord(r, currencies, selectedCurrency);
-        if (packageMode) {
-          return React.createElement(
-            "span",
-            {
-              style: {
-                ...TABLE_BADGE_STYLE,
-                background: TABLE_DS.primarySoft,
-                color: TABLE_DS.primary,
-              },
-            },
-            "Included in package",
-          );
-        }
-        return React.createElement(
-          "div",
-          { style: { display: "grid", gap: 6 } },
-          React.createElement(PriceInput, {
-            value: r.basePrice,
-            onChange: (v) => onUpdate(r._id, "basePrice", v),
-          }),
-          React.createElement(
-            "select",
-            {
-              value: r.currencyId || "",
-              onChange: (e) =>
-                onUpdate(r._id, "currencyId", e.target.value || null),
-              style: {
-                ...inp({ padding: "6px 8px" }),
-                cursor: "pointer",
-                fontWeight: 700,
-                textAlign: "center",
-                width: "100%",
-              },
-              disabled: !currencies.length,
-              title: currencySelectLabel(rowCurrency),
-            },
-            !currencyOptions.some(
-              (option) =>
-                String(option.value) === String(r.currencyId || ""),
-            ) &&
-              React.createElement(
-                "option",
-                { value: "" },
-                getCurrencyCode(rowCurrency),
-              ),
-            ...currencyOptions.map((option) =>
-              React.createElement(
-                "option",
-                { key: option.value, value: option.value },
-                option.label,
-              ),
-            ),
-          ),
-        );
-      },
-    },
-    {
-      title: "VAT %",
-      key: "vat",
-      width: 88,
-      align: "center",
-      render: (_, r) => {
-        if (packageMode) {
-          return React.createElement(
-            "span",
-            { style: { color: C.textSub, fontSize: 12.5 } },
-            "0%",
-          );
-        }
-        return React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-              justifyContent: "center",
-            },
-          },
-          React.createElement("input", {
-            type: "number",
-            min: 0,
-            max: 100,
-            step: 1,
-            value: r.vat,
-            onChange: (e) =>
-              onUpdate(r._id, "vat", parseFloat(e.target.value) || 0),
-            style: {
-              border: `1px solid ${C.border}`,
-              borderRadius: 5,
-              padding: "5px 4px",
-              fontSize: 13.5,
-              outline: "none",
-              textAlign: "right",
-              width: 46,
-              fontFamily: FONT,
-            },
-          }),
-          React.createElement(
-            "span",
-            { style: { fontSize: 12, color: C.textSub } },
-            "%",
-          ),
-        );
-      },
-    },
-    {
-      title: "Total",
-      key: "total",
-      width: 180,
-      align: "right",
-      render: (_, r) => {
-        const rowCurrency =
-          findCurrencyById(currencies, r.currencyId) ||
-          currencyFromRecord(r, currencies, selectedCurrency);
-        const line = packageMode
-          ? calcLine(0, 1, 0)
-          : calcLine(r.basePrice, 1, r.vat);
-        const rowConversion = !packageMode
-          ? getRowConversion(rowCurrency, line)
-          : null;
-        if (packageMode) return "—";
-        if (rowConversion?.canConvert) {
-          return React.createElement(
-            "div",
-            {
-              style: {
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-end",
-                gap: 2,
-              },
-            },
-            React.createElement(
-              "span",
-              null,
-              formatMoneyByCurrency(
-                rowConversion.sameCurrency
-                  ? line.totalAmount
-                  : rowConversion.totalAmount,
-                baseCurrency,
-              ),
-            ),
-            !rowConversion.sameCurrency &&
-              React.createElement(
-                "span",
-                {
-                  style: {
-                    color: C.textSub,
-                    fontSize: 10.5,
-                    fontWeight: 600,
-                  },
-                },
-                `Gốc: ${formatMoneyByCurrency(line.totalAmount, rowCurrency)}`,
-              ),
-          );
-        }
-        return React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-              gap: 2,
-            },
-          },
-          React.createElement(
-            "span",
-            null,
-            formatMoneyByCurrency(line.totalAmount, rowCurrency),
-          ),
-          React.createElement(
-            "span",
-            {
-              style: {
-                color: "#d48806",
-                fontSize: 10.5,
-                fontWeight: 700,
-              },
-            },
-            `Thiếu tỷ giá → ${getCurrencyCode(baseCurrency)}`,
-          ),
-        );
-      },
-    },
-    {
-      title: "",
-      key: "action",
-      width: 60,
-      align: "center",
-      render: (_, r) =>
-        React.createElement(TableActionIconButton, {
-          title: "Delete row",
-          onClick: () => onDelete(r._id),
-        }),
-    },
-  ];
 
   const renderQuotationServicesSummary = () =>
     rows.length > 0
       ? React.createElement(
-          Table.Summary.Row,
-          null,
+          "div",
+          {
+            style: {
+              borderTop: `2px solid ${C.border}`,
+              padding: "14px 20px",
+              background: C.bgSection,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 16,
+              flexWrap: "wrap",
+            },
+          },
           React.createElement(
-            Table.Summary.Cell,
-            { index: 0, colSpan: 3 },
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: 6, minWidth: 0 } },
             !packageMode &&
               (hasMixedCurrencies || needsConversion) &&
               React.createElement(
@@ -5339,8 +5049,18 @@ const ServicesTable = ({
               ),
           ),
           React.createElement(
-            Table.Summary.Cell,
-            { index: 3, align: "right" },
+            "div",
+            {
+              style: {
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(140px, 1fr))",
+                gap: 12,
+                width: "min(100%, 560px)",
+              },
+            },
+          React.createElement(
+            "div",
+            { style: { background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", minWidth: 0 } },
             React.createElement(
               "div",
               {
@@ -5380,8 +5100,8 @@ const ServicesTable = ({
                 ),
           ),
           React.createElement(
-            Table.Summary.Cell,
-            { index: 4, align: "center" },
+            "div",
+            { style: { background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 8, padding: "9px 12px", minWidth: 0 } },
             React.createElement(
               "div",
               {
@@ -5439,8 +5159,8 @@ const ServicesTable = ({
               }),
           ),
           React.createElement(
-            Table.Summary.Cell,
-            { index: 5, align: "right" },
+            "div",
+            { style: { background: "#eef4ff", border: `1px solid ${C.borderHighlight}`, borderRadius: 8, padding: "9px 12px", minWidth: 0 } },
             React.createElement(
               "div",
               {
@@ -5479,7 +5199,7 @@ const ServicesTable = ({
                   : "—",
             ),
           ),
-          React.createElement(Table.Summary.Cell, { index: 6 }),
+          ),
         )
       : null;
 
@@ -5536,7 +5256,7 @@ const ServicesTable = ({
         ),
       ),
 
-    pickerRowId !== null &&
+    pickerOpen &&
       React.createElement(ServicePickerModal, {
         svcOpts,
         selectedIds,
@@ -5545,7 +5265,7 @@ const ServicesTable = ({
         currencyOptions,
         defaultCurrencyId: extractCurrencyId(selectedCurrency),
         onSelect: (svc) => {
-          onUpdate(pickerRowId, "__service__", {
+          onAddFromService({
             serviceId: svc.id,
             basePrice: packageMode ? 0 : svc.basePrice,
             currencyId: svc.currencyId || extractCurrencyId(selectedCurrency),
@@ -5558,12 +5278,12 @@ const ServicesTable = ({
             catalogBasePrice: svc.catalogBasePrice ?? svc.basePrice,
             vat: packageMode ? 0 : (svc.vat ?? svc.vatRate ?? 0),
           });
-          setPickerRowId(null);
+          setPickerOpen(false);
         },
-        onClose: () => setPickerRowId(null),
+        onClose: () => setPickerOpen(false),
         onAddNewService: (data) => {
           onAddNewService(data).then((s) => {
-            onUpdate(pickerRowId, "__service__", {
+            onAddFromService({
               serviceId: s.id,
               basePrice: packageMode ? 0 : s.basePrice,
               currencyId: s.currencyId || extractCurrencyId(selectedCurrency),
@@ -5576,7 +5296,7 @@ const ServicesTable = ({
               catalogBasePrice: s.catalogBasePrice ?? s.basePrice,
               vat: packageMode ? 0 : undefined,
             });
-            setPickerRowId(null);
+            setPickerOpen(false);
           });
         },
       }),
@@ -5586,7 +5306,7 @@ const ServicesTable = ({
       {
         style: {
           padding: "12px 16px",
-          background: TABLE_DS.bgSection,
+          background: C.bgSection,
           borderBottom: `1px solid ${C.border}`,
           display: "flex",
           justifyContent: "space-between",
@@ -5683,7 +5403,7 @@ const ServicesTable = ({
               AntButton,
               {
                 size: "small",
-                onClick: onAdd,
+                onClick: () => setPickerOpen(true),
                 style: { borderStyle: "dashed" },
               },
               "Add service",
@@ -5691,7 +5411,7 @@ const ServicesTable = ({
           : React.createElement(
               "div",
               {
-                onClick: onAdd,
+                onClick: () => setPickerOpen(true),
                 style: {
                   padding: "5px 14px",
                   borderRadius: 6,
@@ -5843,18 +5563,244 @@ const ServicesTable = ({
     React.createElement(
       "div",
       { style: { overflowX: "auto" } },
-      React.createElement(Table, {
-        dataSource: rows,
-        columns: quotationServiceColumns,
-        rowKey: "_id",
-        pagination: false,
-        size: "middle",
-        bordered: false,
-        scroll: { x: "max-content" },
-        locale: { emptyText: 'No services added - click "Add row"' },
-        summary: renderQuotationServicesSummary,
-      }),
+      React.createElement(
+        "table",
+        { style: { width: "100%", borderCollapse: "collapse", minWidth: 930 } },
+        React.createElement(
+          "thead",
+          null,
+          React.createElement(
+            "tr",
+            null,
+            React.createElement("th", { style: th({ width: 36, textAlign: "center" }) }, "#"),
+            React.createElement("th", { style: th({ minWidth: 280 }) }, "Service Name & Type"),
+            React.createElement("th", { style: th({ minWidth: 320 }) }, "Description"),
+            React.createElement("th", { style: th({ width: 180, textAlign: "right" }) }, "Unit Price"),
+            React.createElement("th", { style: th({ width: 80, textAlign: "center" }) }, "VAT (%)"),
+            React.createElement("th", { style: th({ width: 160, textAlign: "right", color: "#1d4ed8" }) }, "Total"),
+            React.createElement("th", { style: th({ width: 84 }) }, ""),
+          ),
+        ),
+        React.createElement(
+          "tbody",
+          null,
+          rows.length === 0
+            ? React.createElement(
+                "tr",
+                null,
+                React.createElement(
+                  "td",
+                  { colSpan: 7, style: td({ textAlign: "center", color: "#9ca3af", padding: "32px 0" }) },
+                  'No services added — click "Add service"',
+                ),
+              )
+            : rows.map((r) => {
+                const isRowEdit = !!editingRows[r._id];
+                const rowCurrency =
+                  findCurrencyById(currencies, r.currencyId) ||
+                  currencyFromRecord(r, currencies, selectedCurrency);
+                const line = packageMode
+                  ? calcLine(0, 1, 0)
+                  : calcLine(r.basePrice, 1, r.vat);
+                const rowConversion = !packageMode ? getRowConversion(rowCurrency, line) : null;
+
+                return React.createElement(
+                  "tr",
+                  { key: r._id },
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "center", color: C.textSub, fontSize: 12, fontWeight: 600 }) },
+                    r._id,
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td() },
+                    isRowEdit
+                      ? React.createElement(
+                          "div",
+                          { style: { display: "grid", gap: 6 } },
+                          React.createElement("input", {
+                            value: r.serviceName || "",
+                            onChange: (e) => onUpdate(r._id, "serviceName", e.target.value),
+                            placeholder: "Service name...",
+                            style: inp({ fontSize: 13.5, padding: "6px 9px" }),
+                          }),
+                          React.createElement("input", {
+                            value: r.serviceType || "",
+                            onChange: (e) => onUpdate(r._id, "serviceType", e.target.value),
+                            placeholder: "Service type...",
+                            style: inp({ fontSize: 12.5, padding: "5px 9px" }),
+                          }),
+                        )
+                      : React.createElement(
+                          "div",
+                          { style: { display: "flex", flexDirection: "column", gap: 4 } },
+                          React.createElement(
+                            "span",
+                            { style: { fontWeight: 600, color: r.serviceId ? C.text : C.textSub, whiteSpace: "normal", overflowWrap: "anywhere" } },
+                            r.serviceName || "—",
+                          ),
+                          r.serviceType &&
+                            React.createElement(
+                              "span",
+                              {
+                                style: {
+                                  alignSelf: "flex-start",
+                                  fontSize: 10,
+                                  background: "#eff6ff",
+                                  color: "#1d4ed8",
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  fontWeight: 500,
+                                  lineHeight: "14px",
+                                },
+                              },
+                              r.serviceType,
+                            ),
+                        ),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td() },
+                    isRowEdit
+                      ? React.createElement(AutoTextarea, {
+                          value: r.description || "",
+                          onChange: (v) => onUpdate(r._id, "description", v),
+                          placeholder: "Service scope or row note...",
+                          minRows: 2,
+                        })
+                      : React.createElement(ExpandableText, { text: r.description, limit: 100 }),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "right" }) },
+                    packageMode
+                      ? React.createElement(
+                          "span",
+                          { style: { display: "inline-block", padding: "4px 8px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "#e6f4ff", color: C.primary } },
+                          "Included in package",
+                        )
+                      : isRowEdit
+                        ? React.createElement(
+                            "div",
+                            { style: { display: "grid", gap: 6 } },
+                            React.createElement(PriceInput, {
+                              value: r.basePrice,
+                              onChange: (v) => onUpdate(r._id, "basePrice", v),
+                            }),
+                            React.createElement(
+                              "select",
+                              {
+                                value: r.currencyId || "",
+                                onChange: (e) => onUpdate(r._id, "currencyId", e.target.value || null),
+                                style: { ...inp({ padding: "6px 8px" }), cursor: "pointer", fontWeight: 700, textAlign: "center", width: "100%" },
+                                disabled: !currencies.length,
+                                title: currencySelectLabel(rowCurrency),
+                              },
+                              !currencyOptions.some((option) => String(option.value) === String(r.currencyId || "")) &&
+                                React.createElement("option", { value: "" }, getCurrencyCode(rowCurrency)),
+                              ...currencyOptions.map((option) =>
+                                React.createElement("option", { key: option.value, value: option.value }, option.label),
+                              ),
+                            ),
+                          )
+                        : React.createElement(
+                            "span",
+                            { style: { fontWeight: 700, color: C.text } },
+                            formatMoneyByCurrency(r.basePrice || 0, rowCurrency),
+                          ),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "center" }) },
+                    packageMode
+                      ? React.createElement("span", { style: { color: C.textSub, fontSize: 12.5 } }, "0%")
+                      : isRowEdit
+                        ? React.createElement(
+                            "div",
+                            { style: { display: "flex", alignItems: "center", gap: 2, justifyContent: "center" } },
+                            React.createElement("input", {
+                              type: "number",
+                              min: 0,
+                              max: 100,
+                              step: 1,
+                              value: r.vat,
+                              onChange: (e) => onUpdate(r._id, "vat", parseFloat(e.target.value) || 0),
+                              style: { border: `1px solid ${C.border}`, borderRadius: 5, padding: "5px 4px", fontSize: 13.5, outline: "none", textAlign: "right", width: 46, fontFamily: FONT },
+                            }),
+                            React.createElement("span", { style: { fontSize: 12, color: C.textSub } }, "%"),
+                          )
+                        : React.createElement("span", { style: { fontSize: 12.5, color: C.text } }, `${r.vat || 0}%`),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "right", fontWeight: 700, color: "#1d4ed8", fontSize: 14, fontVariantNumeric: "tabular-nums" }) },
+                    packageMode
+                      ? "—"
+                      : rowConversion?.canConvert
+                        ? React.createElement(
+                            "div",
+                            { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 } },
+                            React.createElement(
+                              "span",
+                              null,
+                              formatMoneyByCurrency(
+                                rowConversion.sameCurrency ? line.totalAmount : rowConversion.totalAmount,
+                                baseCurrency,
+                              ),
+                            ),
+                            !rowConversion.sameCurrency &&
+                              React.createElement(
+                                "span",
+                                { style: { color: C.textSub, fontSize: 10.5, fontWeight: 600 } },
+                                `Gốc: ${formatMoneyByCurrency(line.totalAmount, rowCurrency)}`,
+                              ),
+                          )
+                        : React.createElement(
+                            "div",
+                            { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 } },
+                            React.createElement("span", null, formatMoneyByCurrency(line.totalAmount, rowCurrency)),
+                            React.createElement(
+                              "span",
+                              { style: { color: "#d48806", fontSize: 10.5, fontWeight: 700 } },
+                              `Thiếu tỷ giá → ${getCurrencyCode(baseCurrency)}`,
+                            ),
+                          ),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "center" }) },
+                    React.createElement(
+                      "div",
+                      { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6 } },
+                      React.createElement(
+                        "button",
+                        {
+                          type: "button",
+                          title: isRowEdit ? "Done editing" : "Edit service",
+                          onClick: () => toggleRowEdit(r._id),
+                          style: iconButtonStyle(C.primary, isRowEdit),
+                        },
+                        React.createElement(RowEditIcon, { active: isRowEdit }),
+                      ),
+                      React.createElement(
+                        "button",
+                        {
+                          type: "button",
+                          title: "Delete service",
+                          onClick: () => onDelete(r._id),
+                          style: iconButtonStyle(C.danger),
+                        },
+                        React.createElement(TrashIcon),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+        ),
+      ),
     ),
+    renderQuotationServicesSummary(),
 
     React.createElement(
       Modal,
@@ -7111,23 +7057,27 @@ const QuotationCreateForm = () => {
     [],
   );
 
-  const addRow = () => {
+  // Mirrors CaseCreateForm.js's onAddFromService: the picker only ever adds a brand-new row
+  // (never edits an existing row's service — see the parity design spec §5.1). `value` carries
+  // the exact same field shape the old __service__-merge branch of updateRow used to consume.
+  const addRowFromService = (value) => {
     markDirty();
     setRows((p) => [
       ...p,
       {
         _id: Date.now(),
-        projectServiceId: null,
-        serviceId: null,
-        serviceName: "",
-        description: "",
-        quantity: 1,
-        currencyId: extractCurrencyId(selectedCurrency)
-          ? String(extractCurrencyId(selectedCurrency))
-          : null,
-        currency: selectedCurrency,
-        basePrice: 0,
-        vat: isPackagePricing(form.pricingMode) ? 0 : VAT_DEFAULT,
+        projectServiceId: value.projectServiceId || null,
+        serviceId: value.serviceId,
+        basePrice: value.basePrice,
+        currencyId: value.currencyId ? String(value.currencyId) : null,
+        currency: value.currency || null,
+        vat: value.vat ?? 0,
+        serviceName: value.serviceName,
+        serviceType: value.serviceType || "",
+        description: value.description || "",
+        catalogService: value.catalogService || null,
+        catalogServiceId: value.catalogServiceId || value.serviceId || null,
+        catalogBasePrice: value.catalogBasePrice ?? value.basePrice ?? null,
       },
     ]);
   };
@@ -7917,7 +7867,7 @@ const QuotationCreateForm = () => {
         svcOpts,
         companyId: form.internalCompanyId,
         onUpdate: updateRow,
-        onAdd: addRow,
+        onAddFromService: addRowFromService,
         onDelete: deleteRow,
         onAddNewService: handleAddNewService,
         pricingMode: form.pricingMode,
