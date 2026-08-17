@@ -5248,6 +5248,200 @@ const ServicesTable = ({
     },
   ];
 
+  const renderQuotationServicesSummary = () =>
+    rows.length > 0
+      ? React.createElement(
+          Table.Summary.Row,
+          null,
+          React.createElement(
+            Table.Summary.Cell,
+            { index: 0, colSpan: 3 },
+            !packageMode &&
+              (hasMixedCurrencies || needsConversion) &&
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => setBreakdownOpen(true),
+                  style: {
+                    border: `1px solid ${C.borderFocus}`,
+                    background: C.bgHighlight,
+                    color: C.primary,
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    fontFamily: FONT,
+                    cursor: "pointer",
+                  },
+                },
+                `Xem quy đổi tiền tệ (${financialSummary.groups.length} loại)`,
+              ),
+            !packageMode &&
+              !canShowTotals &&
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    marginTop: 8,
+                    color: "#d48806",
+                    background: "#fffbe6",
+                    border: "1px solid #ffe58f",
+                    borderRadius: 6,
+                    padding: "8px 11px",
+                    fontSize: 12,
+                    fontFamily: FONT,
+                    maxWidth: 320,
+                  },
+                },
+                `Thiếu tỷ giá quy đổi (${formatMissingRatePairs(financialSummary.missing, baseCurrency)}) — tổng báo giá chưa được cập nhật chính xác.`,
+              ),
+          ),
+          React.createElement(
+            Table.Summary.Cell,
+            { index: 3, align: "right" },
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: C.textSub,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.3,
+                  marginBottom: 4,
+                  fontFamily: FONT,
+                },
+              },
+              packageMode ? "Package Subtotal" : "Subtotal (excl. VAT)",
+            ),
+            packageMode
+              ? React.createElement(PriceInput, {
+                  value: packageSubTotal,
+                  onChange: (v) => onPackageChange("packageSubTotal", v),
+                })
+              : React.createElement(
+                  "div",
+                  {
+                    style: {
+                      fontSize: 14,
+                      color: C.text,
+                      fontWeight: 700,
+                      fontFamily: FONT_MONO,
+                    },
+                  },
+                  canShowTotals
+                    ? formatMoneyByCurrency(
+                        financialSummary.converted.subTotal,
+                        baseCurrency,
+                      )
+                    : "—",
+                ),
+          ),
+          React.createElement(
+            Table.Summary.Cell,
+            { index: 4, align: "center" },
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: C.textSub,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.3,
+                  marginBottom: 4,
+                  fontFamily: FONT,
+                },
+              },
+              "VAT",
+            ),
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 14,
+                  color: "#d48806",
+                  fontWeight: 700,
+                  fontFamily: FONT_MONO,
+                },
+              },
+              packageMode
+                ? formatMoneyByCurrency(packageTotals.vatAmount, baseCurrency)
+                : canShowTotals
+                  ? formatMoneyByCurrency(
+                      financialSummary.converted.vatAmount,
+                      baseCurrency,
+                    )
+                  : "—",
+            ),
+            packageMode &&
+              React.createElement("input", {
+                type: "number",
+                min: 0,
+                max: 100,
+                step: 0.1,
+                value: packageVatRate,
+                onChange: (e) =>
+                  onPackageChange(
+                    "packageVatRate",
+                    parseFloat(e.target.value) || 0,
+                  ),
+                style: inp({
+                  textAlign: "right",
+                  padding: "4px 6px",
+                  marginTop: 4,
+                  width: 80,
+                }),
+                onFocus,
+                onBlur,
+              }),
+          ),
+          React.createElement(
+            Table.Summary.Cell,
+            { index: 5, align: "right" },
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: C.textSub,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.3,
+                  marginBottom: 4,
+                  fontFamily: FONT,
+                },
+              },
+              packageMode ? "Package Total" : "Total",
+            ),
+            React.createElement(
+              "div",
+              {
+                style: {
+                  fontSize: 16,
+                  color: "#1d4ed8",
+                  fontWeight: 700,
+                  fontFamily: FONT_MONO,
+                },
+              },
+              packageMode
+                ? formatMoneyByCurrency(
+                    packageTotals.totalAmount,
+                    baseCurrency,
+                  )
+                : canShowTotals
+                  ? formatMoneyByCurrency(
+                      financialSummary.converted.totalAmount,
+                      baseCurrency,
+                    )
+                  : "—",
+            ),
+          ),
+          React.createElement(Table.Summary.Cell, { index: 6 }),
+        )
+      : null;
+
   return React.createElement(
     "div",
     {
@@ -5609,294 +5803,9 @@ const ServicesTable = ({
         bordered: false,
         scroll: { x: "max-content" },
         locale: { emptyText: 'No services added - click "Add row"' },
+        summary: renderQuotationServicesSummary,
       }),
     ),
-
-    rows.length > 0 &&
-      React.createElement(
-        "div",
-        {
-          style: {
-            borderTop: `2px solid ${C.border}`,
-            padding: "14px 20px",
-            background: C.bgSection,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: 16,
-            flexWrap: "wrap",
-          },
-        },
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              minWidth: 0,
-            },
-          },
-          !packageMode &&
-            (hasMixedCurrencies || needsConversion) &&
-            React.createElement(
-              "button",
-              {
-                type: "button",
-                onClick: () => setBreakdownOpen(true),
-                style: {
-                  border: `1px solid ${C.borderFocus}`,
-                  background: C.bgHighlight,
-                  color: C.primary,
-                  borderRadius: 6,
-                  padding: "6px 12px",
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  fontFamily: FONT,
-                  cursor: "pointer",
-                  alignSelf: "flex-start",
-                },
-              },
-              `Xem quy đổi tiền tệ (${financialSummary.groups.length} loại)`,
-            ),
-          !packageMode &&
-            !canShowTotals &&
-            React.createElement(
-              "div",
-              {
-                style: {
-                  color: "#d48806",
-                  background: "#fffbe6",
-                  border: "1px solid #ffe58f",
-                  borderRadius: 6,
-                  padding: "8px 11px",
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  maxWidth: 320,
-                },
-              },
-              `Thiếu tỷ giá quy đổi (${formatMissingRatePairs(financialSummary.missing, baseCurrency)}) — tổng báo giá chưa được cập nhật chính xác.`,
-            ),
-        ),
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(140px, 1fr))",
-              gap: 12,
-              width: "min(100%, 560px)",
-            },
-          },
-          React.createElement(
-            "div",
-            {
-              style: {
-                background: "#fff",
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                padding: "9px 12px",
-                minWidth: 0,
-              },
-            },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: C.textSub,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.3,
-                  marginBottom: 4,
-                  fontFamily: FONT,
-                },
-              },
-              packageMode ? "Package Subtotal" : "Subtotal (excl. VAT)",
-            ),
-            packageMode
-              ? React.createElement(PriceInput, {
-                  value: packageSubTotal,
-                  onChange: (v) => onPackageChange("packageSubTotal", v),
-                })
-              : React.createElement(
-                  "div",
-                  {
-                    style: {
-                      fontSize: 14,
-                      color: C.text,
-                      fontWeight: 700,
-                      fontFamily: FONT_MONO,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    },
-                    title: canShowTotals
-                      ? formatMoneyByCurrency(
-                          financialSummary.converted.subTotal,
-                          baseCurrency,
-                        )
-                      : "—",
-                  },
-                  canShowTotals
-                    ? formatMoneyByCurrency(
-                        financialSummary.converted.subTotal,
-                        baseCurrency,
-                      )
-                    : "—",
-                ),
-          ),
-          React.createElement(
-            "div",
-            {
-              style: {
-                background: "#fffbe6",
-                border: "1px solid #ffe58f",
-                borderRadius: 8,
-                padding: "9px 12px",
-                minWidth: 0,
-              },
-            },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: C.textSub,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.3,
-                  marginBottom: 4,
-                  fontFamily: FONT,
-                },
-              },
-              "VAT",
-            ),
-            React.createElement(
-              "div",
-              {
-                style: {
-                  display: "grid",
-                  gridTemplateColumns: packageMode
-                    ? "minmax(0, 1fr) 64px"
-                    : "1fr",
-                  gap: 6,
-                  alignItems: "center",
-                },
-              },
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    fontSize: 14,
-                    color: "#d48806",
-                    fontWeight: 700,
-                    fontFamily: FONT_MONO,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  },
-                  title: packageMode
-                    ? formatMoneyByCurrency(
-                        packageTotals.vatAmount,
-                        baseCurrency,
-                      )
-                    : canShowTotals
-                      ? formatMoneyByCurrency(
-                          financialSummary.converted.vatAmount,
-                          baseCurrency,
-                        )
-                      : "—",
-                },
-                packageMode
-                  ? formatMoneyByCurrency(packageTotals.vatAmount, baseCurrency)
-                  : canShowTotals
-                    ? formatMoneyByCurrency(
-                        financialSummary.converted.vatAmount,
-                        baseCurrency,
-                      )
-                    : "—",
-              ),
-              packageMode &&
-                React.createElement("input", {
-                  type: "number",
-                  min: 0,
-                  max: 100,
-                  step: 0.1,
-                  value: packageVatRate,
-                  onChange: (e) =>
-                    onPackageChange(
-                      "packageVatRate",
-                      parseFloat(e.target.value) || 0,
-                    ),
-                  style: inp({ textAlign: "right", padding: "4px 6px" }),
-                  onFocus,
-                  onBlur,
-                }),
-            ),
-          ),
-          React.createElement(
-            "div",
-            {
-              style: {
-                background: "#eef4ff",
-                border: `1px solid ${C.borderHighlight}`,
-                borderRadius: 8,
-                padding: "9px 12px",
-                minWidth: 0,
-              },
-            },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 10.5,
-                  fontWeight: 700,
-                  color: C.textSub,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.3,
-                  marginBottom: 4,
-                  fontFamily: FONT,
-                },
-              },
-              packageMode ? "Package Total" : "Total",
-            ),
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 16,
-                  color: "#1d4ed8",
-                  fontWeight: 700,
-                  fontFamily: FONT_MONO,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                },
-                title: packageMode
-                  ? formatMoneyByCurrency(
-                      packageTotals.totalAmount,
-                      baseCurrency,
-                    )
-                  : canShowTotals
-                    ? formatMoneyByCurrency(
-                        financialSummary.converted.totalAmount,
-                        baseCurrency,
-                      )
-                    : "—",
-              },
-              packageMode
-                ? formatMoneyByCurrency(packageTotals.totalAmount, baseCurrency)
-                : canShowTotals
-                  ? formatMoneyByCurrency(
-                      financialSummary.converted.totalAmount,
-                      baseCurrency,
-                    )
-                  : "—",
-            ),
-          ),
-        ),
-      ),
 
     React.createElement(
       Modal,
