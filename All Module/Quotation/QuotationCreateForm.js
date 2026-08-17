@@ -3679,6 +3679,7 @@ const ServicePickerModal = ({
     description: "",
     serviceType: "",
     currencyId: defaultCurrencyId ? String(defaultCurrencyId) : "",
+    vat: VAT_DEFAULT,
   });
   const [errors, setErrors] = useState({});
   useEffect(() => {
@@ -4177,6 +4178,13 @@ const ServicePickerModal = ({
                   type: "price",
                 },
                 {
+                  key: "vat",
+                  label: "VAT (%)",
+                  req: false,
+                  type: "vat",
+                  hint: "optional",
+                },
+                {
                   key: "description",
                   label: "Description",
                   req: false,
@@ -4235,7 +4243,23 @@ const ServicePickerModal = ({
                               setErrors((p) => ({ ...p, price: "" }));
                             },
                           })
-                        : f.type === "textarea"
+                        : f.type === "vat"
+                          ? React.createElement("input", {
+                              type: "number",
+                              min: 0,
+                              max: 100,
+                              step: 1,
+                              value: newSvc.vat,
+                              onChange: (e) =>
+                                setNewSvc({
+                                  ...newSvc,
+                                  vat: parseFloat(e.target.value) || 0,
+                                }),
+                              style: inp(),
+                              onFocus,
+                              onBlur,
+                            })
+                          : f.type === "textarea"
                           ? React.createElement(AutoTextarea, {
                               value: newSvc[f.key],
                               onChange: (v) =>
@@ -5290,7 +5314,7 @@ const ServicesTable = ({
               catalogService: s.catalogService || null,
               catalogServiceId: s.catalogServiceId || s.id,
               catalogBasePrice: s.catalogBasePrice ?? s.basePrice,
-              vat: packageMode ? 0 : undefined,
+              vat: packageMode ? 0 : (s.vat ?? VAT_DEFAULT),
             });
             setPickerOpen(false);
           });
@@ -5561,7 +5585,7 @@ const ServicesTable = ({
       { style: { overflowX: "auto" } },
       React.createElement(
         "table",
-        { style: { width: "100%", borderCollapse: "collapse", minWidth: 930 } },
+        { style: { width: "100%", borderCollapse: "collapse", minWidth: 970 } },
         React.createElement(
           "thead",
           null,
@@ -5571,7 +5595,7 @@ const ServicesTable = ({
             React.createElement("th", { style: th({ width: 36, textAlign: "center" }) }, "#"),
             React.createElement("th", { style: th({ minWidth: 280 }) }, "Service Name & Type"),
             React.createElement("th", { style: th({ minWidth: 320 }) }, "Description"),
-            React.createElement("th", { style: th({ width: 180, textAlign: "right" }) }, "Unit Price"),
+            React.createElement("th", { style: th({ width: 220, textAlign: "right" }) }, "Unit Price"),
             React.createElement("th", { style: th({ width: 80, textAlign: "center" }) }, "VAT (%)"),
             React.createElement("th", { style: th({ width: 160, textAlign: "right", color: "#1d4ed8" }) }, "Total"),
             React.createElement("th", { style: th({ width: 84 }) }, ""),
@@ -5590,7 +5614,7 @@ const ServicesTable = ({
                   'No services added — click "Add service"',
                 ),
               )
-            : rows.map((r) => {
+            : rows.map((r, idx) => {
                 const isRowEdit = !!editingRows[r._id];
                 const rowCurrency =
                   findCurrencyById(currencies, r.currencyId) ||
@@ -5606,7 +5630,7 @@ const ServicesTable = ({
                   React.createElement(
                     "td",
                     { style: td({ textAlign: "center", color: C.textSub, fontSize: 12, fontWeight: 600 }) },
-                    r._id,
+                    idx + 1,
                   ),
                   React.createElement(
                     "td",
@@ -5679,17 +5703,21 @@ const ServicesTable = ({
                       : isRowEdit
                         ? React.createElement(
                             "div",
-                            { style: { display: "grid", gap: 6 } },
-                            React.createElement(PriceInput, {
-                              value: r.basePrice,
-                              onChange: (v) => onUpdate(r._id, "basePrice", v),
-                            }),
+                            { style: { display: "flex", gap: 6 } },
+                            React.createElement(
+                              "div",
+                              { style: { flex: 1, minWidth: 0 } },
+                              React.createElement(PriceInput, {
+                                value: r.basePrice,
+                                onChange: (v) => onUpdate(r._id, "basePrice", v),
+                              }),
+                            ),
                             React.createElement(
                               "select",
                               {
                                 value: r.currencyId || "",
                                 onChange: (e) => onUpdate(r._id, "currencyId", e.target.value || null),
-                                style: { ...inp({ padding: "6px 8px" }), cursor: "pointer", fontWeight: 700, textAlign: "center", width: "100%" },
+                                style: { ...inp({ padding: "6px 6px" }), cursor: "pointer", fontWeight: 700, textAlign: "center", width: 84, flexShrink: 0 },
                                 disabled: !currencies.length,
                                 title: currencySelectLabel(rowCurrency),
                               },
@@ -7130,6 +7158,7 @@ const QuotationCreateForm = () => {
         extractCurrencyId(data.currencyId) || extractCurrencyId(currency),
       currency,
       description: data.description || "",
+      vat: parseNum(data.vat),
       catalogServiceId: null,
       catalogBasePrice: null,
       catalogService: null,
