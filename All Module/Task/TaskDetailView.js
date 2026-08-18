@@ -1071,12 +1071,10 @@
     // Task Template variable configuration — Generate flow
     // ============================================================
     // "Cấu hình biến" / "Điền biến & Generate" — see
-    // docs/superpowers/specs/2026-08-18-task-template-variable-config-design.md.
-    // Popup view UID for the shared documents.variableConfig editor (Task 2/3 of
-    // docs/superpowers/plans/2026-08-18-task-template-variable-config.md). Leave "" and this
-    // action shows a "Chưa cấu hình Popup UID" warning instead of erroring — same guard as
-    // ContractDocxGenerator.js's POPUP_UID_CASE.
-    const POPUP_UID_VARIABLE_CONFIG = "";
+    // docs/superpowers/specs/2026-08-18-task-template-variable-config-design.md. The
+    // documents.variableConfig editor lives inline in this file (DocumentVariableConfigModal,
+    // below) rather than via a separate Nocobase popup view — avoids depending on an
+    // Admin-UI-created view/UID entirely.
 
     // Grouped list of system fields a variable can be mapped to. Duplicated verbatim in
     // JsField/VariableConfigEditor.js — this repo's single-file constraint means these two
@@ -1178,6 +1176,17 @@
       const group = VARIABLE_CATALOG[groupKey];
       return group?.fields.find((f) => f.key === sourceKey) || null;
     }
+
+    // Flat "group — field" option list for the system-field dropdown in
+    // DocumentVariableConfigModal (below) — same shape as
+    // JsField/VariableConfigEditor.js's SYSTEM_FIELD_OPTIONS.
+    const VARIABLE_SYSTEM_FIELD_OPTIONS = Object.entries(VARIABLE_CATALOG).flatMap(
+      ([groupKey, group]) =>
+        group.fields.map((f) => ({
+          value: f.key,
+          label: `${group.label} — ${f.label}`,
+        })),
+    );
 
     // A document's effective variable list: "custom" reads its own variableConfig; "inherited"
     // (or unset, treated the same as inherited for template-cloned rows) reads the live
@@ -13735,6 +13744,7 @@
       const [cmtRefreshTrigger, setCmtRefreshTrigger] = useState(0);
       const [libraryMoveTarget, setLibraryMoveTarget] = useState(null);
       const [generateTarget, setGenerateTarget] = useState(null);
+      const [configureTarget, setConfigureTarget] = useState(null);
       const [detailFolderLookup, setDetailFolderLookup] = useState({});
       const [expandedAttachmentFolders, setExpandedAttachmentFolders] = useState({});
 
@@ -14338,6 +14348,147 @@
         );
       };
 
+      // Inline replacement for a separate Nocobase popup view bound to
+      // documents.variableConfig — same row-editor UI as
+      // JsField/VariableConfigEditor.js, but writes via documents:update
+      // directly instead of ctx.getValue()/ctx.setValue() (which only work
+      // inside a JsField block bound to that exact field). Keeps this
+      // feature usable without any Admin-UI view/UID setup.
+      const DocumentVariableConfigModal = ({ doc, onClose, onSaved }) => {
+        const inheritedConfig = Array.isArray(doc?.projectTemplates?.variableConfig)
+          ? doc.projectTemplates.variableConfig
+          : [];
+        const [mode, setMode] = useState(doc?.variableConfigMode || "custom");
+        const [rows, setRows] = useState(
+          Array.isArray(doc?.variableConfig) ? doc.variableConfig : [],
+        );
+        const [saving, setSaving] = useState(false);
+
+        const updateRow = (index, patch) =>
+          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+        const addRow = () =>
+          setRows((prev) => [...prev, { key: "", source: "system", sourceKey: "", label: "" }]);
+        const removeRow = (index) =>
+          setRows((prev) => prev.filter((_, i) => i !== index));
+
+        const displayRows = mode === "inherited" ? inheritedConfig : rows;
+
+        const handleSave = async () => {
+          setSaving(true);
+          try {
+            await apiReq(`documents:update?filterByTk=${doc.id}`, "POST", {
+              variableConfig: mode === "inherited" ? doc?.variableConfig || [] : rows,
+              variableConfigMode: mode,
+            });
+            message.success("Đã lưu cấu hình biến");
+            if (onSaved) onSaved();
+            onClose();
+          } catch (error) {
+            message.error("Lưu thất bại: " + (error?.message || "Vui lòng thử lại"));
+          } finally {
+            setSaving(false);
+          }
+        };
+
+        return React.createElement(
+          Modal,
+          {
+            title: `Cấu hình biến — ${doc?.title || ""}`,
+            open: true,
+            onCancel: onClose,
+            width: 760,
+            footer: [
+              React.createElement(Button, { key: "cancel", onClick: onClose }, "Huỷ"),
+              React.createElement(
+                Button,
+                { key: "save", type: "primary", loading: saving, onClick: handleSave },
+                "Lưu",
+              ),
+            ],
+          },
+          React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: 12 } },
+            doc?.projectTemplates?.id &&
+              React.createElement(
+                "div",
+                { style: { display: "flex", alignItems: "center", gap: 8 } },
+                React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, "Chế độ:"),
+                React.createElement(Select, {
+                  value: mode,
+                  style: { width: 260 },
+                  options: [
+                    { value: "inherited", label: "Kế thừa từ Task Template" },
+                    { value: "custom", label: "Tuỳ chỉnh riêng cho task này" },
+                  ],
+                  onChange: (value) => setMode(value),
+                }),
+              ),
+            mode === "inherited" &&
+              React.createElement(
+                "div",
+                { style: { fontSize: 12, color: "#8c8c8c" } },
+                "Đang kế thừa cấu hình từ Task Template (chỉ xem) — chuyển sang \"Tuỳ chỉnh\" để sửa riêng cho task này.",
+              ),
+            displayRows.length === 0
+              ? React.createElement(Empty, {
+                  description: "Chưa có biến nào",
+                  image: Empty.PRESENTED_IMAGE_SIMPLE,
+                })
+              : displayRows.map((row, index) =>
+                  React.createElement(
+                    Space.Compact,
+                    { key: index, style: { width: "100%" } },
+                    React.createElement(Input, {
+                      placeholder: "Tên biến (VD: customer_name)",
+                      value: row.key,
+                      disabled: mode === "inherited",
+                      style: { width: "22%" },
+                      onChange: (e) => updateRow(index, { key: e.target.value }),
+                    }),
+                    React.createElement(Select, {
+                      value: row.source,
+                      disabled: mode === "inherited",
+                      style: { width: "18%" },
+                      options: [
+                        { value: "system", label: "Hệ thống" },
+                        { value: "manual", label: "Nhập tay" },
+                      ],
+                      onChange: (value) => updateRow(index, { source: value }),
+                    }),
+                    row.source === "system"
+                      ? React.createElement(Select, {
+                          placeholder: "Chọn field hệ thống",
+                          value: row.sourceKey || undefined,
+                          disabled: mode === "inherited",
+                          style: { width: "45%" },
+                          showSearch: true,
+                          optionFilterProp: "label",
+                          options: VARIABLE_SYSTEM_FIELD_OPTIONS,
+                          onChange: (value) => updateRow(index, { sourceKey: value }),
+                        })
+                      : React.createElement(Input, {
+                          placeholder: "Nhãn hiển thị khi nhập tay",
+                          value: row.label,
+                          disabled: mode === "inherited",
+                          style: { width: "45%" },
+                          onChange: (e) => updateRow(index, { label: e.target.value }),
+                        }),
+                    React.createElement(Button, {
+                      danger: true,
+                      disabled: mode === "inherited",
+                      onClick: () => removeRow(index),
+                      style: { width: "15%" },
+                      children: "Xoá",
+                    }),
+                  ),
+                ),
+            mode !== "inherited" &&
+              React.createElement(Button, { type: "dashed", onClick: addRow }, "+ Thêm biến"),
+          ),
+        );
+      };
+
       const renderFileList = (
         files,
         emptyMsg = "No attached files yet.",
@@ -14474,15 +14625,7 @@
                 return;
               }
               if (key === "configure_variables") {
-                if (!POPUP_UID_VARIABLE_CONFIG) {
-                  message.warning("Chưa cấu hình Popup UID");
-                  return;
-                }
-                ctx.openView(POPUP_UID_VARIABLE_CONFIG, {
-                  mode: "dialog",
-                  size: "middle",
-                  filterbytk: f.id,
-                });
+                setConfigureTarget(f);
                 return;
               }
               if (key === "generate_variables") {
@@ -15801,6 +15944,15 @@
               onSaved: () => {
                 reloadAttachments();
                 setCmtRefreshTrigger((v) => v + 1);
+              },
+            }),
+          configureTarget &&
+            React.createElement(DocumentVariableConfigModal, {
+              key: "configure-variables-modal",
+              doc: configureTarget,
+              onClose: () => setConfigureTarget(null),
+              onSaved: () => {
+                reloadAttachments();
               },
             }),
         );
