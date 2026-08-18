@@ -1084,12 +1084,12 @@
     // changes.
     const VARIABLE_CATALOG = {
       case: {
-        label: "Hồ sơ",
+        label: "Vụ việc",
         fields: [
-          { key: "case.caseCode", label: "Số hồ sơ", format: "text" },
-          { key: "case.projectName", label: "Tên hồ sơ", format: "text" },
-          { key: "case.date", label: "Ngày mở hồ sơ", format: "date" },
-          { key: "case.deadline", label: "Hạn hồ sơ", format: "date" },
+          { key: "case.caseCode", label: "Số vụ việc", format: "text" },
+          { key: "case.projectName", label: "Tên vụ việc", format: "text" },
+          { key: "case.date", label: "Ngày mở vụ việc", format: "date" },
+          { key: "case.deadline", label: "Hạn vụ việc", format: "date" },
         ],
       },
       customer: {
