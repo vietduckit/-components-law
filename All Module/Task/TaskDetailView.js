@@ -1216,6 +1216,184 @@
       return String(rawValue);
     }
 
+    // Builds the flat context object VARIABLE_CATALOG's dot-paths resolve against. Always
+    // fetches fresh (no caching) so an admin's edit to a linked projectTemplates.variableConfig
+    // is reflected the next time Generate is opened — see the design spec §6 step 2.
+    async function fetchGenerateContext(task) {
+      const safeProjectId = extractId(task?.projectId);
+      let project = null;
+      if (safeProjectId) {
+        const projRes = await ctx.api
+          .request({
+            url: "projects:get",
+            params: {
+              filterByTk: safeProjectId,
+              fields: "id,caseCode,projectName,date,deadline,contractId,quotationId,customerId,customer",
+              appends: ["customer"],
+            },
+          })
+          .catch(() => null);
+        project = projRes?.data?.data || projRes?.data || null;
+      }
+
+      const [quotationRes, contractRes] = await Promise.all([
+        project?.quotationId
+          ? ctx.api
+              .request({ url: "quotations:get", params: { filterByTk: project.quotationId } })
+              .catch(() => null)
+          : Promise.resolve(null),
+        project?.contractId
+          ? ctx.api
+              .request({ url: "contracts:get", params: { filterByTk: project.contractId } })
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      const quotation = quotationRes?.data?.data || quotationRes?.data || null;
+      const contract = contractRes?.data?.data || contractRes?.data || null;
+
+      let invoice = null;
+      if (project?.contractId || project?.quotationId) {
+        const filterOr = [];
+        if (project.contractId) filterOr.push({ contractId: { $eq: project.contractId } });
+        if (project.quotationId) filterOr.push({ quotationId: { $eq: project.quotationId } });
+        const invRes = await ctx.api
+          .request({
+            url: "invoices:list",
+            params: {
+              pageSize: 1,
+              sort: ["-issuedDate"],
+              filter: JSON.stringify({ $or: filterOr }),
+            },
+          })
+          .catch(() => null);
+        invoice = invRes?.data?.data?.[0] || null;
+      }
+
+      let payment = null;
+      if (invoice?.id) {
+        const payRes = await ctx.api
+          .request({
+            url: "payments:list",
+            params: {
+              pageSize: 1,
+              sort: ["-paymentDate"],
+              filter: JSON.stringify({ invoiceId: { $eq: invoice.id } }),
+            },
+          })
+          .catch(() => null);
+        payment = payRes?.data?.data?.[0] || null;
+      }
+
+      const currentUser = await getCurrentUser();
+      const now = new Date();
+
+      return {
+        case: project || {},
+        customer: project?.customer || {},
+        quotation: quotation || {},
+        contract: contract || {},
+        invoice: invoice || {},
+        payment: payment || {},
+        task: task || {},
+        user: currentUser || {},
+        date: {
+          today: now.toISOString(),
+          day: String(now.getDate()).padStart(2, "0"),
+          month: String(now.getMonth() + 1).padStart(2, "0"),
+          year: String(now.getFullYear()),
+        },
+      };
+    }
+
+    // Splits a document's effective variableConfig into { resolved, missing, manualDefs }:
+    // resolved = { key: formattedValue } for every "system" variable found in context (or a
+    // " ____ " placeholder if the mapped data was empty — same convention ContractDocxGenerator
+    // uses for missing customer data); missing = keys whose system data resolved empty (shown to
+    // the lawyer as a warning); manualDefs = the "manual" variable definitions, to render as
+    // input fields.
+    function resolveVariables(variableConfig, context) {
+      const resolved = {};
+      const missing = [];
+      const manualDefs = [];
+      (variableConfig || []).forEach((def) => {
+        if (def.source === "manual") {
+          manualDefs.push(def);
+          return;
+        }
+        const catalogField = getVariableCatalogField(def.sourceKey);
+        const rawValue = resolveCatalogValue(context, def.sourceKey);
+        const formatted = formatCatalogValue(rawValue, catalogField?.format || "text");
+        if (!formatted) missing.push(def.key);
+        resolved[def.key] = formatted || " ____ ";
+      });
+      return { resolved, missing, manualDefs };
+    }
+
+    // Fetches the task's own attached .docx (never the projectTemplates source file — see this
+    // plan's Global Constraints), fills it with templateData via docxtemplater, returns the
+    // rendered blob. Mirrors ContractDocxGenerator.js's buildDocxBlob.
+    async function buildFilledDocxBlob(doc, templateData) {
+      const PizZipModule = await ctx.importAsync("https://esm.sh/pizzip@3.1.4");
+      const PizZip = PizZipModule.default || PizZipModule;
+      const DocxModule = await ctx.importAsync("https://esm.sh/docxtemplater@3.37.11");
+      const Docxtemplater = DocxModule.default || DocxModule;
+
+      const attachmentObj = doc?.fileAttachment;
+      const sourceUrl = Array.isArray(attachmentObj) ? attachmentObj[0]?.url : attachmentObj?.url;
+      if (!sourceUrl) throw new Error("Tài liệu này chưa có file đính kèm.");
+
+      const response = await ctx.api.request({
+        url: sourceUrl,
+        method: "GET",
+        responseType: "arraybuffer",
+        baseURL: "/",
+      });
+      const arrayBuffer = response.data;
+
+      const zip = new PizZip(arrayBuffer);
+      const rendered = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{{", end: "}}" },
+      });
+      rendered.render(templateData);
+
+      const generatedBlob = rendered.getZip().generate({
+        type: "blob",
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const baseName = String(doc?.title || "Document").replace(/\.[^/.]+$/, "");
+      const fileName = `${baseName}_${Date.now()}.docx`;
+      return { generatedBlob, fileName };
+    }
+
+    // Detailed error modal for Generate/Save failures — mirrors ContractDocxGenerator.js's
+    // showErrorModal so a docxtemplater render error (e.g. a {{tag}} in the .docx with no
+    // matching variableConfig entry) surfaces its actual multi-line explanation instead of a
+    // generic message. Duplicated here rather than shared, per this repo's single-file
+    // constraint.
+    function showGenerateError(error) {
+      let errorMsg = error?.message || "Unknown error";
+      let errorDetails = "";
+      if (error?.properties?.errors) {
+        errorDetails = error.properties.errors
+          .map((e) => (e.properties ? e.properties.explanation || e.message : e.message))
+          .join("\n\n");
+      }
+      Modal.error({
+        title: "Generate thất bại",
+        content: React.createElement(
+          "div",
+          { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 400, overflowY: "auto", fontSize: 13 } },
+          React.createElement("strong", { style: { color: "red" } }, errorMsg),
+          errorDetails && React.createElement("br"),
+          errorDetails,
+        ),
+        width: 640,
+      });
+    }
+
     // ============================================================
     // §3 API
     // ============================================================
@@ -13983,6 +14161,183 @@
           ),
       );
 
+      const TaskTemplateGenerateModal = ({ doc, task, projectFolderId, onClose, onSaved }) => {
+        const [loading, setLoading] = useState(true);
+        const [context, setContext] = useState(null);
+        const [manualDefs, setManualDefs] = useState([]);
+        const [manualValues, setManualValues] = useState({});
+        const [missingKeys, setMissingKeys] = useState([]);
+        const [generating, setGenerating] = useState(false);
+        const [saving, setSaving] = useState(false);
+        const [previewUrl, setPreviewUrl] = useState(null);
+        const [previewBlob, setPreviewBlob] = useState(null);
+        const [previewFileName, setPreviewFileName] = useState("");
+        const [previewAttId, setPreviewAttId] = useState(null);
+
+        useEffect(() => {
+          let cancelled = false;
+          (async () => {
+            setLoading(true);
+            const ctxData = await fetchGenerateContext(task);
+            if (cancelled) return;
+            const variableConfig = getEffectiveVariableConfig(doc);
+            const { missing, manualDefs: defs } = resolveVariables(variableConfig, ctxData);
+            setContext(ctxData);
+            setMissingKeys(missing);
+            setManualDefs(defs);
+            setManualValues(Object.fromEntries(defs.map((d) => [d.key, ""])));
+            setLoading(false);
+          })();
+          return () => {
+            cancelled = true;
+          };
+        }, [doc?.id, task?.id]);
+
+        const buildTemplateData = () => {
+          const variableConfig = getEffectiveVariableConfig(doc);
+          const { resolved } = resolveVariables(variableConfig, context);
+          manualDefs.forEach((def) => {
+            resolved[def.key] = manualValues[def.key] || " ____ ";
+          });
+          return resolved;
+        };
+
+        const handleGenerate = async () => {
+          setGenerating(true);
+          try {
+            const templateData = buildTemplateData();
+            const { generatedBlob, fileName } = await buildFilledDocxBlob(doc, templateData);
+            const attachment = await uploadTaskAttachment(generatedBlob, fileName);
+            let fullUrl = attachment.url;
+            if (fullUrl && fullUrl.startsWith("/")) {
+              fullUrl = window.location.origin + fullUrl;
+            }
+            setPreviewBlob(generatedBlob);
+            setPreviewUrl(fullUrl);
+            setPreviewFileName(fileName);
+            setPreviewAttId(attachment.id);
+          } catch (error) {
+            showGenerateError(error);
+          } finally {
+            setGenerating(false);
+          }
+        };
+
+        const handleSave = async () => {
+          setSaving(true);
+          try {
+            let attId = previewAttId;
+            let fileName = previewFileName;
+            if (!attId) {
+              const templateData = buildTemplateData();
+              const built = await buildFilledDocxBlob(doc, templateData);
+              fileName = built.fileName;
+              const attachment = await uploadTaskAttachment(built.generatedBlob, fileName);
+              attId = attachment.id;
+            }
+            const currentUser = context?.user;
+            const now = new Date().toISOString();
+            await apiReq("documents:create", "POST", {
+              title: fileName,
+              documentType: "Generated",
+              folderId: extractId(projectFolderId),
+              fileAttachment: { id: attId },
+              note: `Generated from "${doc?.title || "template"}" by ${currentUser?.nickname || currentUser?.username || "System"} at ${new Date().toLocaleTimeString("en-GB")} on ${new Date().toLocaleDateString("en-GB")}`,
+              createdById: currentUser?.id || null,
+              updatedById: currentUser?.id || null,
+              createdAt: now,
+              updatedAt: now,
+              ...buildTaskUploadDocumentLink("Task", task?.id, { folderId: projectFolderId }),
+            });
+            message.success("Đã lưu tài liệu vào task");
+            if (onSaved) onSaved();
+            onClose();
+          } catch (error) {
+            showGenerateError(error);
+          } finally {
+            setSaving(false);
+          }
+        };
+
+        return React.createElement(
+          Modal,
+          {
+            title: `Điền biến & Generate — ${doc?.title || ""}`,
+            open: true,
+            onCancel: onClose,
+            width: previewUrl ? "80%" : 640,
+            footer: previewUrl
+              ? [
+                  React.createElement(
+                    Button,
+                    { key: "close", onClick: onClose },
+                    "Đóng",
+                  ),
+                  React.createElement(
+                    Button,
+                    { key: "save", type: "primary", loading: saving, onClick: handleSave },
+                    "Lưu vào Documents",
+                  ),
+                ]
+              : [
+                  React.createElement(
+                    Button,
+                    { key: "cancel", onClick: onClose },
+                    "Huỷ",
+                  ),
+                  React.createElement(
+                    Button,
+                    {
+                      key: "generate",
+                      type: "primary",
+                      loading: generating,
+                      disabled: loading,
+                      onClick: handleGenerate,
+                    },
+                    "Generate & Preview",
+                  ),
+                ],
+          },
+          loading
+            ? React.createElement(Spin)
+            : previewUrl
+              ? React.createElement("iframe", {
+                  src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`,
+                  width: "100%",
+                  height: "70vh",
+                  frameBorder: "0",
+                })
+              : React.createElement(
+                  "div",
+                  { style: { display: "flex", flexDirection: "column", gap: 12 } },
+                  missingKeys.length > 0 &&
+                    React.createElement(
+                      "div",
+                      { style: { color: "#d46b08", fontSize: 12 } },
+                      `Thiếu dữ liệu hệ thống cho: ${missingKeys.join(", ")} — các biến này sẽ để trống trong file.`,
+                    ),
+                  manualDefs.length === 0
+                    ? React.createElement(
+                        "div",
+                        { style: { color: "#8c8c8c", fontSize: 12 } },
+                        "Toàn bộ biến đều lấy tự động từ hệ thống.",
+                      )
+                    : manualDefs.map((def) =>
+                        React.createElement(
+                          "div",
+                          { key: def.key, style: { display: "flex", flexDirection: "column", gap: 4 } },
+                          React.createElement("label", { style: { fontSize: 12, fontWeight: 600 } }, def.label || def.key),
+                          React.createElement(Input, {
+                            value: manualValues[def.key] || "",
+                            onChange: (e) =>
+                              setManualValues((prev) => ({ ...prev, [def.key]: e.target.value })),
+                          }),
+                        ),
+                      ),
+                ),
+        );
+      };
+
       const renderFileList = (
         files,
         emptyMsg = "No attached files yet.",
@@ -15433,6 +15788,18 @@
                 } else {
                   reloadAttachments();
                 }
+                setCmtRefreshTrigger((v) => v + 1);
+              },
+            }),
+          generateTarget &&
+            React.createElement(TaskTemplateGenerateModal, {
+              key: "generate-modal",
+              doc: generateTarget,
+              task: type === "task" ? item : parentTaskForSubtask || item,
+              projectFolderId,
+              onClose: () => setGenerateTarget(null),
+              onSaved: () => {
+                reloadAttachments();
                 setCmtRefreshTrigger((v) => v + 1);
               },
             }),
