@@ -9,13 +9,14 @@ CREATE OR REPLACE FUNCTION public.auto_create_tasks_from_template()
     VOLATILE NOT LEAKPROOF
 AS $BODY$
 DECLARE
-    tmpl           RECORD;
-    new_task_id    BIGINT;
-    new_doc_id     BIGINT;
-    new_attach_id  BIGINT;
-    proj           RECORD;
-    v_due_date     TIMESTAMP WITH TIME ZONE;
-    v_attachment   RECORD;
+    tmpl             RECORD;
+    new_task_id      BIGINT;
+    new_doc_id       BIGINT;
+    new_attach_id    BIGINT;
+    proj             RECORD;
+    v_due_date       TIMESTAMP WITH TIME ZONE;
+    v_attachment     RECORD;
+    v_root_folder_id BIGINT;
 BEGIN
     -- INSERT: luôn tạo task từ template
     -- UPDATE: chỉ chạy khi status có sự thay đổi (tránh tạo task trùng khi edit các field khác)
@@ -28,6 +29,16 @@ BEGIN
     INTO proj
     FROM projects
     WHERE id = NEW."projectId";
+
+    -- Folder gốc của case — dùng để gắn file mẫu đúng vào cây tài liệu của
+    -- case (qua folderId), thay vì gắn thẳng caseId khiến Document library
+    -- coi file này là ngang hàng với root của case (xem comment
+    -- buildTaskUploadDocumentLink trong TaskDetailView.js).
+    SELECT id
+    INTO v_root_folder_id
+    FROM folders
+    WHERE "projectId" = NEW."projectId" AND "parentId" IS NULL
+    LIMIT 1;
 
     FOR tmpl IN
         SELECT pt.*
@@ -150,7 +161,12 @@ BEGIN
                         title,
                         "documentType",
                         "taskId",
-                        "caseId",
+                        "collectionName",
+                        "sourceCollectionName",
+                        "sourceTaskId",
+                        "recordId",
+                        "sourceRecordId",
+                        "folderId",
                         "customerId",
                         "moduleScope",
                         "storageType",
@@ -166,7 +182,12 @@ BEGIN
                         v_attachment.title,
                         'File mẫu',
                         new_task_id,
-                        NEW."projectId",
+                        'Task',
+                        'Task',
+                        new_task_id,
+                        new_task_id,
+                        new_task_id,
+                        v_root_folder_id,
                         proj."customerId",
                         'case_document',
                         'tasks',
