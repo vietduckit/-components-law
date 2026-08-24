@@ -5743,20 +5743,22 @@ const ProjectServicesTable = ({
                 currency: totalsCurrency,
               }),
             ),
-            (packageCatalogTotal > 0 || comboConversionNote) &&
+            // These two lines are deliberately kept separate (never joined
+            // into one string) — they describe two unrelated numbers and
+            // merging them previously read as if the combo's own original
+            // price were an explanation of the catalog total, when the two
+            // have no arithmetic relationship to each other.
+            packageCatalogTotal > 0 &&
               React.createElement(
                 "div",
                 { style: { marginTop: 4, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
-                [
-                  packageCatalogTotal > 0
-                    ? `Giá catalog gốc: ${formatMoney(packageCatalogTotal, totalsCurrency)}`
-                    : null,
-                  comboConversionNote
-                    ? `(gốc combo: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode} → quy đổi VND)`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join("  "),
+                `Giá catalog gốc (tham khảo, không liên quan đến giá combo): ${formatMoney(packageCatalogTotal, totalsCurrency)}`,
+              ),
+            comboConversionNote &&
+              React.createElement(
+                "div",
+                { style: { marginTop: 2, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
+                `Giá gốc combo: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode} — đã quy đổi thành số tiền ở ô Package Subtotal phía trên`,
               ),
           ),
           React.createElement(
