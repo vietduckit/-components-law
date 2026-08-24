@@ -4506,11 +4506,6 @@ const ServicesTable = ({
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [exchangeRates, setExchangeRates] = useState([]);
   const packageMode = isPackagePricing(pricingMode);
-  // Sum of each row's own catalog price (catalogBasePrice, snapshotted when
-  // the row was added — see addRowFromService / applyCombo) — a reference
-  // showing what these services would cost at catalog price, alongside the
-  // flat Package Subtotal actually charged.
-  const packageCatalogTotal = rows.reduce((sum, r) => sum + parseNum(r.catalogBasePrice), 0);
   const baseCurrency = selectedCurrency || findDefaultCurrency(currencies);
   const baseCurrencyId = extractCurrencyId(baseCurrency);
   const preliminarySummary = useMemo(
@@ -5127,18 +5122,6 @@ const ServicesTable = ({
                       )
                     : "—",
                 ),
-            // These two lines are deliberately kept separate (never joined
-            // into one string) — they describe two unrelated numbers and
-            // merging them previously read as if the combo's own original
-            // price were an explanation of the catalog total, when the two
-            // have no arithmetic relationship to each other.
-            packageMode &&
-              packageCatalogTotal > 0 &&
-              React.createElement(
-                "div",
-                { style: { marginTop: 4, fontSize: 11, color: C.textSub, fontFamily: FONT } },
-                `Giá catalog gốc (tham khảo, không liên quan đến giá combo): ${formatMoneyByCurrency(packageCatalogTotal, baseCurrency)}`,
-              ),
             packageMode &&
               comboConversionNote &&
               React.createElement(
@@ -7025,29 +7008,6 @@ const QuotationCreateForm = () => {
       }
     }
 
-    // Each catalog service inside the combo can carry its own currency
-    // (services.currencyId/currency), so resolve every distinct foreign
-    // currency among this combo's items and convert to VND before using it
-    // as the "Giá catalog gốc" reference — otherwise a service priced in
-    // USD would get summed as if its raw number were already VND.
-    const itemCurrencyIds = Array.from(
-      new Set(
-        items
-          .map((item) => getRecordCurrencyId(item.services || {}))
-          .filter((id) => id && id !== vndId),
-      ),
-    );
-    const itemRates = itemCurrencyIds.length
-      ? await fetchExchangeRatesForConversion(itemCurrencyIds, vndId)
-      : [];
-    const catalogPriceInVnd = (svc) => {
-      const svcCurrencyId = getRecordCurrencyId(svc);
-      const rawPrice = parseNum(svc.basePrice);
-      if (!svcCurrencyId || !vndId || svcCurrencyId === vndId) return rawPrice;
-      const matched = pickConversionRate(itemRates, svcCurrencyId, vndId, form.validUntil);
-      return matched?.rate > 0 ? Math.round(rawPrice * matched.rate) : rawPrice;
-    };
-
     // quotationServices rows created from this form always resolve to
     // quantity: 1 (buildServicePricingPayload hardcodes quantity: 1 for
     // package mode, and the call site in handleSubmit's `lines` builder
@@ -7071,10 +7031,7 @@ const QuotationCreateForm = () => {
           description: svc.description || "",
           catalogService: svc,
           catalogServiceId: svc.id || null,
-          // Converted to VND if the service carries a foreign currency —
-          // used to compute the "giá catalog gốc" reference total shown
-          // under Package Subtotal.
-          catalogBasePrice: catalogPriceInVnd(svc) ?? null,
+          catalogBasePrice: svc.basePrice ?? null,
           _comboSourceId: String(comboId),
         });
       }

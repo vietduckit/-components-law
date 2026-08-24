@@ -5718,12 +5718,6 @@ const ProjectServicesTable = ({
     whiteSpace: "nowrap",
   });
 
-  // Sum of each row's own catalog price (_packageBasePrice, snapshotted
-  // when the row was added under package mode — see addRowFromService /
-  // applyCombo) — a reference showing what these services would cost at
-  // catalog price, alongside the flat Package Subtotal actually charged.
-  const packageCatalogTotal = rows.reduce((sum, r) => sum + parseNum(r._packageBasePrice), 0);
-
   const renderSingleTotalsSummary = () =>
     React.createElement(
       "div",
@@ -5743,17 +5737,6 @@ const ProjectServicesTable = ({
                 currency: totalsCurrency,
               }),
             ),
-            // These two lines are deliberately kept separate (never joined
-            // into one string) — they describe two unrelated numbers and
-            // merging them previously read as if the combo's own original
-            // price were an explanation of the catalog total, when the two
-            // have no arithmetic relationship to each other.
-            packageCatalogTotal > 0 &&
-              React.createElement(
-                "div",
-                { style: { marginTop: 4, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
-                `Giá catalog gốc (tham khảo, không liên quan đến giá combo): ${formatMoney(packageCatalogTotal, totalsCurrency)}`,
-              ),
             comboConversionNote &&
               React.createElement(
                 "div",
@@ -7888,31 +7871,6 @@ const ProjectCreateForm = () => {
         }
       }
 
-      // Each catalog service inside the combo can carry its own currency
-      // (services.currencyId/currency — same field addRowFromService already
-      // reads for the manual "add service" picker), so resolve every
-      // distinct foreign currency among this combo's items and convert to
-      // VND before using it as the "Giá catalog gốc" reference — otherwise
-      // a service priced in USD would get summed as if its raw number were
-      // already VND.
-      const itemCurrencyIds = Array.from(
-        new Set(
-          items
-            .map((item) => getRecordCurrencyId(item.services || {}))
-            .filter((id) => id && id !== vndId),
-        ),
-      );
-      const itemRates = itemCurrencyIds.length
-        ? await fetchExchangeRatesForConversion(itemCurrencyIds, vndId)
-        : [];
-      const catalogPriceInVnd = (svc) => {
-        const svcCurrencyId = getRecordCurrencyId(svc);
-        const rawPrice = parseNum(svc.basePrice);
-        if (!svcCurrencyId || !vndId || svcCurrencyId === vndId) return rawPrice;
-        const matched = pickConversionRate(itemRates, svcCurrencyId, vndId, form.date);
-        return matched?.rate > 0 ? Math.round(rawPrice * matched.rate) : rawPrice;
-      };
-
       // Package-mode projectServices:create payloads in handleSubmit always
       // send quantity: 1 (both submit-loop branches), so a combo item with
       // quantity > 1 is represented as that many duplicate rows here.
@@ -7937,11 +7895,13 @@ const ProjectCreateForm = () => {
             billingMode: BILLING_PACKAGE_INCLUDED,
             financialSourceType: form.financialSourceType || SOURCE_NONE,
             pricingMode: PRICING_MODE_PACKAGE,
-            // Preserves the catalog's own price for this service, converted
-            // to VND if the service carries a foreign currency (not zeroed
-            // like basePrice) — used to compute the "giá catalog gốc"
-            // reference total shown under Package Subtotal.
-            _packageBasePrice: catalogPriceInVnd(svc) || 0,
+            // Deliberately 0, not the catalog's own price: the combo's
+            // packageSubTotal is a flat value from the combo template, not
+            // a sum of its rows — deleteRow subtracts _packageBasePrice
+            // from packageSubTotal when a row is removed, which would
+            // incorrectly shrink a combo's flat price if this carried the
+            // service's real catalog price.
+            _packageBasePrice: 0,
             _comboSourceId: String(comboId),
           });
         }
