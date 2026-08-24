@@ -4707,6 +4707,8 @@ const ManualContractServicesSection = ({
   onSelectService,
   onCreateManualService,
   onCurrencyChange,
+  combos = [],
+  onApplyCombo,
 }) => {
   const [pickerRowId, setPickerRowId] = useState(null);
   const [search, setSearch] = useState("");
@@ -5884,6 +5886,32 @@ const ManualContractServicesSection = ({
                 ),
           ),
         ),
+        pricingMode === "package" &&
+          React.createElement(
+            "div",
+            { style: { width: 220, minWidth: 0 } },
+            React.createElement(
+              "div",
+              { style: { fontSize: 11.5, color: C.sub, marginBottom: 3, fontFamily: FONT } },
+              "Áp dụng combo dịch vụ",
+            ),
+            ctx.antd.Select
+              ? React.createElement(ctx.antd.Select, {
+                  allowClear: false,
+                  showSearch: true,
+                  value: undefined,
+                  placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
+                  optionFilterProp: "label",
+                  style: { width: "100%" },
+                  disabled: !combos.length,
+                  onSelect: (value) => onApplyCombo?.(value),
+                  options: combos.map((c) => ({
+                    value: String(c.id),
+                    label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                  })),
+                })
+              : null,
+          ),
         React.createElement(
           "div",
           {
@@ -6843,6 +6871,26 @@ const ContractCreateForm = () => {
   const [serviceLines, setServiceLines] = useState([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [manualServiceRows, setManualServiceRows] = useState([]);
+  const [combos, setCombos] = useState([]);
+
+  useEffect(() => {
+    ctx.api
+      .request({
+        url: "serviceCombos:list",
+        params: {
+          filter: JSON.stringify({ isActive: { $eq: true } }),
+          appends: ["serviceComboItems.services"],
+          pageSize: 100,
+        },
+      })
+      .then((res) => {
+        const list = res?.data?.data || [];
+        setCombos(list.filter((c) => (c.serviceComboItems || []).length > 0));
+      })
+      .catch((error) => {
+        console.warn("[ContractCreateForm] Could not fetch service combos:", error);
+      });
+  }, []);
 
   const [form, setForm] = useState({
     contractType: "byCase",
@@ -8408,37 +8456,6 @@ const ContractCreateForm = () => {
     [selectedCaseServiceLines],
   );
 
-  const updateCaseServiceLineRow = (rowId, field, value) => {
-    let nextLines = [];
-    setServiceLines((prev) => {
-      nextLines = prev.map((line) => {
-        if (String(line.projectServiceId) !== String(rowId)) return line;
-        const next = { ...line, [field]: value };
-        if (field === "basePrice" || field === "vat") {
-          const basePrice =
-            field === "basePrice" ? parseNum(value) : parseNum(line.basePrice);
-          const vat = field === "vat" ? parseNum(value) : parseNum(line.vat);
-          const amounts = resolveServiceAmounts({
-            basePrice,
-            quantity: line.quantity || 1,
-            vat,
-          });
-          return {
-            ...next,
-            basePrice: amounts.basePrice,
-            vat: amounts.vat,
-            subTotal: amounts.subTotal,
-            vatAmount: amounts.vatAmount,
-            totalAmount: amounts.totalAmount,
-          };
-        }
-        return next;
-      });
-      return nextLines;
-    });
-    setTimeout(() => applyServiceSelection(selectedServiceIds, nextLines), 0);
-  };
-
   const removeCaseServiceLineRow = (rowId) => {
     applyServiceSelection(
       selectedServiceIds.filter((id) => String(id) !== String(rowId)),
@@ -8985,6 +9002,41 @@ const ContractCreateForm = () => {
       vatAmount: vatAmount ? String(vatAmount) : "",
       totalAmount: totalAmount ? String(totalAmount) : "",
     }));
+  };
+
+  const applyCombo = (comboId) => {
+    const combo = combos.find((c) => String(c.id) === String(comboId));
+    if (!combo) return;
+    const items = combo.serviceComboItems || [];
+    if (!items.length) {
+      message.warning("Combo này chưa có dịch vụ nào.");
+      return;
+    }
+    // packagePricingPayload() hardcodes quantity: 1 for every package-mode
+    // contractServices row (see packagePricingPayload), so a combo item's
+    // quantity > 1 is represented as that many duplicate rows rather than
+    // a single row carrying a quantity value.
+    const newRows = [];
+    items.forEach((item) => {
+      const svc = item.services || {};
+      const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+      for (let i = 0; i < unitCount; i++) {
+        newRows.push({
+          id: `combo-${comboId}-${svc.id}-${i}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          serviceId: svc.id ? String(svc.id) : "",
+          serviceName: svc.serviceName || "",
+          serviceType: svc.serviceType || "",
+          description: svc.description || "",
+          quantity: "1",
+          currencyId: "",
+          basePrice: "",
+          vat: "0",
+        });
+      }
+    });
+    setManualServiceRows((prev) => [...prev, ...newRows]);
+    syncPackageTotals(combo.packageSubTotal || 0, combo.packageVatRate || 0);
+    message.success(`Đã áp dụng combo "${combo.comboName}".`);
   };
 
   const handleManualPricingModeChange = (mode) => {
@@ -10528,6 +10580,8 @@ const ContractCreateForm = () => {
                   syncPackageTotals(value, form.packageVatRate),
                 onPackageVatRateChange: (value) =>
                   syncPackageTotals(form.subTotal || form.fixedAmount, value),
+                combos,
+                onApplyCombo: applyCombo,
                 onAddRow: serviceLines.length ? undefined : addManualServiceRow,
                 onDeleteRow: serviceLines.length
                   ? removeCaseServiceLineRow
