@@ -4812,6 +4812,7 @@ const ProjectServicesTable = ({
   pricingDate,
   combos = [],
   onApplyCombo,
+  comboConversionNote = null,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingRows, setEditingRows] = useState({});
@@ -5706,6 +5707,8 @@ const ProjectServicesTable = ({
     color: bold ? C.text : C.textSub,
     fontWeight: bold ? 700 : 400,
     fontFamily: FONT,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   });
   const summaryValueStyle = (color, bold) => ({
     fontSize: bold ? 18 : 13.5,
@@ -5715,21 +5718,46 @@ const ProjectServicesTable = ({
     whiteSpace: "nowrap",
   });
 
+  // Sum of each row's own catalog price (_packageBasePrice, snapshotted
+  // when the row was added under package mode — see addRowFromService /
+  // applyCombo) — a reference showing what these services would cost at
+  // catalog price, alongside the flat Package Subtotal actually charged.
+  const packageCatalogTotal = rows.reduce((sum, r) => sum + parseNum(r._packageBasePrice), 0);
+
   const renderSingleTotalsSummary = () =>
     React.createElement(
       "div",
-      { style: { minWidth: 300 } },
+      { style: { minWidth: 420 } },
       packageMode
         ? [
           React.createElement(
             "div",
-            { key: "packageSubTotal", style: summaryRowStyle(true) },
-            React.createElement("span", { style: summaryLabelStyle(false) }, "Package Subtotal:"),
-            React.createElement(PriceInput, {
-              value: packageSummary?.subTotal || 0,
-              onChange: (value) => onPackageChange?.("packageSubTotal", value),
-              currency: totalsCurrency,
-            }),
+            { key: "packageSubTotal", style: { padding: "5px 0", borderBottom: `1px dashed ${C.border}` } },
+            React.createElement(
+              "div",
+              { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24 } },
+              React.createElement("span", { style: summaryLabelStyle(false) }, "Package Subtotal:"),
+              React.createElement(PriceInput, {
+                value: packageSummary?.subTotal || 0,
+                onChange: (value) => onPackageChange?.("packageSubTotal", value),
+                currency: totalsCurrency,
+              }),
+            ),
+            (packageCatalogTotal > 0 || comboConversionNote) &&
+              React.createElement(
+                "div",
+                { style: { marginTop: 4, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
+                [
+                  packageCatalogTotal > 0
+                    ? `Giá catalog gốc: ${formatMoney(packageCatalogTotal, totalsCurrency)}`
+                    : null,
+                  comboConversionNote
+                    ? `(gốc combo: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode} → quy đổi VND)`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join("  "),
+              ),
           ),
           React.createElement(
             "div",
@@ -6209,52 +6237,13 @@ const ProjectServicesTable = ({
       React.createElement(
         "div",
         { style: { display: "flex", flexDirection: "column", gap: 10, minWidth: 0 } },
+        packageMode &&
         React.createElement(
           "div",
           { style: { display: "flex", justifyContent: "flex-end" } },
-          !packageMode &&
           React.createElement(
             "div",
-            { style: { width: 130, minWidth: 0 } },
-            React.createElement(
-              "div",
-              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
-              "Currency",
-            ),
-            Select
-              ? React.createElement(Select, {
-                showSearch: true,
-                allowClear: false,
-                value: currency ? String(extractCurrencyId(currency)) : undefined,
-                placeholder: currencies.length ? "Select currency" : "No currencies configured",
-                optionFilterProp: "label",
-                style: { width: "100%" },
-                onChange: (value) => onCurrencyChange?.(value || null),
-                options: currencyOptions,
-                disabled: !currencies.length,
-              })
-              : React.createElement(
-                "select",
-                {
-                  value: currency ? String(extractCurrencyId(currency)) : "",
-                  onChange: (e) => onCurrencyChange?.(e.target.value || null),
-                  style: inp({ cursor: "pointer" }),
-                  disabled: !currencies.length,
-                },
-                React.createElement("option", { value: "" }, "Select currency"),
-                ...currencies.map((item) =>
-                  React.createElement(
-                    "option",
-                    { key: item.id, value: item.id },
-                    currencySelectLabel(item),
-                  ),
-                ),
-              ),
-          ),
-          packageMode &&
-          React.createElement(
-            "div",
-            { style: { minWidth: 0, maxWidth: 330, width: "100%" } },
+            { style: { minWidth: 0, maxWidth: 420, width: "100%" } },
             React.createElement(
               "div",
               { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
@@ -6272,7 +6261,7 @@ const ProjectServicesTable = ({
                 onSelect: (value) => onApplyCombo?.(value),
                 options: combos.map((c) => ({
                   value: String(c.id),
-                  label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                  label: `${c.serviceComboType ? c.serviceComboType + " - " : ""}${c.comboName}`,
                 })),
               })
               : null,
@@ -6992,6 +6981,7 @@ const ProjectCreateForm = () => {
   const [rows, setRows] = useState([]);
   const [internalCompanies, setInternalCompanies] = useState([]);
   const [combos, setCombos] = useState([]);
+  const [comboConversionNote, setComboConversionNote] = useState(null);
 
   useEffect(() => {
     ctx.api
@@ -7068,6 +7058,15 @@ const ProjectCreateForm = () => {
     () => extractCurrencyId(findDefaultCurrency(currencies)?.id),
     [currencies],
   );
+  // The Currency field has been removed from the Services section (no more
+  // manual override) — auto-populate form.currencyId with the default
+  // currency (VND) once currencies load, so the "select a Case Currency"
+  // submit validation is satisfied without a picker.
+  useEffect(() => {
+    if (!form.currencyId && defaultCurrencyId) {
+      setForm((p) => ({ ...p, currencyId: String(defaultCurrencyId) }));
+    }
+  }, [defaultCurrencyId]);
   const currencyOptions = useMemo(
     () =>
       currencies.map((currency) => ({
@@ -7911,7 +7910,10 @@ const ProjectCreateForm = () => {
             billingMode: BILLING_PACKAGE_INCLUDED,
             financialSourceType: form.financialSourceType || SOURCE_NONE,
             pricingMode: PRICING_MODE_PACKAGE,
-            _packageBasePrice: 0,
+            // Preserves the catalog's own price for this service (not
+            // zeroed like basePrice) — used to compute the "giá catalog
+            // gốc" reference total shown under Package Subtotal.
+            _packageBasePrice: parseNum(svc.basePrice) || 0,
             _comboSourceId: String(comboId),
           });
         }
@@ -7926,109 +7928,41 @@ const ProjectCreateForm = () => {
       if (vndId) {
         setForm((p) => ({ ...p, currencyId: String(vndId) }));
       }
+      setComboConversionNote(
+        comboCurrencyId && vndId && comboCurrencyId !== vndId
+          ? {
+            originalAmount: parseNum(combo.packageSubTotal),
+            currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
+          }
+          : null,
+      );
       message.success(`Đã áp dụng combo "${combo.comboName}".`);
     },
-    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType],
+    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, currencies],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
   const handleServicePricingModeChange = useCallback(
-    async (mode) => {
+    (mode) => {
       const nextMode = isPackagePricing(mode) ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE;
       if (nextMode === form.pricingMode) return;
-
-      if (nextMode === PRICING_MODE_PACKAGE) {
-        // Rows can each carry their own currency in Line mode (multi-currency
-        // services) — naively summing raw basePrice across rows silently added
-        // together numbers from different currencies as if they were the same
-        // one (e.g. 18,000,000 VND + 2,000 USD → "18,002,000"). Convert every
-        // row into the Case's own currency first, same as the rest of the
-        // financial summary logic (buildServiceFinancialSummary), before
-        // collapsing them into the single Package subtotal.
-        let subTotal = parseNum(form.packageSubTotal);
-        const preliminarySummary = buildServiceFinancialSummary({
-          rows,
-          currencies,
-          baseCurrency: selectedCurrency,
-          pricingDate: form.date,
-          packageMode: false,
-          activeFinancialSourceType: form.financialSourceType,
-        });
-        if (preliminarySummary.groups.length) {
-          const rateCurrencyIds = getConversionSourceCurrencyIds(preliminarySummary.groups, selectedCurrency);
-          const exchangeRates = rateCurrencyIds.length
-            ? await fetchExchangeRatesForConversion(rateCurrencyIds, extractCurrencyId(selectedCurrency))
-            : [];
-          const financialSummary = buildServiceFinancialSummary({
-            rows,
-            currencies,
-            baseCurrency: selectedCurrency,
-            exchangeRates,
-            pricingDate: form.date,
-            packageMode: false,
-            activeFinancialSourceType: form.financialSourceType,
-          });
-          if (!financialSummary.converted.canConvert) {
-            message.warning(
-              `Không thể chuyển sang Package pricing: thiếu tỷ giá quy đổi (${formatMissingRatePairs(financialSummary.missing, selectedCurrency)}).`,
-            );
-            return;
-          }
-          subTotal = financialSummary.converted.subTotal || subTotal;
-        }
-        const vatRate = (form.packageVatRate === undefined || form.packageVatRate === null || form.packageVatRate === "")
-          ? 8
-          : parseNum(form.packageVatRate);
-        const vatAmount = Math.round((subTotal * vatRate) / 100);
-        setForm((p) => ({
-          ...p,
-          pricingMode: PRICING_MODE_PACKAGE,
-          financialSourceType:
-            p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
-          packageSubTotal: subTotal,
-          packageVatRate: vatRate,
-          packageVatAmount: vatAmount,
-          packageTotalAmount: subTotal + vatAmount,
-        }));
-        setRows((p) =>
-          p.map((row) => ({
-            ...row,
-            billingMode: BILLING_PACKAGE_INCLUDED,
-            pricingMode: PRICING_MODE_PACKAGE,
-            financialSourceType:
-              row.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : row.financialSourceType,
-            _packageBasePrice:
-              parseNum(row._packageBasePrice) || parseNum(row.basePrice),
-            basePrice: 0,
-            vat: 0,
-          })),
-        );
-        return;
-      }
-
+      // Switching pricing mode resets the services list instead of trying to
+      // convert/preserve rows across modes — prevents ending up with a mix
+      // of line-priced rows and combo/package rows in the same Case.
+      setRows([]);
+      setComboConversionNote(null);
       setForm((p) => ({
         ...p,
-        pricingMode: PRICING_MODE_LINE,
+        pricingMode: nextMode,
         financialSourceType:
           p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
         packageSubTotal: 0,
+        packageVatRate: 0,
         packageVatAmount: 0,
         packageTotalAmount: 0,
       }));
-      setRows((p) =>
-        p.map((row) => ({
-          ...row,
-          billingMode: BILLING_LINE,
-          pricingMode: PRICING_MODE_LINE,
-          financialSourceType:
-            row.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : row.financialSourceType,
-          basePrice:
-            parseNum(row.basePrice) || parseNum(row._packageBasePrice),
-          vat: (row.vat === undefined || row.vat === null || row.vat === "") ? 8 : row.vat,
-        })),
-      );
     },
-    [form.packageSubTotal, form.packageVatRate, form.pricingMode, form.financialSourceType, form.date, rows, currencies, selectedCurrency],
+    [form.pricingMode],
   );
 
   const handleSubmit = async () => {
@@ -9999,6 +9933,7 @@ const ProjectCreateForm = () => {
         taskTemplates,
         combos,
         onApplyCombo: applyCombo,
+        comboConversionNote,
       }),
     ),
 
