@@ -4816,6 +4816,7 @@ const ProjectServicesTable = ({
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingRows, setEditingRows] = useState({});
+  const [taskOverviewRowId, setTaskOverviewRowId] = useState(null);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [exchangeRates, setExchangeRates] = useState([]);
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false);
@@ -5194,6 +5195,26 @@ const ProjectServicesTable = ({
       React.createElement("path", { d: "M10 11v6" }),
       React.createElement("path", { d: "M14 11v6" }),
     );
+  const TaskListIcon = () =>
+    React.createElement(
+      "svg",
+      {
+        width: 15,
+        height: 15,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        "aria-hidden": true,
+      },
+      React.createElement("rect", { x: 3, y: 4, width: 18, height: 17, rx: 2 }),
+      React.createElement("path", { d: "M7.5 11.5l1.5 1.5 3-3" }),
+      React.createElement("path", { d: "M13 12h4" }),
+      React.createElement("path", { d: "M7.5 16.5l1.5 1.5 3-3" }),
+      React.createElement("path", { d: "M13 17h4" }),
+    );
   const iconButtonStyle = (color, active = false) => ({
     width: 28,
     height: 28,
@@ -5260,230 +5281,162 @@ const ProjectServicesTable = ({
     const tasks = editableTasksForRow(row).filter((_, index) => index !== taskIndex);
     setEditableTasksForRow(row, tasks);
   };
-  const renderEditableTaskOverview = () =>
-    serviceTaskPreviewRows.length > 0 &&
-    React.createElement(
+  // Renders the editable task-name/description table for ONE service row —
+  // shown inside the "View task" Modal (renderTaskOverviewModal below)
+  // instead of always-expanded for every row at once.
+  const renderTaskCard = (row) => {
+    const tasks = editableTasksForRow(row);
+    return React.createElement(
       "div",
-      {
-        style: {
-          borderTop: `1px solid ${C.border}`,
-          background: "#fff",
-          padding: "14px 16px 16px",
-          display: "grid",
-          gap: 12,
-          fontFamily: FONT,
-        },
-      },
+      { style: { display: "grid", gap: 12 } },
       React.createElement(
         "div",
-        {
-          style: {
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
+        { style: { display: "flex", alignItems: "center", justifyContent: "flex-end" } },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => addEditableTask(row),
+            style: {
+              border: `1px dashed ${C.primary}`,
+              background: "#fff",
+              color: C.primary,
+              borderRadius: 6,
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontSize: 12.5,
+              fontWeight: 500,
+              fontFamily: FONT,
+            },
           },
-        },
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "div",
-            { style: { fontSize: 14, fontWeight: 600, color: C.text } },
-            "Sample Task Overview",
-          ),
-          React.createElement(
-            "div",
-            { style: { fontSize: 12, color: C.textSub, marginTop: 2 } },
-            "Review and edit task names or descriptions before creating the case.",
-          ),
-        ),
-        React.createElement(
-          "span",
-          { style: { color: C.textSub, fontSize: 12 } },
-          `${serviceTaskPreviewRows.reduce((sum, row) => sum + editableTasksForRow(row).length, 0)} tasks`,
+          "+ Add task",
         ),
       ),
-      React.createElement(
-        "div",
-        { style: { display: "grid", gap: 12 } },
-        serviceTaskPreviewRows.map((row) => {
-          const tasks = editableTasksForRow(row);
-          return React.createElement(
-            "div",
+      tasks.length === 0
+        ? React.createElement(
+          "div",
+          {
+            style: {
+              padding: "16px 12px",
+              color: C.textSub,
+              fontSize: 13,
+              background: "#fff",
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+            },
+          },
+          "No sample tasks. Add a task if this service needs work items.",
+        )
+        : React.createElement(
+          "div",
+          { style: { overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 8 } },
+          React.createElement(
+            "table",
             {
-              key: row._id,
               style: {
-                border: `1px solid ${C.border}`,
-                borderRadius: 8,
-                background: "#fff",
-                overflow: "hidden",
+                width: "100%",
+                minWidth: 640,
+                borderCollapse: "collapse",
               },
             },
             React.createElement(
-              "div",
-              {
-                style: {
-                  padding: "10px 12px",
-                  background: C.bgSection,
-                  borderBottom: `1px solid ${C.border}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  flexWrap: "wrap",
-                },
-              },
+              "thead",
+              null,
               React.createElement(
-                "div",
-                { style: { minWidth: 0 } },
-                React.createElement(
-                  "div",
-                  {
-                    title: row.serviceName || "",
-                    style: {
-                      color: C.text,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: "18px",
-                      overflowWrap: "anywhere",
-                    },
-                  },
-                  row.serviceName || "Custom service",
-                ),
-                React.createElement(
-                  "div",
-                  { style: { color: C.textSub, fontSize: 12, marginTop: 2 } },
-                  `${tasks.length} tasks`,
-                ),
-              ),
-              React.createElement(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => addEditableTask(row),
-                  style: {
-                    border: `1px dashed ${C.primary}`,
-                    background: "#fff",
-                    color: C.primary,
-                    borderRadius: 6,
-                    padding: "5px 10px",
-                    cursor: "pointer",
-                    fontSize: 12.5,
-                    fontWeight: 500,
-                    fontFamily: FONT,
-                  },
-                },
-                "+ Add task",
+                "tr",
+                null,
+                React.createElement("th", { style: th({ width: 48, textAlign: "center" }) }, "#"),
+                React.createElement("th", { style: th({ minWidth: 200 }) }, "Task name"),
+                React.createElement("th", { style: th({ minWidth: 260 }) }, "Description"),
+                React.createElement("th", { style: th({ width: 64, textAlign: "center" }) }, ""),
               ),
             ),
-            tasks.length === 0
-              ? React.createElement(
-                "div",
-                {
-                  style: {
-                    padding: "16px 12px",
-                    color: C.textSub,
-                    fontSize: 13,
-                    background: "#fff",
-                  },
-                },
-                "No sample tasks. Add a task if this service needs work items.",
-              )
-              : React.createElement(
-                "div",
-                { style: { overflowX: "auto" } },
+            React.createElement(
+              "tbody",
+              null,
+              tasks.map((task, taskIndex) =>
                 React.createElement(
-                  "table",
-                  {
-                    style: {
-                      width: "100%",
-                      minWidth: 760,
-                      borderCollapse: "collapse",
-                    },
-                  },
+                  "tr",
+                  { key: task._id || taskIndex },
                   React.createElement(
-                    "thead",
-                    null,
-                    React.createElement(
-                      "tr",
-                      null,
-                      React.createElement("th", { style: th({ width: 48, textAlign: "center" }) }, "#"),
-                      React.createElement("th", { style: th({ minWidth: 240 }) }, "Task name"),
-                      React.createElement("th", { style: th({ minWidth: 340 }) }, "Description"),
-                      React.createElement("th", { style: th({ width: 64, textAlign: "center" }) }, ""),
-                    ),
+                    "td",
+                    { style: td({ textAlign: "center", color: C.textSub, fontSize: 12 }) },
+                    taskIndex + 1,
                   ),
                   React.createElement(
-                    "tbody",
-                    null,
-                    tasks.map((task, taskIndex) =>
-                      React.createElement(
-                        "tr",
-                        { key: task._id || taskIndex },
-                        React.createElement(
-                          "td",
-                          { style: td({ textAlign: "center", color: C.textSub, fontSize: 12 }) },
-                          taskIndex + 1,
-                        ),
-                        React.createElement(
-                          "td",
-                          { style: td({ verticalAlign: "top" }) },
-                          React.createElement("input", {
-                            value: task.title || task.templateName || "",
-                            onChange: (event) =>
-                              updateEditableTask(row, taskIndex, "title", event.target.value),
-                            placeholder: "Task name",
-                            style: inp({ fontSize: 13, padding: "6px 9px" }),
-                            onFocus,
-                            onBlur,
-                          }),
-                        ),
-                        React.createElement(
-                          "td",
-                          { style: td({ verticalAlign: "top" }) },
-                          React.createElement("textarea", {
-                            value: task.description || "",
-                            onChange: (event) =>
-                              updateEditableTask(row, taskIndex, "description", event.target.value),
-                            placeholder: "Task description...",
-                            rows: 2,
-                            style: {
-                              ...inp({
-                                minHeight: 48,
-                                resize: "vertical",
-                                fontSize: 13,
-                                lineHeight: "18px",
-                              }),
-                            },
-                            onFocus,
-                            onBlur,
-                          }),
-                        ),
-                        React.createElement(
-                          "td",
-                          { style: td({ textAlign: "center", verticalAlign: "top" }) },
-                          React.createElement(
-                            "button",
-                            {
-                              type: "button",
-                              title: "Remove task",
-                              onClick: () => removeEditableTask(row, taskIndex),
-                              style: iconButtonStyle(C.danger),
-                            },
-                            React.createElement(TrashIcon),
-                          ),
-                        ),
-                      ),
+                    "td",
+                    { style: td({ verticalAlign: "top" }) },
+                    React.createElement("input", {
+                      value: task.title || task.templateName || "",
+                      onChange: (event) =>
+                        updateEditableTask(row, taskIndex, "title", event.target.value),
+                      placeholder: "Task name",
+                      style: inp({ fontSize: 13, padding: "6px 9px" }),
+                      onFocus,
+                      onBlur,
+                    }),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ verticalAlign: "top" }) },
+                    React.createElement("textarea", {
+                      value: task.description || "",
+                      onChange: (event) =>
+                        updateEditableTask(row, taskIndex, "description", event.target.value),
+                      placeholder: "Task description...",
+                      rows: 2,
+                      style: {
+                        ...inp({
+                          minHeight: 48,
+                          resize: "vertical",
+                          fontSize: 13,
+                          lineHeight: "18px",
+                        }),
+                      },
+                      onFocus,
+                      onBlur,
+                    }),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: td({ textAlign: "center", verticalAlign: "top" }) },
+                    React.createElement(
+                      "button",
+                      {
+                        type: "button",
+                        title: "Remove task",
+                        onClick: () => removeEditableTask(row, taskIndex),
+                        style: iconButtonStyle(C.danger),
+                      },
+                      React.createElement(TrashIcon),
                     ),
                   ),
                 ),
               ),
-          );
-        }),
-      ),
+            ),
+          ),
+        ),
     );
+  };
+
+  const renderTaskOverviewModal = () => {
+    const activeRow = serviceTaskPreviewRows.find((row) => row._id === taskOverviewRowId);
+    if (!activeRow) return null;
+    return Modal
+      ? React.createElement(
+        Modal,
+        {
+          open: true,
+          title: `Sample tasks — ${activeRow.serviceName || "Custom service"}`,
+          onCancel: () => setTaskOverviewRowId(null),
+          footer: null,
+          width: 720,
+          destroyOnClose: true,
+        },
+        renderTaskCard(activeRow),
+      )
+      : null;
+  };
 
   const formatRateValue = (value) => {
     const n = Number(value);
@@ -6767,6 +6720,16 @@ const ProjectServicesTable = ({
                       "button",
                       {
                         type: "button",
+                        title: "View task",
+                        onClick: () => setTaskOverviewRowId(r._id),
+                        style: iconButtonStyle(C.textSub),
+                      },
+                      React.createElement(TaskListIcon),
+                    ),
+                    React.createElement(
+                      "button",
+                      {
+                        type: "button",
                         title: "Delete service",
                         onClick: () => onDelete(r._id),
                         style: iconButtonStyle(C.danger),
@@ -6795,7 +6758,7 @@ const ProjectServicesTable = ({
       shouldRenderCurrencySummary ? renderMixedTotalsSummary() : renderSingleTotalsSummary(),
     ),
     renderExchangeBreakdownModal(),
-    renderEditableTaskOverview(),
+    renderTaskOverviewModal(),
   );
 };
 
