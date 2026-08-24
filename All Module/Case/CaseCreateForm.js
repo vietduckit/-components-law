@@ -30,9 +30,15 @@ const SOURCE_CONTRACT = "contract";
 const SOURCE_MANUAL = "manual";
 const SOURCE_NONE = "none";
 const CASE_DOCUMENT_SCOPE = "case_document";
+// Hidden "Customers" category root folder in the Document Library (see
+// Library.js's LIBRARY_CATEGORY_ROOT_FOLDER_ID — duplicated here per this
+// repo's no-shared-module constraint). Every new customer's own root
+// folder nests under this id so the physical folder tree stays organized
+// for external tools (e.g. Google Drive backup sync); the Customer->Case
+// gallery itself is unaffected since it never reads parentId.
+const CUSTOMERS_ROOT_FOLDER_ID = 381870527283200;
 const DEFAULT_CURRENCY_CODE = "VND";
 const CURRENCY_RESOURCE_CANDIDATES = ["currencies:list", "currency:list", "Currency:list"];
-const EXCHANGE_RATE_RESOURCE_CANDIDATES = ["exchangeRates:list", "exchangeRate:list", "ExchangeRates:list"];
 const PROJECT_TEMPLATE_FIELDS =
   "id,templateFileId,serviceId,templateId,templateName,description,sortOrder,previousTaskId";
 
@@ -201,24 +207,18 @@ const parseDateMillis = (value) => {
   const ms = new Date(value).getTime();
   return Number.isFinite(ms) ? ms : null;
 };
-const getExchangeRateCurrencyId = (rate, side) =>
-  extractCurrencyId(rate?.[`${side}CurrencyId`] || rate?.[`${side}Currency`]);
-const getExchangeRateCurrencyCode = (rate, side) =>
-  extractCurrencyCode(rate?.[`${side}Currency`] || rate?.[`${side}CurrencyCode`]);
+// exchangeRates real schema (confirmed via Nocobase "Configure fields"):
+// fromCurrencyId, toCurrencyId (bigint scalars), rate (double), effectiveDate,
+// status. Both directions can have their own row (e.g. USD->VND and VND->USD),
+// so match by the (fromCurrencyId, toCurrencyId) pair rather than a single side.
 const isUsableExchangeRateStatus = (status) => {
   const value = String(status || "").trim().toLowerCase();
   if (!value) return true;
   return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
 };
-const exchangeRateMatchesCurrency = (rate, side, currency) => {
-  const rateCurrencyId = getExchangeRateCurrencyId(rate, side);
-  const currencyId = extractCurrencyId(currency);
-  if (rateCurrencyId && currencyId) return rateCurrencyId === currencyId;
-  const rateCurrencyCode = getExchangeRateCurrencyCode(rate, side);
-  const currencyCode = extractCurrencyCode(currency);
-  return !!rateCurrencyCode && !!currencyCode && rateCurrencyCode === currencyCode;
-};
 const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+  const fromId = extractCurrencyId(fromCurrency);
+  const toId = extractCurrencyId(toCurrency);
   const cutoff = parseDateMillis(pricingDate) || Date.now();
   return (rates || [])
     .map((rate) => {
@@ -227,6 +227,8 @@ const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => 
         record: rate,
         rate: parseNum(rate?.rate),
         effectiveMs: effectiveMs || 0,
+        rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
+        rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
       };
     })
     .filter(
@@ -234,8 +236,8 @@ const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => 
         item.rate > 0 &&
         isUsableExchangeRateStatus(item.record?.status) &&
         (!item.effectiveMs || item.effectiveMs <= cutoff) &&
-        exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
-        exchangeRateMatchesCurrency(item.record, "to", toCurrency),
+        item.rateFromId === fromId &&
+        item.rateToId === toId,
     )
     .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
 };
@@ -576,69 +578,25 @@ async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyI
   );
   if (!toId || !fromIds.length) return [];
 
-  const pageSize = Math.max(100, fromIds.length * 5);
-  const filterProfiles = [
-    { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
-    { fromCurrency: { id: { $in: fromIds } }, toCurrency: { id: { $eq: toId } } },
-    { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
-    { fromCurrency: { id: { $eq: toId } }, toCurrency: { id: { $in: fromIds } } },
-  ];
-
-  for (const url of EXCHANGE_RATE_RESOURCE_CANDIDATES) {
-    const collected = [];
-    for (const filter of filterProfiles) {
-      try {
-        const r = await ctx.api.request({
-          url,
-          params: {
-            pageSize,
-            page: 1,
-            appends: ["fromCurrency", "toCurrency"],
-            sort: ["-effectiveDate", "-createdAt"],
-            filter: JSON.stringify(filter),
-          },
-        });
-        const rows = r?.data?.data || [];
-        if (Array.isArray(rows) && rows.length) {
-          rows.forEach((row) => {
-            if (!collected.some((item) => String(item.id) === String(row.id))) collected.push(row);
-          });
-        }
-      } catch { }
-    }
-    if (collected.length) return collected;
+  try {
+    const r = await ctx.api.request({
+      url: "exchangeRates:list",
+      params: {
+        pageSize: Math.max(100, fromIds.length * 5),
+        page: 1,
+        sort: ["-effectiveDate", "-createdAt"],
+        filter: JSON.stringify({
+          $or: [
+            { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
+            { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
+          ],
+        }),
+      },
+    });
+    return r?.data?.data || [];
+  } catch {
+    return [];
   }
-
-  if (fromIds.length > 25) return [];
-
-  const collected = [];
-  for (const url of EXCHANGE_RATE_RESOURCE_CANDIDATES) {
-    for (const fromId of fromIds) {
-      for (const filter of [
-        { fromCurrencyId: { $eq: fromId }, toCurrencyId: { $eq: toId } },
-        { fromCurrencyId: { $eq: toId }, toCurrencyId: { $eq: fromId } },
-      ]) {
-        try {
-          const r = await ctx.api.request({
-            url,
-            params: {
-              pageSize: 20,
-              page: 1,
-              appends: ["fromCurrency", "toCurrency"],
-              sort: ["-effectiveDate", "-createdAt"],
-              filter: JSON.stringify(filter),
-            },
-          });
-          const rows = r?.data?.data || [];
-          rows.forEach((row) => {
-            if (!collected.some((item) => String(item.id) === String(row.id))) collected.push(row);
-          });
-        } catch { }
-      }
-    }
-    if (collected.length) return collected;
-  }
-  return collected;
 }
 
 // ── Fetch quotationServices by quotationId ──
@@ -4852,6 +4810,8 @@ const ProjectServicesTable = ({
   currency,
   currencies = [],
   pricingDate,
+  combos = [],
+  onApplyCombo,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editingRows, setEditingRows] = useState({});
@@ -6256,6 +6216,32 @@ const ProjectServicesTable = ({
         packageMode &&
         React.createElement(
           "div",
+          { style: { minWidth: 0, maxWidth: 330 } },
+          React.createElement(
+            "div",
+            { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT } },
+            "Áp dụng combo dịch vụ (tuỳ chọn)",
+          ),
+          Select
+            ? React.createElement(Select, {
+              allowClear: false,
+              showSearch: true,
+              value: undefined,
+              placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
+              optionFilterProp: "label",
+              style: { width: "100%" },
+              disabled: !combos.length,
+              onSelect: (value) => onApplyCombo?.(value),
+              options: combos.map((c) => ({
+                value: String(c.id),
+                label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+              })),
+            })
+            : null,
+        ),
+        packageMode &&
+        React.createElement(
+          "div",
           {
             style: {
               display: "grid",
@@ -7064,6 +7050,27 @@ const ProjectCreateForm = () => {
 
   const [rows, setRows] = useState([]);
   const [internalCompanies, setInternalCompanies] = useState([]);
+  const [combos, setCombos] = useState([]);
+
+  useEffect(() => {
+    ctx.api
+      .request({
+        url: "serviceCombos:list",
+        params: {
+          filter: JSON.stringify({ isActive: { $eq: true } }),
+          appends: ["serviceComboItems.services"],
+          pageSize: 100,
+        },
+      })
+      .then((res) => {
+        const list = res?.data?.data || [];
+        setCombos(list.filter((c) => (c.serviceComboItems || []).length > 0));
+      })
+      .catch((error) => {
+        console.warn("[CaseCreateForm] Could not fetch service combos:", error);
+      });
+  }, []);
+
   const [customers, setCustomers] = useState([]);
   const [lawyers, setLawyers] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -7909,6 +7916,48 @@ const ProjectCreateForm = () => {
     });
   }, [markDirty]);
 
+  const applyCombo = useCallback(
+    async (comboId) => {
+      const combo = combos.find((c) => String(c.id) === String(comboId));
+      if (!combo) return;
+      const items = combo.serviceComboItems || [];
+      if (!items.length) {
+        message.warning("Combo này chưa có dịch vụ nào.");
+        return;
+      }
+      // Package-mode projectServices:create payloads in handleSubmit always
+      // send quantity: 1 (both submit-loop branches), so a combo item with
+      // quantity > 1 is represented as that many duplicate rows here.
+      //
+      // basePrice is explicitly 0 for every pushed row: addRowFromService's
+      // internal addToPackageTotal(svc.basePrice) call would otherwise ADD
+      // the service's own catalog price on top of form.packageSubTotal —
+      // passing 0 makes that a no-op, so the combo's own packageSubTotal
+      // (set below, after all rows are pushed) is the only value that ends
+      // up in form.packageSubTotal.
+      for (const item of items) {
+        const svc = item.services || {};
+        const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+        for (let i = 0; i < unitCount; i++) {
+          await addRowFromService(
+            {
+              id: svc.id,
+              serviceName: svc.serviceName || "",
+              serviceType: svc.serviceType || "",
+              description: svc.description || "",
+              basePrice: 0,
+            },
+            false,
+          );
+        }
+      }
+      handlePackageSummaryChange("packageSubTotal", combo.packageSubTotal || 0);
+      handlePackageSummaryChange("packageVatRate", combo.packageVatRate || 0);
+      message.success(`Đã áp dụng combo "${combo.comboName}".`);
+    },
+    [combos, addRowFromService, handlePackageSummaryChange],
+  );
+
   // ── SUBMIT ────────────────────────────────────────────────────
   const handleServicePricingModeChange = useCallback(
     async (mode) => {
@@ -8586,6 +8635,15 @@ const ProjectCreateForm = () => {
       };
 
       // 3. Process services. Contract values win over quotation when both are linked.
+      // Collected across both branches below (with/without quotation) so step 4
+      // (folder creation) can create 1 dedicated folder per service and stamp
+      // it back onto the Case Services row (caseServices.folderId — see the
+      // 2026-08-21 service-folder discussion). key mirrors TaskManagement.js's
+      // getProjectServiceTaskKey/task.serviceId convention: catalog serviceId
+      // when present, otherwise the projectService's own id (custom service),
+      // so a task later resolves to the exact same key regardless of which
+      // branch created its service.
+      const createdServiceFolderCandidates = [];
       if (activeQuotationId && activeFinancialSourceType === SOURCE_QUOTATION) {
         setSubmitStep("Syncing quotation services...");
         const initialSnap = initialRowsRef.current || [];
@@ -8751,6 +8809,15 @@ const ProjectCreateForm = () => {
             const createdProjectServiceId = rawCreatedProjectServiceId
               ? parseInt(rawCreatedProjectServiceId)
               : null;
+            if (createdProjectServiceId) {
+              createdServiceFolderCandidates.push({
+                key: r.serviceId
+                  ? String(r.serviceId)
+                  : String(createdProjectServiceId),
+                serviceName: r.serviceName.trim(),
+                projectServiceId: createdProjectServiceId,
+              });
+            }
             await createCustomDraftTasksForService(r, createdProjectServiceId);
             await syncCatalogServiceTasks(r, createdProjectServiceId);
             if (createdProjectServiceId && r._contractServiceId) {
@@ -8956,6 +9023,15 @@ const ProjectCreateForm = () => {
             const createdProjectServiceId = rawCreatedProjectServiceId
               ? parseInt(rawCreatedProjectServiceId)
               : null;
+            if (createdProjectServiceId) {
+              createdServiceFolderCandidates.push({
+                key: r.serviceId
+                  ? String(r.serviceId)
+                  : String(createdProjectServiceId),
+                serviceName: r.serviceName.trim(),
+                projectServiceId: createdProjectServiceId,
+              });
+            }
             await createCustomDraftTasksForService(r, createdProjectServiceId);
             await syncCatalogServiceTasks(r, createdProjectServiceId);
             if (createdProjectServiceId && contractSvcId) {
@@ -9133,14 +9209,18 @@ const ProjectCreateForm = () => {
         let customerRootFolderId = null;
         if (form.customerId) {
           try {
-            // 1. Tìm folder gốc của khách hàng (Nằm ở root, có customerId, KHÔNG có projectId)
+            // 1. Tìm folder gốc của khách hàng (có customerId, KHÔNG có
+            // projectId, nằm dưới category root "Customers" — phải khớp
+            // đúng parentId đã gán lúc tạo mới bên dưới, nếu không mỗi lần
+            // tạo Case mới cho cùng khách hàng sẽ không tìm lại được folder
+            // cũ và tạo thêm 1 bản trùng lặp mới.
             const cRes = await ctx.api.request({
               url: "folders:list",
               params: {
                 filter: JSON.stringify({
                   customerId: parseInt(form.customerId),
                   projectId: null,
-                  parentId: null,
+                  parentId: CUSTOMERS_ROOT_FOLDER_ID,
                 }),
                 sort: ["createdAt"], // Lấy folder tạo đầu tiên
                 pageSize: 1,
@@ -9162,6 +9242,18 @@ const ProjectCreateForm = () => {
                   type: "customer",
                   moduleScope: CASE_DOCUMENT_SCOPE,
                   customerId: parseInt(form.customerId),
+                  internalCompanyId: form.internalCompanyId
+                    ? parseInt(form.internalCompanyId)
+                    : null,
+                  // Nests under the hidden "Customers" category root folder
+                  // (id from Library.js's LIBRARY_CATEGORY_ROOT_FOLDER_ID —
+                  // duplicated here per this repo's no-shared-module
+                  // constraint) so the physical folder tree stays organized
+                  // for external tools (e.g. Google Drive backup sync)
+                  // without changing how the Customer->Case gallery itself
+                  // resolves a customer's root folder (still by
+                  // customerId + no projectId, not by parentId).
+                  parentId: CUSTOMERS_ROOT_FOLDER_ID,
                   createdById: currentUser?.id || null,
                 },
               });
@@ -9194,6 +9286,9 @@ const ProjectCreateForm = () => {
               : null,
             projectId: projectId ? parseInt(projectId) : null,
             customerId: form.customerId ? parseInt(form.customerId) : null,
+            internalCompanyId: form.internalCompanyId
+              ? parseInt(form.internalCompanyId)
+              : null,
             moduleScope: CASE_DOCUMENT_SCOPE,
             createdById: currentUser?.id ? parseInt(currentUser.id) : null,
             updatedById: currentUser?.id ? parseInt(currentUser.id) : null,
@@ -9218,17 +9313,37 @@ const ProjectCreateForm = () => {
             { name: "Report and Result", key: "report_result" },
           ];
 
-          // 2. Case only creates the fixed template folders.
-          const allChildren = defaultChildren;
+          // 2. One folder per service added to this case — gives task
+          // uploads (TaskDetailView.js) a single dedicated place to land
+          // instead of scattering into the case root. Deduped by key
+          // (Map, first entry wins) since 2 rows could in theory resolve
+          // to the same catalog serviceId. Not tagged via
+          // folderTemplateKey — the real link back to its service is
+          // caseServices.folderId (see the 2026-08-21 service-folder
+          // discussion), stamped below once each folder's id is known.
+          const uniqueServiceCandidates = Array.from(
+            new Map(
+              createdServiceFolderCandidates.map((c) => [c.key, c]),
+            ).values(),
+          );
+          const serviceChildren = uniqueServiceCandidates.map((c) => ({
+            name: c.serviceName,
+            projectServiceId: c.projectServiceId,
+          }));
+
+          const allChildren = [...defaultChildren, ...serviceChildren];
 
           const childPromises = allChildren.map((child) => {
             const data = {
               name: child.name,
               type: "cases",
-              folderTemplateKey: child.key,
+              ...(child.key ? { folderTemplateKey: child.key } : {}),
               parentId: pFolderId ? parseInt(pFolderId) : null,
               projectId: projectId ? parseInt(projectId) : null,
               customerId: form.customerId ? parseInt(form.customerId) : null,
+              internalCompanyId: form.internalCompanyId
+                ? parseInt(form.internalCompanyId)
+                : null,
               moduleScope: CASE_DOCUMENT_SCOPE,
               createdById: currentUser?.id ? parseInt(currentUser.id) : null,
               updatedById: currentUser?.id ? parseInt(currentUser.id) : null,
@@ -9246,6 +9361,35 @@ const ProjectCreateForm = () => {
             .map((result) => result?.data?.data?.id || result?.data?.id)
             .map(getNumericId)
             .filter(Boolean);
+
+          // Stamp caseServices.folderId back onto each service's own row —
+          // childResults/allChildren share the same index/order since both
+          // came from a single Promise.all over allChildren.
+          if (serviceChildren.length) {
+            await Promise.all(
+              allChildren.map((child, idx) => {
+                if (!child.projectServiceId) return null;
+                const folderId = getNumericId(
+                  childResults[idx]?.data?.data?.id ||
+                    childResults[idx]?.data?.id,
+                );
+                if (!folderId) return null;
+                return ctx.api
+                  .request({
+                    url: "projectServices:update",
+                    method: "POST",
+                    params: { filterByTk: child.projectServiceId },
+                    data: { folderId },
+                  })
+                  .catch((e) =>
+                    console.warn(
+                      "Could not link service folder to projectService:",
+                      e,
+                    ),
+                  );
+              }),
+            );
+          }
 
           setSubmitStep("Assigning folder permissions...");
           await assignDefaultFolderPermissions([pFolderId, ...childFolderIds]);
@@ -9880,6 +10024,8 @@ const ProjectCreateForm = () => {
         onPackageChange: handlePackageSummaryChange,
         onCurrencyChange: (value) => setF("currencyId", value || null),
         taskTemplates,
+        combos,
+        onApplyCombo: applyCombo,
       }),
     ),
 
