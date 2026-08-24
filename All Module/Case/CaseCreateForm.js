@@ -5741,7 +5741,10 @@ const ProjectServicesTable = ({
               React.createElement(
                 "div",
                 { style: { marginTop: 2, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
-                `Giá gốc combo: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode} — đã quy đổi thành số tiền ở ô Package Subtotal phía trên`,
+                `Giá catalog gốc: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode}` +
+                  (comboConversionNote.wasConverted
+                    ? " — đã quy đổi thành số tiền ở ô Package Subtotal phía trên"
+                    : ""),
               ),
           ),
           React.createElement(
@@ -7916,14 +7919,14 @@ const ProjectCreateForm = () => {
       if (vndId) {
         setForm((p) => ({ ...p, currencyId: String(vndId) }));
       }
-      setComboConversionNote(
-        comboCurrencyId && vndId && comboCurrencyId !== vndId
-          ? {
-            originalAmount: parseNum(combo.packageSubTotal),
-            currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
-          }
-          : null,
-      );
+      // Always shown, in whatever currency the combo template was actually
+      // configured with (VND included) — not only when a conversion to VND
+      // was needed.
+      setComboConversionNote({
+        originalAmount: parseNum(combo.packageSubTotal),
+        currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
+        wasConverted: !!(comboCurrencyId && vndId && comboCurrencyId !== vndId),
+      });
       message.success(`Đã áp dụng combo "${combo.comboName}".`);
     },
     [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, currencies],
