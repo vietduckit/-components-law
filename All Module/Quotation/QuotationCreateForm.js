@@ -7022,6 +7022,29 @@ const QuotationCreateForm = () => {
       }
     }
 
+    // Each catalog service inside the combo can carry its own currency
+    // (services.currencyId/currency), so resolve every distinct foreign
+    // currency among this combo's items and convert to VND before using it
+    // as the "Giá catalog gốc" reference — otherwise a service priced in
+    // USD would get summed as if its raw number were already VND.
+    const itemCurrencyIds = Array.from(
+      new Set(
+        items
+          .map((item) => getRecordCurrencyId(item.services || {}))
+          .filter((id) => id && id !== vndId),
+      ),
+    );
+    const itemRates = itemCurrencyIds.length
+      ? await fetchExchangeRatesForConversion(itemCurrencyIds, vndId)
+      : [];
+    const catalogPriceInVnd = (svc) => {
+      const svcCurrencyId = getRecordCurrencyId(svc);
+      const rawPrice = parseNum(svc.basePrice);
+      if (!svcCurrencyId || !vndId || svcCurrencyId === vndId) return rawPrice;
+      const matched = pickConversionRate(itemRates, svcCurrencyId, vndId, form.validUntil);
+      return matched?.rate > 0 ? Math.round(rawPrice * matched.rate) : rawPrice;
+    };
+
     // quotationServices rows created from this form always resolve to
     // quantity: 1 (buildServicePricingPayload hardcodes quantity: 1 for
     // package mode, and the call site in handleSubmit's `lines` builder
@@ -7045,7 +7068,10 @@ const QuotationCreateForm = () => {
           description: svc.description || "",
           catalogService: svc,
           catalogServiceId: svc.id || null,
-          catalogBasePrice: svc.basePrice ?? null,
+          // Converted to VND if the service carries a foreign currency —
+          // used to compute the "giá catalog gốc" reference total shown
+          // under Package Subtotal.
+          catalogBasePrice: catalogPriceInVnd(svc) ?? null,
           _comboSourceId: String(comboId),
         });
       }
