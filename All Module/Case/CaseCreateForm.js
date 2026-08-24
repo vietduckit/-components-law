@@ -5693,64 +5693,102 @@ const ProjectServicesTable = ({
     );
   };
 
+  const summaryRowStyle = (withBorder) => ({
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 24,
+    padding: "5px 0",
+    borderBottom: withBorder ? `1px dashed ${C.border}` : "none",
+  });
+  const summaryLabelStyle = (bold) => ({
+    fontSize: bold ? 14 : 13,
+    color: bold ? C.text : C.textSub,
+    fontWeight: bold ? 700 : 400,
+    fontFamily: FONT,
+  });
+  const summaryValueStyle = (color, bold) => ({
+    fontSize: bold ? 18 : 13.5,
+    color,
+    fontWeight: bold ? 700 : 600,
+    fontFamily: FONT_MONO,
+    whiteSpace: "nowrap",
+  });
+
   const renderSingleTotalsSummary = () =>
     React.createElement(
       "div",
       { style: { minWidth: 300 } },
-      [
-        [
-          packageMode ? "Package Subtotal" : "Subtotal (excl. VAT)",
-          formatMoney(displayTotals.subTotal, totalsCurrency),
-          C.textSub,
-          false,
-        ],
-        ["Total VAT", formatMoney(displayTotals.vatAmount, totalsCurrency), C.warning, false],
-        [
-          packageMode ? "Package Total" : "Total",
-          formatMoney(displayTotals.totalAmount, totalsCurrency),
-          C.success,
-          true,
-        ],
-      ].map(([label, val, color, bold], i) =>
-        React.createElement(
-          "div",
-          {
-            key: label,
-            style: {
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 24,
-              padding: "5px 0",
-              borderBottom: i < 2 ? `1px dashed ${C.border}` : "none",
-            },
-          },
+      packageMode
+        ? [
           React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: bold ? 14 : 13,
-                color: bold ? C.text : C.textSub,
-                fontWeight: bold ? 700 : 400,
-                fontFamily: FONT,
-              },
-            },
-            label + ":",
+            "div",
+            { key: "packageSubTotal", style: summaryRowStyle(true) },
+            React.createElement("span", { style: summaryLabelStyle(false) }, "Package Subtotal:"),
+            React.createElement(PriceInput, {
+              value: packageSummary?.subTotal || 0,
+              onChange: (value) => onPackageChange?.("packageSubTotal", value),
+              currency: totalsCurrency,
+            }),
           ),
           React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: bold ? 18 : 13.5,
-                color,
-                fontWeight: bold ? 700 : 600,
-                fontFamily: FONT_MONO,
-                whiteSpace: "nowrap",
-              },
-            },
-            val,
+            "div",
+            { key: "packageVatRate", style: summaryRowStyle(true) },
+            React.createElement("span", { style: summaryLabelStyle(false) }, "VAT %:"),
+            InputNumber
+              ? React.createElement(InputNumber, {
+                min: 0,
+                max: 100,
+                step: 0.1,
+                value: packageSummary?.vatRate || 0,
+                onChange: (value) => onPackageChange?.("packageVatRate", parseFloat(value) || 0),
+                addonAfter: "%",
+                style: { width: 140 },
+              })
+              : React.createElement("input", {
+                type: "number",
+                min: 0,
+                max: 100,
+                step: 0.1,
+                value: packageSummary?.vatRate || 0,
+                onChange: (e) =>
+                  onPackageChange?.("packageVatRate", parseFloat(e.target.value) || 0),
+                style: inp({ textAlign: "right", fontWeight: 700, width: 100 }),
+              }),
+          ),
+          React.createElement(
+            "div",
+            { key: "vatAmount", style: summaryRowStyle(true) },
+            React.createElement("span", { style: summaryLabelStyle(false) }, "VAT Amount:"),
+            React.createElement(
+              "span",
+              { style: summaryValueStyle(C.warning, false) },
+              formatMoney(displayTotals.vatAmount, totalsCurrency),
+            ),
+          ),
+          React.createElement(
+            "div",
+            { key: "packageTotal", style: summaryRowStyle(false) },
+            React.createElement("span", { style: summaryLabelStyle(true) }, "Package Total:"),
+            React.createElement(
+              "span",
+              { style: summaryValueStyle(C.success, true) },
+              formatMoney(displayTotals.totalAmount, totalsCurrency),
+            ),
+          ),
+        ]
+        : [
+          ["Subtotal (excl. VAT)", formatMoney(displayTotals.subTotal, totalsCurrency), C.textSub, false],
+          ["Total VAT", formatMoney(displayTotals.vatAmount, totalsCurrency), C.warning, false],
+          ["Total", formatMoney(displayTotals.totalAmount, totalsCurrency), C.success, true],
+        ].map(([label, val, color, bold], i) =>
+          React.createElement(
+            "div",
+            { key: label, style: summaryRowStyle(i < 2) },
+            React.createElement("span", { style: summaryLabelStyle(bold) }, label + ":"),
+            React.createElement("span", { style: summaryValueStyle(color, bold) }, val),
           ),
         ),
-      ),
     );
 
   const renderExchangeBreakdownModal = () =>
@@ -6174,6 +6212,7 @@ const ProjectServicesTable = ({
         React.createElement(
           "div",
           { style: { display: "flex", justifyContent: "flex-end" } },
+          !packageMode &&
           React.createElement(
             "div",
             { style: { width: 130, minWidth: 0 } },
@@ -6212,132 +6251,34 @@ const ProjectServicesTable = ({
                 ),
               ),
           ),
-        ),
-        packageMode &&
-        React.createElement(
-          "div",
-          { style: { minWidth: 0, maxWidth: 330 } },
-          React.createElement(
-            "div",
-            { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT } },
-            "Áp dụng combo dịch vụ (tuỳ chọn)",
-          ),
-          Select
-            ? React.createElement(Select, {
-              allowClear: false,
-              showSearch: true,
-              value: undefined,
-              placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
-              optionFilterProp: "label",
-              style: { width: "100%" },
-              disabled: !combos.length,
-              onSelect: (value) => onApplyCombo?.(value),
-              options: combos.map((c) => ({
-                value: String(c.id),
-                label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
-              })),
-            })
-            : null,
-        ),
-        packageMode &&
-        React.createElement(
-          "div",
-          {
-            style: {
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-              gap: 10,
-              minWidth: 0,
-              alignItems: "end",
-            },
-          },
           packageMode &&
           React.createElement(
             "div",
-            { style: { minWidth: 0 } },
+            { style: { minWidth: 0, maxWidth: 330, width: "100%" } },
             React.createElement(
               "div",
-              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT } },
-              "Package Subtotal",
+              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
+              "Áp dụng combo dịch vụ (tuỳ chọn)",
             ),
-            React.createElement(PriceInput, {
-              value: packageSummary?.subTotal || 0,
-              onChange: (value) => onPackageChange?.("packageSubTotal", value),
-              currency,
-            }),
-          ),
-        packageMode &&
-          React.createElement(
-            "div",
-            { style: { minWidth: 0 } },
-            React.createElement(
-              "div",
-              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT } },
-              "VAT %",
-            ),
-            InputNumber
-              ? React.createElement(InputNumber, {
-                min: 0,
-                max: 100,
-                step: 0.1,
-                value: packageSummary?.vatRate || 0,
-                onChange: (value) =>
-                  onPackageChange?.("packageVatRate", parseFloat(value) || 0),
-                addonAfter: "%",
+            Select
+              ? React.createElement(Select, {
+                allowClear: false,
+                showSearch: true,
+                value: undefined,
+                placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
+                optionFilterProp: "label",
                 style: { width: "100%" },
+                disabled: !combos.length,
+                onSelect: (value) => onApplyCombo?.(value),
+                options: combos.map((c) => ({
+                  value: String(c.id),
+                  label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                })),
               })
-              : React.createElement("input", {
-                type: "number",
-                min: 0,
-                max: 100,
-                step: 0.1,
-                value: packageSummary?.vatRate || 0,
-                onChange: (e) =>
-                  onPackageChange?.(
-                    "packageVatRate",
-                    parseFloat(e.target.value) || 0,
-                  ),
-                style: inp({ textAlign: "right", fontWeight: 700 }),
-                onFocus,
-                onBlur,
-              }),
+              : null,
           ),
-        packageMode &&
-          [
-            ["VAT Amount", formatMoney(packageSummary?.vatAmount || 0, currency)],
-            ["Package Total", formatMoney(packageSummary?.totalAmount || 0, currency)],
-          ].map(([label, value]) =>
-            React.createElement(
-              "div",
-              { key: label, style: { minWidth: 0 } },
-              React.createElement(
-                "div",
-                { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT } },
-                label,
-              ),
-              React.createElement(
-                "div",
-                {
-                  title: value,
-                  style: {
-                    ...inp({
-                      background: label === "Package Total" ? "#ecfdf5" : C.bgSection,
-                      color: label === "Package Total" ? C.success : C.text,
-                    }),
-                    fontWeight: label === "Package Total" ? 800 : 700,
-                    textAlign: "right",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    fontVariantNumeric: "tabular-nums",
-                  },
-                },
-                value,
-              ),
-            ),
-          ),
+        ),
       ),
-    ),
     ),
     React.createElement(
       "div",
@@ -7925,37 +7866,69 @@ const ProjectCreateForm = () => {
         message.warning("Combo này chưa có dịch vụ nào.");
         return;
       }
-      // Package-mode projectServices:create payloads in handleSubmit always
-      // send quantity: 1 (both submit-loop branches), so a combo item with
-      // quantity > 1 is represented as that many duplicate rows here.
-      //
-      // basePrice is explicitly 0 for every pushed row: addRowFromService's
-      // internal addToPackageTotal(svc.basePrice) call would otherwise ADD
-      // the service's own catalog price on top of form.packageSubTotal —
-      // passing 0 makes that a no-op, so the combo's own packageSubTotal
-      // (set below, after all rows are pushed) is the only value that ends
-      // up in form.packageSubTotal.
-      for (const item of items) {
-        const svc = item.services || {};
-        const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
-        for (let i = 0; i < unitCount; i++) {
-          await addRowFromService(
-            {
-              id: svc.id,
-              serviceName: svc.serviceName || "",
-              serviceType: svc.serviceType || "",
-              description: svc.description || "",
-              basePrice: 0,
-            },
-            false,
+
+      // Combo pricing on the Case is always VND — the manual Currency
+      // picker is hidden while a combo is applied (see the Currency /
+      // combo-picker toggle above), so auto-convert the combo's own
+      // packageSubTotal into VND here if the combo carries a foreign
+      // currency (serviceCombos.currencyId / currencies, when configured).
+      const vndId = defaultCurrencyId;
+      const comboCurrencyId = getRecordCurrencyId(combo);
+      let convertedSubTotal = parseNum(combo.packageSubTotal);
+      if (comboCurrencyId && vndId && comboCurrencyId !== vndId) {
+        const rates = await fetchExchangeRatesForConversion([comboCurrencyId], vndId);
+        const matched = pickConversionRate(rates, comboCurrencyId, vndId, form.date);
+        if (matched?.rate > 0) {
+          convertedSubTotal = Math.round(convertedSubTotal * matched.rate);
+        } else {
+          message.warning(
+            "Không tìm thấy tỷ giá quy đổi từ tiền tệ của combo sang VND — giữ nguyên số tiền gốc, vui lòng kiểm tra lại.",
           );
         }
       }
-      handlePackageSummaryChange("packageSubTotal", combo.packageSubTotal || 0);
+
+      // Package-mode projectServices:create payloads in handleSubmit always
+      // send quantity: 1 (both submit-loop branches), so a combo item with
+      // quantity > 1 is represented as that many duplicate rows here.
+      // Rows are built directly here (not via addRowFromService) so each
+      // one can be tagged with _comboSourceId — needed below to replace a
+      // previously-applied combo's rows instead of appending on top of them.
+      const newRows = [];
+      items.forEach((item) => {
+        const svc = item.services || {};
+        const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+        for (let i = 0; i < unitCount; i++) {
+          newRows.push({
+            _id: Date.now() + Math.random(),
+            serviceId: svc.id ? String(svc.id) : null,
+            serviceName: svc.serviceName || "",
+            serviceType: svc.serviceType || "",
+            description: svc.description || "",
+            currencyId: vndId ? String(vndId) : null,
+            _sourceCurrencyId: vndId ? String(vndId) : null,
+            basePrice: 0,
+            vat: 0,
+            billingMode: BILLING_PACKAGE_INCLUDED,
+            financialSourceType: form.financialSourceType || SOURCE_NONE,
+            pricingMode: PRICING_MODE_PACKAGE,
+            _packageBasePrice: 0,
+            _comboSourceId: String(comboId),
+          });
+        }
+      });
+
+      // Re-picking a combo replaces the previous combo's rows instead of
+      // appending on top of them (manually-added rows, i.e. rows without
+      // _comboSourceId, are left untouched).
+      setRows((p) => [...p.filter((r) => !r._comboSourceId), ...newRows]);
+      handlePackageSummaryChange("packageSubTotal", convertedSubTotal);
       handlePackageSummaryChange("packageVatRate", combo.packageVatRate || 0);
+      if (vndId) {
+        setForm((p) => ({ ...p, currencyId: String(vndId) }));
+      }
       message.success(`Đã áp dụng combo "${combo.comboName}".`);
     },
-    [combos, addRowFromService, handlePackageSummaryChange],
+    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
