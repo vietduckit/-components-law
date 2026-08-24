@@ -5886,32 +5886,6 @@ const ManualContractServicesSection = ({
                 ),
           ),
         ),
-        pricingMode === "package" &&
-          React.createElement(
-            "div",
-            { style: { width: 220, minWidth: 0 } },
-            React.createElement(
-              "div",
-              { style: { fontSize: 11.5, color: C.sub, marginBottom: 3, fontFamily: FONT } },
-              "Áp dụng combo dịch vụ",
-            ),
-            ctx.antd.Select
-              ? React.createElement(ctx.antd.Select, {
-                  allowClear: false,
-                  showSearch: true,
-                  value: undefined,
-                  placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
-                  optionFilterProp: "label",
-                  style: { width: "100%" },
-                  disabled: !combos.length,
-                  onSelect: (value) => onApplyCombo?.(value),
-                  options: combos.map((c) => ({
-                    value: String(c.id),
-                    label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
-                  })),
-                })
-              : null,
-          ),
         React.createElement(
           "div",
           {
@@ -5922,6 +5896,7 @@ const ManualContractServicesSection = ({
               flexWrap: "wrap",
             },
           },
+          pricingMode !== "package" &&
           React.createElement(
             "div",
             { style: { width: 130, minWidth: 0 } },
@@ -5948,6 +5923,32 @@ const ManualContractServicesSection = ({
                 ? "Currency"
                 : "No currencies",
             }),
+          ),
+          pricingMode === "package" &&
+          React.createElement(
+            "div",
+            { style: { minWidth: 0, maxWidth: 330, width: "100%" } },
+            React.createElement(
+              "div",
+              { style: { fontSize: 11.5, color: C.sub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
+              "Áp dụng combo dịch vụ (tuỳ chọn)",
+            ),
+            ctx.antd.Select
+              ? React.createElement(ctx.antd.Select, {
+                allowClear: false,
+                showSearch: true,
+                value: undefined,
+                placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
+                optionFilterProp: "label",
+                style: { width: "100%" },
+                disabled: !combos.length,
+                onSelect: (value) => onApplyCombo?.(value),
+                options: combos.map((c) => ({
+                  value: String(c.id),
+                  label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                })),
+              })
+              : null,
           ),
           showAddRow &&
             (AntButton
@@ -9004,7 +9005,7 @@ const ContractCreateForm = () => {
     }));
   };
 
-  const applyCombo = (comboId) => {
+  const applyCombo = async (comboId) => {
     const combo = combos.find((c) => String(c.id) === String(comboId));
     if (!combo) return;
     const items = combo.serviceComboItems || [];
@@ -9012,6 +9013,27 @@ const ContractCreateForm = () => {
       message.warning("Combo này chưa có dịch vụ nào.");
       return;
     }
+
+    // Combo pricing on the Contract is always VND — the manual Currency
+    // picker is hidden while a combo is applied (see the Currency /
+    // combo-picker toggle above), so auto-convert the combo's own
+    // packageSubTotal into VND here if the combo carries a foreign
+    // currency (serviceCombos.currencyId / currencies, when configured).
+    const vndId = extractCurrencyId(findDefaultCurrency(currencies)?.id);
+    const comboCurrencyId = getRecordCurrencyId(combo);
+    let convertedSubTotal = parseNum(combo.packageSubTotal);
+    if (comboCurrencyId && vndId && comboCurrencyId !== vndId) {
+      const rates = await fetchExchangeRatesForConversion([comboCurrencyId], vndId);
+      const matched = pickConversionRate(rates, comboCurrencyId, vndId, form.signedDate);
+      if (matched?.rate > 0) {
+        convertedSubTotal = Math.round(convertedSubTotal * matched.rate);
+      } else {
+        message.warning(
+          "Không tìm thấy tỷ giá quy đổi từ tiền tệ của combo sang VND — giữ nguyên số tiền gốc, vui lòng kiểm tra lại.",
+        );
+      }
+    }
+
     // packagePricingPayload() hardcodes quantity: 1 for every package-mode
     // contractServices row (see packagePricingPayload), so a combo item's
     // quantity > 1 is represented as that many duplicate rows rather than
@@ -9028,14 +9050,25 @@ const ContractCreateForm = () => {
           serviceType: svc.serviceType || "",
           description: svc.description || "",
           quantity: "1",
-          currencyId: "",
+          currencyId: vndId ? String(vndId) : "",
           basePrice: "",
           vat: "0",
+          _comboSourceId: String(comboId),
         });
       }
     });
-    setManualServiceRows((prev) => [...prev, ...newRows]);
-    syncPackageTotals(combo.packageSubTotal || 0, combo.packageVatRate || 0);
+
+    // Re-picking a combo replaces the previous combo's rows instead of
+    // appending on top of them (manually-added rows, i.e. rows without
+    // _comboSourceId, are left untouched).
+    setManualServiceRows((prev) => [
+      ...prev.filter((r) => !r._comboSourceId),
+      ...newRows,
+    ]);
+    syncPackageTotals(convertedSubTotal, combo.packageVatRate || 0);
+    if (vndId) {
+      setForm((p) => ({ ...p, currencyId: String(vndId) }));
+    }
     message.success(`Đã áp dụng combo "${combo.comboName}".`);
   };
 
