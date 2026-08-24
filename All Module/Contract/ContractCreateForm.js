@@ -4709,6 +4709,7 @@ const ManualContractServicesSection = ({
   onCurrencyChange,
   combos = [],
   onApplyCombo,
+  comboConversionNote = null,
 }) => {
   const [pickerRowId, setPickerRowId] = useState(null);
   const [search, setSearch] = useState("");
@@ -4722,6 +4723,11 @@ const ManualContractServicesSection = ({
   });
   const [createError, setCreateError] = useState("");
   const packageMode = pricingMode === "package";
+  // Sum of each row's own catalog price (_catalogBasePrice, snapshotted
+  // when the row was added via a combo — see applyCombo) — a reference
+  // showing what these services would cost at catalog price, alongside
+  // the flat Package Subtotal actually charged.
+  const packageCatalogTotal = rows.reduce((sum, r) => sum + parseNum(r._catalogBasePrice), 0);
   const actionColumn = allowDelete ? " 52px" : "";
   const columns = `minmax(260px, 1.2fr) minmax(300px, 1.45fr) minmax(190px, 0.85fr) 98px minmax(165px, 0.75fr)${actionColumn}`;
   const selectedServiceIds = rows
@@ -5896,38 +5902,10 @@ const ManualContractServicesSection = ({
               flexWrap: "wrap",
             },
           },
-          pricingMode !== "package" &&
-          React.createElement(
-            "div",
-            { style: { width: 130, minWidth: 0 } },
-            React.createElement(
-              "div",
-              {
-                style: {
-                  fontSize: 11.5,
-                  color: C.sub,
-                  marginBottom: 3,
-                  fontFamily: FONT,
-                  textAlign: "right",
-                },
-              },
-              "Currency",
-            ),
-            React.createElement(SelectInput, {
-              value: selectedCurrency
-                ? String(extractCurrencyId(selectedCurrency))
-                : "",
-              onChange: (value) => onCurrencyChange?.(value || null),
-              options: currencyOptions,
-              placeholder: currencyOptions.length
-                ? "Currency"
-                : "No currencies",
-            }),
-          ),
           pricingMode === "package" &&
           React.createElement(
             "div",
-            { style: { minWidth: 0, maxWidth: 330, width: "100%" } },
+            { style: { minWidth: 0, maxWidth: 420, width: "100%" } },
             React.createElement(
               "div",
               { style: { fontSize: 11.5, color: C.sub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
@@ -5945,7 +5923,7 @@ const ManualContractServicesSection = ({
                 onSelect: (value) => onApplyCombo?.(value),
                 options: combos.map((c) => ({
                   value: String(c.id),
-                  label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                  label: `${c.serviceComboType ? c.serviceComboType + " - " : ""}${c.comboName}`,
                 })),
               })
               : null,
@@ -6358,6 +6336,22 @@ const ManualContractServicesSection = ({
                           )
                         : "—",
                     ),
+                packageMode &&
+                  (packageCatalogTotal > 0 || comboConversionNote) &&
+                  React.createElement(
+                    "div",
+                    { style: { fontSize: 11, color: C.sub, fontFamily: FONT } },
+                    [
+                      packageCatalogTotal > 0
+                        ? `Giá catalog gốc: ${formatMoneyByCurrency(packageCatalogTotal, defaultCurrency)}`
+                        : null,
+                      comboConversionNote
+                        ? `(gốc combo: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode} → quy đổi VND)`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join("  "),
+                  ),
               ),
               React.createElement(
                 "div",
@@ -6873,6 +6867,7 @@ const ContractCreateForm = () => {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [manualServiceRows, setManualServiceRows] = useState([]);
   const [combos, setCombos] = useState([]);
+  const [comboConversionNote, setComboConversionNote] = useState(null);
 
   useEffect(() => {
     ctx.api
@@ -9053,6 +9048,10 @@ const ContractCreateForm = () => {
           currencyId: vndId ? String(vndId) : "",
           basePrice: "",
           vat: "0",
+          // Preserves the catalog's own price for this service — used to
+          // compute the "giá catalog gốc" reference total shown under
+          // Package Subtotal.
+          _catalogBasePrice: parseNum(svc.basePrice) || 0,
           _comboSourceId: String(comboId),
         });
       }
@@ -9069,58 +9068,76 @@ const ContractCreateForm = () => {
     if (vndId) {
       setForm((p) => ({ ...p, currencyId: String(vndId) }));
     }
+    setComboConversionNote(
+      comboCurrencyId && vndId && comboCurrencyId !== vndId
+        ? {
+          originalAmount: parseNum(combo.packageSubTotal),
+          currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
+        }
+        : null,
+    );
     message.success(`Đã áp dụng combo "${combo.comboName}".`);
   };
 
   const handleManualPricingModeChange = (mode) => {
     const nextMode = mode === "package" ? "package" : "line";
-    const activeRows = serviceLines.length
-      ? selectedCaseServiceLines
-      : manualServiceRows;
-    const activeTotals = serviceLines.length
-      ? sumServiceLines(activeRows)
-      : manualRowsTotals;
-    if (nextMode === "package") {
-      const packageSource = activeRows.find(isPackageSource);
-      const sourcePackage = packageSource
-        ? resolvePackageAmounts(packageSource)
-        : null;
-      const sourceSubTotal =
-        sourcePackage?.subTotal ||
-        activeTotals.subTotal ||
-        parseNum(form.subTotal);
-      const sourceVatRate =
-        sourcePackage?.vatRate !== undefined &&
-        sourcePackage?.vatRate !== null &&
-        sourcePackage?.vatRate !== ""
-          ? sourcePackage.vatRate
-          : form.packageVatRate !== undefined &&
-              form.packageVatRate !== null &&
-              form.packageVatRate !== ""
-            ? form.packageVatRate
-            : "8";
-      syncPackageTotals(
-        sourceSubTotal ? String(sourceSubTotal) : "",
-        sourceVatRate,
-      );
-      return;
-    }
+    if (nextMode === form.pricingMode) return;
+
     if (serviceLines.length) {
-      setForm((prev) => ({
-        ...prev,
-        pricingMode: "line",
-        fixedAmount: activeTotals.totalAmount
-          ? String(activeTotals.totalAmount)
-          : "",
-        subTotal: activeTotals.subTotal ? String(activeTotals.subTotal) : "",
-        vatAmount: activeTotals.vatAmount ? String(activeTotals.vatAmount) : "",
-        totalAmount: activeTotals.totalAmount
-          ? String(activeTotals.totalAmount)
-          : "",
-      }));
+      // Case-linked services (selectedCaseServiceLines) are a separate data
+      // source from manualServiceRows/combo — preserve their existing
+      // totals when toggling mode, unaffected by the manual-row reset below.
+      const activeTotals = sumServiceLines(selectedCaseServiceLines);
+      if (nextMode === "package") {
+        const packageSource = selectedCaseServiceLines.find(isPackageSource);
+        const sourcePackage = packageSource
+          ? resolvePackageAmounts(packageSource)
+          : null;
+        const sourceSubTotal =
+          sourcePackage?.subTotal ||
+          activeTotals.subTotal ||
+          parseNum(form.subTotal);
+        const sourceVatRate =
+          sourcePackage?.vatRate !== undefined &&
+          sourcePackage?.vatRate !== null &&
+          sourcePackage?.vatRate !== ""
+            ? sourcePackage.vatRate
+            : form.packageVatRate !== undefined &&
+                form.packageVatRate !== null &&
+                form.packageVatRate !== ""
+              ? form.packageVatRate
+              : "8";
+        syncPackageTotals(
+          sourceSubTotal ? String(sourceSubTotal) : "",
+          sourceVatRate,
+        );
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          pricingMode: "line",
+          fixedAmount: activeTotals.totalAmount
+            ? String(activeTotals.totalAmount)
+            : "",
+          subTotal: activeTotals.subTotal ? String(activeTotals.subTotal) : "",
+          vatAmount: activeTotals.vatAmount ? String(activeTotals.vatAmount) : "",
+          totalAmount: activeTotals.totalAmount
+            ? String(activeTotals.totalAmount)
+            : "",
+        }));
+      }
       return;
     }
-    syncManualLineTotals(manualServiceRows);
+
+    // Manual rows: switching mode resets the services list instead of
+    // converting/preserving rows across modes — prevents ending up with a
+    // mix of line-priced and combo/package rows in the same Contract.
+    setManualServiceRows([]);
+    setComboConversionNote(null);
+    if (nextMode === "package") {
+      syncPackageTotals("", form.packageVatRate || "8");
+    } else {
+      syncManualLineTotals([]);
+    }
   };
 
   const addManualServiceRow = () => {
@@ -10615,6 +10632,7 @@ const ContractCreateForm = () => {
                   syncPackageTotals(form.subTotal || form.fixedAmount, value),
                 combos,
                 onApplyCombo: applyCombo,
+                comboConversionNote,
                 onAddRow: serviceLines.length ? undefined : addManualServiceRow,
                 onDeleteRow: serviceLines.length
                   ? removeCaseServiceLineRow
