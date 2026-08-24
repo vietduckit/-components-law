@@ -4493,6 +4493,8 @@ const ServicesTable = ({
   onPricingModeChange,
   onPackageChange,
   onCurrencyChange,
+  combos = [],
+  onApplyCombo,
 }) => {
   const { Table } = ctx.antd;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -5068,6 +5070,42 @@ const ServicesTable = ({
                 `Thiếu tỷ giá quy đổi (${formatMissingRatePairs(financialSummary.missing, baseCurrency)}) — tổng báo giá chưa được cập nhật chính xác.`,
               ),
           ),
+          packageMode &&
+            React.createElement(
+              "div",
+              { style: { width: "min(100%, 560px)" } },
+              React.createElement(
+                "div",
+                {
+                  style: {
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: C.textSub,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.3,
+                    marginBottom: 4,
+                    fontFamily: FONT,
+                  },
+                },
+                "Áp dụng combo dịch vụ (tuỳ chọn)",
+              ),
+              ctx.antd.Select
+                ? React.createElement(ctx.antd.Select, {
+                    allowClear: false,
+                    showSearch: true,
+                    value: undefined,
+                    placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
+                    optionFilterProp: "label",
+                    style: { width: "100%" },
+                    disabled: !combos.length,
+                    onSelect: (value) => onApplyCombo?.(value),
+                    options: combos.map((c) => ({
+                      value: String(c.id),
+                      label: `${c.comboCode ? c.comboCode + " - " : ""}${c.comboName}`,
+                    })),
+                  })
+                : null,
+            ),
           React.createElement(
             "div",
             {
@@ -6168,6 +6206,27 @@ const QuotationCreateForm = () => {
 
   const [rows, setRows] = useState([]);
   const lineModeBackupRef = useRef({});
+  const [combos, setCombos] = useState([]);
+
+  useEffect(() => {
+    ctx.api
+      .request({
+        url: "serviceCombos:list",
+        params: {
+          filter: JSON.stringify({ isActive: { $eq: true } }),
+          appends: ["serviceComboItems.services"],
+          pageSize: 100,
+        },
+      })
+      .then((res) => {
+        const list = res?.data?.data || [];
+        setCombos(list.filter((c) => (c.serviceComboItems || []).length > 0));
+      })
+      .catch((error) => {
+        console.warn("[QuotationCreateForm] Could not fetch service combos:", error);
+      });
+  }, []);
+
   const [internalCompanies, setInternalCompanies] = useState([]);
   const [leads, setLeads] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -6962,6 +7021,47 @@ const QuotationCreateForm = () => {
 
   const setPackageField = (key, value) =>
     setForm((p) => ({ ...p, [key]: value }));
+
+  const applyCombo = (comboId) => {
+    const combo = combos.find((c) => String(c.id) === String(comboId));
+    if (!combo) return;
+    const items = combo.serviceComboItems || [];
+    if (!items.length) {
+      message.warning("Combo này chưa có dịch vụ nào.");
+      return;
+    }
+    // quotationServices rows created from this form always resolve to
+    // quantity: 1 (buildServicePricingPayload hardcodes quantity: 1 for
+    // package mode, and the call site in handleSubmit's `lines` builder
+    // always passes quantity: 1 too), so a combo item's quantity > 1 is
+    // represented as that many duplicate rows.
+    const newRows = [];
+    items.forEach((item) => {
+      const svc = item.services || {};
+      const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+      for (let i = 0; i < unitCount; i++) {
+        newRows.push({
+          _id: Date.now() + Math.random(),
+          projectServiceId: null,
+          serviceId: svc.id,
+          basePrice: 0,
+          currencyId: null,
+          currency: null,
+          vat: 0,
+          serviceName: svc.serviceName || "",
+          serviceType: svc.serviceType || "",
+          description: svc.description || "",
+          catalogService: svc,
+          catalogServiceId: svc.id || null,
+          catalogBasePrice: svc.basePrice ?? null,
+        });
+      }
+    });
+    setRows((p) => [...p, ...newRows]);
+    setPackageField("packageSubTotal", combo.packageSubTotal || 0);
+    setPackageField("packageVatRate", combo.packageVatRate || 0);
+    message.success(`Đã áp dụng combo "${combo.comboName}".`);
+  };
 
   const handleProjectChange = async (projectId) => {
     const nextProjectId = extractId(projectId);
@@ -7905,6 +8005,8 @@ const QuotationCreateForm = () => {
         onPricingModeChange: handlePricingModeChange,
         onPackageChange: setPackageField,
         onCurrencyChange: (value) => setF("currencyId", value || null),
+        combos,
+        onApplyCombo: applyCombo,
       }),
     ),
 
