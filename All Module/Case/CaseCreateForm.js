@@ -7837,6 +7837,30 @@ const ProjectCreateForm = () => {
         }
       }
 
+      // Full snapshot of the combo as it was at the moment it was applied —
+      // stored on every row created from it (pricingSnapshot JSON column),
+      // independent of both serviceComboId (FK, goes dangling if the combo
+      // is later deleted) and comboName (readable label, but only the name)
+      // so financial reports stay accurate even if the combo template is
+      // later edited or removed entirely.
+      const comboSnapshot = {
+        comboId: extractId(combo),
+        comboName: combo.comboName || "",
+        comboCode: combo.comboCode || "",
+        serviceComboType: combo.serviceComboType || "",
+        packageSubTotal: parseNum(combo.packageSubTotal),
+        packageVatRate: parseNum(combo.packageVatRate),
+        currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
+        convertedPackageSubTotal: convertedSubTotal,
+        convertedCurrencyCode: DEFAULT_CURRENCY_CODE,
+        appliedAt: new Date().toISOString(),
+        items: items.map((item) => ({
+          serviceId: extractId(item.services),
+          serviceName: item.services?.serviceName || "",
+          quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
+        })),
+      };
+
       // Package-mode projectServices:create payloads in handleSubmit always
       // send quantity: 1 (both submit-loop branches), so a combo item with
       // quantity > 1 is represented as that many duplicate rows here.
@@ -7869,6 +7893,8 @@ const ProjectCreateForm = () => {
             // service's real catalog price.
             _packageBasePrice: 0,
             _comboSourceId: String(comboId),
+            _comboName: combo.comboName || "",
+            _comboSnapshot: comboSnapshot,
           });
         }
       });
@@ -8245,6 +8271,10 @@ const ProjectCreateForm = () => {
             delete minimal.packageVatRate;
             delete minimal.packageVatAmount;
             delete minimal.packageTotalAmount;
+            delete minimal.serviceComboId;
+            delete minimal.serviceCombo;
+            delete minimal.comboName;
+            delete minimal.pricingSnapshot;
             console.warn(
               "Retrying projectService without pricing package fields:",
               fallbackError,
@@ -8664,6 +8694,17 @@ const ProjectCreateForm = () => {
               billingMode: rowBillingMode,
               financialSourceType: rowFinancialSourceType,
               status: deriveStatus({ ...r, billingMode: rowBillingMode }),
+              // Combo traceability — null for manually-added rows. Both
+              // serviceComboId (raw FK) and serviceCombo (relation field
+              // name shown in Nocobase) are sent for compatibility, same
+              // as this file's serviceId/ServiceId/services convention.
+              // comboName + pricingSnapshot are full snapshots taken at
+              // apply time, so they stay correct even if the combo
+              // template is later edited or deleted.
+              serviceComboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              comboName: r._comboName || null,
+              pricingSnapshot: r._comboSnapshot || null,
             });
             const rawCreatedProjectServiceId =
               psCreateRes?.data?.data?.id || psCreateRes?.data?.id;
@@ -8878,6 +8919,17 @@ const ProjectCreateForm = () => {
               billingMode: rowBillingMode,
               financialSourceType: rowFinancialSourceType,
               status: deriveStatus({ ...r, billingMode: rowBillingMode }),
+              // Combo traceability — null for manually-added rows. Both
+              // serviceComboId (raw FK) and serviceCombo (relation field
+              // name shown in Nocobase) are sent for compatibility, same
+              // as this file's serviceId/ServiceId/services convention.
+              // comboName + pricingSnapshot are full snapshots taken at
+              // apply time, so they stay correct even if the combo
+              // template is later edited or deleted.
+              serviceComboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              comboName: r._comboName || null,
+              pricingSnapshot: r._comboSnapshot || null,
             });
             const rawCreatedProjectServiceId =
               psCreateRes?.data?.data?.id || psCreateRes?.data?.id;
