@@ -3745,7 +3745,6 @@ const ServicePickerModal = ({
   taskTemplates,
   currency,
   currencies = [],
-  packageMode = false,
   combos = [],
   onApplyCombo,
   onApplyAdhocCombo,
@@ -3915,10 +3914,24 @@ const ServicePickerModal = ({
   };
   const handleApplyAdhocCombo = () => {
     const errs = {};
-    if (!comboName.trim()) errs.comboName = "Vui lòng nhập tên combo";
-    if (!comboItems.length) errs.items = "Vui lòng thêm ít nhất 1 dịch vụ vào combo";
-    const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
-    if (emptyNameItem) errs.items = "Có dịch vụ chưa nhập tên";
+    if (!comboName.trim()) errs.comboName = "Please enter a combo name";
+    if (!comboItems.length) {
+      errs.items = "Please add at least 1 service to the combo";
+    } else {
+      const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
+      if (emptyNameItem) {
+        errs.items = "One or more services are missing a name";
+      } else {
+        const seenNames = new Set();
+        const duplicateItem = comboItems.find((it) => {
+          const key = String(it.serviceName || "").trim().toLowerCase();
+          if (seenNames.has(key)) return true;
+          seenNames.add(key);
+          return false;
+        });
+        if (duplicateItem) errs.items = "Duplicate service name in combo";
+      }
+    }
     setComboErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -4287,7 +4300,7 @@ const ServicePickerModal = ({
               borderRadius: 6,
             },
           },
-          "Chưa có task nào cho dịch vụ này.",
+          "No tasks yet for this service.",
         )
         : React.createElement(
           "div",
@@ -4399,7 +4412,7 @@ const ServicePickerModal = ({
                 color: isCustom ? "#b45309" : "#047857",
               },
             },
-            isCustom ? "Dịch vụ mới" : "Từ catalog",
+            isCustom ? "New service" : "From catalog",
           ),
         ),
         React.createElement(
@@ -4430,7 +4443,7 @@ const ServicePickerModal = ({
           React.createElement("input", {
             value: item.serviceName || "",
             onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
-            placeholder: "Tên dịch vụ...",
+            placeholder: "Service name...",
             style: inp({ fontSize: 13, padding: "6px 9px" }),
             onFocus,
             onBlur,
@@ -4438,7 +4451,7 @@ const ServicePickerModal = ({
           React.createElement("input", {
             value: item.serviceType || "",
             onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
-            placeholder: "Loại dịch vụ...",
+            placeholder: "Service type...",
             style: inp({ fontSize: 12.5, padding: "5px 9px" }),
             onFocus,
             onBlur,
@@ -4457,7 +4470,7 @@ const ServicePickerModal = ({
         React.createElement(
           "label",
           { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textSub } },
-          "Số lượng",
+          "Quantity",
           React.createElement("input", {
             type: "number",
             min: 1,
@@ -4485,7 +4498,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          `${expanded ? "Ẩn" : "Quản lý"} task (${taskCount})`,
+          `${expanded ? "Hide" : "Manage"} tasks (${taskCount})`,
         ),
       ),
       expanded && renderComboItemTaskPanel(item),
@@ -4545,7 +4558,7 @@ const ServicePickerModal = ({
               React.createElement("th", { style: thS({ width: 36, textAlign: "center" }) }, "#"),
               React.createElement("th", { style: thS({ minWidth: 260 }) }, "Combo"),
               React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, "Package Price"),
-              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Dịch vụ"),
+              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Services"),
               React.createElement("th", { style: thS({ width: 90, textAlign: "center" }) }, ""),
             ),
           ),
@@ -4563,14 +4576,14 @@ const ServicePickerModal = ({
                     "div",
                     { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
                     React.createElement("span", { style: { color: C.textSub, display: "inline-flex" } }, ClipboardIcon),
-                    React.createElement("div", null, "Chưa có combo nào"),
+                    React.createElement("div", null, "No combos yet"),
                     React.createElement(
                       "span",
                       {
                         onClick: () => setComboTab("create"),
                         style: { color: C.primary, cursor: "pointer", fontSize: 12, textDecoration: "underline" },
                       },
-                      "Tạo combo mới",
+                      "Create new combo",
                     ),
                   ),
                 ),
@@ -4656,7 +4669,7 @@ const ServicePickerModal = ({
                           fontWeight: 600,
                         },
                       },
-                      "Chọn",
+                      "Select",
                     ),
                   ),
                 );
@@ -4720,7 +4733,7 @@ const ServicePickerModal = ({
             React.createElement(
               "span",
               { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel } },
-              "Tên combo",
+              "Combo Name",
             ),
             React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
           ),
@@ -4730,7 +4743,7 @@ const ServicePickerModal = ({
               setComboName(e.target.value);
               setComboErrors((p) => ({ ...p, comboName: "" }));
             },
-            placeholder: "E.g. Gói tư vấn thành lập doanh nghiệp...",
+            placeholder: "E.g. Business incorporation consulting package...",
             style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
             onFocus,
             onBlur,
@@ -4778,7 +4791,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            `Dịch vụ trong combo (${comboItems.length})`,
+            `Services in combo (${comboItems.length})`,
           ),
           React.createElement(
             "div",
@@ -4788,7 +4801,7 @@ const ServicePickerModal = ({
                 showSearch: true,
                 allowClear: false,
                 value: comboItemPick,
-                placeholder: "+ Thêm dịch vụ có sẵn...",
+                placeholder: "+ Add existing service...",
                 optionFilterProp: "label",
                 style: { width: 240 },
                 onSelect: (value) => {
@@ -4819,7 +4832,7 @@ const ServicePickerModal = ({
                   whiteSpace: "nowrap",
                 },
               },
-              "+ Dịch vụ mới",
+              "+ New service",
             ),
           ),
         ),
@@ -4840,7 +4853,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            "Chưa có dịch vụ nào — thêm từ danh sách có sẵn hoặc tạo dịch vụ mới.",
+            "No services yet — add one from the list or create a new one.",
           )
           : comboItems.map((item, idx) => renderComboItemCard(item, idx)),
       ),
@@ -4891,7 +4904,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          comboApplying ? "Đang áp dụng..." : "Áp dụng combo",
+          comboApplying ? "Applying..." : "Apply combo",
         ),
       ),
     );
@@ -4949,8 +4962,8 @@ const ServicePickerModal = ({
           },
           mode === "combo"
             ? comboTab === "create"
-              ? "Tạo combo dịch vụ mới"
-              : "Chọn combo dịch vụ"
+              ? "Create New Combo"
+              : "Select Combo"
             : tab === "create"
               ? "Create New Service"
               : "Select Service",
@@ -4977,7 +4990,6 @@ const ServicePickerModal = ({
           XIcon,
         ),
       ),
-      packageMode &&
       React.createElement(
         "div",
         {
@@ -4994,8 +5006,8 @@ const ServicePickerModal = ({
             value: mode,
             onChange: (value) => setMode(value),
             options: [
-              { value: "individual", label: "Dịch vụ lẻ" },
-              { value: "combo", label: "Combo dịch vụ" },
+              { value: "individual", label: "Individual service" },
+              { value: "combo", label: "Combo service" },
             ],
             style: { width: "100%", maxWidth: 360 },
           })
@@ -5012,8 +5024,8 @@ const ServicePickerModal = ({
               },
             },
             [
-              ["individual", "Dịch vụ lẻ"],
-              ["combo", "Combo dịch vụ"],
+              ["individual", "Individual service"],
+              ["combo", "Combo service"],
             ].map(([m, label]) =>
               React.createElement(
                 "button",
@@ -6552,9 +6564,9 @@ const ProjectServicesTable = ({
               React.createElement(
                 "div",
                 { style: { marginTop: 2, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
-                `Giá catalog gốc: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode}` +
+                `Original catalog price: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode}` +
                   (comboConversionNote.wasConverted
-                    ? " — đã quy đổi thành số tiền ở ô Package Subtotal phía trên"
+                    ? " — converted into the Package Subtotal field above"
                     : ""),
               ),
           ),
@@ -6823,7 +6835,6 @@ const ProjectServicesTable = ({
       taskTemplates,
       currency,
       currencies,
-      packageMode,
       combos,
       onSelect: (svc) => {
         onAddFromService(svc);
@@ -8643,7 +8654,7 @@ const ProjectCreateForm = () => {
       if (!combo) return;
       const items = combo.serviceComboItems || [];
       if (!items.length) {
-        message.warning("Combo này chưa có dịch vụ nào.");
+        message.warning("This combo has no services yet.");
         return;
       }
 
@@ -8662,7 +8673,7 @@ const ProjectCreateForm = () => {
           convertedSubTotal = Math.round(convertedSubTotal * matched.rate);
         } else {
           message.warning(
-            "Không tìm thấy tỷ giá quy đổi từ tiền tệ của combo sang VND — giữ nguyên số tiền gốc, vui lòng kiểm tra lại.",
+            "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.",
           );
         }
       }
@@ -8729,10 +8740,19 @@ const ProjectCreateForm = () => {
         }
       });
 
-      // Re-picking a combo replaces the previous combo's rows instead of
-      // appending on top of them (manually-added rows, i.e. rows without
-      // _comboSourceId, are left untouched).
-      setRows((p) => [...p.filter((r) => !r._comboSourceId), ...newRows]);
+      // Re-picking a combo while already in package mode replaces the
+      // previous combo's rows instead of appending on top of them
+      // (manually-added package rows, i.e. rows without _comboSourceId,
+      // are left untouched). Applying a combo while still in line pricing
+      // mode instead clears every existing row — a combo forces package
+      // pricing, and mixing line-priced rows with package-priced rows in
+      // the same document is exactly what pricing-mode switches are meant
+      // to prevent (see handleServicePricingModeChange).
+      const wasPackageMode = isPackagePricing(form.pricingMode);
+      setRows((p) => [
+        ...(wasPackageMode ? p.filter((r) => !r._comboSourceId) : []),
+        ...newRows,
+      ]);
       handlePackageSummaryChange("packageSubTotal", convertedSubTotal);
       handlePackageSummaryChange("packageVatRate", combo.packageVatRate || 0);
       if (vndId) {
@@ -8746,9 +8766,9 @@ const ProjectCreateForm = () => {
         currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
         wasConverted: !!(comboCurrencyId && vndId && comboCurrencyId !== vndId),
       });
-      message.success(`Đã áp dụng combo "${combo.comboName}".`);
+      message.success(`Applied combo "${combo.comboName}".`);
     },
-    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, currencies],
+    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, form.pricingMode, currencies],
   );
 
   // Ad-hoc combo — a one-off bundle of services grouped under a single flat
@@ -8815,7 +8835,14 @@ const ProjectCreateForm = () => {
         }
       });
 
-      setRows((p) => [...p.filter((r) => !r._comboSourceId), ...newRows]);
+      // See applyCombo's comment above: clear all existing rows when the
+      // form was still in line pricing mode, since an ad-hoc combo forces
+      // package pricing too and must not mix with line-priced rows.
+      const wasPackageMode = isPackagePricing(form.pricingMode);
+      setRows((p) => [
+        ...(wasPackageMode ? p.filter((r) => !r._comboSourceId) : []),
+        ...newRows,
+      ]);
       handlePackageSummaryChange("packageSubTotal", packageSubTotal);
       handlePackageSummaryChange("packageVatRate", packageVatRate);
       if (vndId) {
@@ -8826,9 +8853,9 @@ const ProjectCreateForm = () => {
         currencyCode: DEFAULT_CURRENCY_CODE,
         wasConverted: false,
       });
-      message.success(`Đã áp dụng combo "${comboName}".`);
+      message.success(`Applied combo "${comboName}".`);
     },
-    [defaultCurrencyId, form.financialSourceType, handlePackageSummaryChange],
+    [defaultCurrencyId, form.financialSourceType, form.pricingMode, handlePackageSummaryChange],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
