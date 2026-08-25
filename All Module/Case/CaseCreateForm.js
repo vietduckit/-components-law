@@ -7839,10 +7839,10 @@ const ProjectCreateForm = () => {
 
       // Full snapshot of the combo as it was at the moment it was applied —
       // stored on every row created from it (pricingSnapshot JSON column),
-      // independent of both serviceComboId (FK, goes dangling if the combo
-      // is later deleted) and comboName (readable label, but only the name)
-      // so financial reports stay accurate even if the combo template is
-      // later edited or removed entirely.
+      // independent of both comboId/serviceCombo (FK, goes dangling if the
+      // combo is later deleted) and comboName (readable label, but only the
+      // name) so financial reports stay accurate even if the combo template
+      // is later edited or removed entirely.
       const comboSnapshot = {
         comboId: extractId(combo),
         comboName: combo.comboName || "",
@@ -8271,7 +8271,7 @@ const ProjectCreateForm = () => {
             delete minimal.packageVatRate;
             delete minimal.packageVatAmount;
             delete minimal.packageTotalAmount;
-            delete minimal.serviceComboId;
+            delete minimal.comboId;
             delete minimal.serviceCombo;
             delete minimal.comboName;
             delete minimal.pricingSnapshot;
@@ -8695,13 +8695,14 @@ const ProjectCreateForm = () => {
               financialSourceType: rowFinancialSourceType,
               status: deriveStatus({ ...r, billingMode: rowBillingMode }),
               // Combo traceability — null for manually-added rows. Both
-              // serviceComboId (raw FK) and serviceCombo (relation field
-              // name shown in Nocobase) are sent for compatibility, same
-              // as this file's serviceId/ServiceId/services convention.
-              // comboName + pricingSnapshot are full snapshots taken at
-              // apply time, so they stay correct even if the combo
-              // template is later edited or deleted.
-              serviceComboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              // comboId (raw FK column, confirmed via Case Services >
+              // Configure fields — NOT "serviceComboId") and serviceCombo
+              // (the belongsTo relation field itself) are both sent for
+              // compatibility, same as this file's serviceId/ServiceId/
+              // services convention. comboName + pricingSnapshot are full
+              // snapshots taken at apply time, so they stay correct even
+              // if the combo template is later edited or deleted.
+              comboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
               serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
@@ -8920,13 +8921,14 @@ const ProjectCreateForm = () => {
               financialSourceType: rowFinancialSourceType,
               status: deriveStatus({ ...r, billingMode: rowBillingMode }),
               // Combo traceability — null for manually-added rows. Both
-              // serviceComboId (raw FK) and serviceCombo (relation field
-              // name shown in Nocobase) are sent for compatibility, same
-              // as this file's serviceId/ServiceId/services convention.
-              // comboName + pricingSnapshot are full snapshots taken at
-              // apply time, so they stay correct even if the combo
-              // template is later edited or deleted.
-              serviceComboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              // comboId (raw FK column, confirmed via Case Services >
+              // Configure fields — NOT "serviceComboId") and serviceCombo
+              // (the belongsTo relation field itself) are both sent for
+              // compatibility, same as this file's serviceId/ServiceId/
+              // services convention. comboName + pricingSnapshot are full
+              // snapshots taken at apply time, so they stay correct even
+              // if the combo template is later edited or deleted.
+              comboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
               serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
