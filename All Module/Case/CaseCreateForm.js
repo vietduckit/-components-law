@@ -7844,7 +7844,7 @@ const ProjectCreateForm = () => {
       // name) so financial reports stay accurate even if the combo template
       // is later edited or removed entirely.
       const comboSnapshot = {
-        comboId: extractId(combo),
+        comboId: runtimeExtractId(combo),
         comboName: combo.comboName || "",
         comboCode: combo.comboCode || "",
         serviceComboType: combo.serviceComboType || "",
@@ -7855,7 +7855,7 @@ const ProjectCreateForm = () => {
         convertedCurrencyCode: DEFAULT_CURRENCY_CODE,
         appliedAt: new Date().toISOString(),
         items: items.map((item) => ({
-          serviceId: extractId(item.services),
+          serviceId: runtimeExtractId(item.services),
           serviceName: item.services?.serviceName || "",
           quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
         })),
