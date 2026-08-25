@@ -3745,8 +3745,27 @@ const ServicePickerModal = ({
   taskTemplates,
   currency,
   currencies = [],
+  packageMode = false,
+  combos = [],
+  onApplyCombo,
+  onApplyAdhocCombo,
 }) => {
+  // "individual" = pick/create a single catalog or custom service (existing
+  // flow, unchanged). "combo" = pick an existing serviceCombos template or
+  // build a one-off ad-hoc bundle — only ever surfaced in package pricing
+  // mode, mirroring the gating the old standalone combo Select used.
+  const [mode, setMode] = useState("individual");
   const [tab, setTab] = useState("list");
+  const [comboTab, setComboTab] = useState("select");
+  const [comboSearch, setComboSearch] = useState("");
+  const [comboName, setComboName] = useState("");
+  const [comboSubTotal, setComboSubTotal] = useState(0);
+  const [comboVatRate, setComboVatRate] = useState(0);
+  const [comboItems, setComboItems] = useState([]);
+  const [comboItemPick, setComboItemPick] = useState(undefined);
+  const [comboExpandedTaskItemId, setComboExpandedTaskItemId] = useState(null);
+  const [comboErrors, setComboErrors] = useState({});
+  const [comboApplying, setComboApplying] = useState(false);
   const [search, setSearch] = useState("");
   const [newSvc, setNewSvc] = useState({
     name: "",
@@ -3770,13 +3789,18 @@ const ServicePickerModal = ({
     );
   }, [currency]);
 
+  const companyScopedSvcOpts = useMemo(
+    () =>
+      internalCompanyId
+        ? svcOpts.filter(
+          (s) =>
+            isSameInternalCompany(s, internalCompanyId) || !getInternalCompanyId(s),
+        )
+        : svcOpts,
+    [svcOpts, internalCompanyId],
+  );
   const filtered = useMemo(() => {
-    let list = internalCompanyId
-      ? svcOpts.filter(
-        (s) =>
-          isSameInternalCompany(s, internalCompanyId) || !getInternalCompanyId(s),
-      )
-      : svcOpts;
+    let list = companyScopedSvcOpts;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -3787,7 +3811,137 @@ const ServicePickerModal = ({
       );
     }
     return list;
-  }, [svcOpts, search, internalCompanyId]);
+  }, [companyScopedSvcOpts, search]);
+
+  const filteredCombos = useMemo(() => {
+    if (!comboSearch.trim()) return combos;
+    const q = comboSearch.toLowerCase();
+    return combos.filter(
+      (c) =>
+        (c.comboName || "").toLowerCase().includes(q) ||
+        (c.serviceComboType || "").toLowerCase().includes(q),
+    );
+  }, [combos, comboSearch]);
+
+  const comboAvailableCatalogItems = useMemo(
+    () =>
+      companyScopedSvcOpts.filter(
+        (s) =>
+          !comboItems.some(
+            (it) => it.source === "catalog" && String(it.serviceId) === String(s.id),
+          ),
+      ),
+    [companyScopedSvcOpts, comboItems],
+  );
+
+  const addComboCatalogItem = (svc) => {
+    setComboItems((prev) => [
+      ...prev,
+      {
+        _id: Date.now() + Math.random(),
+        source: "catalog",
+        serviceId: String(svc.id),
+        serviceName: svc.serviceName || "",
+        serviceType: svc.serviceType || "",
+        description: svc.description || "",
+        quantity: 1,
+        // Prefilled from this service's own catalog task templates so the
+        // combo builder shows something useful immediately — the user can
+        // still edit/remove/add on top, per row, before applying.
+        taskTemplates: getServiceTaskTemplates(taskTemplates, svc).map((t, idx) => ({
+          _id: Date.now() + Math.random() + idx,
+          title: getTaskTemplateRawTitle(t),
+          description: getTaskTemplateDescription(t),
+        })),
+      },
+    ]);
+    setComboItemPick(undefined);
+    setComboErrors((p) => ({ ...p, items: "" }));
+  };
+  const addComboCustomItem = () => {
+    setComboItems((prev) => [
+      ...prev,
+      {
+        _id: Date.now() + Math.random(),
+        source: "custom",
+        serviceId: null,
+        serviceName: "",
+        serviceType: "",
+        description: "",
+        quantity: 1,
+        taskTemplates: [],
+      },
+    ]);
+    setComboErrors((p) => ({ ...p, items: "" }));
+  };
+  const updateComboItem = (itemId, field, value) => {
+    setComboItems((prev) => prev.map((it) => (it._id === itemId ? { ...it, [field]: value } : it)));
+  };
+  const removeComboItem = (itemId) => {
+    setComboItems((prev) => prev.filter((it) => it._id !== itemId));
+    setComboExpandedTaskItemId((prev) => (prev === itemId ? null : prev));
+  };
+  const addComboItemTask = (itemId) => {
+    setComboItems((prev) =>
+      prev.map((it) =>
+        it._id === itemId
+          ? { ...it, taskTemplates: [...(it.taskTemplates || []), createCustomTaskDraft()] }
+          : it,
+      ),
+    );
+  };
+  const updateComboItemTask = (itemId, taskId, field, value) => {
+    setComboItems((prev) =>
+      prev.map((it) =>
+        it._id !== itemId
+          ? it
+          : {
+            ...it,
+            taskTemplates: (it.taskTemplates || []).map((t) =>
+              t._id === taskId ? { ...t, [field]: value } : t,
+            ),
+          },
+      ),
+    );
+  };
+  const removeComboItemTask = (itemId, taskId) => {
+    setComboItems((prev) =>
+      prev.map((it) =>
+        it._id !== itemId
+          ? it
+          : { ...it, taskTemplates: (it.taskTemplates || []).filter((t) => t._id !== taskId) },
+      ),
+    );
+  };
+  const handleApplyAdhocCombo = () => {
+    const errs = {};
+    if (!comboName.trim()) errs.comboName = "Vui lòng nhập tên combo";
+    if (!comboItems.length) errs.items = "Vui lòng thêm ít nhất 1 dịch vụ vào combo";
+    const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
+    if (emptyNameItem) errs.items = "Có dịch vụ chưa nhập tên";
+    setComboErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    setComboApplying(true);
+    try {
+      onApplyAdhocCombo?.({
+        comboName: comboName.trim(),
+        packageSubTotal: comboSubTotal,
+        packageVatRate: comboVatRate,
+        items: comboItems.map((it) => ({
+          serviceId: it.serviceId,
+          serviceName: it.serviceName.trim(),
+          serviceType: (it.serviceType || "").trim(),
+          description: (it.description || "").trim(),
+          quantity: it.quantity,
+          taskTemplates: it.taskTemplates,
+        })),
+      });
+      onClose();
+    } finally {
+      setComboApplying(false);
+    }
+  };
 
   const validate = () => {
     const e = {};
@@ -4060,6 +4214,688 @@ const ServicePickerModal = ({
         ),
     );
 
+  const renderNewSvcFieldLabel = (labelText, required, hint) =>
+    React.createElement(
+      "div",
+      { style: { display: "flex", alignItems: "center", marginBottom: 5 } },
+      React.createElement(
+        "span",
+        { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel } },
+        labelText,
+      ),
+      required && React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
+      hint &&
+        React.createElement(
+          "span",
+          { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginLeft: 6 } },
+          hint,
+        ),
+    );
+  const renderNewSvcFieldError = (key) =>
+    errors[key] && React.createElement("div", { style: { color: C.danger, fontSize: 11.5, marginTop: 4 } }, errors[key]);
+
+  const renderComboItemTaskPanel = (item) =>
+    React.createElement(
+      "div",
+      {
+        style: {
+          border: `1px solid ${C.border}`,
+          borderRadius: 6,
+          background: C.bgSection,
+          padding: 10,
+          marginTop: 8,
+        },
+      },
+      React.createElement(
+        "div",
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+        React.createElement(
+          "span",
+          { style: { fontSize: 12.5, fontWeight: 600, color: C.text, fontFamily: FONT } },
+          "Sample tasks",
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => addComboItemTask(item._id),
+            style: {
+              border: `1px dashed ${C.primary}`,
+              background: "#fff",
+              color: C.primary,
+              borderRadius: 6,
+              padding: "4px 9px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: FONT,
+            },
+          },
+          "+ Add task",
+        ),
+      ),
+      (item.taskTemplates || []).length === 0
+        ? React.createElement(
+          "div",
+          {
+            style: {
+              padding: "10px 12px",
+              color: C.textSub,
+              fontSize: 12,
+              background: "#fff",
+              border: `1px dashed ${C.border}`,
+              borderRadius: 6,
+            },
+          },
+          "Chưa có task nào cho dịch vụ này.",
+        )
+        : React.createElement(
+          "div",
+          { style: { display: "grid", gap: 8 } },
+          (item.taskTemplates || []).map((task) =>
+            React.createElement(
+              "div",
+              {
+                key: task._id,
+                style: {
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 6,
+                  background: "#fff",
+                  padding: 8,
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) 30px",
+                  gap: 8,
+                  alignItems: "start",
+                },
+              },
+              React.createElement(
+                "div",
+                { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 6 } },
+                React.createElement("input", {
+                  value: task.title || "",
+                  onChange: (e) => updateComboItemTask(item._id, task._id, "title", e.target.value),
+                  placeholder: "Task name",
+                  style: inp({ fontSize: 12.5, padding: "5px 8px" }),
+                  onFocus,
+                  onBlur,
+                }),
+                React.createElement("input", {
+                  value: task.description || "",
+                  onChange: (e) => updateComboItemTask(item._id, task._id, "description", e.target.value),
+                  placeholder: "Description",
+                  style: inp({ fontSize: 12.5, padding: "5px 8px" }),
+                  onFocus,
+                  onBlur,
+                }),
+              ),
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => removeComboItemTask(item._id, task._id),
+                  title: "Remove task",
+                  style: {
+                    width: 26,
+                    height: 26,
+                    borderRadius: 5,
+                    border: `1px solid ${C.border}`,
+                    background: "#fff",
+                    color: C.danger,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    lineHeight: 1,
+                  },
+                },
+                "x",
+              ),
+            ),
+          ),
+        ),
+    );
+
+  const renderComboItemCard = (item, index) => {
+    const isCustom = item.source === "custom";
+    const taskCount = (item.taskTemplates || []).length;
+    const expanded = comboExpandedTaskItemId === item._id;
+    return React.createElement(
+      "div",
+      {
+        key: item._id,
+        style: { border: `1px solid ${C.border}`, borderRadius: 8, background: "#fff", padding: 12, marginBottom: 10 },
+      },
+      React.createElement(
+        "div",
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 } },
+        React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", gap: 8 } },
+          React.createElement(
+            "span",
+            {
+              style: {
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                background: C.bgSection,
+                color: C.textSub,
+                fontSize: 11.5,
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              },
+            },
+            index + 1,
+          ),
+          React.createElement(
+            "span",
+            {
+              style: {
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: 10,
+                background: isCustom ? "#fef3c7" : "#ecfdf5",
+                color: isCustom ? "#b45309" : "#047857",
+              },
+            },
+            isCustom ? "Dịch vụ mới" : "Từ catalog",
+          ),
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => removeComboItem(item._id),
+            title: "Remove",
+            style: {
+              width: 26,
+              height: 26,
+              borderRadius: 5,
+              border: `1px solid ${C.border}`,
+              background: "#fff",
+              color: C.danger,
+              cursor: "pointer",
+              fontSize: 14,
+              lineHeight: 1,
+            },
+          },
+          "x",
+        ),
+      ),
+      isCustom
+        ? React.createElement(
+          "div",
+          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 8 } },
+          React.createElement("input", {
+            value: item.serviceName || "",
+            onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
+            placeholder: "Tên dịch vụ...",
+            style: inp({ fontSize: 13, padding: "6px 9px" }),
+            onFocus,
+            onBlur,
+          }),
+          React.createElement("input", {
+            value: item.serviceType || "",
+            onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
+            placeholder: "Loại dịch vụ...",
+            style: inp({ fontSize: 12.5, padding: "5px 9px" }),
+            onFocus,
+            onBlur,
+          }),
+        )
+        : React.createElement(
+          "div",
+          { style: { marginBottom: 8 } },
+          React.createElement("div", { style: { fontWeight: 600, color: C.text, fontSize: 13.5 } }, item.serviceName),
+          item.serviceType &&
+            React.createElement("div", { style: { fontSize: 11, color: C.textSub, marginTop: 2 } }, item.serviceType),
+        ),
+      React.createElement(
+        "div",
+        { style: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" } },
+        React.createElement(
+          "label",
+          { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textSub } },
+          "Số lượng",
+          React.createElement("input", {
+            type: "number",
+            min: 1,
+            value: item.quantity,
+            onChange: (e) => updateComboItem(item._id, "quantity", Math.max(1, parseInt(e.target.value, 10) || 1)),
+            style: inp({ width: 70, padding: "4px 8px", fontSize: 12.5 }),
+            onFocus,
+            onBlur,
+          }),
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => setComboExpandedTaskItemId(expanded ? null : item._id),
+            style: {
+              border: `1px solid ${taskCount ? C.primary : C.border}`,
+              background: taskCount ? "#eff6ff" : "#fff",
+              color: taskCount ? C.primary : C.textSub,
+              borderRadius: 6,
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: FONT,
+            },
+          },
+          `${expanded ? "Ẩn" : "Quản lý"} task (${taskCount})`,
+        ),
+      ),
+      expanded && renderComboItemTaskPanel(item),
+    );
+  };
+
+  const renderComboSelectTab = () =>
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(
+        "div",
+        { style: { padding: "12px 20px", borderBottom: `1px solid #f3f4f6`, flexShrink: 0 } },
+        React.createElement(
+          "div",
+          { style: { position: "relative" } },
+          React.createElement(
+            "span",
+            {
+              style: {
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: 13,
+                color: C.textSub,
+                pointerEvents: "none",
+                display: "inline-flex",
+                alignItems: "center",
+              },
+            },
+            SearchIcon,
+          ),
+          React.createElement("input", {
+            autoFocus: true,
+            value: comboSearch,
+            onChange: (e) => setComboSearch(e.target.value),
+            placeholder: "Search combo...",
+            style: inp({ paddingLeft: 36 }),
+            onFocus,
+            onBlur,
+          }),
+        ),
+      ),
+      React.createElement(
+        "div",
+        { style: { overflow: "auto", flex: 1 } },
+        React.createElement(
+          "table",
+          { style: { width: "100%", minWidth: 760, borderCollapse: "collapse" } },
+          React.createElement(
+            "thead",
+            null,
+            React.createElement(
+              "tr",
+              null,
+              React.createElement("th", { style: thS({ width: 36, textAlign: "center" }) }, "#"),
+              React.createElement("th", { style: thS({ minWidth: 260 }) }, "Combo"),
+              React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, "Package Price"),
+              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Dịch vụ"),
+              React.createElement("th", { style: thS({ width: 90, textAlign: "center" }) }, ""),
+            ),
+          ),
+          React.createElement(
+            "tbody",
+            null,
+            filteredCombos.length === 0
+              ? React.createElement(
+                "tr",
+                null,
+                React.createElement(
+                  "td",
+                  { colSpan: 5, style: tdS({ textAlign: "center", color: "#9ca3af", padding: "40px 0" }) },
+                  React.createElement(
+                    "div",
+                    { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
+                    React.createElement("span", { style: { color: C.textSub, display: "inline-flex" } }, ClipboardIcon),
+                    React.createElement("div", null, "Chưa có combo nào"),
+                    React.createElement(
+                      "span",
+                      {
+                        onClick: () => setComboTab("create"),
+                        style: { color: C.primary, cursor: "pointer", fontSize: 12, textDecoration: "underline" },
+                      },
+                      "Tạo combo mới",
+                    ),
+                  ),
+                ),
+              )
+              : filteredCombos.map((c, i) => {
+                const itemCount = (c.serviceComboItems || []).length;
+                return React.createElement(
+                  "tr",
+                  {
+                    key: c.id,
+                    style: { background: i % 2 === 0 ? "#fff" : "#fafafa", cursor: "pointer" },
+                    onClick: () => onApplyCombo?.(c.id),
+                  },
+                  React.createElement(
+                    "td",
+                    { style: tdS({ textAlign: "center", color: C.textSub, fontSize: 12, paddingTop: 13 }) },
+                    i + 1,
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: tdS({ paddingTop: 12 }) },
+                    React.createElement(
+                      "div",
+                      { style: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5, minWidth: 0 } },
+                      React.createElement(
+                        "span",
+                        { style: { fontWeight: 700, color: C.text, lineHeight: "20px", overflowWrap: "anywhere" } },
+                        c.comboName || `Combo #${c.id}`,
+                      ),
+                      c.serviceComboType &&
+                        React.createElement(
+                          "span",
+                          {
+                            style: {
+                              fontSize: 11,
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              padding: "2px 8px",
+                              borderRadius: 10,
+                              lineHeight: "16px",
+                            },
+                          },
+                          c.serviceComboType,
+                        ),
+                    ),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: tdS({ textAlign: "right", paddingTop: 12 }) },
+                    React.createElement(
+                      "div",
+                      { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 } },
+                      React.createElement(
+                        "span",
+                        { style: { fontFamily: FONT_MONO, fontWeight: 700, color: C.text } },
+                        formatMoney(c.packageSubTotal, defaultCurrencyObject()),
+                      ),
+                      React.createElement(
+                        "span",
+                        { style: { fontSize: 10.5, color: C.textSub } },
+                        `VAT ${parseNum(c.packageVatRate)}%`,
+                      ),
+                    ),
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: tdS({ textAlign: "center", paddingTop: 12, color: C.textSub, fontSize: 12.5 }) },
+                    itemCount,
+                  ),
+                  React.createElement(
+                    "td",
+                    { style: tdS({ textAlign: "center", paddingTop: 10 }) },
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          display: "inline-block",
+                          padding: "3px 14px",
+                          borderRadius: 4,
+                          background: C.primary,
+                          color: "#fff",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        },
+                      },
+                      "Chọn",
+                    ),
+                  ),
+                );
+              }),
+          ),
+        ),
+      ),
+      React.createElement(
+        "div",
+        { style: { padding: "12px 20px", borderTop: `1px solid ${C.border}`, textAlign: "right", flexShrink: 0 } },
+        React.createElement(
+          "div",
+          {
+            onClick: onClose,
+            style: {
+              display: "inline-block",
+              padding: "7px 20px",
+              borderRadius: 6,
+              border: `1px solid ${C.border}`,
+              cursor: "pointer",
+              fontSize: 13,
+              color: C.textSub,
+              fontFamily: FONT,
+            },
+          },
+          "Close",
+        ),
+      ),
+    );
+
+  const renderComboCreateTab = () =>
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(
+        "div",
+        { style: { overflowY: "auto", flex: 1, padding: "20px 24px" } },
+        !internalCompanyId &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                padding: "10px 14px",
+                background: "#fefce8",
+                border: `1px solid #fde68a`,
+                borderRadius: 8,
+                marginBottom: 18,
+                fontSize: 13,
+                color: C.warning,
+                fontWeight: 500,
+              },
+            },
+            "Please select an Internal Company in the main form before creating a service",
+          ),
+        React.createElement(
+          "div",
+          { style: { marginBottom: 16 } },
+          React.createElement(
+            "div",
+            { style: { display: "flex", alignItems: "center", marginBottom: 5 } },
+            React.createElement(
+              "span",
+              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel } },
+              "Tên combo",
+            ),
+            React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
+          ),
+          React.createElement("input", {
+            value: comboName,
+            onChange: (e) => {
+              setComboName(e.target.value);
+              setComboErrors((p) => ({ ...p, comboName: "" }));
+            },
+            placeholder: "E.g. Gói tư vấn thành lập doanh nghiệp...",
+            style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
+            onFocus,
+            onBlur,
+          }),
+          comboErrors.comboName &&
+            React.createElement("div", { style: { color: C.danger, fontSize: 11.5, marginTop: 4 } }, comboErrors.comboName),
+        ),
+        React.createElement(
+          "div",
+          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 20 } },
+          React.createElement(
+            "div",
+            null,
+            React.createElement(
+              "div",
+              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel, marginBottom: 5 } },
+              "Package Subtotal",
+            ),
+            React.createElement(PriceInput, { value: comboSubTotal, onChange: setComboSubTotal, currency: defaultCurrencyObject() }),
+          ),
+          React.createElement(
+            "div",
+            null,
+            React.createElement(
+              "div",
+              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel, marginBottom: 5 } },
+              "VAT %",
+            ),
+            React.createElement("input", {
+              type: "number",
+              min: 0,
+              max: 100,
+              step: 0.1,
+              value: comboVatRate,
+              onChange: (e) => setComboVatRate(parseFloat(e.target.value) || 0),
+              style: inp(),
+              onFocus,
+              onBlur,
+            }),
+          ),
+        ),
+        React.createElement(
+          "div",
+          { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 10 } },
+          React.createElement(
+            "span",
+            { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
+            `Dịch vụ trong combo (${comboItems.length})`,
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+            Select
+              ? React.createElement(Select, {
+                showSearch: true,
+                allowClear: false,
+                value: comboItemPick,
+                placeholder: "+ Thêm dịch vụ có sẵn...",
+                optionFilterProp: "label",
+                style: { width: 240 },
+                onSelect: (value) => {
+                  const svc = comboAvailableCatalogItems.find((s) => String(s.id) === String(value));
+                  if (svc) addComboCatalogItem(svc);
+                },
+                options: comboAvailableCatalogItems.map((s) => ({
+                  value: String(s.id),
+                  label: s.serviceName || `Service #${s.id}`,
+                })),
+              })
+              : null,
+            React.createElement(
+              "button",
+              {
+                type: "button",
+                onClick: addComboCustomItem,
+                style: {
+                  border: `1px dashed ${C.primary}`,
+                  background: "#fff",
+                  color: C.primary,
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  whiteSpace: "nowrap",
+                },
+              },
+              "+ Dịch vụ mới",
+            ),
+          ),
+        ),
+        comboErrors.items &&
+          React.createElement("div", { style: { color: C.danger, fontSize: 12, marginBottom: 10 } }, comboErrors.items),
+        comboItems.length === 0
+          ? React.createElement(
+            "div",
+            {
+              style: {
+                border: `1px dashed ${C.border}`,
+                background: C.bgSection,
+                borderRadius: 8,
+                padding: "20px 14px",
+                textAlign: "center",
+                color: C.textSub,
+                fontSize: 12.5,
+                fontFamily: FONT,
+              },
+            },
+            "Chưa có dịch vụ nào — thêm từ danh sách có sẵn hoặc tạo dịch vụ mới.",
+          )
+          : comboItems.map((item, idx) => renderComboItemCard(item, idx)),
+      ),
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "14px 24px",
+            borderTop: `1px solid #f3f4f6`,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            background: C.bgSection,
+            flexShrink: 0,
+          },
+        },
+        React.createElement(
+          "button",
+          {
+            onClick: () => setComboTab("select"),
+            style: {
+              padding: "8px 20px",
+              borderRadius: 6,
+              border: `1px solid ${C.border}`,
+              background: "#fff",
+              cursor: "pointer",
+              fontSize: 13,
+              fontFamily: FONT,
+              color: C.text,
+            },
+          },
+          "Back",
+        ),
+        React.createElement(
+          "button",
+          {
+            onClick: handleApplyAdhocCombo,
+            disabled: comboApplying,
+            style: {
+              padding: "8px 24px",
+              borderRadius: 6,
+              background: comboApplying ? "#f3f4f6" : C.primary,
+              color: comboApplying ? "#9ca3af" : "#fff",
+              border: "none",
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: comboApplying ? "not-allowed" : "pointer",
+              fontFamily: FONT,
+            },
+          },
+          comboApplying ? "Đang áp dụng..." : "Áp dụng combo",
+        ),
+      ),
+    );
+
   return React.createElement(
     "div",
     {
@@ -4111,7 +4947,13 @@ const ServicePickerModal = ({
               color: C.text,
             },
           },
-          tab === "create" ? "Create New Service" : "Select Service",
+          mode === "combo"
+            ? comboTab === "create"
+              ? "Tạo combo dịch vụ mới"
+              : "Chọn combo dịch vụ"
+            : tab === "create"
+              ? "Create New Service"
+              : "Select Service",
         ),
         React.createElement(
           "button",
@@ -4135,17 +4977,83 @@ const ServicePickerModal = ({
           XIcon,
         ),
       ),
+      packageMode &&
       React.createElement(
         "div",
         {
           style: {
-            display: "flex",
+            padding: "10px 20px",
             borderBottom: `1px solid ${C.border}`,
+            background: "#fff",
             flexShrink: 0,
-            background: C.bgSection,
           },
         },
-        ["list", "create"].map((t) =>
+        Segmented
+          ? React.createElement(Segmented, {
+            block: true,
+            value: mode,
+            onChange: (value) => setMode(value),
+            options: [
+              { value: "individual", label: "Dịch vụ lẻ" },
+              { value: "combo", label: "Combo dịch vụ" },
+            ],
+            style: { width: "100%", maxWidth: 360 },
+          })
+          : React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                border: `1px solid ${C.border}`,
+                borderRadius: 7,
+                overflow: "hidden",
+                width: "100%",
+                maxWidth: 360,
+              },
+            },
+            [
+              ["individual", "Dịch vụ lẻ"],
+              ["combo", "Combo dịch vụ"],
+            ].map(([m, label]) =>
+              React.createElement(
+                "button",
+                {
+                  key: m,
+                  type: "button",
+                  onClick: () => setMode(m),
+                  style: {
+                    border: "none",
+                    borderRight: m === "individual" ? `1px solid ${C.border}` : "none",
+                    background: mode === m ? C.primary : "#fff",
+                    color: mode === m ? "#fff" : C.text,
+                    padding: "8px 14px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: FONT,
+                    flex: "1 1 0",
+                  },
+                },
+                label,
+              ),
+            ),
+          ),
+      ),
+      mode === "individual" &&
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              borderBottom: `1px solid ${C.border}`,
+              flexShrink: 0,
+              background: C.bgSection,
+            },
+          },
+          ["list", "create"].map((t) =>
           React.createElement(
             "div",
             {
@@ -4576,161 +5484,102 @@ const ServicePickerModal = ({
             },
             "Please select an Internal Company in the main form before creating a service",
           ),
-          [
-            {
-              key: "name",
-              label: "Service Name",
-              req: true,
-              type: "input",
-              placeholder: "E.g. Employment contract consultation...",
-            },
-            {
-              key: "serviceType",
-              label: "Service Type",
-              req: false,
-              type: "input",
-              placeholder: "E.g. Consultation, Legal...",
-              hint: "optional",
-            },
-            {
-              key: "description",
-              label: "Description",
-              req: false,
-              type: "textarea",
-              placeholder: "Scope of work, notes...",
-              hint: "optional",
-            },
-            {
-              key: "currencyId",
-              label: "Currency",
-              req: !!currencies.length,
-              type: "currency",
-            },
-            {
-              key: "basePrice",
-              label: "Unit Price",
-              req: false,
-              type: "price",
-              hint: "optional",
-            },
-          ].map((f) =>
+          React.createElement(
+            "div",
+            { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 16 } },
             React.createElement(
               "div",
-              { key: f.key, style: { marginBottom: 16 } },
-              React.createElement(
-                "div",
-                {
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    marginBottom: 5,
-                  },
+              { style: { minWidth: 0 } },
+              renderNewSvcFieldLabel("Service Name", true, null),
+              React.createElement("input", {
+                value: newSvc.name,
+                onChange: (e) => {
+                  setNewSvc({ ...newSvc, name: e.target.value });
+                  setErrors((p) => ({ ...p, name: "" }));
                 },
-                React.createElement(
-                  "span",
-                  {
-                    style: {
-                      fontFamily: FONT,
-                      fontSize: 11.5,
-                      fontWeight: 600,
-                      color: C.textLabel,
-                    },
-                  },
-                  f.label,
-                ),
-                f.req &&
-                React.createElement(
-                  "span",
-                  {
-                    style: { color: C.danger, marginLeft: 3, fontSize: 12 },
-                  },
-                  "*",
-                ),
-                f.hint &&
-                React.createElement(
-                  "span",
-                  {
-                    style: {
-                      fontSize: 11,
-                      color: "#9ca3af",
-                      fontStyle: "italic",
-                      marginLeft: 6,
-                    },
-                  },
-                  f.hint,
-                ),
-              ),
-              f.type === "textarea"
-                ? React.createElement(AutoTextarea, {
-                  value: newSvc[f.key],
-                  onChange: (v) => setNewSvc({ ...newSvc, [f.key]: v }),
-                  placeholder: f.placeholder,
-                  minRows: 3,
+                placeholder: "E.g. Employment contract consultation...",
+                style: { ...inp(), ...(errors.name ? { borderColor: C.danger } : {}) },
+                onFocus,
+                onBlur,
+              }),
+              renderNewSvcFieldError("name"),
+            ),
+            React.createElement(
+              "div",
+              { style: { minWidth: 0 } },
+              renderNewSvcFieldLabel("Service Type", false, "optional"),
+              React.createElement("input", {
+                value: newSvc.serviceType,
+                onChange: (e) => setNewSvc({ ...newSvc, serviceType: e.target.value }),
+                placeholder: "E.g. Consultation, Legal...",
+                style: inp(),
+                onFocus,
+                onBlur,
+              }),
+            ),
+          ),
+          React.createElement(
+            "div",
+            { style: { marginBottom: 16 } },
+            renderNewSvcFieldLabel("Description", false, "optional"),
+            React.createElement(AutoTextarea, {
+              value: newSvc.description,
+              onChange: (v) => setNewSvc({ ...newSvc, description: v }),
+              placeholder: "Scope of work, notes...",
+              minRows: 3,
+            }),
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 16 } },
+            React.createElement(
+              "div",
+              { style: { minWidth: 0 } },
+              renderNewSvcFieldLabel("Unit Price", false, "optional"),
+              React.createElement(PriceInput, {
+                value: newSvc.basePrice,
+                onChange: (v) => setNewSvc({ ...newSvc, basePrice: v }),
+                currency: selectedNewSvcCurrency,
+                disabled: currencies.length && !selectedNewSvcCurrency,
+              }),
+            ),
+            React.createElement(
+              "div",
+              { style: { minWidth: 0 } },
+              renderNewSvcFieldLabel("Currency", !!currencies.length, null),
+              Select
+                ? React.createElement(Select, {
+                  showSearch: true,
+                  allowClear: false,
+                  value: newSvc.currencyId || undefined,
+                  placeholder: currencies.length ? "Select currency" : "No currencies configured",
+                  optionFilterProp: "label",
+                  style: { width: "100%" },
+                  onChange: (value) => setNewSvc({ ...newSvc, currencyId: value || "" }),
+                  options: currencies.map((item) => ({
+                    value: String(item.id),
+                    label: currencySelectLabel(item),
+                  })),
+                  disabled: !currencies.length,
                 })
-                : f.type === "currency"
-                  ? Select
-                    ? React.createElement(Select, {
-                      showSearch: true,
-                      allowClear: false,
-                      value: newSvc.currencyId || undefined,
-                      placeholder: currencies.length ? "Select currency" : "No currencies configured",
-                      optionFilterProp: "label",
-                      style: { width: "100%" },
-                      onChange: (value) =>
-                        setNewSvc({ ...newSvc, currencyId: value || "" }),
-                      options: currencies.map((item) => ({
-                        value: String(item.id),
-                        label: currencySelectLabel(item),
-                      })),
-                      disabled: !currencies.length,
-                    })
-                    : React.createElement(
-                      "select",
-                      {
-                        value: newSvc.currencyId || "",
-                        onChange: (e) =>
-                          setNewSvc({ ...newSvc, currencyId: e.target.value || "" }),
-                        style: inp(),
-                        disabled: !currencies.length,
-                      },
-                      React.createElement("option", { value: "" }, "Select currency"),
-                      ...currencies.map((item) =>
-                        React.createElement(
-                          "option",
-                          { key: item.id, value: item.id },
-                          currencySelectLabel(item),
-                        ),
-                      ),
-                    )
-                : f.type === "price"
-                  ? React.createElement(PriceInput, {
-                    value: newSvc.basePrice,
-                    onChange: (v) => setNewSvc({ ...newSvc, basePrice: v }),
-                    currency: selectedNewSvcCurrency,
-                    disabled: currencies.length && !selectedNewSvcCurrency,
-                  })
-                  : React.createElement("input", {
-                    value: newSvc[f.key],
-                    onChange: (e) => {
-                      setNewSvc({ ...newSvc, [f.key]: e.target.value });
-                      setErrors((p) => ({ ...p, [f.key]: "" }));
-                    },
-                    placeholder: f.placeholder,
-                    style: {
-                      ...inp(),
-                      ...(errors[f.key] ? { borderColor: C.danger } : {}),
-                    },
-                    onFocus,
-                    onBlur,
-                  }),
-              errors[f.key] &&
-              React.createElement(
-                "div",
-                {
-                  style: { color: C.danger, fontSize: 11.5, marginTop: 4 },
-                },
-                errors[f.key],
-              ),
+                : React.createElement(
+                  "select",
+                  {
+                    value: newSvc.currencyId || "",
+                    onChange: (e) => setNewSvc({ ...newSvc, currencyId: e.target.value || "" }),
+                    style: inp(),
+                    disabled: !currencies.length,
+                  },
+                  React.createElement("option", { value: "" }, "Select currency"),
+                  ...currencies.map((item) =>
+                    React.createElement(
+                      "option",
+                      { key: item.id, value: item.id },
+                      currencySelectLabel(item),
+                    ),
+                  ),
+                ),
+              renderNewSvcFieldError("currencyId"),
             ),
           ),
           renderCustomTaskEditor(),
@@ -4788,6 +5637,14 @@ const ServicePickerModal = ({
           ),
         ),
       ),
+      ),
+      mode === "combo" &&
+      React.createElement(
+        React.Fragment,
+        null,
+        comboTab === "select" && renderComboSelectTab(),
+        comboTab === "create" && renderComboCreateTab(),
+      ),
     ),
   );
 };
@@ -4812,6 +5669,7 @@ const ProjectServicesTable = ({
   pricingDate,
   combos = [],
   onApplyCombo,
+  onApplyAdhocCombo,
   comboConversionNote = null,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -5965,6 +6823,8 @@ const ProjectServicesTable = ({
       taskTemplates,
       currency,
       currencies,
+      packageMode,
+      combos,
       onSelect: (svc) => {
         onAddFromService(svc);
         setPickerOpen(false);
@@ -5972,6 +6832,14 @@ const ProjectServicesTable = ({
       onClose: () => setPickerOpen(false),
       onCreateAndSelect: async (data) => {
         await onAddFromService(data, true);
+      },
+      onApplyCombo: (comboId) => {
+        onApplyCombo?.(comboId);
+        setPickerOpen(false);
+      },
+      onApplyAdhocCombo: (payload) => {
+        onApplyAdhocCombo?.(payload);
+        setPickerOpen(false);
       },
     }),
     React.createElement(
@@ -6095,15 +6963,11 @@ const ProjectServicesTable = ({
           padding: "14px 16px",
           borderBottom: `1px solid ${C.border}`,
           background: "#fff",
-          display: "grid",
-          gridTemplateColumns: "minmax(220px, 330px) minmax(0, 1fr)",
-          gap: 14,
-          alignItems: "start",
         },
       },
       React.createElement(
         "div",
-        { style: { minWidth: 0 } },
+        { style: { minWidth: 0, maxWidth: 330 } },
         React.createElement(
           "div",
           {
@@ -6173,40 +7037,6 @@ const ProjectServicesTable = ({
                 ),
               ),
             ),
-        ),
-      ),
-      React.createElement(
-        "div",
-        { style: { display: "flex", flexDirection: "column", gap: 10, minWidth: 0 } },
-        packageMode &&
-        React.createElement(
-          "div",
-          { style: { display: "flex", justifyContent: "flex-end" } },
-          React.createElement(
-            "div",
-            { style: { minWidth: 0, maxWidth: 420, width: "100%" } },
-            React.createElement(
-              "div",
-              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 3, fontFamily: FONT, textAlign: "right" } },
-              "Áp dụng combo dịch vụ (tuỳ chọn)",
-            ),
-            Select
-              ? React.createElement(Select, {
-                allowClear: false,
-                showSearch: true,
-                value: undefined,
-                placeholder: combos.length ? "Chọn combo..." : "Chưa có combo nào",
-                optionFilterProp: "label",
-                style: { width: "100%" },
-                disabled: !combos.length,
-                onSelect: (value) => onApplyCombo?.(value),
-                options: combos.map((c) => ({
-                  value: String(c.id),
-                  label: `${c.serviceComboType ? c.serviceComboType + " - " : ""}${c.comboName}`,
-                })),
-              })
-              : null,
-          ),
         ),
       ),
     ),
@@ -7919,6 +8749,86 @@ const ProjectCreateForm = () => {
       message.success(`Đã áp dụng combo "${combo.comboName}".`);
     },
     [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, currencies],
+  );
+
+  // Ad-hoc combo — a one-off bundle of services grouped under a single flat
+  // package price, built directly inside the Add Service modal (unlike
+  // applyCombo above, this is NOT backed by a serviceCombos catalog record:
+  // comboId stays null in the snapshot, only comboName + pricingSnapshot
+  // carry the traceability data). Mirrors applyCombo's row-building so
+  // ad-hoc rows behave identically to real-combo rows everywhere else
+  // (deleteRow, submit, task overview, re-apply replacing prior rows via
+  // _comboSourceId).
+  const applyAdhocCombo = useCallback(
+    (payload) => {
+      const items = payload?.items || [];
+      if (!items.length) return;
+      const comboName = String(payload?.comboName || "").trim();
+      const packageSubTotal = parseNum(payload?.packageSubTotal);
+      const packageVatRate = parseNum(payload?.packageVatRate);
+      const vndId = defaultCurrencyId;
+      const adhocComboId = `adhoc-${Date.now()}`;
+
+      const comboSnapshot = {
+        comboId: null,
+        comboName,
+        comboCode: null,
+        serviceComboType: null,
+        packageSubTotal,
+        packageVatRate,
+        currencyCode: DEFAULT_CURRENCY_CODE,
+        convertedPackageSubTotal: packageSubTotal,
+        convertedCurrencyCode: DEFAULT_CURRENCY_CODE,
+        appliedAt: new Date().toISOString(),
+        source: "adhoc",
+        items: items.map((item) => ({
+          serviceId: item.serviceId ? runtimeExtractId(item.serviceId) : null,
+          serviceName: item.serviceName || "",
+          quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
+        })),
+      };
+
+      const newRows = [];
+      items.forEach((item) => {
+        const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+        const itemTaskTemplates = normalizeCustomTaskTemplates(item.taskTemplates);
+        for (let i = 0; i < unitCount; i++) {
+          newRows.push({
+            _id: Date.now() + Math.random(),
+            serviceId: item.serviceId ? String(item.serviceId) : null,
+            serviceName: item.serviceName || "",
+            serviceType: item.serviceType || "",
+            description: item.description || "",
+            currencyId: vndId ? String(vndId) : null,
+            _sourceCurrencyId: vndId ? String(vndId) : null,
+            basePrice: 0,
+            vat: 0,
+            billingMode: BILLING_PACKAGE_INCLUDED,
+            financialSourceType: form.financialSourceType || SOURCE_NONE,
+            pricingMode: PRICING_MODE_PACKAGE,
+            _packageBasePrice: 0,
+            _comboSourceId: adhocComboId,
+            _comboName: comboName,
+            _comboSnapshot: comboSnapshot,
+            _customTaskTemplates: itemTaskTemplates,
+          });
+        }
+      });
+
+      setRows((p) => [...p.filter((r) => !r._comboSourceId), ...newRows]);
+      handlePackageSummaryChange("packageSubTotal", packageSubTotal);
+      handlePackageSummaryChange("packageVatRate", packageVatRate);
+      if (vndId) {
+        setForm((p) => ({ ...p, currencyId: String(vndId) }));
+      }
+      setComboConversionNote({
+        originalAmount: packageSubTotal,
+        currencyCode: DEFAULT_CURRENCY_CODE,
+        wasConverted: false,
+      });
+      message.success(`Đã áp dụng combo "${comboName}".`);
+    },
+    [defaultCurrencyId, form.financialSourceType, handlePackageSummaryChange],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
@@ -9941,6 +10851,7 @@ const ProjectCreateForm = () => {
         taskTemplates,
         combos,
         onApplyCombo: applyCombo,
+        onApplyAdhocCombo: applyAdhocCombo,
         comboConversionNote,
       }),
     ),
