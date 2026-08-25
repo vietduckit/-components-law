@@ -599,6 +599,28 @@ async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyI
   }
 }
 
+// Shared by applyCombo/applyAdhocCombo (real combo + ad-hoc combo builder):
+// combo pricing on the Case is always stored/displayed in VND, so a combo
+// whose own packageSubTotal is quoted in a different currency needs
+// converting before it lands in the Package Subtotal field. Returns the
+// original amount unchanged (wasConverted: false) when no conversion is
+// needed or no rate is found — callers keep showing the raw amount rather
+// than blocking the user, with a warning toast for the missing-rate case.
+async function convertComboSubTotalToVnd(subTotal, comboCurrencyId, vndId, pricingDate) {
+  if (!comboCurrencyId || !vndId || comboCurrencyId === vndId) {
+    return { convertedSubTotal: subTotal, wasConverted: false };
+  }
+  const rates = await fetchExchangeRatesForConversion([comboCurrencyId], vndId);
+  const matched = pickConversionRate(rates, comboCurrencyId, vndId, pricingDate);
+  if (matched?.rate > 0) {
+    return { convertedSubTotal: Math.round(subTotal * matched.rate), wasConverted: true };
+  }
+  message.warning(
+    "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.",
+  );
+  return { convertedSubTotal: subTotal, wasConverted: false };
+}
+
 // ── Fetch quotationServices by quotationId ──
 async function fetchProjectTemplates() {
   const candidates = ["projectTemplates:list", "taskTemplates:list", "taskTemplate:list"];
@@ -3759,6 +3781,9 @@ const ServicePickerModal = ({
   const [comboSearch, setComboSearch] = useState("");
   const [comboName, setComboName] = useState("");
   const [comboSubTotal, setComboSubTotal] = useState(0);
+  const [comboCurrencyId, setComboCurrencyId] = useState(
+    extractCurrencyId(currency) ? String(extractCurrencyId(currency)) : "",
+  );
   const [comboVatRate, setComboVatRate] = useState(0);
   const [comboItems, setComboItems] = useState([]);
   const [comboItemPick, setComboItemPick] = useState(undefined);
@@ -3786,7 +3811,12 @@ const ServicePickerModal = ({
     setNewSvc((prev) =>
       prev.currencyId ? prev : { ...prev, currencyId: String(defaultCurrencyId) },
     );
+    setComboCurrencyId((prev) => (prev ? prev : String(defaultCurrencyId)));
   }, [currency]);
+
+  const selectedComboCurrency =
+    findCurrencyById(currencies, comboCurrencyId) ||
+    (extractCurrencyId(currency) ? currency : null);
 
   const companyScopedSvcOpts = useMemo(
     () =>
@@ -3912,9 +3942,11 @@ const ServicePickerModal = ({
       ),
     );
   };
-  const handleApplyAdhocCombo = () => {
+  const handleApplyAdhocCombo = async () => {
     const errs = {};
     if (!comboName.trim()) errs.comboName = "Please enter a combo name";
+    if (currencies.length && !extractCurrencyId(comboCurrencyId))
+      errs.comboCurrencyId = "Please select a currency";
     if (!comboItems.length) {
       errs.items = "Please add at least 1 service to the combo";
     } else {
@@ -3937,10 +3969,11 @@ const ServicePickerModal = ({
 
     setComboApplying(true);
     try {
-      onApplyAdhocCombo?.({
+      await onApplyAdhocCombo?.({
         comboName: comboName.trim(),
         packageSubTotal: comboSubTotal,
         packageVatRate: comboVatRate,
+        currencyId: extractCurrencyId(comboCurrencyId) || extractCurrencyId(currency),
         items: comboItems.map((it) => ({
           serviceId: it.serviceId,
           serviceName: it.serviceName.trim(),
@@ -4784,25 +4817,64 @@ const ServicePickerModal = ({
         ),
         React.createElement(
           "div",
-          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 20 } },
+          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 16, marginBottom: 20 } },
           React.createElement(
             "div",
             null,
-            React.createElement(
-              "div",
-              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel, marginBottom: 5 } },
-              "Package Subtotal",
-            ),
-            React.createElement(PriceInput, { value: comboSubTotal, onChange: setComboSubTotal, currency: defaultCurrencyObject() }),
+            renderNewSvcFieldLabel("Package Subtotal", false, null),
+            React.createElement(PriceInput, {
+              value: comboSubTotal,
+              onChange: setComboSubTotal,
+              currency: selectedComboCurrency,
+            }),
           ),
           React.createElement(
             "div",
             null,
-            React.createElement(
-              "div",
-              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel, marginBottom: 5 } },
-              "VAT %",
-            ),
+            renderNewSvcFieldLabel("Currency", !!currencies.length, null),
+            Select
+              ? React.createElement(Select, {
+                showSearch: true,
+                allowClear: false,
+                value: comboCurrencyId || undefined,
+                placeholder: currencies.length ? "Select currency" : "No currencies configured",
+                optionFilterProp: "label",
+                style: { width: "100%" },
+                onChange: (value) => setComboCurrencyId(value || ""),
+                options: currencies.map((item) => ({
+                  value: String(item.id),
+                  label: currencySelectLabel(item),
+                })),
+                disabled: !currencies.length,
+              })
+              : React.createElement(
+                "select",
+                {
+                  value: comboCurrencyId || "",
+                  onChange: (e) => setComboCurrencyId(e.target.value || ""),
+                  style: inp(),
+                  disabled: !currencies.length,
+                },
+                React.createElement("option", { value: "" }, "Select currency"),
+                ...currencies.map((item) =>
+                  React.createElement(
+                    "option",
+                    { key: item.id, value: item.id },
+                    currencySelectLabel(item),
+                  ),
+                ),
+              ),
+            comboErrors.comboCurrencyId &&
+              React.createElement(
+                "div",
+                { style: { color: C.danger, fontSize: 11.5, marginTop: 4 } },
+                comboErrors.comboCurrencyId,
+              ),
+          ),
+          React.createElement(
+            "div",
+            null,
+            renderNewSvcFieldLabel("VAT %", false, null),
             React.createElement("input", {
               type: "number",
               min: 0,
@@ -8696,18 +8768,12 @@ const ProjectCreateForm = () => {
       // currency (serviceCombos.currencyId / currencies, when configured).
       const vndId = defaultCurrencyId;
       const comboCurrencyId = getRecordCurrencyId(combo);
-      let convertedSubTotal = parseNum(combo.packageSubTotal);
-      if (comboCurrencyId && vndId && comboCurrencyId !== vndId) {
-        const rates = await fetchExchangeRatesForConversion([comboCurrencyId], vndId);
-        const matched = pickConversionRate(rates, comboCurrencyId, vndId, form.date);
-        if (matched?.rate > 0) {
-          convertedSubTotal = Math.round(convertedSubTotal * matched.rate);
-        } else {
-          message.warning(
-            "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.",
-          );
-        }
-      }
+      const { convertedSubTotal, wasConverted: comboWasConverted } = await convertComboSubTotalToVnd(
+        parseNum(combo.packageSubTotal),
+        comboCurrencyId,
+        vndId,
+        form.date,
+      );
 
       // Full snapshot of the combo as it was at the moment it was applied —
       // stored on every row created from it (pricingSnapshot JSON column),
@@ -8795,7 +8861,7 @@ const ProjectCreateForm = () => {
       setComboConversionNote({
         originalAmount: parseNum(combo.packageSubTotal),
         currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
-        wasConverted: !!(comboCurrencyId && vndId && comboCurrencyId !== vndId),
+        wasConverted: comboWasConverted,
       });
       message.success(`Applied combo "${combo.comboName}".`);
     },
@@ -8811,7 +8877,7 @@ const ProjectCreateForm = () => {
   // (deleteRow, submit, task overview, re-apply replacing prior rows via
   // _comboSourceId).
   const applyAdhocCombo = useCallback(
-    (payload) => {
+    async (payload) => {
       const items = payload?.items || [];
       if (!items.length) return;
       const comboName = String(payload?.comboName || "").trim();
@@ -8820,6 +8886,17 @@ const ProjectCreateForm = () => {
       const vndId = defaultCurrencyId;
       const adhocComboId = `adhoc-${Date.now()}`;
 
+      const comboCurrencyId = extractCurrencyId(payload?.currencyId) || vndId;
+      const comboCurrencyCode = getCurrencyCode(
+        findCurrencyById(currencies, comboCurrencyId) || defaultCurrencyObject(),
+      );
+      const { convertedSubTotal, wasConverted: comboWasConverted } = await convertComboSubTotalToVnd(
+        packageSubTotal,
+        comboCurrencyId,
+        vndId,
+        form.date,
+      );
+
       const comboSnapshot = {
         comboId: null,
         comboName,
@@ -8827,8 +8904,8 @@ const ProjectCreateForm = () => {
         serviceComboType: null,
         packageSubTotal,
         packageVatRate,
-        currencyCode: DEFAULT_CURRENCY_CODE,
-        convertedPackageSubTotal: packageSubTotal,
+        currencyCode: comboCurrencyCode,
+        convertedPackageSubTotal: convertedSubTotal,
         convertedCurrencyCode: DEFAULT_CURRENCY_CODE,
         appliedAt: new Date().toISOString(),
         source: "adhoc",
@@ -8874,19 +8951,19 @@ const ProjectCreateForm = () => {
         ...(wasPackageMode ? p.filter((r) => !r._comboSourceId) : []),
         ...newRows,
       ]);
-      handlePackageSummaryChange("packageSubTotal", packageSubTotal);
+      handlePackageSummaryChange("packageSubTotal", convertedSubTotal);
       handlePackageSummaryChange("packageVatRate", packageVatRate);
       if (vndId) {
         setForm((p) => ({ ...p, currencyId: String(vndId) }));
       }
       setComboConversionNote({
         originalAmount: packageSubTotal,
-        currencyCode: DEFAULT_CURRENCY_CODE,
-        wasConverted: false,
+        currencyCode: comboCurrencyCode,
+        wasConverted: comboWasConverted,
       });
       message.success(`Applied combo "${comboName}".`);
     },
-    [defaultCurrencyId, form.financialSourceType, form.pricingMode, handlePackageSummaryChange],
+    [defaultCurrencyId, form.date, form.financialSourceType, form.pricingMode, handlePackageSummaryChange, currencies],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
