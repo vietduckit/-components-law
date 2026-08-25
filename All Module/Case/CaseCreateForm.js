@@ -4511,10 +4511,19 @@ const ServicePickerModal = ({
       null,
       React.createElement(
         "div",
-        { style: { padding: "12px 20px", borderBottom: `1px solid #f3f4f6`, flexShrink: 0 } },
+        {
+          style: {
+            padding: "12px 20px",
+            borderBottom: `1px solid #f3f4f6`,
+            flexShrink: 0,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          },
+        },
         React.createElement(
           "div",
-          { style: { position: "relative" } },
+          { style: { position: "relative", flex: 1 } },
           React.createElement(
             "span",
             {
@@ -4541,6 +4550,28 @@ const ServicePickerModal = ({
             onFocus,
             onBlur,
           }),
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => setComboTab("create"),
+            style: {
+              border: `1px dashed ${C.primary}`,
+              background: "#fff",
+              color: C.primary,
+              borderRadius: 6,
+              padding: "0 14px",
+              height: 32,
+              cursor: "pointer",
+              fontSize: 12.5,
+              fontWeight: 600,
+              fontFamily: FONT,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+            },
+          },
+          "+ Create new combo",
         ),
       ),
       React.createElement(
@@ -5006,8 +5037,8 @@ const ServicePickerModal = ({
             value: mode,
             onChange: (value) => setMode(value),
             options: [
-              { value: "individual", label: "Individual service" },
-              { value: "combo", label: "Combo service" },
+              { value: "individual", label: "Individual pricing" },
+              { value: "combo", label: "Combo pricing" },
             ],
             style: { width: "100%", maxWidth: 360 },
           })
@@ -5024,8 +5055,8 @@ const ServicePickerModal = ({
               },
             },
             [
-              ["individual", "Individual service"],
-              ["combo", "Combo service"],
+              ["individual", "Individual pricing"],
+              ["combo", "Combo pricing"],
             ].map(([m, label]) =>
               React.createElement(
                 "button",
