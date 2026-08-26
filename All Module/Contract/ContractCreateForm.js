@@ -5913,7 +5913,7 @@ const ManualContractServicesSection = ({
       React.createElement(
         "div",
         { style: { display: "flex", alignItems: "center", gap: 10, flexShrink: 0 } },
-        combo &&
+        combo?.convertedAmount !== undefined &&
           React.createElement(
             "span",
             { style: { fontSize: 12, color: C.sub } },
@@ -5921,7 +5921,13 @@ const ManualContractServicesSection = ({
               ? `${combo.originalAmount.toLocaleString("vi-VN")} ${combo.currencyCode} → ${formatMoneyByCurrency(combo.convertedAmount, defaultCurrency)}`
               : formatMoneyByCurrency(combo.convertedAmount, defaultCurrency),
           ),
+        // A combo group loaded from an existing Case/Quotation (persisted
+        // comboId/comboName, no real _comboInstanceId in appliedCombos) is
+        // read-only here — same as every other pre-loaded service line —
+        // so neither action applies to it. Editing/removing that combo
+        // happens post-creation via ContractServices.js instead.
         onAddServiceToCombo &&
+          !String(instanceId).startsWith("persisted-") &&
           React.createElement(
             "button",
             {
@@ -5946,6 +5952,7 @@ const ManualContractServicesSection = ({
             "+ Add service",
           ),
         onRemoveCombo &&
+          !String(instanceId).startsWith("persisted-") &&
           React.createElement(
             "button",
             {
