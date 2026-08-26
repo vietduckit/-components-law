@@ -125,6 +125,18 @@ const lineKey = (line) => {
   return String(line?.id || "");
 };
 
+// Group key for a combo section header, for a row that was NOT applied
+// fresh in this session (no _comboInstanceId) but carries the persisted
+// comboId/comboName from its source Case/Quotation. Always prefixed with
+// "persisted-" so callers can tell it apart from a real appliedCombos
+// instanceId without a lookup.
+const getPersistedComboGroupKey = (row) =>
+  row?.comboId
+    ? `persisted-id-${row.comboId}`
+    : row?.comboName
+      ? `persisted-name-${row.comboName}`
+      : null;
+
 const parseNum = (value) => {
   const n = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -5716,7 +5728,7 @@ const ManualContractServicesSection = ({
 
   const renderSelectedServiceButton = (row) => {
     const typeLabel = row.serviceType || "";
-    if (readOnlyServices) {
+    if (readOnlyServices && !row._isManualAddition) {
       return React.createElement(
         "div",
         {
@@ -5921,13 +5933,7 @@ const ManualContractServicesSection = ({
               ? `${combo.originalAmount.toLocaleString("vi-VN")} ${combo.currencyCode} → ${formatMoneyByCurrency(combo.convertedAmount, defaultCurrency)}`
               : formatMoneyByCurrency(combo.convertedAmount, defaultCurrency),
           ),
-        // A combo group loaded from an existing Case/Quotation (persisted
-        // comboId/comboName, no real _comboInstanceId in appliedCombos) is
-        // read-only here — same as every other pre-loaded service line —
-        // so neither action applies to it. Editing/removing that combo
-        // happens post-creation via ContractServices.js instead.
         onAddServiceToCombo &&
-          !String(instanceId).startsWith("persisted-") &&
           React.createElement(
             "button",
             {
@@ -5952,7 +5958,6 @@ const ManualContractServicesSection = ({
             "+ Add service",
           ),
         onRemoveCombo &&
-          !String(instanceId).startsWith("persisted-") &&
           React.createElement(
             "button",
             {
@@ -6892,20 +6897,11 @@ const ManualContractServicesSection = ({
                 // persisted comboId/comboName — group by whichever is
                 // present so the section header shows for both.
                 const rowComboGroupKey =
-                  row._comboInstanceId ||
-                  (row.comboId
-                    ? `persisted-id-${row.comboId}`
-                    : row.comboName
-                      ? `persisted-name-${row.comboName}`
-                      : null);
+                  row._comboInstanceId || getPersistedComboGroupKey(row);
                 const prevRow = rows[rowIndex - 1];
                 const prevComboGroupKey = prevRow
                   ? prevRow._comboInstanceId ||
-                    (prevRow.comboId
-                      ? `persisted-id-${prevRow.comboId}`
-                      : prevRow.comboName
-                        ? `persisted-name-${prevRow.comboName}`
-                        : null)
+                    getPersistedComboGroupKey(prevRow)
                   : null;
                 const isComboSectionStart =
                   !!rowComboGroupKey && rowComboGroupKey !== prevComboGroupKey;
@@ -9278,7 +9274,18 @@ const ContractCreateForm = () => {
     const selectedLines = lines.filter((line) =>
       uniqueIds.includes(lineKey(line)),
     );
-    const totals = sumServiceLines(selectedLines);
+    // Manually-added rows (individual or combo "+ Add service", now usable
+    // alongside pre-loaded lines) contribute too — package-mode ones are
+    // always 0 by convention, so this only actually changes anything in
+    // line mode.
+    const lineOnlyTotals = sumServiceLines(selectedLines);
+    const manualTotals = manualServiceRowsTotals(manualServiceRows);
+    const totals = {
+      subTotal: lineOnlyTotals.subTotal + manualTotals.subTotal,
+      vatAmount: lineOnlyTotals.vatAmount + manualTotals.vatAmount,
+      totalAmount: lineOnlyTotals.totalAmount + manualTotals.totalAmount,
+    };
+    const hasAnySelection = selectedLines.length || manualServiceRows.length;
     const packageSource =
       selectedLines.find(isPackageSource) || selectedQuotation;
     const packageMode =
@@ -9315,16 +9322,16 @@ const ContractCreateForm = () => {
                 : "8",
           )
         : prev.packageVatRate,
-      fixedAmount: selectedLines.length
+      fixedAmount: hasAnySelection
         ? String(packageMode ? packageAmounts.totalAmount : totals.totalAmount)
         : prev.fixedAmount,
-      subTotal: selectedLines.length
+      subTotal: hasAnySelection
         ? String(packageMode ? packageAmounts.subTotal : totals.subTotal)
         : prev.subTotal,
-      vatAmount: selectedLines.length
+      vatAmount: hasAnySelection
         ? String(packageMode ? packageAmounts.vatAmount : totals.vatAmount)
         : prev.vatAmount,
-      totalAmount: selectedLines.length
+      totalAmount: hasAnySelection
         ? String(packageMode ? packageAmounts.totalAmount : totals.totalAmount)
         : prev.totalAmount,
     }));
@@ -9374,7 +9381,59 @@ const ContractCreateForm = () => {
     [selectedCaseServiceLines],
   );
 
+  // Combines pre-loaded rows with manually-added ones (individual or via a
+  // combo's own "+ Add service") for the services table. A manual row
+  // tagged with a "persisted-*" _comboInstanceId (added into a combo
+  // section that came from the source Case/Quotation, not applied fresh in
+  // this session — see onAddServiceToCombo) is spliced in right after that
+  // section's last pre-loaded row so it renders inside the section instead
+  // of trailing after every case row as a stray duplicate section. Rows
+  // added fresh this session (real appliedCombos instanceId, or untagged)
+  // are simply appended at the end, same as before.
+  const mergedServiceRows = useMemo(() => {
+    const taggedManual = manualServiceRows.map((row) => ({
+      ...row,
+      _isManualAddition: true,
+    }));
+    const persistedInstanceIds = Array.from(
+      new Set(
+        taggedManual
+          .filter((row) =>
+            String(row._comboInstanceId || "").startsWith("persisted-"),
+          )
+          .map((row) => row._comboInstanceId),
+      ),
+    );
+    const result = [...caseServiceEditorRows];
+    persistedInstanceIds.forEach((instanceId) => {
+      const rowsForInstance = taggedManual.filter(
+        (row) => row._comboInstanceId === instanceId,
+      );
+      let insertAt = result.length;
+      for (let i = result.length - 1; i >= 0; i--) {
+        if (getPersistedComboGroupKey(result[i]) === instanceId) {
+          insertAt = i + 1;
+          break;
+        }
+      }
+      result.splice(insertAt, 0, ...rowsForInstance);
+    });
+    const freshManualRows = taggedManual.filter(
+      (row) => !String(row._comboInstanceId || "").startsWith("persisted-"),
+    );
+    return [...result, ...freshManualRows];
+  }, [caseServiceEditorRows, manualServiceRows]);
+
   const removeCaseServiceLineRow = (rowId) => {
+    // At least one pre-loaded service must stay selected — otherwise
+    // there'd be no reason this contract is linked to that Case/Quotation
+    // at all. Removing extra manually-added services has no such limit.
+    if (selectedServiceIds.length <= 1) {
+      message.warning(
+        "Cần giữ lại ít nhất 1 dịch vụ từ Case/Quotation nguồn.",
+      );
+      return;
+    }
     applyServiceSelection(
       selectedServiceIds.filter((id) => String(id) !== String(rowId)),
     );
@@ -9895,7 +9954,19 @@ const ContractCreateForm = () => {
   }, [form.subTotal, form.fixedAmount, form.packageVatRate]);
 
   const syncManualLineTotals = (rows) => {
-    const totals = manualServiceRowsTotals(rows);
+    const manualTotals = manualServiceRowsTotals(rows);
+    // Case/quotation-loaded lines (selectedCaseServiceLines) contribute too
+    // now that both sources can coexist — package-mode case lines are
+    // excluded (this function is only ever called while pricingMode is
+    // "line", so a case-driven package total would be wrong here anyway).
+    const caseTotals = sumServiceLines(
+      selectedCaseServiceLines.filter((line) => !isPackageSource(line)),
+    );
+    const totals = {
+      subTotal: manualTotals.subTotal + caseTotals.subTotal,
+      vatAmount: manualTotals.vatAmount + caseTotals.vatAmount,
+      totalAmount: manualTotals.totalAmount + caseTotals.totalAmount,
+    };
     setForm((prev) => ({
       ...prev,
       pricingMode: "line",
@@ -10121,6 +10192,35 @@ const ContractCreateForm = () => {
   // applied combo — see applyCombo/applyAdhocCombo — so removing one
   // subtracts back only the amount that combo itself added).
   const removeAppliedCombo = (instanceId) => {
+    // A combo section loaded from an existing Case/Quotation has no
+    // appliedCombos entry (its "price" is whatever fraction of the
+    // case/quotation's own package total those lines represent, not a
+    // separately-tracked running sum) — remove it by deselecting its
+    // pre-loaded lines instead, same mechanism as removeCaseServiceLineRow.
+    // applyServiceSelection recomputes form totals from what stays
+    // selected, so no manual subtotal math is needed here.
+    if (String(instanceId).startsWith("persisted-")) {
+      const groupLineIds = serviceLines
+        .filter((line) => getPersistedComboGroupKey(line) === instanceId)
+        .map((line) => lineKey(line));
+      const nextSelectedIds = selectedServiceIds.filter(
+        (id) => !groupLineIds.includes(id),
+      );
+      const keepsAtLeastOneSourceLine = nextSelectedIds.some((id) =>
+        serviceLines.some((line) => lineKey(line) === id),
+      );
+      if (groupLineIds.length && !keepsAtLeastOneSourceLine) {
+        message.warning(
+          "Cần giữ lại ít nhất 1 dịch vụ từ Case/Quotation nguồn.",
+        );
+        return;
+      }
+      applyServiceSelection(nextSelectedIds);
+      setManualServiceRows((prev) =>
+        prev.filter((r) => r._comboInstanceId !== instanceId),
+      );
+      return;
+    }
     const entry = appliedCombos.find((c) => c.instanceId === instanceId);
     if (!entry) return;
     setManualServiceRows((prev) => prev.filter((r) => r._comboInstanceId !== instanceId));
@@ -10137,7 +10237,12 @@ const ContractCreateForm = () => {
   // one (re-picking an existing row's service is a separate, unchanged
   // path via selectManualService/createManualContractServiceDraft).
   const addRowFromService = (value, isCreate = false) => {
-    if (findDuplicateServiceRow(manualServiceRows, { serviceId: value.serviceId, serviceName: value.serviceName })) {
+    if (
+      findDuplicateServiceRow(
+        [...manualServiceRows, ...caseServiceEditorRows],
+        { serviceId: value.serviceId, serviceName: value.serviceName },
+      )
+    ) {
       message.warning("This service is already added in the contract.");
       return;
     }
@@ -10173,12 +10278,27 @@ const ContractCreateForm = () => {
   // on the combo's existing flat package price, it does not add its own
   // charge.
   const onAddServiceToCombo = (instanceId, value) => {
-    if (findDuplicateServiceRow(manualServiceRows, { serviceId: value.serviceId, serviceName: value.serviceName })) {
+    if (
+      findDuplicateServiceRow(
+        [...manualServiceRows, ...caseServiceEditorRows],
+        { serviceId: value.serviceId, serviceName: value.serviceName },
+      )
+    ) {
       message.warning("This service is already added in the contract.");
       return;
     }
     const siblingRow = manualServiceRows.find((r) => r._comboInstanceId === instanceId);
     const comboEntry = appliedCombos.find((c) => c.instanceId === instanceId);
+    // A combo section loaded from an existing Case/Quotation (instanceId
+    // starts with "persisted-") has no appliedCombos/manualServiceRows
+    // entry to read comboId/comboName from — resolve them from one of its
+    // pre-loaded rows instead.
+    const persistedSourceLine =
+      !siblingRow && !comboEntry
+        ? serviceLines.find(
+            (line) => getPersistedComboGroupKey(line) === instanceId,
+          )
+        : null;
     const vndId = extractCurrencyId(findDefaultCurrency(currencies)?.id);
     const newRow = {
       ...newManualServiceRow(),
@@ -10190,8 +10310,16 @@ const ContractCreateForm = () => {
       basePrice: "",
       vat: "0",
       _comboInstanceId: instanceId,
-      _comboCatalogId: siblingRow?._comboCatalogId ?? null,
-      _comboName: siblingRow?._comboName || comboEntry?.comboName || "",
+      _comboCatalogId:
+        siblingRow?._comboCatalogId ??
+        (persistedSourceLine?.comboId
+          ? String(persistedSourceLine.comboId)
+          : null),
+      _comboName:
+        siblingRow?._comboName ||
+        comboEntry?.comboName ||
+        persistedSourceLine?.comboName ||
+        "",
     };
     // Insert right after this combo's own last row, not at the end of the
     // whole list — appending unconditionally would land the new row after
@@ -10289,6 +10417,42 @@ const ContractCreateForm = () => {
       return next;
     });
   };
+
+  // Edits a field on a pre-loaded (Case/Quotation-sourced) row in place —
+  // the manual-rows counterpart of updateManualServiceRow. Recomputes
+  // subTotal/vatAmount/totalAmount when a pricing-driving field changes, then
+  // re-syncs the form header totals via applyServiceSelection (same pattern
+  // handleProjectChange already uses after loadCaseServiceLines).
+  const updateCaseServiceLineRow = (rowId, field, value) => {
+    const pricingFields = ["basePrice", "vat", "quantity"];
+    const nextLines = serviceLines.map((line) => {
+      if (lineKey(line) !== rowId) return line;
+      const patched = { ...line, [field]: value };
+      return pricingFields.includes(field)
+        ? { ...patched, ...resolveServiceAmounts(patched) }
+        : patched;
+    });
+    setServiceLines(nextLines);
+    applyServiceSelection(selectedServiceIds, nextLines);
+  };
+
+  // A row rendered by ManualContractServicesSection is either a pre-loaded
+  // Case/Quotation line (tagged nowhere explicitly — identified here by NOT
+  // being in manualServiceRows) or one added in this session
+  // (_isManualAddition, present in manualServiceRows). Route delete/update
+  // to whichever backing state actually owns that row.
+  const isManualServiceRowId = (rowId) =>
+    manualServiceRows.some((row) => row.id === rowId);
+
+  const dispatchDeleteServiceRow = (rowId) =>
+    isManualServiceRowId(rowId)
+      ? deleteManualServiceRow(rowId)
+      : removeCaseServiceLineRow(rowId);
+
+  const dispatchUpdateServiceRow = (rowId, field, value) =>
+    isManualServiceRowId(rowId)
+      ? updateManualServiceRow(rowId, field, value)
+      : updateCaseServiceLineRow(rowId, field, value);
 
   const selectManualService = (rowId, serviceId, serviceOverride = null) => {
     const service =
@@ -10953,11 +11117,16 @@ const ContractCreateForm = () => {
     if (serviceLines.length && !selectedContractServiceLines.length) {
       return "Please select at least one service for this contract.";
     }
-    if (!serviceLines.length && manualServiceRows.length) {
+    if (manualServiceRows.length) {
       if (manualServiceRows.some((row) => !row.serviceName && !row.serviceId)) {
         return "Please select a service for every contract service row.";
       }
-      const selectedManualServiceIds = manualServiceRows
+      // Compare against pre-loaded Case/Quotation rows too, now that both
+      // sources can be on the contract at once — not just manual-vs-manual.
+      const selectedManualServiceIds = [
+        ...manualServiceRows,
+        ...caseServiceEditorRows,
+      ]
         .map((row) => String(row.serviceId || ""))
         .filter(Boolean);
       if (
@@ -10966,7 +11135,10 @@ const ContractCreateForm = () => {
       ) {
         return "Duplicate services are not allowed in contract service rows.";
       }
-      const manualServiceNames = manualServiceRows
+      const manualServiceNames = [
+        ...manualServiceRows,
+        ...caseServiceEditorRows,
+      ]
         .map((row) =>
           normalizeSearch(row.serviceName).replace(/\s+/g, " ").trim(),
         )
@@ -11062,9 +11234,12 @@ const ContractCreateForm = () => {
               packageTotalAmount: form.totalAmount || form.fixedAmount,
             }
           : null;
-      const manualServiceRowsForSubmit = serviceLines.length
-        ? []
-        : manualServiceRows.filter((row) => row.serviceName || row.serviceId);
+      // Both sources can now hold rows at once (a pre-loaded Case/Quotation
+      // line list plus services added fresh in this session) — no longer
+      // mutually exclusive on serviceLines.length.
+      const manualServiceRowsForSubmit = manualServiceRows.filter(
+        (row) => row.serviceName || row.serviceId,
+      );
       const contractKind =
         form.contractKind || (parentId ? "appendix" : "main");
       const finalContractCode =
@@ -11090,12 +11265,13 @@ const ContractCreateForm = () => {
                 totalAmount: form.totalAmount || form.fixedAmount,
               },
             ]
-          : serviceLines.length
-            ? serviceLinesForSubmit
-            : manualServiceRowsForSubmit.map((row) => ({
+          : [
+              ...serviceLinesForSubmit,
+              ...manualServiceRowsForSubmit.map((row) => ({
                 ...row,
                 ...manualServiceLineAmounts(row, false),
-              }));
+              })),
+            ];
       const preliminarySummary = buildContractFinancialSummary({
         rows: pricingRowsForSummary,
         currencies,
@@ -11766,9 +11942,14 @@ const ContractCreateForm = () => {
               ),
 
               React.createElement(ManualContractServicesSection, {
-                rows: serviceLines.length
-                  ? caseServiceEditorRows
-                  : manualServiceRows,
+                // Services pre-loaded from an existing Case/Quotation and
+                // services added fresh in this session now coexist — a
+                // manually-added row is tagged _isManualAddition so the
+                // dispatchers below (and the per-row read-only check) can
+                // tell the two apart without needing a table-wide either/or.
+                // mergedServiceRows also splices persisted-combo additions
+                // into their section instead of trailing at the bottom.
+                rows: mergedServiceRows,
                 services: filteredServiceOptions,
                 pricingMode: form.pricingMode,
                 packageVatRate: form.packageVatRate,
@@ -11777,9 +11958,8 @@ const ContractCreateForm = () => {
                 currencyOptions: currencyOptions,
                 selectedCurrency: selectedCurrency,
                 readOnlyServices: !!serviceLines.length,
-                showAddRow: !serviceLines.length,
-                allowDelete:
-                  !serviceLines.length || selectedServiceIds.length > 1,
+                showAddRow: true,
+                allowDelete: true,
                 onPricingModeChange: handleManualPricingModeChange,
                 onPackageSubTotalChange: (value) =>
                   syncPackageTotals(value, form.packageVatRate),
@@ -11790,20 +11970,12 @@ const ContractCreateForm = () => {
                 onApplyAdhocCombo: applyAdhocCombo,
                 appliedCombos,
                 onRemoveCombo: removeAppliedCombo,
-                onAddServiceToCombo: serviceLines.length ? undefined : onAddServiceToCombo,
-                onAddFromService: serviceLines.length ? undefined : addRowFromService,
-                onDeleteRow: serviceLines.length
-                  ? removeCaseServiceLineRow
-                  : deleteManualServiceRow,
-                onUpdateRow: serviceLines.length
-                  ? updateCaseServiceLineRow
-                  : updateManualServiceRow,
-                onSelectService: serviceLines.length
-                  ? undefined
-                  : selectManualService,
-                onCreateManualService: serviceLines.length
-                  ? undefined
-                  : createManualContractServiceDraft,
+                onAddServiceToCombo: onAddServiceToCombo,
+                onAddFromService: addRowFromService,
+                onDeleteRow: dispatchDeleteServiceRow,
+                onUpdateRow: dispatchUpdateServiceRow,
+                onSelectService: selectManualService,
+                onCreateManualService: createManualContractServiceDraft,
                 onCurrencyChange: (value) => setF("currencyId", value || null),
               }),
 
