@@ -110,6 +110,21 @@ const extractFirstId = (value) => {
   return extractId(value);
 };
 
+// Unique identity for a service line in the "select which services to
+// bring into this Contract" picker. Most lines are anchored to a real
+// projectServices row (a Case exists) and key off projectServiceId, same
+// as before this helper existed. A Quotation with no linked Case has no
+// projectServices at all, so its lines are keyed off quotationServiceId
+// instead (prefixed to avoid ever colliding with a numeric
+// projectServiceId string).
+const lineKey = (line) => {
+  const psId = extractId(line?.projectServiceId);
+  if (psId) return String(psId);
+  const qsId = extractId(line?.quotationServiceId);
+  if (qsId) return `qsvc-${qsId}`;
+  return String(line?.id || "");
+};
+
 const parseNum = (value) => {
   const n = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -1537,7 +1552,13 @@ const normalizeServiceLine = ({
   project,
 }) => {
   const projectServiceId = extractId(projectService?.id);
-  if (!projectServiceId) return null;
+  const quotationServiceIdForLine = extractId(quotationService?.id);
+  // A Quotation with no linked Case has no projectServices row to anchor
+  // to — such a line is still valid as long as it has its own
+  // quotationService. projectServiceId then stays null throughout (used
+  // downstream to skip the "sync back to projectServices" step, since
+  // there's nothing to sync).
+  if (!projectServiceId && !quotationServiceIdForLine) return null;
   const contractId = firstId(
     projectService?.contractId,
     projectService?.contracts,
@@ -1601,7 +1622,7 @@ const normalizeServiceLine = ({
     (serviceId ? `Service #${serviceId}` : "Dịch vụ");
 
   return {
-    id: String(projectServiceId),
+    id: String(projectServiceId || `qsvc-${quotationServiceIdForLine}`),
     projectServiceId,
     quotationServiceId:
       extractId(quotationService?.id) ||
@@ -4117,7 +4138,7 @@ const ServiceLinesSection = ({
   if (!lines.length) return null;
   const selectableCount = lines.filter((line) => !line.locked).length;
   const selectedTotals = sumServiceLines(
-    lines.filter((line) => selectedIds.includes(String(line.projectServiceId))),
+    lines.filter((line) => selectedIds.includes(lineKey(line))),
   );
   const defaultCurrency = selectedCurrency || findDefaultCurrency(currencies);
   const serviceTableColumns =
@@ -4330,9 +4351,11 @@ const ServiceLinesSection = ({
             ),
           ),
           lines.map((line) => {
-            const checked = selectedIds.includes(String(line.projectServiceId));
-            const isEditing = editingId === line.projectServiceId;
-            const isSaving = savingId === line.projectServiceId;
+            const checked = selectedIds.includes(lineKey(line));
+            const isEditing =
+              line.projectServiceId && editingId === line.projectServiceId;
+            const isSaving =
+              line.projectServiceId && savingId === line.projectServiceId;
             const lineCurrency = currencyFromRecord(
               line,
               currencies,
@@ -4632,22 +4655,24 @@ const ServiceLinesSection = ({
                           : CheckIcon,
                       ),
                     )
-                  : React.createElement(
-                      "button",
-                      {
-                        onClick: () => handleEdit(line),
-                        title: "Sửa dịch vụ",
-                        style: {
-                          border: "1px solid #d9d9d9",
-                          background: "#fff",
-                          cursor: "pointer",
-                          padding: "4px 6px",
-                          borderRadius: 4,
-                          color: C.text,
-                        },
-                      },
-                      EditIcon,
-                    ),
+                  : (line.projectServiceId
+                      ? React.createElement(
+                          "button",
+                          {
+                            onClick: () => handleEdit(line),
+                            title: "Sửa dịch vụ",
+                            style: {
+                              border: "1px solid #d9d9d9",
+                              background: "#fff",
+                              cursor: "pointer",
+                              padding: "4px 6px",
+                              borderRadius: 4,
+                              color: C.text,
+                            },
+                          },
+                          EditIcon,
+                        )
+                      : null),
               ),
             );
           }),
@@ -7816,7 +7841,10 @@ const ContractCreateForm = () => {
     quotationId,
     knownQuotations = [],
   }) => {
-    if (!projectId && !preselectedProjectServiceId) {
+    // A Quotation created without a Case (e.g. from Leads) has no
+    // projectServices at all — quotationId alone must still be enough to
+    // load its own services below, not just projectId/preselectedProjectServiceId.
+    if (!projectId && !preselectedProjectServiceId && !quotationId) {
       setServiceLines([]);
       setSelectedServiceIds([]);
       return { lines: [], selectedIds: [] };
@@ -7979,55 +8007,81 @@ const ContractCreateForm = () => {
       projectRecord = await fetchRecord("projects:get", projectId);
     }
 
-    const lines = projectServices
-      .map((projectService) => {
-        const qSvcId = firstId(
-          projectService.quotationServiceId,
-          projectService.quotationServices,
-        );
-        const qId = firstId(
-          projectService.quotationId,
-          projectService.quotations,
-          quotationId,
-          knownQuotationService?.quotationId,
-          knownQuotationService?.quotations,
-          knownQuotation?.id,
-        );
-        const serviceId = firstId(
-          projectService.serviceId,
-          projectService.services,
-        );
-        const serviceName = String(
-          projectService.serviceName ||
-            projectService.services?.serviceName ||
-            projectService.name ||
-            "",
-        )
-          .toLowerCase()
-          .trim();
-        const quotationService =
-          (qSvcId && qSvcById[String(qSvcId)]) ||
-          (qId && serviceId && qSvcByQuoteService[`${qId}:${serviceId}`]) ||
-          (qId && serviceName && qSvcByQuoteName[`${qId}:${serviceName}`]) ||
-          null;
-        return normalizeServiceLine({
-          projectService,
-          quotationService,
-          quotation:
-            quoteMap[
-              String(
-                firstId(
-                  quotationService?.quotationId,
-                  quotationService?.quotations,
-                  qId,
-                ),
-              )
-            ],
-          contractService: contractByProjectService[String(projectService.id)],
-          project: projectRecord,
-        });
-      })
-      .filter(Boolean);
+    // A Quotation with no linked Case has zero projectServices — fall back
+    // to building lines straight from its own quotationServices so the
+    // picker isn't left empty. When a Case IS linked, projectServices is
+    // always the source of truth (unchanged from before).
+    const lines = projectServices.length
+      ? projectServices
+          .map((projectService) => {
+            const qSvcId = firstId(
+              projectService.quotationServiceId,
+              projectService.quotationServices,
+            );
+            const qId = firstId(
+              projectService.quotationId,
+              projectService.quotations,
+              quotationId,
+              knownQuotationService?.quotationId,
+              knownQuotationService?.quotations,
+              knownQuotation?.id,
+            );
+            const serviceId = firstId(
+              projectService.serviceId,
+              projectService.services,
+            );
+            const serviceName = String(
+              projectService.serviceName ||
+                projectService.services?.serviceName ||
+                projectService.name ||
+                "",
+            )
+              .toLowerCase()
+              .trim();
+            const quotationService =
+              (qSvcId && qSvcById[String(qSvcId)]) ||
+              (qId && serviceId && qSvcByQuoteService[`${qId}:${serviceId}`]) ||
+              (qId && serviceName && qSvcByQuoteName[`${qId}:${serviceName}`]) ||
+              null;
+            return normalizeServiceLine({
+              projectService,
+              quotationService,
+              quotation:
+                quoteMap[
+                  String(
+                    firstId(
+                      quotationService?.quotationId,
+                      quotationService?.quotations,
+                      qId,
+                    ),
+                  )
+                ],
+              contractService:
+                contractByProjectService[String(projectService.id)],
+              project: projectRecord,
+            });
+          })
+          .filter(Boolean)
+      : quotationServices
+          .map((quotationService) =>
+            normalizeServiceLine({
+              projectService: null,
+              quotationService,
+              quotation:
+                quoteMap[
+                  String(
+                    firstId(
+                      quotationService?.quotationId,
+                      quotationService?.quotations,
+                      quotationId,
+                    ),
+                  )
+                ] || knownQuotation,
+              contractService: null,
+              project: null,
+            }),
+          )
+          .filter(Boolean);
 
     const selectable = lines.filter((line) => !line.locked);
     const rawPreselected =
@@ -8054,15 +8108,15 @@ const ContractCreateForm = () => {
       isPackageSource(knownQuotation) || selectable.some(isPackageSource);
     const selectedIds =
       sourcePackageMode && selectable.length
-        ? selectable.map((line) => String(line.projectServiceId))
+        ? selectable.map((line) => lineKey(line))
         : preselectedIds.length &&
             preselectedIds.some((id) =>
-              selectable.some((line) => String(line.projectServiceId) === id),
+              selectable.some((line) => lineKey(line) === id),
             )
           ? preselectedIds.filter((id) =>
-              selectable.some((line) => String(line.projectServiceId) === id),
+              selectable.some((line) => lineKey(line) === id),
             )
-          : selectable.map((line) => String(line.projectServiceId));
+          : selectable.map((line) => lineKey(line));
 
     setServiceLines(lines);
     setSelectedServiceIds(selectedIds);
@@ -8723,7 +8777,7 @@ const ContractCreateForm = () => {
           knownQuotations: quots,
         });
         const selectedServiceLines = serviceLineResult.lines.filter((line) =>
-          serviceLineResult.selectedIds.includes(String(line.projectServiceId)),
+          serviceLineResult.selectedIds.includes(lineKey(line)),
         );
         const selectedTotals = sumServiceLines(selectedServiceLines);
         const quotationAmounts = resolveServiceAmounts({
@@ -9168,7 +9222,7 @@ const ContractCreateForm = () => {
   const selectedContractServiceLines = useMemo(
     () =>
       serviceLines.filter((line) =>
-        selectedServiceIds.includes(String(line.projectServiceId)),
+        selectedServiceIds.includes(lineKey(line)),
       ),
     [serviceLines, selectedServiceIds],
   );
@@ -9191,7 +9245,7 @@ const ContractCreateForm = () => {
     );
     setSelectedServiceIds(uniqueIds);
     const selectedLines = lines.filter((line) =>
-      uniqueIds.includes(String(line.projectServiceId)),
+      uniqueIds.includes(lineKey(line)),
     );
     const totals = sumServiceLines(selectedLines);
     const packageSource =
@@ -9206,7 +9260,7 @@ const ContractCreateForm = () => {
       getRecordCurrencyId(firstLine) || getRecordCurrencyId(selectedQuotation);
     setForm((prev) => ({
       ...prev,
-      projectServiceId: firstLine
+      projectServiceId: firstLine?.projectServiceId
         ? String(firstLine.projectServiceId)
         : prev.projectServiceId,
       quotationServiceId: firstLine?.quotationServiceId
@@ -9247,7 +9301,7 @@ const ContractCreateForm = () => {
 
   const toggleServiceSelection = (line) => {
     if (!line || line.locked) return;
-    const id = String(line.projectServiceId);
+    const id = lineKey(line);
     const nextIds = selectedServiceIds.includes(id)
       ? selectedServiceIds.filter((item) => item !== id)
       : [...selectedServiceIds, id];
@@ -9258,7 +9312,7 @@ const ContractCreateForm = () => {
     applyServiceSelection(
       serviceLines
         .filter((line) => !line.locked)
-        .map((line) => line.projectServiceId),
+        .map((line) => lineKey(line)),
     );
   };
 
@@ -9274,7 +9328,7 @@ const ContractCreateForm = () => {
     () =>
       selectedCaseServiceLines.map((line) => ({
         ...line,
-        id: String(line.projectServiceId),
+        id: lineKey(line),
         serviceId: line.serviceId ? String(line.serviceId) : "",
         serviceName: line.serviceName || "",
         serviceType: line.serviceType || "",
@@ -10385,16 +10439,21 @@ const ContractCreateForm = () => {
     serviceLine,
     submitCurrencyId,
   }) => {
-    if (!contractId || !projectServiceId) return null;
+    // A line sourced from a Case-less Quotation has no projectServiceId at
+    // all — proceed as long as there's a resolvable quotationServiceId
+    // instead (the "no Case" fallback path). Only bail out when neither
+    // identity is available.
+    const fallbackQuotationServiceId =
+      quotationServiceId || extractId(serviceLine?.quotationServiceId);
+    if (!contractId || (!projectServiceId && !fallbackQuotationServiceId))
+      return null;
 
     const popupParams = getPopupParams();
-    const projectService = await fetchRecord(
-      "projectServices:get",
-      projectServiceId,
-      {
-        appends: ["services"],
-      },
-    );
+    const projectService = projectServiceId
+      ? await fetchRecord("projectServices:get", projectServiceId, {
+          appends: ["services"],
+        })
+      : null;
 
     let quotationService = null;
     const directQuotationServiceId =
@@ -11136,7 +11195,11 @@ const ContractCreateForm = () => {
       if (contractId && serviceLinesForSubmit.length) {
         for (const line of serviceLinesForSubmit) {
           const lineProjectServiceId = extractId(line.projectServiceId);
-          if (!lineProjectServiceId) continue;
+          const lineQuotationServiceId = extractId(line.quotationServiceId);
+          // A line sourced from a Case-less Quotation has no
+          // projectServiceId — still submittable as long as it has its own
+          // quotationServiceId (only skip lines with neither identity).
+          if (!lineProjectServiceId && !lineQuotationServiceId) continue;
           const contractServicePayload = await buildContractServicePayload({
             contractId,
             projectServiceId: lineProjectServiceId,
@@ -11190,10 +11253,14 @@ const ContractCreateForm = () => {
               delete projectServiceUpdatePayload[key];
           });
 
-          await updateProjectServiceLineSafely(
-            lineProjectServiceId,
-            projectServiceUpdatePayload,
-          );
+          // No projectServices row exists for a Case-less quotation line —
+          // nothing to sync back to.
+          if (lineProjectServiceId) {
+            await updateProjectServiceLineSafely(
+              lineProjectServiceId,
+              projectServiceUpdatePayload,
+            );
+          }
 
           const targetQuotationServiceId =
             extractId(contractServicePayload?.quotationServiceId) ||
@@ -11338,9 +11405,7 @@ const ContractCreateForm = () => {
       setServiceLines((prev) =>
         prev.map((line) =>
           serviceLinesForSubmit.some(
-            (selectedLine) =>
-              String(extractId(selectedLine.projectServiceId)) ===
-              String(line.projectServiceId),
+            (selectedLine) => lineKey(selectedLine) === lineKey(line),
           )
             ? {
                 ...line,
