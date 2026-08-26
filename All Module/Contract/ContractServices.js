@@ -1,6 +1,6 @@
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo } = React;
-const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme, Popconfirm } = ctx.antd;
+const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme, Popconfirm, Empty } = ctx.antd;
 const { Text } = Typography;
 
 const FONT = "inherit";
@@ -1167,6 +1167,123 @@ const ContractServicesBlock = () => {
 
   // Service selection modal states
   const [showSvcModal, setShowSvcModal] = useState(false);
+  const [showComboModal, setShowComboModal] = useState(false);
+  const [comboSubTab, setComboSubTab] = useState('select');
+  const [comboSearch, setComboSearch] = useState('');
+  const [adhocComboName, setAdhocComboName] = useState('');
+  const [adhocServiceIds, setAdhocServiceIds] = useState([]);
+  const [applyingCombo, setApplyingCombo] = useState(false);
+
+  const openComboModal = () => {
+    if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể thêm dịch vụ'); return; }
+    setComboSubTab('select');
+    setComboSearch('');
+    setAdhocComboName('');
+    setAdhocServiceIds([]);
+    setShowComboModal(true);
+  };
+
+  const convertComboSubTotalToVnd = async (subTotal, comboRecord) => {
+    const amt = parseNum(subTotal);
+    if (!amt) return 0;
+    const comboCurrency = currencyFromRecord(comboRecord, currencies, vndCurrency);
+    const comboCurrencyId = extractCurrencyId(comboCurrency);
+    const vndCurrencyId = extractCurrencyId(vndCurrency);
+    if (!comboCurrencyId || !vndCurrencyId || comboCurrencyId === vndCurrencyId) return amt;
+    const freshRates = await fetchExchangeRatesForConversion([comboCurrencyId], vndCurrencyId);
+    const mergedRates = [...exchangeRates, ...freshRates];
+    const pricing = buildServicePricingPayload({
+      pricingMode: PRICING_MODE_LINE,
+      basePrice: amt,
+      quantity: 1,
+      vat: 0,
+      currency: comboCurrency,
+      vndCurrency,
+      exchangeRatesToVnd: mergedRates,
+      pricingDate,
+    });
+    if (!pricing._convertible) {
+      message.error(`Thiếu tỷ giá quy đổi sang VND cho combo (${getCurrencyCode(comboCurrency)}).`);
+      return null;
+    }
+    return pricing.subTotal;
+  };
+
+  // Local-only: pushes rows into `rows` and bumps `packageSubTotal` state,
+  // exactly like addRow already does for a single service — nothing hits
+  // the API until the existing "Save & Update contract" button.
+  const applyComboFromCatalog = async (combo) => {
+    const items = combo.serviceComboItems || [];
+    if (!items.length) { message.warning('This combo has no services.'); return; }
+    setApplyingCombo(true);
+    try {
+      const comboIdVal = extractId(combo.id);
+      const comboSubTotalVnd = await convertComboSubTotalToVnd(combo.packageSubTotal, combo);
+      if (comboSubTotalVnd === null) return;
+
+      const vndCurrencyId = extractCurrencyId(vndCurrency);
+      const newRows = [];
+      items.forEach((item) => {
+        const svc = item.services || {};
+        const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+        for (let i = 0; i < unitCount; i++) {
+          newRows.push({
+            id: Date.now() + Math.random(),
+            serviceId: svc.id || null,
+            _basePrice: 0, _quantity: 1, _vat: 0,
+            _svcName: svc.serviceName || '', _serviceType: svc.serviceType || '', _description: svc.description || '',
+            currencyId: vndCurrencyId || null, _currencyId: vndCurrencyId ? String(vndCurrencyId) : '',
+            _isNew: true, _deleted: false, _isCustom: !svc.id,
+            comboId: comboIdVal, serviceCombo: comboIdVal, comboName: combo.comboName || 'Combo',
+          });
+        }
+      });
+
+      setRows(prev => {
+        const base = isPackageMode ? prev : prev.map(r => ({ ...r, _basePrice: 0, _vat: 0 }));
+        return [...base, ...newRows];
+      });
+      if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
+      setPackageSubTotal(prev => parseNum(prev) + comboSubTotalVnd);
+      setDirty(true);
+      message.success(`Applied combo "${combo.comboName}". Click "Save & Update contract" to persist.`);
+      setShowComboModal(false);
+    } catch (err) {
+      console.error(err);
+      message.error('Error applying combo: ' + (err.message || ''));
+    } finally {
+      setApplyingCombo(false);
+    }
+  };
+
+  // Ad-hoc combos contribute 0 to packageSubTotal — the user adjusts it by
+  // hand afterward via the totals panel.
+  const applyAdhocCombo = () => {
+    const name = adhocComboName.trim();
+    if (!name) { message.warning('Please enter a combo name.'); return; }
+    if (!adhocServiceIds.length) { message.warning('Please select at least one service.'); return; }
+    const vndCurrencyId = extractCurrencyId(vndCurrency);
+    const newRows = adhocServiceIds.map((svcId) => {
+      const svc = svcOpts.find((o) => String(o.id) === String(svcId));
+      return {
+        id: Date.now() + Math.random(),
+        serviceId: svc?.id || null,
+        _basePrice: 0, _quantity: 1, _vat: 0,
+        _svcName: svc?.serviceName || svc?.name || '', _serviceType: svc?.serviceType || '', _description: svc?.description || '',
+        currencyId: vndCurrencyId || null, _currencyId: vndCurrencyId ? String(vndCurrencyId) : '',
+        _isNew: true, _deleted: false, _isCustom: !svc?.id,
+        comboId: null, serviceCombo: null, comboName: name,
+      };
+    });
+    setRows(prev => {
+      const base = isPackageMode ? prev : prev.map(r => ({ ...r, _basePrice: 0, _vat: 0 }));
+      return [...base, ...newRows];
+    });
+    if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
+    setDirty(true);
+    message.success(`Created ad-hoc combo "${name}". Click "Save & Update contract" to persist.`);
+    setShowComboModal(false);
+  };
   const [activeRowId, setActiveRowId] = useState(null);
   const [modalView, setModalView] = useState('select'); // 'select' | 'create'
   const [svcSearch, setSvcSearch] = useState('');
@@ -2499,6 +2616,10 @@ const ContractServicesBlock = () => {
         type: 'primary',
         onClick: () => addRow(),
       }, 'Add service'),
+      !isLocked && React.createElement(Button, {
+        size: 'small',
+        onClick: openComboModal,
+      }, 'Apply Combo'),
       React.createElement(Button, {
         size: 'small',
         onClick: reload,
@@ -2742,6 +2863,86 @@ const ContractServicesBlock = () => {
               style: { ...DS.primaryButton, width: 140 }
             }, 'Save & Select')
           )
+        )
+    ),
+
+    // APPLY COMBO MODAL
+    React.createElement(Modal, {
+      title: 'Apply Combo',
+      open: showComboModal,
+      onCancel: () => setShowComboModal(false),
+      footer: null,
+      width: 700,
+    },
+      React.createElement(Segmented, {
+        value: comboSubTab,
+        onChange: (v) => setComboSubTab(v),
+        options: [
+          { label: 'Select from catalog', value: 'select' },
+          { label: 'Create ad-hoc', value: 'adhoc' },
+        ],
+        style: { marginBottom: 16 },
+      }),
+      comboSubTab === 'select'
+        ? React.createElement(React.Fragment, null,
+          React.createElement(Input, {
+            placeholder: 'Search combo name...',
+            value: comboSearch,
+            onChange: (e) => setComboSearch(e.target.value),
+            style: { marginBottom: 12, borderRadius: DS.radius.sm },
+            allowClear: true,
+          }),
+          React.createElement('div', { style: { maxHeight: 380, overflowY: 'auto' } },
+            comboCatalog.length === 0
+              ? React.createElement(Empty, { description: 'No combos available' })
+              : comboCatalog
+                .filter((c) => normalizeLookupText(c.comboName || '').includes(normalizeLookupText(comboSearch)))
+                .map((c) => React.createElement('div', {
+                  key: c.id,
+                  style: {
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 12px', border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, marginBottom: 8,
+                  },
+                },
+                  React.createElement('div', null,
+                    React.createElement('div', { style: { fontWeight: 600 } }, c.comboName || `Combo #${c.id}`),
+                    React.createElement('div', { style: { fontSize: 12, color: C.textSub } },
+                      `${(c.serviceComboItems || []).length} service(s) · ${formatMoney(c.packageSubTotal, currencyFromRecord(c, currencies, vndCurrency))}`)
+                  ),
+                  React.createElement(Button, {
+                    size: 'small', type: 'primary', loading: applyingCombo,
+                    onClick: () => applyComboFromCatalog(c),
+                  }, 'Apply')
+                ))
+          )
+        )
+        : React.createElement(React.Fragment, null,
+          React.createElement('div', { style: { marginBottom: 12 } },
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo name'),
+            React.createElement(Input, {
+              value: adhocComboName,
+              onChange: (e) => setAdhocComboName(e.target.value),
+              placeholder: 'E.g. Business incorporation consulting package...',
+              style: { borderRadius: DS.radius.sm },
+            })
+          ),
+          React.createElement('div', { style: { marginBottom: 16 } },
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this combo'),
+            React.createElement(Select, {
+              mode: 'multiple',
+              value: adhocServiceIds,
+              onChange: (v) => setAdhocServiceIds(v),
+              showSearch: true,
+              optionFilterProp: 'children',
+              style: { width: '100%' },
+              placeholder: 'Select services to bundle...',
+            }, svcOpts.map((s) => React.createElement(Select.Option, {
+              key: s.id, value: s.id,
+            }, s.serviceName || s.name || `Service #${s.id}`)))
+          ),
+          React.createElement(Button, {
+            type: 'primary', onClick: applyAdhocCombo, style: DS.primaryButton,
+          }, 'Create combo')
         )
     )
   );
