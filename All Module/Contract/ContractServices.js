@@ -1538,18 +1538,6 @@ const ContractServicesBlock = () => {
 
   const totals = isPackageMode ? packageTotals : lineTotalsVnd;
 
-  const handlePricingModeChange = (mode) => {
-    const nextMode = mode === PRICING_MODE_PACKAGE ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE;
-    if (nextMode === pricingMode) return;
-    if (nextMode === PRICING_MODE_PACKAGE) {
-      setPackageSubTotal((prev) => prev || lineTotalsVnd.subTotal || parseNum(contract?.subTotal));
-      setPackageVatRate((prev) => prev || inferVatRate(lineTotalsVnd.subTotal || contract?.subTotal, lineTotalsVnd.vatAmount || contract?.vatAmount, 0));
-      setRows(prev => prev.map(r => ({ ...r, _basePrice: 0, _vat: 0 })));
-    }
-    setPricingMode(nextMode);
-    setDirty(true);
-  };
-
   const updatePackageField = (setter) => (value) => {
     setter(value || 0);
     setDirty(true);
@@ -2629,24 +2617,6 @@ const ContractServicesBlock = () => {
     bodyStyle: { padding: 0 },
     style: { width: '100%' },
   },
-
-    React.createElement('div', { style: { ...ui.section, display: 'grid', gridTemplateColumns: isPackageMode ? 'minmax(220px, 330px) minmax(0, 1fr)' : 'minmax(0, 330px)', gap: token.marginSM, alignItems: 'start' } },
-      React.createElement('div', null,
-        React.createElement(Text, { type: 'secondary', style: { display: 'block', marginBottom: token.marginXS } }, 'Pricing mode'),
-        React.createElement(Space, { size: 8 },
-          React.createElement(Segmented, {
-            options: [
-              { label: 'Line pricing', value: PRICING_MODE_LINE },
-              { label: 'Package pricing', value: PRICING_MODE_PACKAGE },
-            ],
-            value: pricingMode,
-            onChange: handlePricingModeChange,
-            disabled: isLocked,
-          }),
-          isPackageMode && React.createElement(Tag, { color: 'blue' }, 'Currency: VND'),
-        )
-      ),
-    ),
 
     // Table
     React.createElement(Table, {

@@ -1,5 +1,5 @@
 const { React } = ctx;
-const { useState, useEffect, useCallback, useMemo, useRef } = React;
+const { useState, useEffect, useCallback, useMemo } = React;
 const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme, Popconfirm, Empty } = ctx.antd;
 const { Text } = Typography;
 
@@ -966,7 +966,6 @@ const EditableCell = ({ value, onSave, isTextArea = false, isNumber = false, isM
 const QuotationServicesBlock = () => {
   const token = useNocoToken();
   const [rows, setRows] = useState([]);
-  const lineModeBackupRef = useRef({});
   const [svcOpts, setSvcOpts] = useState([]);
   const [comboCatalog, setComboCatalog] = useState([]);
   const [quotation, setQuotation] = useState(ctx.record || {});
@@ -1352,28 +1351,6 @@ const QuotationServicesBlock = () => {
   }, [activeRows, isPackageMode, getRowCurrency, vndCurrency, exchangeRates, pricingDate]);
 
   const totals = isPackageMode ? packageTotals : lineTotalsVnd;
-
-  const handlePricingModeChange = (mode) => {
-    const nextMode = mode === PRICING_MODE_PACKAGE ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE;
-    if (nextMode === pricingMode) return;
-    if (nextMode === PRICING_MODE_PACKAGE) {
-      setPackageSubTotal((prev) => prev || lineTotalsVnd.subTotal || parseNum(quotation?.subTotal));
-      setPackageVatRate((prev) => prev || inferVatRate(lineTotalsVnd.subTotal || quotation?.subTotal, lineTotalsVnd.vatAmount || quotation?.vatAmount, 0));
-      setRows(prev => {
-        const backup = {};
-        prev.forEach(r => { backup[r.id] = { _basePrice: r._basePrice, _vat: r._vat }; });
-        lineModeBackupRef.current = backup;
-        return prev.map(r => ({ ...r, _basePrice: 0, _vat: 0 }));
-      });
-    } else {
-      setRows(prev => prev.map(r => {
-        const backup = lineModeBackupRef.current[r.id];
-        return backup ? { ...r, _basePrice: backup._basePrice, _vat: backup._vat } : r;
-      }));
-    }
-    setPricingMode(nextMode);
-    setDirty(true);
-  };
 
   // VAT amount / Package total are never directly editable â€” always derived
   // from Package subtotal + VAT rate.
@@ -2684,23 +2661,6 @@ const QuotationServicesBlock = () => {
     style: { width: '100%' },
   },
 
-    React.createElement('div', { style: { ...ui.section, display: 'grid', gridTemplateColumns: isPackageMode ? 'minmax(220px, 330px) minmax(0, 1fr)' : 'minmax(0, 330px)', gap: token.marginSM, alignItems: 'start' } },
-      React.createElement('div', null,
-        React.createElement(Text, { type: 'secondary', style: { display: 'block', marginBottom: token.marginXS } }, 'Pricing mode'),
-        React.createElement(Space, { size: 8 },
-          React.createElement(Segmented, {
-            options: [
-              { label: 'Line pricing', value: PRICING_MODE_LINE },
-              { label: 'Package pricing', value: PRICING_MODE_PACKAGE },
-            ],
-            value: pricingMode,
-            onChange: handlePricingModeChange,
-            disabled: isLocked,
-          }),
-          isPackageMode && React.createElement(Tag, { color: 'blue' }, 'Currency: VND'),
-        )
-      ),
-    ),
 
     // Table
     React.createElement(Table, {
