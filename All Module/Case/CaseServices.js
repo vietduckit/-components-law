@@ -871,6 +871,7 @@
       const [services, setServices] = useState([]);
       const [caseInfo, setCaseInfo] = useState(null);
       const [serviceCatalog, setServiceCatalog] = useState([]);
+      const [comboCatalog, setComboCatalog] = useState([]);
       const [currencies, setCurrencies] = useState([]);
       const [exchangeRates, setExchangeRates] = useState([]);
       const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false);
@@ -2545,6 +2546,22 @@
           } catch (catalogErr) {
             console.warn("Could not fetch service catalog for comparison", catalogErr);
             setServiceCatalog([]);
+          }
+
+          try {
+            const comboRes = await ctx.api.request({
+              url: "serviceCombos:list",
+              params: {
+                filter: JSON.stringify({ isActive: { $eq: true } }),
+                appends: ["serviceComboItems.services"],
+                pageSize: 100,
+              },
+            });
+            const comboList = comboRes?.data?.data || [];
+            setComboCatalog(comboList.filter((c) => (c.serviceComboItems || []).length > 0));
+          } catch (comboErr) {
+            console.warn("Could not fetch service combo catalog", comboErr);
+            setComboCatalog([]);
           }
         } catch (err) {
           console.error(err);
