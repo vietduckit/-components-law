@@ -872,6 +872,21 @@ async function fetchCSvcs() {
   } catch { return []; }
 }
 
+async function fetchComboCatalog() {
+  try {
+    const res = await ctx.api.request({
+      url: 'serviceCombos:list',
+      params: {
+        filter: JSON.stringify({ isActive: { $eq: true } }),
+        appends: ['serviceComboItems.services'],
+        pageSize: 100,
+      },
+    });
+    const list = res?.data?.data || [];
+    return list.filter((c) => (c.serviceComboItems || []).length > 0);
+  } catch { return []; }
+}
+
 async function fetchSvcOptions() {
   try {
     const res = await ctx.api.request({ url: 'services:list', params: { pageSize: 500, page: 1 } });
@@ -1137,6 +1152,7 @@ const ContractServicesBlock = () => {
   const token = useNocoToken();
   const [rows, setRows] = useState([]);
   const [svcOpts, setSvcOpts] = useState([]);
+  const [comboCatalog, setComboCatalog] = useState([]);
   const [contract, setContract] = useState(ctx.record || {});
   const [pricingMode, setPricingMode] = useState(isPackagePricing(ctx.record) ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE);
   const [packageSubTotal, setPackageSubTotal] = useState(parseNum(ctx.record?.packageSubTotal ?? ctx.record?.subTotal));
@@ -1250,12 +1266,14 @@ const ContractServicesBlock = () => {
   const reload = useCallback(async () => {
     if (!CONTRACT_ID) { setLoading(false); return; }
     setLoading(true);
-    const [svcs, opts, currentContract, currs] = await Promise.all([
+    const [svcs, opts, currentContract, currs, comboList] = await Promise.all([
       fetchCSvcs(),
       fetchSvcOptions(),
       fetchContract(),
       fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES),
+      fetchComboCatalog(),
     ]);
+    setComboCatalog(comboList);
     const svcMap = {};
     opts.forEach(o => { svcMap[o.id] = o; });
     const packageLine = svcs.find((item) => !isDeletedServiceLine(item) && (isPackagePricing(item) || parseNum(item?.packageSubTotal) || parseNum(item?.packageTotalAmount)));
