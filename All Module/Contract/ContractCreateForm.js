@@ -6879,13 +6879,37 @@ const ManualContractServicesSection = ({
                 const rowConversion = !packageMode
                   ? getRowConversion(rowCurrency, amounts)
                   : null;
+                // Rows applied fresh in this session carry an ephemeral
+                // _comboInstanceId (see applyCombo/applyAdhocCombo). Rows
+                // loaded from an existing Case/Quotation instead carry the
+                // persisted comboId/comboName — group by whichever is
+                // present so the section header shows for both.
+                const rowComboGroupKey =
+                  row._comboInstanceId ||
+                  (row.comboId
+                    ? `persisted-id-${row.comboId}`
+                    : row.comboName
+                      ? `persisted-name-${row.comboName}`
+                      : null);
+                const prevRow = rows[rowIndex - 1];
+                const prevComboGroupKey = prevRow
+                  ? prevRow._comboInstanceId ||
+                    (prevRow.comboId
+                      ? `persisted-id-${prevRow.comboId}`
+                      : prevRow.comboName
+                        ? `persisted-name-${prevRow.comboName}`
+                        : null)
+                  : null;
                 const isComboSectionStart =
-                  !!row._comboInstanceId &&
-                  rows[rowIndex - 1]?._comboInstanceId !== row._comboInstanceId;
+                  !!rowComboGroupKey && rowComboGroupKey !== prevComboGroupKey;
                 const comboSectionHeader = isComboSectionStart
                   ? renderComboSectionHeader(
-                      appliedCombos.find((c) => c.instanceId === row._comboInstanceId),
-                      row._comboInstanceId,
+                      row._comboInstanceId
+                        ? appliedCombos.find(
+                            (c) => c.instanceId === row._comboInstanceId,
+                          )
+                        : { comboName: row.comboName },
+                      rowComboGroupKey,
                     )
                   : null;
                 const rowElement = React.createElement(
