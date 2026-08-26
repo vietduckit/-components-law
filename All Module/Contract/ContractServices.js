@@ -1221,10 +1221,14 @@ const ContractServicesBlock = () => {
       const comboSubTotalVnd = await convertComboSubTotalToVnd(combo.packageSubTotal, combo);
       if (comboSubTotalVnd === null) return;
 
-      const vndCurrencyId = extractCurrencyId(vndCurrency);
       const newRows = [];
       items.forEach((item) => {
         const svc = item.services || {};
+        // Same currency-resolution order as handleSelectCatalogService: the
+        // service's own currency first, falling back to the contract's —
+        // never hardcoded to VND, so a combo item priced in a foreign
+        // currency keeps that currency on its row.
+        const nextCurrencyId = getRecordCurrencyId(svc) || extractCurrencyId(contractCurrency);
         const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
         for (let i = 0; i < unitCount; i++) {
           newRows.push({
@@ -1232,7 +1236,7 @@ const ContractServicesBlock = () => {
             serviceId: svc.id || null,
             _basePrice: 0, _quantity: 1, _vat: 0,
             _svcName: svc.serviceName || '', _serviceType: svc.serviceType || '', _description: svc.description || '',
-            currencyId: vndCurrencyId || null, _currencyId: vndCurrencyId ? String(vndCurrencyId) : '',
+            currencyId: nextCurrencyId || null, _currencyId: nextCurrencyId ? String(nextCurrencyId) : '',
             _isNew: true, _deleted: false, _isCustom: !svc.id,
             comboId: comboIdVal, serviceCombo: comboIdVal, comboName: combo.comboName || 'Combo',
           });
@@ -1262,15 +1266,15 @@ const ContractServicesBlock = () => {
     const name = adhocComboName.trim();
     if (!name) { message.warning('Please enter a combo name.'); return; }
     if (!adhocServiceIds.length) { message.warning('Please select at least one service.'); return; }
-    const vndCurrencyId = extractCurrencyId(vndCurrency);
     const newRows = adhocServiceIds.map((svcId) => {
       const svc = svcOpts.find((o) => String(o.id) === String(svcId));
+      const nextCurrencyId = getRecordCurrencyId(svc || {}) || extractCurrencyId(contractCurrency);
       return {
         id: Date.now() + Math.random(),
         serviceId: svc?.id || null,
         _basePrice: 0, _quantity: 1, _vat: 0,
         _svcName: svc?.serviceName || svc?.name || '', _serviceType: svc?.serviceType || '', _description: svc?.description || '',
-        currencyId: vndCurrencyId || null, _currencyId: vndCurrencyId ? String(vndCurrencyId) : '',
+        currencyId: nextCurrencyId || null, _currencyId: nextCurrencyId ? String(nextCurrencyId) : '',
         _isNew: true, _deleted: false, _isCustom: !svc?.id,
         comboId: null, serviceCombo: null, comboName: name,
       };

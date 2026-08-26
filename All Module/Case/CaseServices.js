@@ -2941,7 +2941,10 @@
                 description: svc.description || "",
                 basePrice: 0,
                 vat: 0,
-                currencyId: extractCurrencyId(vndCurrency),
+                // No explicit currencyId — createOneCaseService already falls
+                // back to the catalog service's own currency (via serviceId),
+                // then the case's currency, matching the individual-add flow.
+                currencyId: null,
                 comboTarget: { comboId: comboIdVal, comboName: combo.comboName || "Combo" },
               }, { skipReload: true });
               if (id) createdIds.push(id);
@@ -2997,7 +3000,7 @@
               description: svc.description || "",
               basePrice: 0,
               vat: 0,
-              currencyId: extractCurrencyId(vndCurrency),
+              currencyId: null,
               comboTarget: { comboId: null, comboName: name },
             }, { skipReload: true });
             if (id) createdIds.push(id);
