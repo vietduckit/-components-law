@@ -687,6 +687,21 @@ async function fetchQSvcs() {
   } catch { return []; }
 }
 
+async function fetchComboCatalog() {
+  try {
+    const res = await ctx.api.request({
+      url: 'serviceCombos:list',
+      params: {
+        filter: JSON.stringify({ isActive: { $eq: true } }),
+        appends: ['serviceComboItems.services'],
+        pageSize: 100,
+      },
+    });
+    const list = res?.data?.data || [];
+    return list.filter((c) => (c.serviceComboItems || []).length > 0);
+  } catch { return []; }
+}
+
 async function fetchSvcOptions() {
   try {
     const res = await ctx.api.request({ url: 'services:list', params: { pageSize: 500, page: 1 } });
@@ -953,6 +968,7 @@ const QuotationServicesBlock = () => {
   const [rows, setRows] = useState([]);
   const lineModeBackupRef = useRef({});
   const [svcOpts, setSvcOpts] = useState([]);
+  const [comboCatalog, setComboCatalog] = useState([]);
   const [quotation, setQuotation] = useState(ctx.record || {});
   const [pricingMode, setPricingMode] = useState(isPackagePricing(ctx.record) ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE);
   const [packageSubTotal, setPackageSubTotal] = useState(parseNum(ctx.record?.packageSubTotal ?? ctx.record?.subTotal));
@@ -1066,12 +1082,14 @@ const QuotationServicesBlock = () => {
   const reload = useCallback(async () => {
     if (!QUOTATION_ID) { setLoading(false); return; }
     setLoading(true);
-    const [svcs, opts, quote, currs] = await Promise.all([
+    const [svcs, opts, quote, currs, comboList] = await Promise.all([
       fetchQSvcs(),
       fetchSvcOptions(),
       fetchQuotation(),
       fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES),
+      fetchComboCatalog(),
     ]);
+    setComboCatalog(comboList);
     const svcMap = {};
     opts.forEach(o => { svcMap[o.id] = o; });
     const packageLine = svcs.find((item) => !isDeletedServiceLine(item) && (isPackagePricing(item) || parseNum(item?.packageSubTotal) || parseNum(item?.packageTotalAmount)));
