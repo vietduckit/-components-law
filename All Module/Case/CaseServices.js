@@ -2641,204 +2641,223 @@
         }
       };
 
-      const handleAddSubmit = async (values) => {
-        if (!currentId) return;
-        setSubmitting(true);
-        try {
-          const checkName = (values.serviceName || "").toLowerCase().trim();
-          const isDuplicate = services.some(s =>
-            (s.serviceName || s.services?.serviceName || s.name || "").toLowerCase().trim() === checkName
-          );
-          if (isDuplicate) {
-            message.error("This service already exists in the case. Please choose or enter a different name!");
-            setSubmitting(false);
-            return;
-          }
+      // The shared "create one service" core, used by both the single-add
+      // form (handleAddSubmit) and the bulk Apply Combo handler (one call
+      // per combo item). `skipReload` lets the bulk caller defer loadData()
+      // to a single call after every item is created, instead of once per
+      // item.
+      const createOneCaseService = async (item, { skipReload = false } = {}) => {
+        if (!currentId) return { id: null };
+        const checkName = (item.serviceName || "").toLowerCase().trim();
+        const isDuplicate = services.some(s =>
+          (s.serviceName || s.services?.serviceName || s.name || "").toLowerCase().trim() === checkName
+        );
+        if (isDuplicate) {
+          message.error(`"${item.serviceName}" already exists in the case.`);
+          return { id: null };
+        }
 
-          // 1. Create projectServices
-          const addAsPackage = servicePricingSummary.isPackageMode;
-          const price = addAsPackage ? 0 : Number(values.basePrice) || 0;
-          const vat = addAsPackage ? 0 : Number(values.vat) || 0;
-          const selectedCatalogService = values.serviceId
-            ? serviceCatalog.find((s) => String(s.id) === String(values.serviceId))
-            : null;
-          const explicitCurrency = values.currencyId ? resolveCurrency(values.currencyId, currencies) : null;
-          const newRowCurrency = explicitCurrency || currencyFromRecord(selectedCatalogService, currencies, caseCurrency);
-          const newRowCurrencyId = extractCurrencyId(
-            newRowCurrency
-          );
-          const linePricing = addAsPackage
-            ? { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1 }
-            : (await getWritableLinePricing({
-              serviceName: values.serviceName?.trim(),
-              serviceType: values.serviceType?.trim(),
-              description: values.description?.trim(),
-              basePrice: price,
-              quantity: 1,
-              vat,
-              currencyId: newRowCurrencyId || null,
-              currency: newRowCurrencyId || null,
-              pricingMode: PRICING_MODE_LINE,
-              billingMode: BILLING_LINE,
-            })).pricing;
-          const packageTotals = addAsPackage
-            ? servicePricingSummary.packageTotals
-            : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
-          const createData = {
-            projectId: parseInt(currentId),
-            serviceId: values.serviceId ? parseInt(values.serviceId) : null,
-            serviceName: values.serviceName?.trim(),
-            serviceType: values.serviceType?.trim(),
-            description: values.description?.trim(),
-            status: "pending_quote",
+        // 1. Create projectServices
+        const addAsPackage = servicePricingSummary.isPackageMode || !!item.comboTarget;
+        const price = addAsPackage ? 0 : Number(item.basePrice) || 0;
+        const vat = addAsPackage ? 0 : Number(item.vat) || 0;
+        const selectedCatalogService = item.serviceId
+          ? serviceCatalog.find((s) => String(s.id) === String(item.serviceId))
+          : null;
+        const explicitCurrency = item.currencyId ? resolveCurrency(item.currencyId, currencies) : null;
+        const newRowCurrency = explicitCurrency || currencyFromRecord(selectedCatalogService, currencies, caseCurrency);
+        const newRowCurrencyId = extractCurrencyId(
+          newRowCurrency
+        );
+        const linePricing = addAsPackage
+          ? { subTotal: 0, vatAmount: 0, totalAmount: 0, exchangeRateToBase: 1 }
+          : (await getWritableLinePricing({
+            serviceName: item.serviceName?.trim(),
+            serviceType: item.serviceType?.trim(),
+            description: item.description?.trim(),
             basePrice: price,
+            quantity: 1,
             vat,
             currencyId: newRowCurrencyId || null,
             currency: newRowCurrencyId || null,
-            subTotal: linePricing.subTotal,
-            vatAmount: linePricing.vatAmount,
-            totalAmount: linePricing.totalAmount,
-            exchangeRateToBase: linePricing.exchangeRateToBase,
-            pricingMode: addAsPackage ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
-            packageSubTotal: packageTotals.subTotal,
-            packageVatRate: packageTotals.vatRate,
-            packageVatAmount: packageTotals.vatAmount,
-            packageTotalAmount: packageTotals.totalAmount,
-            billingMode: addAsPackage ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
-            financialSourceType: addAsPackage
-              ? (caseInfo?._mainContract ? SOURCE_CONTRACT : caseInfo?._mainQuote ? SOURCE_QUOTATION : SOURCE_MANUAL)
-              : SOURCE_MANUAL,
-            comboId: comboAddTarget?.comboId || null,
-            serviceCombo: comboAddTarget?.comboId || null,
-            comboName: comboAddTarget?.comboName || null,
-          };
-          let psRes;
+            pricingMode: PRICING_MODE_LINE,
+            billingMode: BILLING_LINE,
+          })).pricing;
+        const packageTotals = addAsPackage
+          ? servicePricingSummary.packageTotals
+          : { subTotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
+        const createData = {
+          projectId: parseInt(currentId),
+          serviceId: item.serviceId ? parseInt(item.serviceId) : null,
+          serviceName: item.serviceName?.trim(),
+          serviceType: item.serviceType?.trim(),
+          description: item.description?.trim(),
+          status: "pending_quote",
+          basePrice: price,
+          vat,
+          currencyId: newRowCurrencyId || null,
+          currency: newRowCurrencyId || null,
+          subTotal: linePricing.subTotal,
+          vatAmount: linePricing.vatAmount,
+          totalAmount: linePricing.totalAmount,
+          exchangeRateToBase: linePricing.exchangeRateToBase,
+          pricingMode: addAsPackage ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE,
+          packageSubTotal: packageTotals.subTotal,
+          packageVatRate: packageTotals.vatRate,
+          packageVatAmount: packageTotals.vatAmount,
+          packageTotalAmount: packageTotals.totalAmount,
+          billingMode: addAsPackage ? BILLING_PACKAGE_INCLUDED : BILLING_LINE,
+          financialSourceType: addAsPackage
+            ? (caseInfo?._mainContract ? SOURCE_CONTRACT : caseInfo?._mainQuote ? SOURCE_QUOTATION : SOURCE_MANUAL)
+            : SOURCE_MANUAL,
+          comboId: item.comboTarget?.comboId || null,
+          serviceCombo: item.comboTarget?.comboId || null,
+          comboName: item.comboTarget?.comboName || null,
+        };
+        let psRes;
+        try {
+          psRes = await ctx.api.request({
+            url: "projectServices:create",
+            method: "POST",
+            data: createData,
+          });
+        } catch (createError) {
+          const fallback = stripProjectServiceSyncFields(createData);
+          console.warn("Retrying projectService create without relation/amount sync fields:", createError);
           try {
             psRes = await ctx.api.request({
               url: "projectServices:create",
               method: "POST",
-              data: createData,
+              data: fallback,
             });
-          } catch (createError) {
-            const fallback = stripProjectServiceSyncFields(createData);
-            console.warn("Retrying projectService create without relation/amount sync fields:", createError);
-            try {
-              psRes = await ctx.api.request({
-                url: "projectServices:create",
-                method: "POST",
-                data: fallback,
-              });
-            } catch (fallbackError) {
-              const minimal = { ...fallback };
-              delete minimal.pricingMode;
-              delete minimal.billingMode;
-              delete minimal.financialSourceType;
-              delete minimal.packageSubTotal;
-              delete minimal.packageVatRate;
-              delete minimal.packageVatAmount;
-              delete minimal.packageTotalAmount;
-              console.warn("Retrying projectService create without pricing package fields:", fallbackError);
-              psRes = await ctx.api.request({
-                url: "projectServices:create",
-                method: "POST",
-                data: minimal,
-              });
-            }
+          } catch (fallbackError) {
+            const minimal = { ...fallback };
+            delete minimal.pricingMode;
+            delete minimal.billingMode;
+            delete minimal.financialSourceType;
+            delete minimal.packageSubTotal;
+            delete minimal.packageVatRate;
+            delete minimal.packageVatAmount;
+            delete minimal.packageTotalAmount;
+            console.warn("Retrying projectService create without pricing package fields:", fallbackError);
+            psRes = await ctx.api.request({
+              url: "projectServices:create",
+              method: "POST",
+              data: minimal,
+            });
           }
-          const psId = psRes?.data?.data?.id || psRes?.data?.id;
+        }
+        const psId = psRes?.data?.data?.id || psRes?.data?.id;
 
-          // Give this service its own upload folder — mirrors what
-          // CaseCreateForm.js does per service at case-creation time, so task
-          // uploads (TaskDetailView.js's resolveServiceUploadFolderId) land in
-          // a dedicated folder instead of scattering into the case root,
-          // regardless of whether the service was added at case creation or
-          // later here. Never blocks the service creation itself on failure.
-          if (psId) {
-            try {
-              const serviceCatalogId = values.serviceId ? parseInt(values.serviceId) : null;
-              // A catalog service already added to this case (another row
-              // with the same serviceId) already has a folder — reuse it
-              // instead of creating a duplicate, mirroring CaseCreateForm.js's
-              // dedupe-by-key (custom services have no serviceId, so they
-              // always get their own folder).
-              const existingSameServiceRow = serviceCatalogId
-                ? services.find(
-                    (s) => extractId(s.serviceId) === serviceCatalogId && extractId(s.folderId),
-                  )
-                : null;
-              const reuseFolderId = existingSameServiceRow
-                ? extractId(existingSameServiceRow.folderId)
-                : null;
+        // Give this service its own upload folder — mirrors what
+        // CaseCreateForm.js does per service at case-creation time, so task
+        // uploads (TaskDetailView.js's resolveServiceUploadFolderId) land in
+        // a dedicated folder instead of scattering into the case root,
+        // regardless of whether the service was added at case creation or
+        // later here. Never blocks the service creation itself on failure.
+        if (psId) {
+          try {
+            const serviceCatalogId = item.serviceId ? parseInt(item.serviceId) : null;
+            // A catalog service already added to this case (another row
+            // with the same serviceId) already has a folder — reuse it
+            // instead of creating a duplicate, mirroring CaseCreateForm.js's
+            // dedupe-by-key (custom services have no serviceId, so they
+            // always get their own folder).
+            const existingSameServiceRow = serviceCatalogId
+              ? services.find(
+                  (s) => extractId(s.serviceId) === serviceCatalogId && extractId(s.folderId),
+                )
+              : null;
+            const reuseFolderId = existingSameServiceRow
+              ? extractId(existingSameServiceRow.folderId)
+              : null;
 
-              if (reuseFolderId) {
-                await ctx.api.request({
-                  url: "projectServices:update",
+            if (reuseFolderId) {
+              await ctx.api.request({
+                url: "projectServices:update",
+                method: "POST",
+                params: { filterByTk: psId },
+                data: { folderId: reuseFolderId },
+              });
+            } else {
+              // The case root folder is the first "cases"-type folder ever
+              // created for this project (see CaseCreateForm.js's pFolderRes)
+              // — every other case folder (default templates, other service
+              // folders) is created after it and nests under it.
+              const caseRootRes = await ctx.api.request({
+                url: "folders:list",
+                params: {
+                  filter: JSON.stringify({
+                    projectId: { $eq: parseInt(currentId) },
+                    type: { $eq: "cases" },
+                  }),
+                  sort: ["createdAt"],
+                  pageSize: 1,
+                },
+              });
+              const caseRootFolderId = extractId(caseRootRes?.data?.data?.[0]?.id);
+
+              if (caseRootFolderId) {
+                const newFolderRes = await ctx.api.request({
+                  url: "folders:create",
                   method: "POST",
-                  params: { filterByTk: psId },
-                  data: { folderId: reuseFolderId },
-                });
-              } else {
-                // The case root folder is the first "cases"-type folder ever
-                // created for this project (see CaseCreateForm.js's pFolderRes)
-                // — every other case folder (default templates, other service
-                // folders) is created after it and nests under it.
-                const caseRootRes = await ctx.api.request({
-                  url: "folders:list",
-                  params: {
-                    filter: JSON.stringify({
-                      projectId: { $eq: parseInt(currentId) },
-                      type: { $eq: "cases" },
-                    }),
-                    sort: ["createdAt"],
-                    pageSize: 1,
+                  data: {
+                    name: item.serviceName?.trim() || "New service",
+                    type: "cases",
+                    parentId: caseRootFolderId,
+                    projectId: parseInt(currentId),
+                    customerId:
+                      extractId(caseInfo?.customerId) ||
+                      extractId(caseInfo?.customer) ||
+                      extractId(caseInfo?.customers) ||
+                      null,
+                    internalCompanyId:
+                      extractId(caseInfo?.internalCompanyId) ||
+                      extractId(caseInfo?.internalCompany) ||
+                      null,
+                    moduleScope: CASE_DOCUMENT_SCOPE,
                   },
                 });
-                const caseRootFolderId = extractId(caseRootRes?.data?.data?.[0]?.id);
-
-                if (caseRootFolderId) {
-                  const newFolderRes = await ctx.api.request({
-                    url: "folders:create",
+                const newFolderId = extractId(
+                  newFolderRes?.data?.data?.id || newFolderRes?.data?.id,
+                );
+                if (newFolderId) {
+                  await ctx.api.request({
+                    url: "projectServices:update",
                     method: "POST",
-                    data: {
-                      name: values.serviceName?.trim() || "New service",
-                      type: "cases",
-                      parentId: caseRootFolderId,
-                      projectId: parseInt(currentId),
-                      customerId:
-                        extractId(caseInfo?.customerId) ||
-                        extractId(caseInfo?.customer) ||
-                        extractId(caseInfo?.customers) ||
-                        null,
-                      internalCompanyId:
-                        extractId(caseInfo?.internalCompanyId) ||
-                        extractId(caseInfo?.internalCompany) ||
-                        null,
-                      moduleScope: CASE_DOCUMENT_SCOPE,
-                    },
+                    params: { filterByTk: psId },
+                    data: { folderId: newFolderId },
                   });
-                  const newFolderId = extractId(
-                    newFolderRes?.data?.data?.id || newFolderRes?.data?.id,
-                  );
-                  if (newFolderId) {
-                    await ctx.api.request({
-                      url: "projectServices:update",
-                      method: "POST",
-                      params: { filterByTk: psId },
-                      data: { folderId: newFolderId },
-                    });
-                  }
                 }
               }
-            } catch (folderErr) {
-              console.warn("Could not create service folder:", folderErr);
             }
+          } catch (folderErr) {
+            console.warn("Could not create service folder:", folderErr);
           }
+        }
 
-          await syncCaseTotalAmount(currentId);
-
+        await syncCaseTotalAmount(currentId);
+        if (!skipReload) {
           message.success("Service saved. You can add a quotation or contract for it later.");
           closeAddModal();
-          loadData();
+          await loadData();
+        }
+        return { id: psId };
+      };
+
+      const handleAddSubmit = async (values) => {
+        setSubmitting(true);
+        try {
+          await createOneCaseService({
+            serviceId: values.serviceId || null,
+            serviceName: values.serviceName?.trim(),
+            serviceType: values.serviceType?.trim(),
+            description: values.description?.trim(),
+            basePrice: values.basePrice,
+            vat: values.vat,
+            currencyId: values.currencyId || null,
+            comboTarget: comboAddTarget,
+          });
         } catch (err) {
           console.error(err);
           message.error("Error: " + (err.message || ""));
