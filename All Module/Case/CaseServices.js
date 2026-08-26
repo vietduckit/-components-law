@@ -1,5 +1,5 @@
 ﻿    const { useState, useEffect, useMemo } = ctx.React;
-    const { Table, Button, Modal, Form, Select, Input, InputNumber, message, Popconfirm, Tag, Tooltip, Spin, Card, Space, Typography, Descriptions, theme } = ctx.antd;
+    const { Table, Button, Modal, Form, Select, Input, InputNumber, message, Popconfirm, Tag, Tooltip, Spin, Card, Space, Typography, Descriptions, theme, Segmented, Empty } = ctx.antd;
     const { React } = ctx;
     const { Text } = Typography;
 
@@ -899,6 +899,15 @@
       // section (comboId/serviceCombo/comboName) instead of landing as an
       // untagged row. Cleared whenever the modal closes.
       const [comboAddTarget, setComboAddTarget] = useState(null);
+      // Apply-Combo modal state (the global "+ Add Service" button's Apply
+      // Combo tab — NOT the per-combo-section "+ Add service" button, which
+      // still uses comboAddTarget + the Individual Service tab directly).
+      const [addModalTab, setAddModalTab] = useState("individual");
+      const [comboSubTab, setComboSubTab] = useState("select");
+      const [comboSearch, setComboSearch] = useState("");
+      const [applyingCombo, setApplyingCombo] = useState(false);
+      const [adhocComboName, setAdhocComboName] = useState("");
+      const [adhocServiceIds, setAdhocServiceIds] = useState([]);
       // Local, unsaved edits to the case's package subtotal/VAT/total footer.
       // null = no pending edit (inputs show the live server values). Set by
       // typing in any of the 4 footer fields; only written to the server when
@@ -2578,12 +2587,22 @@
       const openAddModal = (comboTarget = null) => {
         form.setFieldsValue({ currencyId: getCurrencySelectValue(caseCurrency) });
         setComboAddTarget(comboTarget);
+        // A per-combo-section "+ Add service" click always goes straight to
+        // the Individual Service tab (comboTarget already picks the target
+        // combo) — the Apply Combo tab is only reachable from the global
+        // "+ Add Service" button, where comboTarget is null.
+        setAddModalTab("individual");
+        setComboSubTab("select");
+        setComboSearch("");
         setAddModal(true);
       };
 
       const closeAddModal = () => {
         setAddModal(false);
         setComboAddTarget(null);
+        setAddModalTab("individual");
+        setAdhocComboName("");
+        setAdhocServiceIds([]);
         form.resetFields();
       };
 
@@ -2865,6 +2884,167 @@
           setSubmitting(false);
         }
       };
+
+      // Converts a combo's own packageSubTotal (which may be quoted in a
+      // non-VND currency on the serviceCombos record) into VND, reusing the
+      // same buildServicePricingPayload math every per-row price conversion
+      // in this file already goes through — treats the flat amount as a
+      // single line item (quantity 1, vat 0) purely to borrow its currency
+      // conversion, not its line-pricing semantics.
+      const convertComboSubTotalToVnd = async (subTotal, comboRecord) => {
+        const amt = parseNum(subTotal);
+        if (!amt) return 0;
+        const comboCurrency = currencyFromRecord(comboRecord, currencies, vndCurrency);
+        const comboCurrencyId = extractCurrencyId(comboCurrency);
+        const vndCurrencyId = extractCurrencyId(vndCurrency);
+        if (!comboCurrencyId || !vndCurrencyId || comboCurrencyId === vndCurrencyId) return amt;
+        const freshRates = await fetchExchangeRatesForConversion([comboCurrencyId], vndCurrencyId);
+        const mergedRates = mergeExchangeRates(exchangeRates, freshRates);
+        const pricing = buildServicePricingPayload({
+          pricingMode: PRICING_MODE_LINE,
+          basePrice: amt,
+          quantity: 1,
+          vat: 0,
+          currency: comboCurrency,
+          vndCurrency,
+          exchangeRatesToVnd: mergedRates,
+          pricingDate: casePricingDate,
+        });
+        if (!pricing._convertible) {
+          message.error(`Thiếu tỷ giá quy đổi sang VND cho combo (${getCurrencyCode(comboCurrency)}).`);
+          return null;
+        }
+        return pricing.subTotal;
+      };
+
+      const applyComboFromCatalog = async (combo) => {
+        const items = combo.serviceComboItems || [];
+        if (!items.length) {
+          message.warning("This combo has no services.");
+          return;
+        }
+        setApplyingCombo(true);
+        try {
+          const comboIdVal = extractId(combo.id);
+          const comboSubTotalVnd = await convertComboSubTotalToVnd(combo.packageSubTotal, combo);
+          if (comboSubTotalVnd === null) return; // conversion failed, already messaged
+
+          const createdIds = [];
+          for (const item of items) {
+            const svc = item.services || {};
+            const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
+            for (let i = 0; i < unitCount; i++) {
+              const { id } = await createOneCaseService({
+                serviceId: svc.id || null,
+                serviceName: svc.serviceName || "",
+                serviceType: svc.serviceType || "",
+                description: svc.description || "",
+                basePrice: 0,
+                vat: 0,
+                currencyId: extractCurrencyId(vndCurrency),
+                comboTarget: { comboId: comboIdVal, comboName: combo.comboName || "Combo" },
+              }, { skipReload: true });
+              if (id) createdIds.push(id);
+            }
+          }
+          if (!createdIds.length) {
+            message.error("Could not create any services for this combo.");
+            return;
+          }
+
+          // Fold the combo's own price into the case's single combined
+          // package total (never a separate per-combo total) — same rule
+          // the case-wide footer already enforces.
+          const currentSubTotal = servicePricingSummary.packageTotals.subTotal;
+          const patch = buildPackageSummaryPatch("packageSubTotal", currentSubTotal + comboSubTotalVnd);
+          const newRowStubs = createdIds.map((id) => ({ id }));
+          await applyPackageSummaryPatch([...servicePricingSummary.allPackageRows, ...newRowStubs], patch);
+
+          message.success(`Applied combo "${combo.comboName}".`);
+          closeAddModal();
+        } catch (err) {
+          console.error(err);
+          message.error("Error applying combo: " + (err.message || ""));
+        } finally {
+          setApplyingCombo(false);
+        }
+      };
+
+      // Ad-hoc combos never get a real comboId — they group post-reload via
+      // getComboGroupKey's comboName fallback. They contribute 0 to the
+      // package subtotal; the user adjusts it by hand afterward via the
+      // totals panel, same as the existing single-add flow already expects.
+      const applyAdhocCombo = async () => {
+        const name = adhocComboName.trim();
+        if (!name) {
+          message.warning("Please enter a combo name.");
+          return;
+        }
+        if (!adhocServiceIds.length) {
+          message.warning("Please select at least one service.");
+          return;
+        }
+        setApplyingCombo(true);
+        try {
+          const createdIds = [];
+          for (const svcId of adhocServiceIds) {
+            const svc = serviceCatalog.find((s) => String(s.id) === String(svcId));
+            if (!svc) continue;
+            const { id } = await createOneCaseService({
+              serviceId: svc.id,
+              serviceName: svc.serviceName || svc.name || "",
+              serviceType: svc.serviceType || "",
+              description: svc.description || "",
+              basePrice: 0,
+              vat: 0,
+              currencyId: extractCurrencyId(vndCurrency),
+              comboTarget: { comboId: null, comboName: name },
+            }, { skipReload: true });
+            if (id) createdIds.push(id);
+          }
+          if (!createdIds.length) {
+            message.error("Could not create any services for this combo.");
+            return;
+          }
+          await loadData();
+          message.success(`Created ad-hoc combo "${name}".`);
+          closeAddModal();
+        } catch (err) {
+          console.error(err);
+          message.error("Error creating combo: " + (err.message || ""));
+        } finally {
+          setApplyingCombo(false);
+        }
+      };
+
+      const renderAdhocComboTab = () => React.createElement(React.Fragment, null,
+        React.createElement("div", { style: { marginBottom: 12 } },
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Combo name"),
+          React.createElement(Input, {
+            value: adhocComboName,
+            onChange: (e) => setAdhocComboName(e.target.value),
+            placeholder: "E.g. Business incorporation consulting package...",
+            style: { borderRadius: DS.radius.sm },
+          })
+        ),
+        React.createElement("div", { style: { marginBottom: 16 } },
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Services in this combo"),
+          React.createElement(Select, {
+            mode: "multiple",
+            value: adhocServiceIds,
+            onChange: (v) => setAdhocServiceIds(v),
+            showSearch: true,
+            optionFilterProp: "children",
+            style: { width: "100%" },
+            placeholder: "Select services to bundle...",
+          }, serviceCatalog.map((s) => React.createElement(Select.Option, {
+            key: s.id, value: s.id,
+          }, s.serviceName || s.name || `Service #${s.id}`)))
+        ),
+        React.createElement(Button, {
+          type: "primary", loading: applyingCombo, onClick: applyAdhocCombo, style: DS.primaryButton,
+        }, "Create combo")
+      );
 
       const resolveRestoredServiceStatus = async (record) => {
         const contractId = getRowContractId(record);
@@ -4694,15 +4874,77 @@
             : "Add service to case",
           open: addModal,
           onCancel: closeAddModal,
-          onOk: () => form.submit(),
+          onOk: addModalTab === "individual" ? (() => form.submit()) : undefined,
           confirmLoading: submitting,
           okText: "Save service",
           cancelText: "Cancel",
+          footer: addModalTab === "individual" ? undefined : null,
           width: 650,
           okButtonProps: { style: DS.primaryButton },
           cancelButtonProps: { style: DS.secondaryButton }
         },
-          React.createElement("div", { style: { ...DS.infoBox, marginBottom: 16 } },
+          // The per-combo-section "+ Add service" button always opens
+          // straight into the Individual Service tab with comboAddTarget
+          // already set, so the Apply Combo tab only makes sense (and is
+          // only shown) for the global "+ Add Service" entry point.
+          !comboAddTarget && React.createElement(Segmented, {
+            block: true,
+            value: addModalTab,
+            onChange: (v) => setAddModalTab(v),
+            options: [
+              { label: "Individual Service", value: "individual" },
+              { label: "Apply Combo", value: "combo" },
+            ],
+            style: { marginBottom: 16 },
+          }),
+          addModalTab === "combo" && !comboAddTarget
+            ? React.createElement(React.Fragment, null,
+              React.createElement(Segmented, {
+                value: comboSubTab,
+                onChange: (v) => setComboSubTab(v),
+                options: [
+                  { label: "Select from catalog", value: "select" },
+                  { label: "Create ad-hoc", value: "adhoc" },
+                ],
+                style: { marginBottom: 16 },
+              }),
+              comboSubTab === "select"
+                ? React.createElement(React.Fragment, null,
+                  React.createElement(Input, {
+                    placeholder: "Search combo name...",
+                    value: comboSearch,
+                    onChange: (e) => setComboSearch(e.target.value),
+                    style: { marginBottom: 12, borderRadius: DS.radius.sm },
+                    allowClear: true,
+                  }),
+                  React.createElement("div", { style: { maxHeight: 360, overflowY: "auto" } },
+                    comboCatalog.length === 0
+                      ? React.createElement(Empty, { description: "No combos available" })
+                      : comboCatalog
+                        .filter((c) => normalizeLookupText(c.comboName || "").includes(normalizeLookupText(comboSearch)))
+                        .map((c) => React.createElement("div", {
+                          key: c.id,
+                          style: {
+                            display: "flex", alignItems: "center", justifyContent: "space-between",
+                            padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, marginBottom: 8,
+                          },
+                        },
+                          React.createElement("div", null,
+                            React.createElement("div", { style: { fontWeight: 600 } }, c.comboName || `Combo #${c.id}`),
+                            React.createElement("div", { style: { fontSize: 12, color: C.textSub } },
+                              `${(c.serviceComboItems || []).length} service(s) Â· ${formatMoney(c.packageSubTotal, currencyFromRecord(c, currencies, vndCurrency))}`)
+                          ),
+                          React.createElement(Button, {
+                            size: "small", type: "primary", loading: applyingCombo,
+                            onClick: () => applyComboFromCatalog(c),
+                          }, "Apply")
+                        ))
+                  )
+                )
+                : renderAdhocComboTab()
+            )
+            : React.createElement(React.Fragment, null,
+              React.createElement("div", { style: { ...DS.infoBox, marginBottom: 16 } },
             React.createElement("div", { style: { fontWeight: 600, marginBottom: 4 } }, "ðŸ“Œ Two ways to add a service:"),
             React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
               React.createElement("li", null, React.createElement("b", null, "From the standard catalog: "), "Pick a service below â€” the system will auto-fill its info and create sample tasks from the template."),
@@ -4794,6 +5036,7 @@
               label: "Detailed description"
             }, React.createElement(Input.TextArea, { rows: 4, placeholder: "Enter the service description...", style: { borderRadius: DS.radius.sm } }))
           )
+        )
         )
       );
     };
