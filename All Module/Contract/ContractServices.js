@@ -1,6 +1,6 @@
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo } = React;
-const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme } = ctx.antd;
+const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme, Popconfirm } = ctx.antd;
 const { Text } = Typography;
 
 const FONT = "inherit";
@@ -169,7 +169,6 @@ const fmtPrice = n => { const num = parseNum(n); return num === 0 ? '' : num.toL
 // ==================== MULTI-CURRENCY HELPERS (mirrors CaseCreateForm.js) ====================
 const DEFAULT_CURRENCY_CODE = "VND";
 const CURRENCY_RESOURCE_CANDIDATES = ["currencies:list", "currency:list", "Currency:list"];
-const EXCHANGE_RATE_RESOURCE_CANDIDATES = ["exchangeRates:list", "exchangeRate:list", "ExchangeRates:list"];
 const extractCurrencyId = (value) => {
   if (!value) return null;
   if (Array.isArray(value)) return extractCurrencyId(value[0]);
@@ -308,34 +307,36 @@ const parseDateMillis = (value) => {
   const ms = new Date(value).getTime();
   return Number.isFinite(ms) ? ms : null;
 };
-const getExchangeRateCurrencyId = (rate, side) => extractCurrencyId(rate?.[`${side}CurrencyId`] || rate?.[`${side}Currency`]);
-const getExchangeRateCurrencyCode = (rate, side) => extractCurrencyCode(rate?.[`${side}Currency`] || rate?.[`${side}CurrencyCode`]);
+// exchangeRates real schema (confirmed via Nocobase "Configure fields"):
+// fromCurrencyId, toCurrencyId (bigint scalars), rate (double), effectiveDate,
+// status. Both directions can have their own row (e.g. USD->VND and VND->USD),
+// so match by the (fromCurrencyId, toCurrencyId) pair rather than a single side.
 const isUsableExchangeRateStatus = (status) => {
   const value = String(status || "").trim().toLowerCase();
   if (!value) return true;
   return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
 };
-const exchangeRateMatchesCurrency = (rate, side, currency) => {
-  const rateCurrencyId = getExchangeRateCurrencyId(rate, side);
-  const currencyId = extractCurrencyId(currency);
-  if (rateCurrencyId && currencyId) return rateCurrencyId === currencyId;
-  const rateCurrencyCode = getExchangeRateCurrencyCode(rate, side);
-  const currencyCode = extractCurrencyCode(currency);
-  return !!rateCurrencyCode && !!currencyCode && rateCurrencyCode === currencyCode;
-};
 const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+  const fromId = extractCurrencyId(fromCurrency);
+  const toId = extractCurrencyId(toCurrency);
   const cutoff = parseDateMillis(pricingDate) || Date.now();
   return (rates || [])
     .map((rate) => {
       const effectiveMs = parseDateMillis(rate?.effectiveDate);
-      return { record: rate, rate: parseNum(rate?.rate), effectiveMs: effectiveMs || 0 };
+      return {
+        record: rate,
+        rate: parseNum(rate?.rate),
+        effectiveMs: effectiveMs || 0,
+        rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
+        rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
+      };
     })
     .filter((item) =>
       item.rate > 0 &&
       isUsableExchangeRateStatus(item.record?.status) &&
       (!item.effectiveMs || item.effectiveMs <= cutoff) &&
-      exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
-      exchangeRateMatchesCurrency(item.record, "to", toCurrency),
+      item.rateFromId === fromId &&
+      item.rateToId === toId,
     )
     .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
 };
@@ -372,35 +373,25 @@ async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyI
     new Set((fromCurrencyIds || []).map((id) => extractCurrencyId(id)).filter((id) => id && id !== toId)),
   );
   if (!toId || !fromIds.length) return [];
-  const pageSize = Math.max(100, fromIds.length * 5);
-  const filterProfiles = [
-    { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
-    { fromCurrency: { id: { $in: fromIds } }, toCurrency: { id: { $eq: toId } } },
-    { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
-    { fromCurrency: { id: { $eq: toId } }, toCurrency: { id: { $in: fromIds } } },
-  ];
-  for (const url of EXCHANGE_RATE_RESOURCE_CANDIDATES) {
-    const collected = [];
-    for (const filter of filterProfiles) {
-      try {
-        const r = await ctx.api.request({
-          url,
-          params: {
-            pageSize, page: 1,
-            appends: ["fromCurrency", "toCurrency"],
-            sort: ["-effectiveDate", "-createdAt"],
-            filter: JSON.stringify(filter),
-          },
-        });
-        const rows = r?.data?.data || [];
-        rows.forEach((row) => {
-          if (!collected.some((item) => String(item.id) === String(row.id))) collected.push(row);
-        });
-      } catch { }
-    }
-    if (collected.length) return collected;
+  try {
+    const r = await ctx.api.request({
+      url: "exchangeRates:list",
+      params: {
+        pageSize: Math.max(100, fromIds.length * 5),
+        page: 1,
+        sort: ["-effectiveDate", "-createdAt"],
+        filter: JSON.stringify({
+          $or: [
+            { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
+            { fromCurrencyId: { $eq: toId }, toCurrencyId: { $in: fromIds } },
+          ],
+        }),
+      },
+    });
+    return r?.data?.data || [];
+  } catch {
+    return [];
   }
-  return [];
 }
 const calcLine = (basePrice, quantity, vat, currency = null) => {
   const subTotal = parseNum(basePrice) * parseNum(quantity);
@@ -1098,8 +1089,23 @@ const EditableCell = ({ value, onSave, isTextArea = false, isNumber = false, isM
     displayVal = selectedOpt ? selectedOpt.label : (customLabel || "—");
   }
 
-  return React.createElement("div", {
-    style: {
+  const viewCell = React.createElement("div", {
+    style: isTextArea ? {
+      cursor: disabled ? "not-allowed" : "pointer",
+      minHeight: 28,
+      padding: "6px 8px",
+      borderRadius: DS.radius.xs,
+      transition: "background 0.2s, border-color 0.2s",
+      whiteSpace: "normal",
+      wordBreak: "break-word",
+      display: "-webkit-box",
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: "vertical",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      lineHeight: 1.5,
+      border: "1px dashed transparent",
+    } : {
       cursor: disabled ? "not-allowed" : "pointer",
       minHeight: 28,
       display: "flex",
@@ -1120,6 +1126,10 @@ const EditableCell = ({ value, onSave, isTextArea = false, isNumber = false, isM
     onMouseLeave: (e) => { if (!disabled) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } },
     title: disabled ? "Hợp đồng đã khoá" : "Click để chỉnh sửa"
   }, displayVal || React.createElement("span", { style: { color: C.muted, fontStyle: "italic" } }, "—"));
+
+  return (isTextArea && val)
+    ? React.createElement(Tooltip, { title: val, placement: "topLeft", overlayStyle: { maxWidth: 360 } }, viewCell)
+    : viewCell;
 };
 
 // ==================== MAIN BLOCK ====================
@@ -1133,7 +1143,6 @@ const ContractServicesBlock = () => {
   const [packageVatRate, setPackageVatRate] = useState(
     ctx.record?.packageVatRate ?? inferVatRate(ctx.record?.subTotal, ctx.record?.vatAmount, 0),
   );
-  const [packageVatAmountExact, setPackageVatAmountExact] = useState(null);
   const [psServiceIds, setPsServiceIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1358,12 +1367,12 @@ const ContractServicesBlock = () => {
     return () => { alive = false; };
   }, [vndCurrencyId, lineCurrencyIdsKey]);
 
-  const packageTotals = useMemo(() => {
-    const base = calcPackageTotals(packageSubTotal, packageVatRate, vndCurrency);
-    if (packageVatAmountExact === null || packageVatAmountExact === undefined) return base;
-    const vatAmount = roundMoneyForCurrency(parseNum(packageVatAmountExact), vndCurrency);
-    return { subTotal: base.subTotal, vatAmount, totalAmount: base.subTotal + vatAmount };
-  }, [packageSubTotal, packageVatRate, packageVatAmountExact, vndCurrency]);
+  // VAT amount / Package total are never directly editable â€” always derived
+  // from Package subtotal + VAT rate.
+  const packageTotals = useMemo(
+    () => calcPackageTotals(packageSubTotal, packageVatRate, vndCurrency),
+    [packageSubTotal, packageVatRate, vndCurrency],
+  );
 
   const lineTotalsVnd = useMemo(() => {
     if (isPackageMode) return { subTotal: 0, vatAmount: 0, totalAmount: 0, missingRows: [] };
@@ -1408,19 +1417,6 @@ const ContractServicesBlock = () => {
 
   const updatePackageField = (setter) => (value) => {
     setter(value || 0);
-    setPackageVatAmountExact(null);
-    setDirty(true);
-  };
-  const updatePackageVatAmount = (value) => {
-    const nextVatAmount = parseNum(value);
-    setPackageVatRate(inferVatRate(packageSubTotal, nextVatAmount, 0));
-    setPackageVatAmountExact(nextVatAmount);
-    setDirty(true);
-  };
-  const updatePackageTotalAmount = (value) => {
-    const nextVatAmount = Math.max(parseNum(value) - parseNum(packageSubTotal), 0);
-    setPackageVatRate(inferVatRate(packageSubTotal, nextVatAmount, 0));
-    setPackageVatAmountExact(nextVatAmount);
     setDirty(true);
   };
 
@@ -1707,7 +1703,9 @@ const ContractServicesBlock = () => {
     );
   };
 
-  const addRow = () => {
+  // comboTarget (set via a combo section's own "+ Add service" button) tags
+  // the new row into that combo instead of landing as an untagged row.
+  const addRow = (comboTarget = null) => {
     if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể thêm dịch vụ'); return; }
     const newId = Date.now();
     const defaultCurrencyId = extractCurrencyId(contractCurrency);
@@ -1725,6 +1723,9 @@ const ContractServicesBlock = () => {
       _isNew: true,
       _deleted: false,
       _isCustom: false,
+      comboId: comboTarget?.comboId || null,
+      serviceCombo: comboTarget?.comboId || null,
+      comboName: comboTarget?.comboName || null,
     }]);
     setDirty(true);
     openServiceModal(newId);
@@ -1733,6 +1734,22 @@ const ContractServicesBlock = () => {
   const deleteRow = id => {
     if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể xoá dịch vụ'); return; }
     setRows(prev => prev.map(r => r.id === id ? { ...r, _deleted: true } : r));
+    setDirty(true);
+  };
+
+  // Bulk-removes every active row tagged with a given comboId â€” the combo
+  // section header's "Remove combo" action. A row already saved to the
+  // server is soft-marked `_deleted` (persisted on the next Save, same as a
+  // single-row delete); a row only added locally (`_isNew`, never saved) is
+  // simply dropped from state instead of round-tripping through delete.
+  const removeCombo = (groupKey) => {
+    if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể xoá dịch vụ'); return; }
+    setRows(prev => prev
+      .map((r) => {
+        if (getComboGroupKey(r) !== groupKey) return r;
+        return r._isNew ? null : { ...r, _deleted: true };
+      })
+      .filter(Boolean));
     setDirty(true);
   };
 
@@ -1868,6 +1885,9 @@ const ContractServicesBlock = () => {
           description: r._description || null,
           currencyId: rowCurrencyId || null,
           currency: rowCurrencyId || null,
+          comboId: extractId(r.comboId) || extractId(r.serviceCombo) || null,
+          serviceCombo: extractId(r.comboId) || extractId(r.serviceCombo) || null,
+          comboName: r.comboName || null,
           ...pricingPayload,
           ...(linkedQuotationServiceId ? {
             quotationServiceId: linkedQuotationServiceId,
@@ -2127,13 +2147,18 @@ const ContractServicesBlock = () => {
   if (!CONTRACT_ID) return React.createElement('div', { style: { padding: 20, color: C.danger, fontFamily: FONT } }, 'Contract ID was not found in the URL.');
   if (loading) return React.createElement('div', { style: { textAlign: 'center', padding: 48 } }, React.createElement(Spin, { size: 'large' }));
 
+  // Package mode is a single toggle for the whole contract (not per-row), so
+  // when active these 4 columns are "Included"/"—" for every row â€” drop them
+  // entirely to compact the table instead of leaving 4 dead columns.
+  const PRICE_COLUMN_KEYS = ['basePrice', 'vat', 'vatAmount', 'total'];
+
   const serviceTableColumns = [
     {
       title: '#',
       key: 'index',
       width: 56,
       align: 'center',
-      render: (_, __, index) => index + 1,
+      render: (_, r) => r._displayIndex,
     },
     {
       title: 'Service & Type',
@@ -2277,7 +2302,164 @@ const ContractServicesBlock = () => {
         }, 'Delete')
       ),
     },
-  ].filter(Boolean);
+  ].filter(Boolean).filter((col) => !(isPackageMode && PRICE_COLUMN_KEYS.includes(col.key)));
+
+  // Groups active rows sharing a comboId into contiguous sections (a
+  // combo's rows aren't guaranteed to be adjacent once services are added to
+  // it after creation), inserting a synthetic combo-header pseudo-row before
+  // each group. Rows without a comboId keep their original position.
+  // Real catalog combos group by comboId. Ad-hoc combos never get a real
+  // comboId (matches *CreateForm.js's own behavior), so they fall back to
+  // grouping by comboName. Two independently-applied ad-hoc combos sharing
+  // the exact same name will visually merge into one section — an accepted,
+  // documented limitation (see spec).
+  const getComboGroupKey = (row) => {
+    const comboIdVal = extractId(row.comboId) || extractId(row.serviceCombo);
+    if (comboIdVal) return `id:${comboIdVal}`;
+    const name = String(row.comboName || '').trim();
+    return name ? `name:${name}` : null;
+  };
+
+  const comboGroups = new Map();
+  for (const row of activeRows) {
+    const key = getComboGroupKey(row);
+    if (!key) continue;
+    if (!comboGroups.has(key)) comboGroups.set(key, []);
+    comboGroups.get(key).push(row);
+  }
+  const emittedCombos = new Set();
+  const groupedActiveRows = [];
+  let displaySeq = 0;
+  for (const row of activeRows) {
+    const key = getComboGroupKey(row);
+    if (!key) {
+      displaySeq += 1;
+      groupedActiveRows.push({ ...row, _displayIndex: displaySeq });
+      continue;
+    }
+    if (emittedCombos.has(key)) continue;
+    emittedCombos.add(key);
+    const groupRows = comboGroups.get(key);
+    groupedActiveRows.push({
+      id: `combo-header-${key}`,
+      _isComboHeader: true,
+      _groupKey: key,
+      comboId: extractId(row.comboId) || extractId(row.serviceCombo) || null,
+      comboName: row.comboName || 'Combo',
+      _comboCount: groupRows.length,
+    });
+    for (const r of groupRows) {
+      displaySeq += 1;
+      groupedActiveRows.push({ ...r, _displayIndex: displaySeq });
+    }
+  }
+
+  const renderComboHeaderBar = (record) => React.createElement('div', {
+    style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 20, flexWrap: 'wrap', padding: '6px 4px' },
+  },
+    React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+      React.createElement(Tag, { color: 'blue', style: { fontWeight: 700, letterSpacing: 0.3 } }, 'COMBO'),
+      React.createElement(Text, { strong: true }, record.comboName || 'Combo'),
+      React.createElement(Text, { type: 'secondary', style: { fontSize: 12.5 } },
+        `${record._comboCount} service${record._comboCount === 1 ? '' : 's'}`)
+    ),
+    !isLocked && React.createElement(Space, { size: 8 },
+      React.createElement(Button, {
+        size: 'small',
+        onClick: () => addRow({ comboId: record.comboId, comboName: record.comboName }),
+      }, '+ Add service'),
+      React.createElement(Popconfirm, {
+        title: 'Remove this combo?',
+        description: 'All services in this combo section will be removed.',
+        okText: 'Remove',
+        okType: 'danger',
+        cancelText: 'Cancel',
+        onConfirm: () => removeCombo(record._groupKey),
+      },
+        React.createElement(Button, { size: 'small', danger: true }, 'Remove combo')
+      )
+    )
+  );
+
+  const columnsWithComboHeader = serviceTableColumns.map((col, idx) => ({
+    ...col,
+    onCell: (record) => {
+      if (record._isComboHeader) {
+        return idx === 0 ? { colSpan: serviceTableColumns.length } : { colSpan: 0 };
+      }
+      return col.onCell ? col.onCell(record) : {};
+    },
+    render: (text, record, index) => {
+      if (record._isComboHeader) {
+        return idx === 0 ? renderComboHeaderBar(record) : null;
+      }
+      return col.render ? col.render(text, record, index) : text;
+    },
+  }));
+
+  // Stacked label/value rows with a dashed divider and a bold Total row â€”
+  // lives outside the Table (not Table.Summary) so it isn't constrained by
+  // <td> layout. Package subtotal/VAT rate stay editable (writing to local
+  // state only â€” the existing "Cancel changes / Save" bar below persists
+  // everything together); VAT amount/Package total are derived, read-only.
+  const renderTotalsPanel = () => {
+    if (activeRows.length === 0) return null;
+    const rowStyle = (withBorder = true) => ({
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 16,
+      padding: '10px 0',
+      borderBottom: withBorder ? `1px dashed ${C.border}` : 'none',
+    });
+    const labelStyle = { fontSize: 13.5, color: C.textSub };
+    const totalLabelStyle = { fontSize: 15, fontWeight: 700, color: C.text };
+    const valueStyle = (color = C.text) => ({ fontSize: 14, fontWeight: 600, color, fontFamily: token.fontFamilyCode });
+    const totalValueStyle = (color) => ({ fontSize: 18, fontWeight: 700, color, fontFamily: token.fontFamilyCode });
+
+    return React.createElement('div', {
+      style: { ...DS.card, marginTop: 16, padding: '0 20px', maxWidth: 480, marginLeft: 'auto' },
+    },
+      isPackageMode
+        ? [
+          React.createElement('div', { key: 'subtotal', style: rowStyle(true) },
+            React.createElement(Text, { style: labelStyle }, 'Package subtotal (excl. VAT):'),
+            React.createElement(MoneyDraftInput, { value: packageSubTotal, disabled: isLocked, onChange: updatePackageField(setPackageSubTotal), style: { width: 170 }, placeholder: '0', currency: vndCurrency })
+          ),
+          React.createElement('div', { key: 'vatrate', style: rowStyle(true) },
+            React.createElement(Text, { style: labelStyle }, 'VAT rate:'),
+            React.createElement(InputNumber, {
+              value: packageVatRate, min: 0, max: 100, step: 0.1, disabled: isLocked,
+              onChange: updatePackageField(setPackageVatRate),
+              style: { width: 90, textAlign: 'right', fontWeight: 600 },
+              formatter: (v) => `${v}%`, parser: (v) => String(v || '').replace('%', ''),
+            })
+          ),
+          React.createElement('div', { key: 'vatamount', style: rowStyle(true) },
+            React.createElement(Text, { style: labelStyle }, 'Package VAT amount:'),
+            React.createElement(Text, { style: valueStyle(token.colorWarning) }, formatMoney(packageTotals.vatAmount, vndCurrency))
+          ),
+          React.createElement('div', { key: 'total', style: rowStyle(false) },
+            React.createElement(Text, { style: totalLabelStyle }, 'Package total:'),
+            React.createElement(Text, { style: totalValueStyle(token.colorSuccess) }, formatMoney(packageTotals.totalAmount, vndCurrency))
+          ),
+        ]
+        : [
+          React.createElement('div', { key: 'subtotal', style: rowStyle(true) },
+            React.createElement(Text, { style: labelStyle }, 'Subtotal (excl. VAT):'),
+            React.createElement(Text, { style: valueStyle() }, formatMoney(lineTotalsVnd.subTotal, vndCurrency))
+          ),
+          React.createElement('div', { key: 'vat', style: rowStyle(true) },
+            React.createElement(Text, { style: labelStyle }, 'Total VAT:'),
+            React.createElement(Text, { style: valueStyle(token.colorWarning) }, formatMoney(lineTotalsVnd.vatAmount, vndCurrency))
+          ),
+          React.createElement('div', { key: 'total', style: rowStyle(false) },
+            React.createElement(Text, { style: totalLabelStyle }, 'Total:'),
+            React.createElement(Text, { style: totalValueStyle(token.colorSuccess) }, formatMoney(lineTotalsVnd.totalAmount, vndCurrency))
+          ),
+        ]
+    );
+  };
 
   return React.createElement(Card, {
     size: 'small',
@@ -2297,7 +2479,7 @@ const ContractServicesBlock = () => {
       !isLocked && React.createElement(Button, {
         size: 'small',
         type: 'primary',
-        onClick: addRow,
+        onClick: () => addRow(),
       }, 'Add service'),
       React.createElement(Button, {
         size: 'small',
@@ -2329,57 +2511,19 @@ const ContractServicesBlock = () => {
 
     // Table
     React.createElement(Table, {
-      dataSource: activeRows,
-      columns: serviceTableColumns,
+      dataSource: groupedActiveRows,
+      columns: columnsWithComboHeader,
       rowKey: 'id',
       pagination: false,
       size: 'small',
       bordered: true,
       scroll: { x: 'max-content' },
-      summary: () => (activeRows.length > 0)
-        ? React.createElement(Table.Summary.Row, null,
-          React.createElement(Table.Summary.Cell, { index: 0, colSpan: 3, align: 'right' },
-            React.createElement(Text, { strong: true }, isPackageMode ? 'Package total' : 'Total')
-          ),
-          React.createElement(Table.Summary.Cell, { index: 3, align: 'right' },
-            React.createElement(Space, { direction: 'vertical', size: 0 },
-              React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package subtotal' : 'Subtotal'),
-              isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageSubTotal, disabled: isLocked, onChange: updatePackageField(setPackageSubTotal), style: { width: 150 }, placeholder: '0', currency: vndCurrency })
-                : React.createElement(Text, { strong: true, style: { fontFamily: token.fontFamilyCode } }, formatMoney(totals.subTotal, vndCurrency))
-            )
-          ),
-          React.createElement(Table.Summary.Cell, { index: 4, align: 'right' },
-            isPackageMode
-              ? React.createElement(Space, { direction: 'vertical', size: 0 },
-                React.createElement(Text, { type: 'secondary' }, 'VAT rate'),
-                React.createElement(InputNumber, { value: packageVatRate, min: 0, max: 100, step: 0.1, disabled: isLocked, onChange: updatePackageField(setPackageVatRate), style: { width: 96, textAlign: 'right' } })
-              )
-              : null
-          ),
-          React.createElement(Table.Summary.Cell, { index: 5, align: 'right' },
-            React.createElement(Space, { direction: 'vertical', size: 0 },
-              React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package VAT amount' : 'VAT amount'),
-              isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageTotals.vatAmount, disabled: isLocked, onChange: updatePackageVatAmount, style: { width: 150 }, placeholder: '0', currency: vndCurrency })
-                : React.createElement(Text, { strong: true, style: { color: token.colorWarning, fontFamily: token.fontFamilyCode } }, formatMoney(totals.vatAmount, vndCurrency))
-            )
-          ),
-          React.createElement(Table.Summary.Cell, { index: 6, align: 'right' },
-            React.createElement(Space, { direction: 'vertical', size: 0 },
-              React.createElement(Text, { type: 'secondary' }, isPackageMode ? 'Package total' : 'Total amount'),
-              isPackageMode
-                ? React.createElement(MoneyDraftInput, { value: packageTotals.totalAmount, disabled: isLocked, onChange: updatePackageTotalAmount, style: { width: 150 }, placeholder: '0', currency: vndCurrency })
-                : React.createElement(Text, { strong: true, style: { color: token.colorSuccess, fontFamily: token.fontFamilyCode } }, formatMoney(totals.totalAmount, vndCurrency))
-            )
-          ),
-          React.createElement(Table.Summary.Cell, { index: 7 })
-        )
-        : null,
       locale: {
         emptyText: isLocked ? 'No services' : 'No services - click Add service',
       },
     }),
+
+    renderTotalsPanel(),
 
     (dirty && !isLocked) && React.createElement('div', { style: { ...ui.section, display: 'flex', justifyContent: 'flex-end' } },
       React.createElement(Space, { size: 8 },
