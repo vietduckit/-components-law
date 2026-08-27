@@ -11117,6 +11117,9 @@
       if (serviceLines.length && !selectedContractServiceLines.length) {
         return "Please select at least one service for this contract.";
       }
+      if (!selectedContractServiceLines.length && !manualServiceRows.length) {
+        return "Please add at least one service before creating the contract.";
+      }
       if (manualServiceRows.length) {
         if (manualServiceRows.some((row) => !row.serviceName && !row.serviceId)) {
           return "Please select a service for every contract service row.";

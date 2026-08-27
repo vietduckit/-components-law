@@ -9407,6 +9407,10 @@ const ProjectCreateForm = () => {
       message.warning("Please select a Case Currency");
       return;
     }
+    if (!rows.length) {
+      message.warning("Please add at least one service before creating the case.");
+      return;
+    }
 
     setSubmittingState(true);
     try {
