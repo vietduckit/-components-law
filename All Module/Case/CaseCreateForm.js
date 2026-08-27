@@ -616,7 +616,7 @@ async function convertComboSubTotalToVnd(subTotal, comboCurrencyId, vndId, prici
     return { convertedSubTotal: Math.round(subTotal * matched.rate), wasConverted: true };
   }
   message.warning(
-    "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.",
+    "Could not find an exchange rate to convert the package's currency to VND — keeping the original amount, please double-check.",
   );
   return { convertedSubTotal: subTotal, wasConverted: false };
 }
@@ -1041,7 +1041,22 @@ async function fetchContractServices(contractId) {
         params: {
           pageSize: 500,
           page: 1,
-          appends: ["services"],
+          // "services" is the same relation appended for quotationServices
+          // (see fetchQuotationServices) — kept for the rows where it
+          // actually resolves. But ContractServices.js's own fetchCSvcs()
+          // (the proven-working contract-services editor) never appends
+          // "services" at all — it resolves each row's catalog service
+          // indirectly through the linked projectServices/quotationServices
+          // record instead (see buildProjectServiceSyncPayload's sibling
+          // lookups there). contractServices rows created via
+          // ContractCreateForm.js's buildContractServicePayload always set
+          // quotationServiceId/quotationServices (and often
+          // projectServiceId/projectServices) even when the row's own
+          // serviceId ends up empty, so appending these two here gives
+          // mapContractServicesToRows a real fallback chain instead of
+          // silently losing task-template matches whenever "services"
+          // itself doesn't resolve.
+          appends: ["services", "projectServices", "quotationServices"],
           filter: JSON.stringify(filter),
         },
       });
@@ -1052,12 +1067,19 @@ async function fetchContractServices(contractId) {
   return [];
 }
 
-function mapQuotationServicesToRows(qsvcs, quotation) {
+function mapQuotationServicesToRows(qsvcs, quotation, taskTemplates = []) {
   const parentPackageMode = isPackagePricing(quotation);
   return qsvcs.map((s) => {
     if (qsvcs.indexOf(s) === 0)
       console.log("[quotationService row]", JSON.stringify(s, null, 2));
 
+    // fetchQuotationServices appends the relation under "services" (plural) —
+    // reading only "s.service" (singular) left this always undefined and
+    // silently killed every fallback below (serviceId, serviceType,
+    // description, basePrice, currency), which in turn starved task-template
+    // matching of a reliable serviceId whenever quotationServices.serviceId
+    // itself was empty/stale.
+    const serviceRecord = s.service || s.services || {};
     const packageMode = parentPackageMode || isPackagePricing(s);
     const packageState = financialStateFromRecord(
       {
@@ -1071,23 +1093,23 @@ function mapQuotationServicesToRows(qsvcs, quotation) {
     );
     const basePrice = packageMode
       ? 0
-      : s.price ?? s.basePrice ?? s.service?.basePrice ?? 0;
+      : s.price ?? s.basePrice ?? serviceRecord.basePrice ?? 0;
     const vat = packageMode ? 0 : s.vat ?? 0;
     const rowCurrencyId =
       getRecordCurrencyId(s) ||
-      getRecordCurrencyId(s.service) ||
+      getRecordCurrencyId(serviceRecord) ||
       getRecordCurrencyId(quotation);
-    return {
+    const row = {
       _id: Date.now() + Math.random(),
       _qServiceId: s.id,
       serviceId: s.serviceId
         ? String(s.serviceId)
-        : s.service?.id
-          ? String(s.service.id)
+        : serviceRecord.id
+          ? String(serviceRecord.id)
           : null,
-      serviceName: s.serviceName || s.service?.serviceName || s.name || "",
-      serviceType: s.serviceType || s.service?.serviceType || s.type || "",
-      description: s.description || s.service?.description || s.note || "",
+      serviceName: s.serviceName || serviceRecord.serviceName || s.name || "",
+      serviceType: s.serviceType || serviceRecord.serviceType || s.type || "",
+      description: s.description || serviceRecord.description || s.note || "",
       currencyId: rowCurrencyId ? String(rowCurrencyId) : null,
       _sourceCurrencyId: rowCurrencyId ? String(rowCurrencyId) : null,
       basePrice,
@@ -1110,13 +1132,47 @@ function mapQuotationServicesToRows(qsvcs, quotation) {
         (parseNum(s.vatAmount) || Math.round((parseNum(basePrice) * parseNum(vat)) / 100)),
       _fromQuotation: true,
     };
+    // Matched against both the relation's own id (serviceRecord.id, the
+    // reliable master services.id) and the raw quotationServices.serviceId
+    // scalar — projectTemplates.serviceId is only known to reference one of
+    // the two reliably, so both candidates are offered rather than picking
+    // one and risking silently matching nothing.
+    row._templateTasks = getServiceTaskTemplates(taskTemplates, {
+      id: serviceRecord.id,
+      serviceId: s.serviceId,
+      serviceName: row.serviceName,
+    });
+    return row;
   });
 }
 
-function mapContractServicesToRows(csvcs, contract) {
+// Maps each contractServices/quotationServices row's own serviceId/serviceName
+// against the global taskTemplates catalog (same lookup addRowFromService uses
+// for a freshly-picked catalog service), so a Case created from a related
+// Contract or Quotation shows that service's sample tasks immediately instead
+// of relying only on getRowTaskTemplates' render-time fallback.
+function mapContractServicesToRows(csvcs, contract, taskTemplates = []) {
   const parentPackageMode = isPackagePricing(contract);
   return csvcs.map((s) => {
     const serviceRecord = s.service || s.services || {};
+    // contractServices' own "services" relation frequently doesn't resolve
+    // (see fetchContractServices' comment — ContractServices.js's own
+    // editor never relies on it either), so fall back through whichever
+    // originating projectServices/quotationServices record this
+    // contractService was synced from — ContractCreateForm.js's
+    // buildContractServicePayload always links one or both of those even
+    // when the contractService's own serviceId/ServiceId ends up empty.
+    const linkedProjectService = Array.isArray(s.projectServices) ? s.projectServices[0] : s.projectServices;
+    const linkedQuotationService = Array.isArray(s.quotationServices) ? s.quotationServices[0] : s.quotationServices;
+    const resolvedServiceId =
+      s.serviceId ||
+      s.ServiceId ||
+      serviceRecord.id ||
+      linkedProjectService?.serviceId ||
+      linkedProjectService?.ServiceId ||
+      linkedQuotationService?.serviceId ||
+      linkedQuotationService?.ServiceId ||
+      null;
     const packageMode = parentPackageMode || isPackagePricing(s);
     const packageState = financialStateFromRecord(
       {
@@ -1140,15 +1196,17 @@ function mapContractServicesToRows(csvcs, contract) {
       getRecordCurrencyId(s) ||
       getRecordCurrencyId(serviceRecord) ||
       getRecordCurrencyId(contract);
-    return {
+    const row = {
       _id: Date.now() + Math.random(),
       _contractServiceId: s.id,
-      serviceId: s.serviceId
-        ? String(s.serviceId)
-        : serviceRecord.id
-          ? String(serviceRecord.id)
-          : null,
-      serviceName: s.serviceName || serviceRecord.serviceName || s.name || "",
+      serviceId: resolvedServiceId ? String(resolvedServiceId) : null,
+      serviceName:
+        s.serviceName ||
+        serviceRecord.serviceName ||
+        s.name ||
+        linkedProjectService?.serviceName ||
+        linkedQuotationService?.serviceName ||
+        "",
       serviceType: s.serviceType || serviceRecord.serviceType || s.type || "",
       description: s.description || serviceRecord.description || s.note || "",
       currencyId: rowCurrencyId ? String(rowCurrencyId) : null,
@@ -1167,6 +1225,17 @@ function mapContractServicesToRows(csvcs, contract) {
       totalAmount: packageMode ? 0 : parseNum(s.totalAmount) || subTotal + vatAmount,
       _fromContract: true,
     };
+    // See mapQuotationServicesToRows' matching comment above — same
+    // both-candidate-ids approach, widened further via resolvedServiceId
+    // (which already folds in the linked projectServices/quotationServices
+    // fallback computed above) since contractServices.serviceId/services
+    // alone are the least reliable of the three sync paths in practice.
+    row._templateTasks = getServiceTaskTemplates(taskTemplates, {
+      id: resolvedServiceId,
+      serviceId: resolvedServiceId,
+      serviceName: row.serviceName,
+    });
+    return row;
   });
 }
 
@@ -3608,6 +3677,24 @@ const getServiceTaskTemplates = (taskTemplates = [], service = {}) => {
     }),
   );
 };
+// Shared by addRowFromService/applyCombo/applyAdhocCombo — matches a
+// candidate service (by catalog serviceId first, else by case-insensitive
+// name) against every row already on the case, regardless of whether that
+// row came from an individual pick, a custom-created service, a related
+// contract/quotation, or an already-applied combo — a service should only
+// ever appear once on a Case no matter which entry point added it.
+const normalizeServiceDupKey = (value) => String(value || "").trim().toLowerCase();
+const findDuplicateServiceRow = (rows = [], { serviceId, serviceName } = {}) => {
+  const svcId = serviceId ? String(serviceId) : null;
+  const nameKey = normalizeServiceDupKey(serviceName);
+  return (
+    (rows || []).find((row) => {
+      if (svcId && row.serviceId && String(row.serviceId) === svcId) return true;
+      if (nameKey && normalizeServiceDupKey(row.serviceName) === nameKey) return true;
+      return false;
+    }) || null
+  );
+};
 const createCustomTaskDraft = () => ({
   _id: Date.now() + Math.random(),
   title: "",
@@ -3770,6 +3857,7 @@ const ServicePickerModal = ({
   combos = [],
   onApplyCombo,
   onApplyAdhocCombo,
+  comboScopeId = null,
 }) => {
   // "individual" = pick/create a single catalog or custom service (existing
   // flow, unchanged). "combo" = pick an existing serviceCombos template or
@@ -3944,11 +4032,11 @@ const ServicePickerModal = ({
   };
   const handleApplyAdhocCombo = async () => {
     const errs = {};
-    if (!comboName.trim()) errs.comboName = "Please enter a combo name";
+    if (!comboName.trim()) errs.comboName = "Please enter a package name";
     if (currencies.length && !extractCurrencyId(comboCurrencyId))
       errs.comboCurrencyId = "Please select a currency";
     if (!comboItems.length) {
-      errs.items = "Please add at least 1 service to the combo";
+      errs.items = "Please add at least 1 service to the package";
     } else {
       const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
       if (emptyNameItem) {
@@ -3961,7 +4049,7 @@ const ServicePickerModal = ({
           seenNames.add(key);
           return false;
         });
-        if (duplicateItem) errs.items = "Duplicate service name in combo";
+        if (duplicateItem) errs.items = "Duplicate service name in package";
       }
     }
     setComboErrors(errs);
@@ -4578,7 +4666,7 @@ const ServicePickerModal = ({
             autoFocus: true,
             value: comboSearch,
             onChange: (e) => setComboSearch(e.target.value),
-            placeholder: "Search combo...",
+            placeholder: "Search package...",
             style: inp({ paddingLeft: 36 }),
             onFocus,
             onBlur,
@@ -4604,7 +4692,7 @@ const ServicePickerModal = ({
               flexShrink: 0,
             },
           },
-          "+ Create new combo",
+          "+ New package",
         ),
       ),
       React.createElement(
@@ -4620,7 +4708,7 @@ const ServicePickerModal = ({
               "tr",
               null,
               React.createElement("th", { style: thS({ width: 36, textAlign: "center" }) }, "#"),
-              React.createElement("th", { style: thS({ minWidth: 260 }) }, "Combo"),
+              React.createElement("th", { style: thS({ minWidth: 260 }) }, "Package"),
               React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, "Package Price"),
               React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Services"),
               React.createElement("th", { style: thS({ width: 90, textAlign: "center" }) }, ""),
@@ -4640,14 +4728,14 @@ const ServicePickerModal = ({
                     "div",
                     { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
                     React.createElement("span", { style: { color: C.textSub, display: "inline-flex" } }, ClipboardIcon),
-                    React.createElement("div", null, "No combos yet"),
+                    React.createElement("div", null, "No packages yet"),
                     React.createElement(
                       "span",
                       {
                         onClick: () => setComboTab("create"),
                         style: { color: C.primary, cursor: "pointer", fontSize: 12, textDecoration: "underline" },
                       },
-                      "Create new combo",
+                      "New package",
                     ),
                   ),
                 ),
@@ -4675,7 +4763,7 @@ const ServicePickerModal = ({
                       React.createElement(
                         "span",
                         { style: { fontWeight: 700, color: C.text, lineHeight: "20px", overflowWrap: "anywhere" } },
-                        c.comboName || `Combo #${c.id}`,
+                        c.comboName || `Package #${c.id}`,
                       ),
                       c.serviceComboType &&
                         React.createElement(
@@ -4703,7 +4791,7 @@ const ServicePickerModal = ({
                       React.createElement(
                         "span",
                         { style: { fontFamily: FONT_MONO, fontWeight: 700, color: C.text } },
-                        formatMoney(c.packageSubTotal, defaultCurrencyObject()),
+                        formatMoney(c.packageSubTotal, currencyFromRecord(c, currencies, defaultCurrencyObject())),
                       ),
                       React.createElement(
                         "span",
@@ -4797,7 +4885,7 @@ const ServicePickerModal = ({
             React.createElement(
               "span",
               { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel } },
-              "Combo Name",
+              "Package Name",
             ),
             React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
           ),
@@ -4894,7 +4982,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            `Services in combo (${comboItems.length})`,
+            `Services in package (${comboItems.length})`,
           ),
           React.createElement(
             "div",
@@ -5007,7 +5095,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          comboApplying ? "Applying..." : "Apply combo",
+          comboApplying ? "Applying..." : "Submit",
         ),
       ),
     );
@@ -5065,8 +5153,8 @@ const ServicePickerModal = ({
           },
           mode === "combo"
             ? comboTab === "create"
-              ? "Create New Combo"
-              : "Select Combo"
+              ? "New Package"
+              : "Select Package"
             : tab === "create"
               ? "Create New Service"
               : "Select Service",
@@ -5093,6 +5181,7 @@ const ServicePickerModal = ({
           XIcon,
         ),
       ),
+      !comboScopeId &&
       React.createElement(
         "div",
         {
@@ -5109,8 +5198,8 @@ const ServicePickerModal = ({
             value: mode,
             onChange: (value) => setMode(value),
             options: [
-              { value: "individual", label: "Individual pricing" },
-              { value: "combo", label: "Combo pricing" },
+              { value: "individual", label: "Line pricing" },
+              { value: "combo", label: "Package pricing" },
             ],
             style: { width: "100%", maxWidth: 360 },
           })
@@ -5127,8 +5216,8 @@ const ServicePickerModal = ({
               },
             },
             [
-              ["individual", "Individual pricing"],
-              ["combo", "Combo pricing"],
+              ["individual", "Line pricing"],
+              ["combo", "Package pricing"],
             ].map(([m, label]) =>
               React.createElement(
                 "button",
@@ -5785,9 +5874,21 @@ const ProjectServicesTable = ({
   combos = [],
   onApplyCombo,
   onApplyAdhocCombo,
-  comboConversionNote = null,
+  appliedCombos = [],
+  onRemoveCombo,
+  onAddServiceToCombo,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
+  // When set, the picker was opened via a specific combo section's own
+  // "+ Add service" action rather than the top-level "Add service" button —
+  // the picked/created service is tagged into that combo's section instead
+  // of landing as an untagged row, and the picker's Individual/Combo mode
+  // toggle is hidden (adding INTO an existing combo, not creating another).
+  const [comboAddInstanceId, setComboAddInstanceId] = useState(null);
+  const closePicker = () => {
+    setPickerOpen(false);
+    setComboAddInstanceId(null);
+  };
   const [editingRows, setEditingRows] = useState({});
   const [taskOverviewRowId, setTaskOverviewRowId] = useState(null);
   const [breakdownOpen, setBreakdownOpen] = useState(false);
@@ -6201,6 +6302,120 @@ const ProjectServicesTable = ({
     justifyContent: "center",
     padding: 0,
   });
+  // One header <tr> (colSpan across all 7 columns) rendered right before the
+  // first row of each applied-combo section, so combo-derived rows are
+  // visually grouped and identifiable — with an inline "Remove combo"
+  // action instead of the old single free-floating conversion note.
+  const renderComboSectionHeader = (combo, instanceId) =>
+    React.createElement(
+      "tr",
+      { key: `combo-header-${instanceId}` },
+      React.createElement(
+        "td",
+        {
+          colSpan: 7,
+          style: {
+            padding: "10px 12px",
+            background: "#f0f5ff",
+            borderTop: "2px solid #91caff",
+            borderBottom: "1px solid #91caff",
+          },
+        },
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            },
+          },
+          React.createElement(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } },
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  color: "#1d4ed8",
+                  background: "#dbeafe",
+                  padding: "2px 8px",
+                  borderRadius: 10,
+                  flexShrink: 0,
+                },
+              },
+              "PACKAGE",
+            ),
+            React.createElement(
+              "span",
+              { style: { fontWeight: 700, color: C.text, fontSize: 13.5, overflowWrap: "anywhere" } },
+              combo?.comboName || "Package",
+            ),
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "flex", alignItems: "center", gap: 10, flexShrink: 0 } },
+            combo &&
+              React.createElement(
+                "span",
+                { style: { fontSize: 12, color: C.textSub, fontFamily: FONT_MONO } },
+                combo.wasConverted
+                  ? `${combo.originalAmount.toLocaleString("vi-VN")} ${combo.currencyCode} → ${formatMoney(combo.convertedAmount, defaultCurrencyObject())}`
+                  : formatMoney(combo.convertedAmount, defaultCurrencyObject()),
+              ),
+            onAddServiceToCombo &&
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => {
+                    setComboAddInstanceId(instanceId);
+                    setPickerOpen(true);
+                  },
+                  title: "Add service to this package",
+                  style: {
+                    border: `1px dashed ${C.primary}`,
+                    background: "#fff",
+                    color: C.primary,
+                    borderRadius: 5,
+                    padding: "2px 9px",
+                    cursor: "pointer",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                  },
+                },
+                "+ Add service",
+              ),
+            onRemoveCombo &&
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => onRemoveCombo(instanceId),
+                  title: "Remove this package",
+                  style: {
+                    border: `1px solid ${C.danger}`,
+                    background: "#fff",
+                    color: C.danger,
+                    borderRadius: 5,
+                    padding: "2px 9px",
+                    cursor: "pointer",
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                  },
+                },
+                "× Remove package",
+              ),
+          ),
+        ),
+      ),
+    );
   const taskFieldForRow = (row) => (row?.serviceId ? "_templateTasks" : "_customTaskTemplates");
   const editableTasksForRow = (row) =>
     getRowTaskTemplates(taskTemplates, row).map((task, index) => ({
@@ -6663,15 +6878,6 @@ const ProjectServicesTable = ({
                 currency: totalsCurrency,
               }),
             ),
-            comboConversionNote &&
-              React.createElement(
-                "div",
-                { style: { marginTop: 2, textAlign: "right", fontSize: 11.5, color: C.textSub, fontFamily: FONT } },
-                `Original catalog price: ${comboConversionNote.originalAmount.toLocaleString("vi-VN")} ${comboConversionNote.currencyCode}` +
-                  (comboConversionNote.wasConverted
-                    ? " — converted into the Package Subtotal field above"
-                    : ""),
-              ),
           ),
           React.createElement(
             "div",
@@ -6939,21 +7145,30 @@ const ProjectServicesTable = ({
       currency,
       currencies,
       combos,
+      comboScopeId: comboAddInstanceId,
       onSelect: (svc) => {
-        onAddFromService(svc);
-        setPickerOpen(false);
+        if (comboAddInstanceId) {
+          onAddServiceToCombo?.(comboAddInstanceId, svc);
+        } else {
+          onAddFromService(svc);
+        }
+        closePicker();
       },
-      onClose: () => setPickerOpen(false),
+      onClose: closePicker,
       onCreateAndSelect: async (data) => {
-        await onAddFromService(data, true);
+        if (comboAddInstanceId) {
+          onAddServiceToCombo?.(comboAddInstanceId, data);
+        } else {
+          await onAddFromService(data, true);
+        }
       },
       onApplyCombo: (comboId) => {
         onApplyCombo?.(comboId);
-        setPickerOpen(false);
+        closePicker();
       },
       onApplyAdhocCombo: (payload) => {
         onApplyAdhocCombo?.(payload);
-        setPickerOpen(false);
+        closePicker();
       },
     }),
     React.createElement(
@@ -7046,7 +7261,7 @@ const ProjectServicesTable = ({
             icon: PlusIcon,
             onClick: () => setPickerOpen(true),
           },
-          "Add service",
+          "New service",
         )
         : React.createElement(
           "div",
@@ -7067,7 +7282,7 @@ const ProjectServicesTable = ({
               gap: 6,
             },
           },
-          React.createElement(React.Fragment, null, PlusIcon, "Add row"),
+          React.createElement(React.Fragment, null, PlusIcon, "New service"),
         ),
     ),
     React.createElement(
@@ -7242,7 +7457,7 @@ const ProjectServicesTable = ({
                   React.createElement(
                     "span",
                     null,
-                    'No services yet - click "Add row"',
+                    'No services yet - click "New service"',
                   ),
                 ),
               ),
@@ -7268,7 +7483,27 @@ const ProjectServicesTable = ({
               const convertedLineAmount = lineAmount
                 ? convertAmountsToBaseCurrency(lineAmount, rowCurrency)
                 : null;
-              return React.createElement(
+              // The "#" column numbers rows per section (combo instance, or
+              // the contiguous run of non-combo rows) instead of across the
+              // whole table — walk backward while the previous row shares
+              // the same _comboInstanceId (or is also non-combo) so each
+              // combo's own services read as 1, 2, 3... A combo section
+              // header renders right before the first row of that section.
+              let sectionRowIndex = 1;
+              for (let j = i - 1; j >= 0; j--) {
+                if ((rows[j]._comboInstanceId || null) !== (r._comboInstanceId || null)) break;
+                sectionRowIndex++;
+              }
+              const isComboSectionStart = !!r._comboInstanceId && sectionRowIndex === 1;
+              const comboSectionHeader = isComboSectionStart
+                ? renderComboSectionHeader(
+                  appliedCombos.find((c) => c.instanceId === r._comboInstanceId),
+                  r._comboInstanceId,
+                )
+                : null;
+              return [
+                comboSectionHeader,
+                React.createElement(
                 "tr",
                 {
                   key: r._id,
@@ -7300,7 +7535,7 @@ const ProjectServicesTable = ({
                       { title: "From quotation", style: { display: "inline-flex", color: C.primary } },
                       FileTextIcon,
                     )
-                    : i + 1,
+                    : sectionRowIndex,
                 ),
                 React.createElement(
                   "td",
@@ -7682,7 +7917,8 @@ const ProjectServicesTable = ({
                     ),
                   ),
                 ),
-              );
+                ),
+              ].filter(Boolean);
             }),
         ),
       ),
@@ -7876,7 +8112,7 @@ const ProjectCreateForm = () => {
   const [rows, setRows] = useState([]);
   const [internalCompanies, setInternalCompanies] = useState([]);
   const [combos, setCombos] = useState([]);
-  const [comboConversionNote, setComboConversionNote] = useState(null);
+  const [appliedCombos, setAppliedCombos] = useState([]);
 
   useEffect(() => {
     ctx.api
@@ -8113,14 +8349,14 @@ const ProjectCreateForm = () => {
               fetchContractServices(foundContract.id)
                 .then((csvcs) => {
                   if (csvcs.length > 0)
-                    setRows(mapContractServicesToRows(csvcs, foundContract));
+                    setRows(mapContractServicesToRows(csvcs, foundContract, taskTpls));
                 })
                 .catch(() => { });
             } else if (foundQuot) {
               fetchQuotationServices(foundQuot.id)
                 .then((qsvcs) => {
                   if (qsvcs.length > 0)
-                    setRows(mapQuotationServicesToRows(qsvcs, foundQuot));
+                    setRows(mapQuotationServicesToRows(qsvcs, foundQuot, taskTpls));
                 })
                 .catch(() => { });
             }
@@ -8157,14 +8393,14 @@ const ProjectCreateForm = () => {
                 fetchContractServices(cc.id)
                   .then((csvcs) => {
                     if (csvcs.length > 0)
-                      setRows(mapContractServicesToRows(csvcs, cc));
+                      setRows(mapContractServicesToRows(csvcs, cc, taskTpls));
                   })
                   .catch(() => { });
               } else if (cq) {
                 fetchQuotationServices(cq.id)
                   .then((qsvcs) => {
                     if (qsvcs.length > 0)
-                      setRows(mapQuotationServicesToRows(qsvcs, cq));
+                      setRows(mapQuotationServicesToRows(qsvcs, cq, taskTpls));
                   })
                   .catch(() => { });
               }
@@ -8367,7 +8603,7 @@ const ProjectCreateForm = () => {
         applyFinancialSource(selectedQuotation, SOURCE_QUOTATION);
         const qsvcs = await fetchQuotationServices(quotationId);
         if (qsvcs.length > 0) {
-          const mapped = mapQuotationServicesToRows(qsvcs, selectedQuotation);
+          const mapped = mapQuotationServicesToRows(qsvcs, selectedQuotation, taskTemplates);
           // Lưu snapshot ban đầu kèm quotationServiceId để so sánh khi submit
           initialRowsRef.current = qsvcs.map((s) => ({
             _qServiceId: s.id,
@@ -8395,7 +8631,7 @@ const ProjectCreateForm = () => {
         setLoadingServices(false);
       }
     },
-    [applyFinancialSource, quotations],
+    [applyFinancialSource, quotations, taskTemplates],
   );
 
   // ── Select customer: auto-select contract + quotation + load services ──
@@ -8410,25 +8646,22 @@ const ProjectCreateForm = () => {
         applyFinancialSource(selectedContract, SOURCE_CONTRACT);
         const csvcs = await fetchContractServices(contractId);
         if (csvcs.length > 0) {
-          const mapped = mapContractServicesToRows(csvcs, selectedContract);
-          initialRowsRef.current = csvcs.map((s) => {
-            const serviceRecord = s.service || s.services || {};
-            const rowCurrencyId =
-              getRecordCurrencyId(s) ||
-              getRecordCurrencyId(serviceRecord) ||
-              getRecordCurrencyId(selectedContract);
-            return {
-              _contractServiceId: s.id,
-              serviceId: s.serviceId
-                ? String(s.serviceId)
-                : serviceRecord.id
-                  ? String(serviceRecord.id)
-                  : null,
-              basePrice: isPackagePricing(selectedContract) ? 0 : s.price ?? s.basePrice ?? 0,
-              vat: isPackagePricing(selectedContract) ? 0 : s.vat ?? 0,
-              currencyId: rowCurrencyId ? String(rowCurrencyId) : null,
-            };
-          });
+          const mapped = mapContractServicesToRows(csvcs, selectedContract, taskTemplates);
+          // Derived from `mapped` (not re-derived from the raw csvcs) so the
+          // snapshot's serviceId always matches what the row itself actually
+          // holds — mapContractServicesToRows resolves serviceId through a
+          // wider fallback chain (see its own comment) than a naive re-read
+          // of csvcs would, and a mismatch here would make the submit-time
+          // "did this row still exist" diff (see the SOURCE_CONTRACT sync
+          // block in handleSubmit) wrongly treat an untouched row as
+          // removed/changed.
+          initialRowsRef.current = mapped.map((row) => ({
+            _contractServiceId: row._contractServiceId,
+            serviceId: row.serviceId,
+            basePrice: isPackagePricing(selectedContract) ? 0 : row.basePrice,
+            vat: isPackagePricing(selectedContract) ? 0 : row.vat,
+            currencyId: row.currencyId,
+          }));
           setRows(mapped);
           if (showToast)
             message.success(`Loaded ${csvcs.length} services from contract`);
@@ -8447,7 +8680,7 @@ const ProjectCreateForm = () => {
         setLoadingServices(false);
       }
     },
-    [applyFinancialSource, contracts],
+    [applyFinancialSource, contracts, taskTemplates],
   );
 
   const handleCustomerChange = useCallback(
@@ -8633,12 +8866,7 @@ const ProjectCreateForm = () => {
       if (isCreate) {
         const serviceName = String(svc.serviceName || "").trim();
         const customTaskTemplates = normalizeCustomTaskTemplates(svc.taskTemplates);
-        const duplicateName = rows.some(
-          (row) =>
-            String(row.serviceName || "").trim().toLowerCase() ===
-            serviceName.toLowerCase(),
-        );
-        if (duplicateName) {
+        if (findDuplicateServiceRow(rows, { serviceName })) {
           message.warning("This service is already added in the case.");
           return;
         }
@@ -8669,6 +8897,10 @@ const ProjectCreateForm = () => {
         addToPackageTotal(svc.basePrice);
         message.success("Service row added. It will be saved to project services on submit.");
       } else {
+        if (findDuplicateServiceRow(rows, { serviceId: svc.id, serviceName: svc.serviceName })) {
+          message.warning("This service is already added in the case.");
+          return;
+        }
         setRows((p) => [
           ...p,
           {
@@ -8697,6 +8929,70 @@ const ProjectCreateForm = () => {
       }
     },
     [form.currencyId, form.financialSourceType, form.pricingMode, markDirty, rows, taskTemplates],
+  );
+
+  // Adds a service INTO an already-applied combo's section (triggered by
+  // that section's own "+ Add service" action) rather than as an untagged
+  // row. Always priced at 0 — "included in package" — per user decision:
+  // this service rides along on the combo's existing flat package price,
+  // it does not add its own charge (mirrors how _comboInstanceId rows from
+  // applyCombo/applyAdhocCombo are already priced).
+  const onAddServiceToCombo = useCallback(
+    (instanceId, svc) => {
+      const isCreate = !svc?.id;
+      const serviceName = String(svc?.serviceName || "").trim();
+      if (findDuplicateServiceRow(rows, { serviceId: svc?.id, serviceName })) {
+        message.warning("This service is already added in the case.");
+        return;
+      }
+      const siblingRow = rows.find((r) => r._comboInstanceId === instanceId);
+      const comboEntry = appliedCombos.find((c) => c.instanceId === instanceId);
+      const serviceCurrencyId = getRecordCurrencyId(svc);
+      const rowCurrencyId = serviceCurrencyId || form.currencyId || null;
+      const newRow = {
+        _id: Date.now() + Math.random(),
+        serviceId: isCreate ? null : String(svc.id),
+        serviceName,
+        serviceType: svc?.serviceType || "",
+        description: svc?.description || "",
+        currencyId: rowCurrencyId ? String(rowCurrencyId) : null,
+        _sourceCurrencyId: serviceCurrencyId ? String(serviceCurrencyId) : null,
+        basePrice: 0,
+        vat: 0,
+        billingMode: BILLING_PACKAGE_INCLUDED,
+        financialSourceType: form.financialSourceType || SOURCE_NONE,
+        pricingMode: PRICING_MODE_PACKAGE,
+        _packageBasePrice: 0,
+        _comboInstanceId: instanceId,
+        _comboCatalogId: siblingRow?._comboCatalogId ?? null,
+        _comboName: siblingRow?._comboName || comboEntry?.comboName || "",
+        _comboSnapshot: siblingRow?._comboSnapshot || null,
+        ...(isCreate
+          ? { _customTaskTemplates: normalizeCustomTaskTemplates(svc?.taskTemplates) }
+          : { _templateTasks: getServiceTaskTemplates(taskTemplates, svc) }),
+      };
+      markDirty();
+      // Insert right after this combo's own last row, not at the end of
+      // the whole list — appending unconditionally would land the new row
+      // after a later-applied combo's rows, breaking that combo's section
+      // contiguity (the row-map's isComboSectionStart groups purely by
+      // adjacency) and rendering it as a stray second section instead of
+      // inside the combo it was actually added to.
+      setRows((p) => {
+        let insertAt = p.length;
+        for (let i = p.length - 1; i >= 0; i--) {
+          if (p[i]._comboInstanceId === instanceId) {
+            insertAt = i + 1;
+            break;
+          }
+        }
+        return [...p.slice(0, insertAt), newRow, ...p.slice(insertAt)];
+      });
+      if (isCreate) {
+        message.success("Service row added. It will be saved to project services on submit.");
+      }
+    },
+    [appliedCombos, form.currencyId, form.financialSourceType, markDirty, rows, taskTemplates],
   );
 
   const deleteRow = (id) => {
@@ -8757,7 +9053,7 @@ const ProjectCreateForm = () => {
       if (!combo) return;
       const items = combo.serviceComboItems || [];
       if (!items.length) {
-        message.warning("This combo has no services yet.");
+        message.warning("This package has no services yet.");
         return;
       }
 
@@ -8802,12 +9098,36 @@ const ProjectCreateForm = () => {
       // Package-mode projectServices:create payloads in handleSubmit always
       // send quantity: 1 (both submit-loop branches), so a combo item with
       // quantity > 1 is represented as that many duplicate rows here.
-      // Rows are built directly here (not via addRowFromService) so each
-      // one can be tagged with _comboSourceId — needed below to replace a
-      // previously-applied combo's rows instead of appending on top of them.
+      // Rows are built directly here (not via addRowFromService) so each one
+      // can be tagged with _comboInstanceId — a per-apply client-side key
+      // (distinct from _comboCatalogId, the real catalog FK) used below to
+      // group this combo's rows for its section header / "Remove combo"
+      // action, and to let the same catalog combo be applied more than once
+      // without its instances colliding.
+      // Applying a combo while already in package mode APPENDS its rows
+      // alongside any previously-applied combos (each combo keeps its own
+      // section, independently removable via _comboInstanceId — see
+      // removeAppliedCombo). Applying a combo while still in line pricing
+      // mode instead clears every existing row — a combo forces package
+      // pricing, and mixing line-priced rows with package-priced rows in
+      // the same document is exactly what pricing-mode switches are meant
+      // to prevent (see handleServicePricingModeChange).
+      const wasPackageMode = isPackagePricing(form.pricingMode);
+      const comboInstanceId = `combo-${runtimeExtractId(combo)}-${Date.now()}`;
       const newRows = [];
+      const skippedDuplicateNames = [];
+      // Dedupe against whatever rows will actually still be on the case
+      // after this apply (existing rows only survive if already in package
+      // mode), plus every item accepted so far from this same combo, so two
+      // services with the same name inside one combo don't both slip in.
+      const dedupeBaseline = wasPackageMode ? [...rows] : [];
       items.forEach((item) => {
         const svc = item.services || {};
+        if (findDuplicateServiceRow(dedupeBaseline, { serviceId: svc.id, serviceName: svc.serviceName })) {
+          skippedDuplicateNames.push(svc.serviceName || `#${svc.id}`);
+          return;
+        }
+        dedupeBaseline.push({ serviceId: svc.id ? String(svc.id) : null, serviceName: svc.serviceName || "" });
         const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
         for (let i = 0; i < unitCount; i++) {
           newRows.push({
@@ -8830,52 +9150,72 @@ const ProjectCreateForm = () => {
             // incorrectly shrink a combo's flat price if this carried the
             // service's real catalog price.
             _packageBasePrice: 0,
-            _comboSourceId: String(comboId),
+            _comboInstanceId: comboInstanceId,
+            _comboCatalogId: runtimeExtractId(combo),
             _comboName: combo.comboName || "",
             _comboSnapshot: comboSnapshot,
           });
         }
       });
+      if (skippedDuplicateNames.length) {
+        message.warning(`Skipped ${skippedDuplicateNames.length} service(s) already on this case: ${skippedDuplicateNames.join(", ")}`);
+      }
+      if (!newRows.length) return;
 
-      // Re-picking a combo while already in package mode replaces the
-      // previous combo's rows instead of appending on top of them
-      // (manually-added package rows, i.e. rows without _comboSourceId,
-      // are left untouched). Applying a combo while still in line pricing
-      // mode instead clears every existing row — a combo forces package
-      // pricing, and mixing line-priced rows with package-priced rows in
-      // the same document is exactly what pricing-mode switches are meant
-      // to prevent (see handleServicePricingModeChange).
-      const wasPackageMode = isPackagePricing(form.pricingMode);
-      setRows((p) => [
-        ...(wasPackageMode ? p.filter((r) => !r._comboSourceId) : []),
-        ...newRows,
-      ]);
-      handlePackageSummaryChange("packageSubTotal", convertedSubTotal);
-      handlePackageSummaryChange("packageVatRate", combo.packageVatRate || 0);
+      setRows((p) => [...(wasPackageMode ? p : []), ...newRows]);
+      handlePackageSummaryChange(
+        "packageSubTotal",
+        parseNum(wasPackageMode ? form.packageSubTotal : 0) + convertedSubTotal,
+      );
+      // The flat VAT % field is shared across every combo on the case, so
+      // only the first combo applied seeds it — later combos leave
+      // whatever rate is already there untouched (it stays freely
+      // hand-editable either way, per the multi-combo design).
+      if (appliedCombos.length === 0) {
+        handlePackageSummaryChange("packageVatRate", combo.packageVatRate || 0);
+      }
       if (vndId) {
         setForm((p) => ({ ...p, currencyId: String(vndId) }));
       }
-      // Always shown, in whatever currency the combo template was actually
-      // configured with (VND included) — not only when a conversion to VND
-      // was needed.
-      setComboConversionNote({
-        originalAmount: parseNum(combo.packageSubTotal),
-        currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
-        wasConverted: comboWasConverted,
-      });
-      message.success(`Applied combo "${combo.comboName}".`);
+      // One entry per applied combo instance — drives the section header +
+      // "Remove combo" action in ProjectServicesTable. Always recorded, in
+      // whatever currency the combo template was actually configured with
+      // (VND included), not only when a conversion to VND was needed.
+      setAppliedCombos((prev) => [
+        ...prev,
+        {
+          instanceId: comboInstanceId,
+          comboName: combo.comboName || "",
+          originalAmount: parseNum(combo.packageSubTotal),
+          convertedAmount: convertedSubTotal,
+          currencyCode: getCurrencyCode(currencyFromRecord(combo, currencies)),
+          wasConverted: comboWasConverted,
+        },
+      ]);
+      message.success(`Applied package "${combo.comboName}".`);
     },
-    [combos, handlePackageSummaryChange, defaultCurrencyId, form.date, form.financialSourceType, form.pricingMode, currencies],
+    [
+      combos,
+      handlePackageSummaryChange,
+      defaultCurrencyId,
+      form.date,
+      form.financialSourceType,
+      form.pricingMode,
+      form.packageSubTotal,
+      currencies,
+      appliedCombos.length,
+      rows,
+    ],
   );
 
   // Ad-hoc combo — a one-off bundle of services grouped under a single flat
   // package price, built directly inside the Add Service modal (unlike
   // applyCombo above, this is NOT backed by a serviceCombos catalog record:
-  // comboId stays null in the snapshot, only comboName + pricingSnapshot
-  // carry the traceability data). Mirrors applyCombo's row-building so
-  // ad-hoc rows behave identically to real-combo rows everywhere else
-  // (deleteRow, submit, task overview, re-apply replacing prior rows via
-  // _comboSourceId).
+  // _comboCatalogId stays null, only comboName + pricingSnapshot carry the
+  // traceability data). Mirrors applyCombo's row-building so ad-hoc rows
+  // behave identically to real-combo rows everywhere else (deleteRow,
+  // submit, task overview, its own section header / remove action via
+  // _comboInstanceId).
   const applyAdhocCombo = useCallback(
     async (payload) => {
       const items = payload?.items || [];
@@ -8916,8 +9256,24 @@ const ProjectCreateForm = () => {
         })),
       };
 
+      // See applyCombo's comment above: appends alongside any previously
+      // applied combos when already in package mode; clears all existing
+      // rows when the form was still in line pricing mode, since an ad-hoc
+      // combo forces package pricing too and must not mix with line-priced
+      // rows.
+      const wasPackageMode = isPackagePricing(form.pricingMode);
       const newRows = [];
+      const skippedDuplicateNames = [];
+      const dedupeBaseline = wasPackageMode ? [...rows] : [];
       items.forEach((item) => {
+        if (findDuplicateServiceRow(dedupeBaseline, { serviceId: item.serviceId, serviceName: item.serviceName })) {
+          skippedDuplicateNames.push(item.serviceName || "");
+          return;
+        }
+        dedupeBaseline.push({
+          serviceId: item.serviceId ? String(item.serviceId) : null,
+          serviceName: item.serviceName || "",
+        });
         const unitCount = Math.max(1, parseInt(item.quantity, 10) || 1);
         const itemTaskTemplates = normalizeCustomTaskTemplates(item.taskTemplates);
         for (let i = 0; i < unitCount; i++) {
@@ -8935,35 +9291,75 @@ const ProjectCreateForm = () => {
             financialSourceType: form.financialSourceType || SOURCE_NONE,
             pricingMode: PRICING_MODE_PACKAGE,
             _packageBasePrice: 0,
-            _comboSourceId: adhocComboId,
+            _comboInstanceId: adhocComboId,
+            _comboCatalogId: null,
             _comboName: comboName,
             _comboSnapshot: comboSnapshot,
             _customTaskTemplates: itemTaskTemplates,
           });
         }
       });
+      if (skippedDuplicateNames.length) {
+        message.warning(`Skipped ${skippedDuplicateNames.length} service(s) already on this case: ${skippedDuplicateNames.join(", ")}`);
+      }
+      if (!newRows.length) return;
 
-      // See applyCombo's comment above: clear all existing rows when the
-      // form was still in line pricing mode, since an ad-hoc combo forces
-      // package pricing too and must not mix with line-priced rows.
-      const wasPackageMode = isPackagePricing(form.pricingMode);
-      setRows((p) => [
-        ...(wasPackageMode ? p.filter((r) => !r._comboSourceId) : []),
-        ...newRows,
-      ]);
-      handlePackageSummaryChange("packageSubTotal", convertedSubTotal);
-      handlePackageSummaryChange("packageVatRate", packageVatRate);
+      setRows((p) => [...(wasPackageMode ? p : []), ...newRows]);
+      handlePackageSummaryChange(
+        "packageSubTotal",
+        parseNum(wasPackageMode ? form.packageSubTotal : 0) + convertedSubTotal,
+      );
+      if (appliedCombos.length === 0) {
+        handlePackageSummaryChange("packageVatRate", packageVatRate);
+      }
       if (vndId) {
         setForm((p) => ({ ...p, currencyId: String(vndId) }));
       }
-      setComboConversionNote({
-        originalAmount: packageSubTotal,
-        currencyCode: comboCurrencyCode,
-        wasConverted: comboWasConverted,
-      });
-      message.success(`Applied combo "${comboName}".`);
+      setAppliedCombos((prev) => [
+        ...prev,
+        {
+          instanceId: adhocComboId,
+          comboName,
+          originalAmount: packageSubTotal,
+          convertedAmount: convertedSubTotal,
+          currencyCode: comboCurrencyCode,
+          wasConverted: comboWasConverted,
+        },
+      ]);
+      message.success(`Applied package "${comboName}".`);
     },
-    [defaultCurrencyId, form.date, form.financialSourceType, form.pricingMode, handlePackageSummaryChange, currencies],
+    [
+      defaultCurrencyId,
+      form.date,
+      form.financialSourceType,
+      form.pricingMode,
+      form.packageSubTotal,
+      handlePackageSummaryChange,
+      currencies,
+      appliedCombos.length,
+      rows,
+    ],
+  );
+
+  // Removes one applied combo instance entirely — its rows AND its own
+  // price contribution (packageSubTotal is now a running sum across every
+  // applied combo — see applyCombo/applyAdhocCombo — so removing one
+  // subtracts back only the amount that combo itself added). Deleting an
+  // individual row inside a combo's section (the existing per-row trash
+  // icon) stays separate and does not touch the price, same as before.
+  const removeAppliedCombo = useCallback(
+    (instanceId) => {
+      const entry = appliedCombos.find((c) => c.instanceId === instanceId);
+      if (!entry) return;
+      markDirty();
+      setRows((prev) => prev.filter((r) => r._comboInstanceId !== instanceId));
+      handlePackageSummaryChange(
+        "packageSubTotal",
+        Math.max(parseNum(form.packageSubTotal) - entry.convertedAmount, 0),
+      );
+      setAppliedCombos((prev) => prev.filter((c) => c.instanceId !== instanceId));
+    },
+    [appliedCombos, form.packageSubTotal, handlePackageSummaryChange, markDirty],
   );
 
   // ── SUBMIT ────────────────────────────────────────────────────
@@ -8975,7 +9371,7 @@ const ProjectCreateForm = () => {
       // convert/preserve rows across modes — prevents ending up with a mix
       // of line-priced rows and combo/package rows in the same Case.
       setRows([]);
-      setComboConversionNote(null);
+      setAppliedCombos([]);
       setForm((p) => ({
         ...p,
         pricingMode: nextMode,
@@ -9747,8 +10143,8 @@ const ProjectCreateForm = () => {
               // services convention. comboName + pricingSnapshot are full
               // snapshots taken at apply time, so they stay correct even
               // if the combo template is later edited or deleted.
-              comboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
-              serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              comboId: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
+              serviceCombo: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
             });
@@ -9973,8 +10369,8 @@ const ProjectCreateForm = () => {
               // services convention. comboName + pricingSnapshot are full
               // snapshots taken at apply time, so they stay correct even
               // if the combo template is later edited or deleted.
-              comboId: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
-              serviceCombo: r._comboSourceId ? parseInt(r._comboSourceId, 10) : null,
+              comboId: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
+              serviceCombo: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
             });
@@ -10987,7 +11383,9 @@ const ProjectCreateForm = () => {
         combos,
         onApplyCombo: applyCombo,
         onApplyAdhocCombo: applyAdhocCombo,
-        comboConversionNote,
+        appliedCombos,
+        onRemoveCombo: removeAppliedCombo,
+        onAddServiceToCombo,
       }),
     ),
 

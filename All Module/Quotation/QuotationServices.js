@@ -1018,7 +1018,7 @@ const QuotationServicesBlock = () => {
       pricingDate,
     });
     if (!pricing._convertible) {
-      message.error(`Thiếu tỷ giá quy đổi sang VND cho combo (${getCurrencyCode(comboCurrency)}).`);
+      message.error(`Thiếu tỷ giá quy đổi sang VND cho gói dịch vụ (${getCurrencyCode(comboCurrency)}).`);
       return null;
     }
     return pricing.subTotal;
@@ -1026,7 +1026,7 @@ const QuotationServicesBlock = () => {
 
   const applyComboFromCatalog = async (combo) => {
     const items = combo.serviceComboItems || [];
-    if (!items.length) { message.warning('This combo has no services.'); return; }
+    if (!items.length) { message.warning('This package has no services.'); return; }
     setApplyingCombo(true);
     try {
       const comboIdVal = extractId(combo.id);
@@ -1050,7 +1050,7 @@ const QuotationServicesBlock = () => {
             _svcName: svc.serviceName || '', _serviceType: svc.serviceType || '', _description: svc.description || '',
             currencyId: nextCurrencyId || null, _currencyId: nextCurrencyId ? String(nextCurrencyId) : '',
             _isNew: true, _deleted: false, _isCustom: !svc.id,
-            comboId: comboIdVal, serviceCombo: comboIdVal, comboName: combo.comboName || 'Combo',
+            comboId: comboIdVal, serviceCombo: comboIdVal, comboName: combo.comboName || 'Package',
           });
         }
       });
@@ -1062,11 +1062,11 @@ const QuotationServicesBlock = () => {
       if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
       setPackageSubTotal(prev => parseNum(prev) + comboSubTotalVnd);
       setDirty(true);
-      message.success(`Applied combo "${combo.comboName}". Click "Save & Update quotation" to persist.`);
+      message.success(`Applied package "${combo.comboName}". Click "Save & Update quotation" to persist.`);
       setShowComboModal(false);
     } catch (err) {
       console.error(err);
-      message.error('Error applying combo: ' + (err.message || ''));
+      message.error('Error applying package: ' + (err.message || ''));
     } finally {
       setApplyingCombo(false);
     }
@@ -1074,7 +1074,7 @@ const QuotationServicesBlock = () => {
 
   const applyAdhocCombo = () => {
     const name = adhocComboName.trim();
-    if (!name) { message.warning('Please enter a combo name.'); return; }
+    if (!name) { message.warning('Please enter a package name.'); return; }
     if (!adhocServiceIds.length) { message.warning('Please select at least one service.'); return; }
     const newRows = adhocServiceIds.map((svcId) => {
       const svc = svcOpts.find((o) => String(o.id) === String(svcId));
@@ -1095,7 +1095,7 @@ const QuotationServicesBlock = () => {
     });
     if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
     setDirty(true);
-    message.success(`Created ad-hoc combo "${name}". Click "Save & Update quotation" to persist.`);
+    message.success(`Created package "${name}". Click "Save & Update quotation" to persist.`);
     setShowComboModal(false);
   };
   const [activeRowId, setActiveRowId] = useState(null);
@@ -2515,7 +2515,7 @@ const QuotationServicesBlock = () => {
       _isComboHeader: true,
       _groupKey: key,
       comboId: extractId(row.comboId) || extractId(row.serviceCombo) || null,
-      comboName: row.comboName || 'Combo',
+      comboName: row.comboName || 'Package',
       _comboCount: groupRows.length,
     });
     for (const r of groupRows) {
@@ -2528,8 +2528,8 @@ const QuotationServicesBlock = () => {
     style: { display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 20, flexWrap: 'wrap', padding: '6px 4px' },
   },
     React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-      React.createElement(Tag, { color: 'blue', style: { fontWeight: 700, letterSpacing: 0.3 } }, 'COMBO'),
-      React.createElement(Text, { strong: true }, record.comboName || 'Combo'),
+      React.createElement(Tag, { color: 'blue', style: { fontWeight: 700, letterSpacing: 0.3 } }, 'PACKAGE'),
+      React.createElement(Text, { strong: true }, record.comboName || 'Package'),
       React.createElement(Text, { type: 'secondary', style: { fontSize: 12.5 } },
         `${record._comboCount} service${record._comboCount === 1 ? '' : 's'}`)
     ),
@@ -2539,14 +2539,14 @@ const QuotationServicesBlock = () => {
         onClick: () => addRow({ comboId: record.comboId, comboName: record.comboName }),
       }, '+ Add service'),
       React.createElement(Popconfirm, {
-        title: 'Remove this combo?',
-        description: 'All services in this combo section will be removed.',
+        title: 'Remove this package?',
+        description: 'All services in this package section will be removed.',
         okText: 'Remove',
         okType: 'danger',
         cancelText: 'Cancel',
         onConfirm: () => removeCombo(record._groupKey),
       },
-        React.createElement(Button, { size: 'small', danger: true }, 'Remove combo')
+        React.createElement(Button, { size: 'small', danger: true }, 'Remove package')
       )
     )
   );
@@ -2650,11 +2650,11 @@ const QuotationServicesBlock = () => {
         size: 'small',
         type: 'primary',
         onClick: () => addRow(),
-      }, 'Add service'),
+      }, 'New service'),
       !isLocked && React.createElement(Button, {
         size: 'small',
         onClick: openComboModal,
-      }, 'Apply Combo'),
+      }, 'Apply Package'),
       React.createElement(Button, {
         size: 'small',
         onClick: reload,
@@ -2676,7 +2676,7 @@ const QuotationServicesBlock = () => {
       bordered: true,
       scroll: { x: 'max-content' },
       locale: {
-        emptyText: isLocked ? 'No services' : 'No services - click Add service',
+        emptyText: isLocked ? 'No services' : 'No services - click New service',
       },
     }),
 
@@ -2886,7 +2886,7 @@ const QuotationServicesBlock = () => {
 
     // APPLY COMBO MODAL
     React.createElement(Modal, {
-      title: 'Apply Combo',
+      title: 'Apply Package',
       open: showComboModal,
       onCancel: () => setShowComboModal(false),
       footer: null,
@@ -2896,15 +2896,15 @@ const QuotationServicesBlock = () => {
         value: comboSubTab,
         onChange: (v) => setComboSubTab(v),
         options: [
-          { label: 'Select from catalog', value: 'select' },
-          { label: 'Create ad-hoc', value: 'adhoc' },
+          { label: 'Select Package', value: 'select' },
+          { label: 'New Package', value: 'adhoc' },
         ],
         style: { marginBottom: 16 },
       }),
       comboSubTab === 'select'
         ? React.createElement(React.Fragment, null,
           React.createElement(Input, {
-            placeholder: 'Search combo name...',
+            placeholder: 'Search package name...',
             value: comboSearch,
             onChange: (e) => setComboSearch(e.target.value),
             style: { marginBottom: 12, borderRadius: DS.radius.sm },
@@ -2912,7 +2912,7 @@ const QuotationServicesBlock = () => {
           }),
           React.createElement('div', { style: { maxHeight: 380, overflowY: 'auto' } },
             comboCatalog.length === 0
-              ? React.createElement(Empty, { description: 'No combos available' })
+              ? React.createElement(Empty, { description: 'No packages available' })
               : comboCatalog
                 .filter((c) => normalizeLookupText(c.comboName || '').includes(normalizeLookupText(comboSearch)))
                 .map((c) => React.createElement('div', {
@@ -2923,7 +2923,7 @@ const QuotationServicesBlock = () => {
                   },
                 },
                   React.createElement('div', null,
-                    React.createElement('div', { style: { fontWeight: 600 } }, c.comboName || `Combo #${c.id}`),
+                    React.createElement('div', { style: { fontWeight: 600 } }, c.comboName || `Package #${c.id}`),
                     React.createElement('div', { style: { fontSize: 12, color: C.textSub } },
                       `${(c.serviceComboItems || []).length} service(s) · ${formatMoney(c.packageSubTotal, currencyFromRecord(c, currencies, vndCurrency))}`)
                   ),
@@ -2936,7 +2936,7 @@ const QuotationServicesBlock = () => {
         )
         : React.createElement(React.Fragment, null,
           React.createElement('div', { style: { marginBottom: 12 } },
-            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo name'),
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Package Name'),
             React.createElement(Input, {
               value: adhocComboName,
               onChange: (e) => setAdhocComboName(e.target.value),
@@ -2945,7 +2945,7 @@ const QuotationServicesBlock = () => {
             })
           ),
           React.createElement('div', { style: { marginBottom: 16 } },
-            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this combo'),
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this package'),
             React.createElement(Select, {
               mode: 'multiple',
               value: adhocServiceIds,
@@ -2960,7 +2960,7 @@ const QuotationServicesBlock = () => {
           ),
           React.createElement(Button, {
             type: 'primary', onClick: applyAdhocCombo, style: DS.primaryButton,
-          }, 'Create combo')
+          }, 'Submit')
         )
     )
   );

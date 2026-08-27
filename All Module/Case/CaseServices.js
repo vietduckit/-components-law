@@ -2911,7 +2911,7 @@
           pricingDate: casePricingDate,
         });
         if (!pricing._convertible) {
-          message.error(`Thiếu tỷ giá quy đổi sang VND cho combo (${getCurrencyCode(comboCurrency)}).`);
+          message.error(`Thiếu tỷ giá quy đổi sang VND cho gói dịch vụ (${getCurrencyCode(comboCurrency)}).`);
           return null;
         }
         return pricing.subTotal;
@@ -2920,7 +2920,7 @@
       const applyComboFromCatalog = async (combo) => {
         const items = combo.serviceComboItems || [];
         if (!items.length) {
-          message.warning("This combo has no services.");
+          message.warning("This package has no services.");
           return;
         }
         setApplyingCombo(true);
@@ -2945,13 +2945,13 @@
                 // back to the catalog service's own currency (via serviceId),
                 // then the case's currency, matching the individual-add flow.
                 currencyId: null,
-                comboTarget: { comboId: comboIdVal, comboName: combo.comboName || "Combo" },
+                comboTarget: { comboId: comboIdVal, comboName: combo.comboName || "Package" },
               }, { skipReload: true });
               if (id) createdIds.push(id);
             }
           }
           if (!createdIds.length) {
-            message.error("Could not create any services for this combo.");
+            message.error("Could not create any services for this package.");
             return;
           }
 
@@ -2963,11 +2963,11 @@
           const newRowStubs = createdIds.map((id) => ({ id }));
           await applyPackageSummaryPatch([...servicePricingSummary.allPackageRows, ...newRowStubs], patch);
 
-          message.success(`Applied combo "${combo.comboName}".`);
+          message.success(`Applied package "${combo.comboName}".`);
           closeAddModal();
         } catch (err) {
           console.error(err);
-          message.error("Error applying combo: " + (err.message || ""));
+          message.error("Error applying package: " + (err.message || ""));
         } finally {
           setApplyingCombo(false);
         }
@@ -2980,7 +2980,7 @@
       const applyAdhocCombo = async () => {
         const name = adhocComboName.trim();
         if (!name) {
-          message.warning("Please enter a combo name.");
+          message.warning("Please enter a package name.");
           return;
         }
         if (!adhocServiceIds.length) {
@@ -3006,15 +3006,15 @@
             if (id) createdIds.push(id);
           }
           if (!createdIds.length) {
-            message.error("Could not create any services for this combo.");
+            message.error("Could not create any services for this package.");
             return;
           }
           await loadData();
-          message.success(`Created ad-hoc combo "${name}".`);
+          message.success(`Created package "${name}".`);
           closeAddModal();
         } catch (err) {
           console.error(err);
-          message.error("Error creating combo: " + (err.message || ""));
+          message.error("Error creating package: " + (err.message || ""));
         } finally {
           setApplyingCombo(false);
         }
@@ -3022,7 +3022,7 @@
 
       const renderAdhocComboTab = () => React.createElement(React.Fragment, null,
         React.createElement("div", { style: { marginBottom: 12 } },
-          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Combo name"),
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Package Name"),
           React.createElement(Input, {
             value: adhocComboName,
             onChange: (e) => setAdhocComboName(e.target.value),
@@ -3031,7 +3031,7 @@
           })
         ),
         React.createElement("div", { style: { marginBottom: 16 } },
-          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Services in this combo"),
+          React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Services in this package"),
           React.createElement(Select, {
             mode: "multiple",
             value: adhocServiceIds,
@@ -3046,7 +3046,7 @@
         ),
         React.createElement(Button, {
           type: "primary", loading: applyingCombo, onClick: applyAdhocCombo, style: DS.primaryButton,
-        }, "Create combo")
+        }, "Submit")
       );
 
       const resolveRestoredServiceStatus = async (record) => {
@@ -3284,15 +3284,15 @@
 
           if (syncWarnings.length > 0) {
             message.warning(
-              `Combo removed (${groupRows.length} service(s)) and its tasks locked. Could not sync: ${syncWarnings.join(", ")}.`,
+              `Package removed (${groupRows.length} service(s)) and its tasks locked. Could not sync: ${syncWarnings.join(", ")}.`,
             );
           } else {
-            message.success(`Combo removed (${groupRows.length} service(s)), related data synced, and its tasks locked.`);
+            message.success(`Package removed (${groupRows.length} service(s)), related data synced, and its tasks locked.`);
           }
           await loadData();
         } catch (err) {
           console.error(err);
-          message.error("Could not remove the combo: " + (err.message || ""));
+          message.error("Could not remove the package: " + (err.message || ""));
         } finally {
           setLoading(false);
         }
@@ -4060,7 +4060,7 @@
           _isComboHeader: true,
           _groupKey: key,
           comboId: extractId(row.comboId) || extractId(row.serviceCombo) || null,
-          comboName: row.comboName || "Combo",
+          comboName: row.comboName || "Package",
           _comboCount: activeCount,
         });
         for (const r of groupRows) {
@@ -4080,8 +4080,8 @@
         },
       },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
-          React.createElement(Tag, { color: "blue", style: { fontWeight: 700, letterSpacing: 0.3 } }, "COMBO"),
-          React.createElement(Text, { strong: true }, record.comboName || "Combo"),
+          React.createElement(Tag, { color: "blue", style: { fontWeight: 700, letterSpacing: 0.3 } }, "PACKAGE"),
+          React.createElement(Text, { strong: true }, record.comboName || "Package"),
           React.createElement(Text, { type: "secondary", style: { fontSize: 12.5 } },
             `${record._comboCount} service${record._comboCount === 1 ? "" : "s"}`)
         ),
@@ -4092,14 +4092,14 @@
             style: DS.secondaryButton,
           }, "+ Add service"),
           React.createElement(Popconfirm, {
-            title: "Remove this combo?",
-            description: "All services in this combo section will be deleted and their tasks locked.",
+            title: "Remove this package?",
+            description: "All services in this package section will be deleted and their tasks locked.",
             okText: "Remove",
             okType: "danger",
             cancelText: "Cancel",
             onConfirm: () => handleRemoveCombo(record._groupKey),
           },
-            React.createElement(Button, { size: "small", danger: true }, "Remove combo")
+            React.createElement(Button, { size: "small", danger: true }, "Remove package")
           )
         )
       );
@@ -4610,7 +4610,7 @@
             size: "small",
             type: "primary",
             onClick: () => openAddModal(),
-          }, "Add Service")
+          }, "New service")
         ),
         bodyStyle: { padding: 0 },
         style: { width: "100%" },
@@ -4643,7 +4643,7 @@
               type: "primary",
               onClick: () => openAddModal(),
               style: DS.primaryButton
-            }, "+ Add Service")
+            }, "+ New service")
           )
         ),
 
@@ -4873,7 +4873,7 @@
         // ADD MODAL
         React.createElement(Modal, {
           title: comboAddTarget
-            ? `Add service to combo: ${comboAddTarget.comboName || "Combo"}`
+            ? `Add service to package: ${comboAddTarget.comboName || "Package"}`
             : "Add service to case",
           open: addModal,
           onCancel: closeAddModal,
@@ -4895,8 +4895,8 @@
             value: addModalTab,
             onChange: (v) => setAddModalTab(v),
             options: [
-              { label: "Individual Service", value: "individual" },
-              { label: "Apply Combo", value: "combo" },
+              { label: "Line pricing", value: "individual" },
+              { label: "Package pricing", value: "combo" },
             ],
             style: { marginBottom: 16 },
           }),
@@ -4914,7 +4914,7 @@
               comboSubTab === "select"
                 ? React.createElement(React.Fragment, null,
                   React.createElement(Input, {
-                    placeholder: "Search combo name...",
+                    placeholder: "Search package name...",
                     value: comboSearch,
                     onChange: (e) => setComboSearch(e.target.value),
                     style: { marginBottom: 12, borderRadius: DS.radius.sm },
@@ -4922,7 +4922,7 @@
                   }),
                   React.createElement("div", { style: { maxHeight: 360, overflowY: "auto" } },
                     comboCatalog.length === 0
-                      ? React.createElement(Empty, { description: "No combos available" })
+                      ? React.createElement(Empty, { description: "No packages available" })
                       : comboCatalog
                         .filter((c) => normalizeLookupText(c.comboName || "").includes(normalizeLookupText(comboSearch)))
                         .map((c) => React.createElement("div", {
@@ -4933,7 +4933,7 @@
                           },
                         },
                           React.createElement("div", null,
-                            React.createElement("div", { style: { fontWeight: 600 } }, c.comboName || `Combo #${c.id}`),
+                            React.createElement("div", { style: { fontWeight: 600 } }, c.comboName || `Package #${c.id}`),
                             React.createElement("div", { style: { fontSize: 12, color: C.textSub } },
                               `${(c.serviceComboItems || []).length} service(s) Â· ${formatMoney(c.packageSubTotal, currencyFromRecord(c, currencies, vndCurrency))}`)
                           ),
