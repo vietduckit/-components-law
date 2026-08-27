@@ -10691,48 +10691,75 @@ const ProjectCreateForm = () => {
             projectServiceId: c.projectServiceId,
           }));
 
-          const allChildren = [...defaultChildren, ...serviceChildren];
-
-          const childPromises = allChildren.map((child) => {
-            const data = {
-              name: child.name,
-              type: "cases",
-              ...(child.key ? { folderTemplateKey: child.key } : {}),
-              parentId: pFolderId ? parseInt(pFolderId) : null,
-              projectId: projectId ? parseInt(projectId) : null,
-              customerId: form.customerId ? parseInt(form.customerId) : null,
-              internalCompanyId: form.internalCompanyId
-                ? parseInt(form.internalCompanyId)
-                : null,
-              moduleScope: CASE_DOCUMENT_SCOPE,
-              createdById: currentUser?.id ? parseInt(currentUser.id) : null,
-              updatedById: currentUser?.id ? parseInt(currentUser.id) : null,
-            };
-
-            return ctx.api.request({
-              url: "folders:create",
-              method: "POST",
-              data: data,
-            });
+          const buildFolderData = (child, parentId) => ({
+            name: child.name,
+            type: "cases",
+            ...(child.key ? { folderTemplateKey: child.key } : {}),
+            parentId: parentId ? parseInt(parentId) : null,
+            projectId: projectId ? parseInt(projectId) : null,
+            customerId: form.customerId ? parseInt(form.customerId) : null,
+            internalCompanyId: form.internalCompanyId
+              ? parseInt(form.internalCompanyId)
+              : null,
+            moduleScope: CASE_DOCUMENT_SCOPE,
+            createdById: currentUser?.id ? parseInt(currentUser.id) : null,
+            updatedById: currentUser?.id ? parseInt(currentUser.id) : null,
           });
 
-          const childResults = await Promise.all(childPromises);
-          const childFolderIds = childResults
+          // Default folders first (siblings, directly under the case root) —
+          // service folders below need "Legal dossiers"'s own id as their
+          // parent, so it must exist before they're created.
+          const defaultResults = await Promise.all(
+            defaultChildren.map((child) =>
+              ctx.api.request({
+                url: "folders:create",
+                method: "POST",
+                data: buildFolderData(child, pFolderId),
+              }),
+            ),
+          );
+          const defaultFolderIds = defaultResults
             .map((result) => result?.data?.data?.id || result?.data?.id)
-            .map(getNumericId)
+            .map(getNumericId);
+          const legalDossiersIndex = defaultChildren.findIndex(
+            (child) => child.key === "legal_dossiers",
+          );
+          const legalDossiersFolderId =
+            legalDossiersIndex >= 0
+              ? defaultFolderIds[legalDossiersIndex]
+              : null;
+
+          // Per-service folders nest under "Legal dossiers" instead of
+          // sitting as case-root siblings, so all case documentation stays
+          // grouped under one place to manage. Falls back to the case root
+          // if "Legal dossiers" somehow failed to create.
+          const serviceResults = await Promise.all(
+            serviceChildren.map((child) =>
+              ctx.api.request({
+                url: "folders:create",
+                method: "POST",
+                data: buildFolderData(
+                  child,
+                  legalDossiersFolderId || pFolderId,
+                ),
+              }),
+            ),
+          );
+          const serviceFolderIds = serviceResults
+            .map((result) => result?.data?.data?.id || result?.data?.id)
+            .map(getNumericId);
+
+          const childFolderIds = [...defaultFolderIds, ...serviceFolderIds]
             .filter(Boolean);
 
           // Stamp caseServices.folderId back onto each service's own row —
-          // childResults/allChildren share the same index/order since both
-          // came from a single Promise.all over allChildren.
+          // serviceResults/serviceChildren share the same index/order since
+          // both came from a single Promise.all over serviceChildren.
           if (serviceChildren.length) {
             await Promise.all(
-              allChildren.map((child, idx) => {
+              serviceChildren.map((child, idx) => {
                 if (!child.projectServiceId) return null;
-                const folderId = getNumericId(
-                  childResults[idx]?.data?.data?.id ||
-                    childResults[idx]?.data?.id,
-                );
+                const folderId = serviceFolderIds[idx];
                 if (!folderId) return null;
                 return ctx.api
                   .request({
