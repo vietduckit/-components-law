@@ -25,6 +25,7 @@
       Avatar,
       TreeSelect,
       Dropdown,
+      Segmented,
     } = ctx.antd;
     const { Text } = Typography;
     const { Dragger } = Upload;
@@ -32,6 +33,12 @@
     const PROJECT_ID = ctx.record?.id;
     const TASK_DETAIL_CHANGE_EVENT = "law-task-detail:changed";
     const CASE_DOCUMENT_SCOPE = "case_document";
+    // Internal Work (projectInternal) tasks store their documents in a
+    // completely separate space from Case tasks — same shape as
+    // ProjectDocument.js's own DASHBOARD_CONFIG.moduleScope/storageType for
+    // this space, so folders/documents created here from a task upload land
+    // in the exact same scope ProjectDocument.js already reads.
+    const PROJECT_INTERNAL_MODULE_SCOPE = "project_internal";
     const LEGAL_STUDY_MODULE_SCOPE = "legal_study";
     const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
     const LEGAL_STUDY_LABEL = "Reference";
@@ -45,6 +52,8 @@
       LEGAL_REFERENCE: "legal_reference",
       CASE_DOCUMENT: "case_document",
       KNOWLEDGE: "knowledge",
+      PROJECT_INTERNAL_DOCUMENT: "project_internal_document",
+      CUSTOMER_DOCUMENT: "customer_document",
     };
     const LIBRARY_DESTINATION_CONFIG = {
       [LIBRARY_DESTINATION.LEGAL_STUDY]: {
@@ -57,6 +66,10 @@
           "legalStudies:list",
           "LegalStudy:list",
         ],
+        // Fields tried in order (via extractId) to read this destination's
+        // own parent-record id off a document/folder record — see the
+        // generic getLibraryRecordId/getRecordDestinationId below.
+        recordIdFields: ["legalStudyId", "legalStudy", "legalStudies", "legalStudiesId"],
       },
       [LIBRARY_DESTINATION.LEGAL_REFERENCE]: {
         label: LEGAL_REFERENCE_LABEL,
@@ -68,6 +81,7 @@
           "legalReferences:list",
           "LegalReference:list",
         ],
+        recordIdFields: ["legalReferenceId", "legalReference", "legalReferenceRecord"],
       },
       // No "parent record" picker step — the parent is always the current
       // case (sourceContext.caseId). Only the folder-tree picker applies.
@@ -91,6 +105,34 @@
         relationField: "folderId",
         listCandidates: [],
       },
+      // Same shape as CASE_DOCUMENT — no parent-record picker, the parent is
+      // always the current Internal Work item (sourceContext.projectInternalId).
+      // Matches ProjectDocument.js's own DASHBOARD_CONFIG scope for this space.
+      [LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT]: {
+        label: "Internal Work Document",
+        moduleScope: PROJECT_INTERNAL_MODULE_SCOPE,
+        storageType: "project_internal",
+        relationField: "folderId",
+        listCandidates: [],
+      },
+      // Parent-record picker like Legal Study/Reference (browse customers),
+      // then a folder tree scoped to that customer's own folders. Filtered
+      // purely by folders.customerId matching the picked customer — mirrors
+      // CustomerDocument.js's own "customer" space predicate exactly (no
+      // moduleScope filter there either, since Customer folders share
+      // moduleScope with Case folders — see fetchCustomerDocumentFolders).
+      [LIBRARY_DESTINATION.CUSTOMER_DOCUMENT]: {
+        label: "Customer",
+        // Matches CustomerDocument.js's own DASHBOARD_CONFIG.moduleScope —
+        // Customer folders/documents are written under the same scope Case
+        // folders use; only folders.customerId actually distinguishes them
+        // (see fetchCustomerDocumentFolders).
+        moduleScope: CASE_DOCUMENT_SCOPE,
+        storageType: "customer",
+        relationField: "customerId",
+        listCandidates: ["customers:list", "customer:list"],
+        recordIdFields: ["customerId", "customers", "customer"],
+      },
     };
     const LIBRARY_SOURCE = {
       CASE_DOCUMENT: "case_document",
@@ -103,8 +145,10 @@
     const ACTIVITY_ACTION = {
       LINK_LEGAL_STUDY: "link_legal_study",
       LINK_LEGAL_REFERENCE: "link_legal_ref",
-      MOVE_TO_CASE_DOCUMENT: "move_to_case_document",
+      MOVE_TO_CASE_DOCUMENT: "move_to_document",
       MOVE_TO_KNOWLEDGE: "move_to_knowledge",
+      MOVE_TO_PROJECT_INTERNAL_DOCUMENT: "move_to_project_internal_document",
+      MOVE_TO_CUSTOMER_DOCUMENT: "move_to_customer_document",
     };
     const FONT =
       "Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -735,14 +779,23 @@
         .replace(/[\u0300-\u036f]/g, "")
         .trim();
 
+    // Resolves the dedicated per-service folder CaseCreateForm.js
+    // auto-creates at case-creation time (2026-08-21 service-folder
+    // feature) for the task/subtask's service, so uploads land there
+    // instead of scattering into the case root. Reads the real
+    // caseServices.folderId FK — NOT folder-name matching (the earlier
+    // version of this function matched by normalized folder name vs
+    // service name, which silently broke the moment either was renamed;
+    // a real FK can't drift out of sync that way). Falls back to
+    // projectFolderId (case root) whenever there's no serviceId, no
+    // matching service row, or the service predates this feature and
+    // was never linked to a folder.
     const resolveServiceUploadFolderId = ({
       item,
       type,
       tasks = [],
       services = [],
-      allProjectFolders = [],
       projectFolderId,
-      projectId,
     }) => {
       const sourceTask =
         type === "subTask"
@@ -756,19 +809,7 @@
           extractId(service.service) === serviceId ||
           extractId(service.id) === serviceId,
       );
-      const serviceName = serviceRecord?.serviceName || serviceRecord?.name;
-      if (!serviceName) return projectFolderId;
-      const projectFolderIds = new Set(
-        (allProjectFolders || [])
-          .filter((folder) => !projectId || extractId(folder.projectId) === extractId(projectId))
-          .map((folder) => String(extractId(folder.id))),
-      );
-      const matched = (allProjectFolders || []).find((folder) => {
-        if (folder?.isDeleted) return false;
-        if (!projectFolderIds.has(String(extractId(folder.id)))) return false;
-        return normalizeLookupText(folder.name || folder.title) === normalizeLookupText(serviceName);
-      });
-      return extractId(matched?.id) || projectFolderId;
+      return extractId(serviceRecord?.folderId) || projectFolderId;
     };
     const fmt = (iso, mode) => {
       if (!iso) return null;
@@ -1099,6 +1140,8 @@
           { key: "customer.phone", label: "Số điện thoại", format: "text" },
           { key: "customer.taxCode", label: "Mã số thuế", format: "text" },
           { key: "customer.identityNumber", label: "Số CCCD/CMND", format: "text" },
+          { key: "customer.identityIssuedDate", label: "Ngày cấp CCCD/CMND", format: "date" },
+          { key: "customer.identityIssuedPlace", label: "Nơi cấp CCCD/CMND", format: "text" },
           { key: "customer.corporateRepresentative", label: "Người đại diện pháp luật", format: "text" },
         ],
       },
@@ -1111,6 +1154,8 @@
           { key: "quotation.subTotal", label: "Tổng trước VAT", format: "currency" },
           { key: "quotation.vatAmount", label: "Tổng VAT", format: "currency" },
           { key: "quotation.totalAmount", label: "Tổng sau VAT", format: "currency" },
+          // Computed below in fetchGenerateContext as vatAmount > 0.
+          { key: "quotation.isTaxed", label: "Có tính VAT", format: "boolean" },
         ],
       },
       contract: {
@@ -1208,6 +1253,10 @@
     }
 
     function formatCatalogValue(rawValue, format) {
+      // Checked before the empty-value guard below: `false` must still format
+      // as "Không" rather than fall through to "" and get flagged as missing
+      // — a boolean flag has no real "missing" state, it's always Có/Không.
+      if (format === "boolean") return rawValue ? "Có" : "Không";
       if (rawValue === null || rawValue === undefined || rawValue === "") return "";
       if (format === "currency") {
         const n = Number(rawValue);
@@ -1259,6 +1308,9 @@
       ]);
       const quotation = quotationRes?.data?.data || quotationRes?.data || null;
       const contract = contractRes?.data?.data || contractRes?.data || null;
+      // quotation.isTaxed has no backing DB column — derived here so the
+      // "quotation.isTaxed" catalog entry has something to resolve.
+      if (quotation) quotation.isTaxed = Number(quotation.vatAmount) > 0;
 
       let invoice = null;
       if (project?.contractId || project?.quotationId) {
@@ -1375,6 +1427,44 @@
       const baseName = String(doc?.title || "Document").replace(/\.[^/.]+$/, "");
       const fileName = `${baseName}_${Date.now()}.docx`;
       return { generatedBlob, fileName };
+    }
+
+    // Reads the task's attached .docx (same source as buildFilledDocxBlob, but without
+    // rendering) and returns every unique {{tag}} placeholder found in it — used by "Quét file"
+    // in DocumentVariableConfigModal to detect tags the lawyer hasn't mapped to a variable yet.
+    // Docxtemplater's getFullText() runs after parsing but before render(), so it reassembles
+    // tags Word may have split across multiple XML runs (a raw regex over document.xml would
+    // miss those).
+    async function scanDocxVariableTags(doc) {
+      const PizZipModule = await ctx.importAsync("https://esm.sh/pizzip@3.1.4");
+      const PizZip = PizZipModule.default || PizZipModule;
+      const DocxModule = await ctx.importAsync("https://esm.sh/docxtemplater@3.37.11");
+      const Docxtemplater = DocxModule.default || DocxModule;
+
+      const attachmentObj = doc?.fileAttachment;
+      const sourceUrl = Array.isArray(attachmentObj) ? attachmentObj[0]?.url : attachmentObj?.url;
+      if (!sourceUrl) throw new Error("Tài liệu này chưa có file đính kèm.");
+
+      const response = await ctx.api.request({
+        url: sourceUrl,
+        method: "GET",
+        responseType: "arraybuffer",
+        baseURL: "/",
+      });
+
+      const zip = new PizZip(response.data);
+      const parsed = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{{", end: "}}" },
+      });
+      const fullText = parsed.getFullText();
+      const matches = fullText.match(/\{\{\s*[\w.]+\s*\}\}/g) || [];
+      return Array.from(
+        new Set(
+          matches.map((m) => m.replace(/^\{\{\s*/, "").replace(/\s*\}\}$/, "")),
+        ),
+      );
     }
 
     // Detailed error modal for Generate/Save failures — mirrors ContractDocxGenerator.js's
@@ -1774,10 +1864,17 @@
     function buildDocumentRecordLink(collectionName, recordId, extra = {}) {
       const normalized = normalizeDocumentCollectionName(collectionName);
       const safeRecordId = extractId(recordId);
+      const safeProjectInternalId = extractId(extra.projectInternalId);
       const payload = {
         collectionName: normalized,
-        moduleScope: CASE_DOCUMENT_SCOPE,
+        // Internal Work tasks have no Case to scope into — the document
+        // belongs to the projectInternal space instead, matching
+        // ProjectDocument.js's own moduleScope for this space.
+        moduleScope: safeProjectInternalId
+          ? PROJECT_INTERNAL_MODULE_SCOPE
+          : CASE_DOCUMENT_SCOPE,
       };
+      if (safeProjectInternalId) payload.projectInternalId = safeProjectInternalId;
       const safeCaseId = getDeepLinkCaseId(extra.caseId);
       if (safeCaseId) payload.caseId = safeCaseId;
       const safeFolderId = extractId(extra.folderId);
@@ -1949,6 +2046,14 @@
         payload,
         (({ moduleScope, ...rest }) => rest)(payload || {}),
         (({ moduleScope, projectId, ...rest }) => rest)(payload || {}),
+        // Last-resort fallback in case folders.taskId/subTaskId don't exist
+        // in some environment — without this, a missing field would fail
+        // every variant above too (none of them strip taskId/subTaskId) and
+        // folder creation would hard-fail entirely instead of just losing
+        // the task/subtask stamp.
+        (({ moduleScope, projectId, taskId, subTaskId, ...rest }) => rest)(
+          payload || {},
+        ),
       ];
       let lastError = null;
       for (const data of variants) {
@@ -1985,6 +2090,21 @@
       const now = new Date().toISOString();
       const userId = extractId(options.currentUser?.id);
       const caseId = extractId(options.caseId);
+      // Internal Work (projectInternal) tasks have no Case to scope
+      // into — subfolders created while uploading from one of these tasks
+      // must land in the projectInternal space instead (moduleScope/
+      // storageType "project_internal", projectInternalId FK), matching
+      // ProjectDocument.js's own folder shape for this space, not the
+      // Case-scoped shape below.
+      const projectInternalId = extractId(options.projectInternalId);
+      // Stamps which Task/SubTask an upload-created folder originated from
+      // — lets a folder found later (e.g. via the raw Admin grid) be traced
+      // back to the exact task/subtask that created it without hunting
+      // through comment history. taskId is always the parent task's id
+      // (whether the upload came from a Task or a SubTask of it); subTaskId
+      // is only set when the upload specifically came from a SubTask.
+      const taskId = extractId(options.taskId);
+      const subTaskId = extractId(options.subTaskId);
 
       for (const path of sortedPaths) {
         const parts = path.split("/");
@@ -1994,12 +2114,20 @@
         const payload = {
           name: folderName,
           type: "custom",
-          storageType: "cases",
-          moduleScope: CASE_DOCUMENT_SCOPE,
+          storageType: projectInternalId ? PROJECT_INTERNAL_MODULE_SCOPE : "cases",
+          moduleScope: projectInternalId
+            ? PROJECT_INTERNAL_MODULE_SCOPE
+            : CASE_DOCUMENT_SCOPE,
           createdAt: now,
           updatedAt: now,
           ...(parentId ? { parentId } : {}),
-          ...(caseId ? { projectId: caseId } : {}),
+          ...(projectInternalId
+            ? { projectInternalId }
+            : caseId
+              ? { projectId: caseId }
+              : {}),
+          ...(taskId ? { taskId } : {}),
+          ...(subTaskId ? { subTaskId } : {}),
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
         const res = await createTaskFolderRecord(payload);
@@ -2185,14 +2313,27 @@
     // "this file went through an explicit move" regardless of destination.
     // Combined with the current moduleScope it tells us the file was moved
     // into a Document (case) folder specifically, as opposed to Legal
-    // Study/Reference (covered by the two checks above).
+    // Study/Reference (covered by the two checks above). storageType is
+    // checked too — CUSTOMER_DOCUMENT shares the same moduleScope
+    // (CASE_DOCUMENT_SCOPE) but a different storageType ("customer"), so
+    // this alone would otherwise also match a Customer-moved file.
     const isMovedToCaseDocument = (record) =>
-      !!record?.originScope && record?.moduleScope === CASE_DOCUMENT_SCOPE;
+      !!record?.originScope &&
+      record?.moduleScope === CASE_DOCUMENT_SCOPE &&
+      record?.storageType === "cases";
 
     // Same "went through an explicit move" signal as isMovedToCaseDocument,
     // just checked against the Knowledge library's moduleScope instead.
     const isMovedToKnowledge = (record) =>
       !!record?.originScope && record?.moduleScope === LIBRARY_DESTINATION.KNOWLEDGE;
+
+    const isMovedToProjectInternalDocument = (record) =>
+      !!record?.originScope && record?.moduleScope === PROJECT_INTERNAL_MODULE_SCOPE;
+
+    // storageType is the only reliable signal here — see isMovedToCaseDocument's
+    // comment above for why moduleScope alone can't distinguish Customer moves.
+    const isMovedToCustomerDocument = (record) =>
+      !!record?.originScope && record?.storageType === "customer";
 
     // Visible label leads with the immediate folder name (what the user
     // actually asked "moved to which folder?"); the full breadcrumb only
@@ -2252,6 +2393,36 @@
           value: folderName,
           tooltip: `Moved to Library / ${fullPath}`,
           accent: "#fa8c16",
+        };
+      }
+      if (isMovedToProjectInternalDocument(record)) {
+        const folderId = extractId(record?.folderId);
+        const folder = folderId ? folderLookup[String(folderId)] : null;
+        const folderName =
+          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+        const fullPath =
+          getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
+        return {
+          icon: TASK_FILE_ACTION_ICONS.folder,
+          prefix: "Moved to Internal Work:",
+          value: folderName,
+          tooltip: `Moved to Internal Work's Document / ${fullPath}`,
+          accent: "#4096ff",
+        };
+      }
+      if (isMovedToCustomerDocument(record)) {
+        const folderId = extractId(record?.folderId);
+        const folder = folderId ? folderLookup[String(folderId)] : null;
+        const folderName =
+          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+        const fullPath =
+          getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
+        return {
+          icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+          prefix: "Moved to Customer:",
+          value: folderName,
+          tooltip: `Moved to Customer / ${fullPath}`,
+          accent: "#36cfc9",
         };
       }
       return null;
@@ -2327,21 +2498,18 @@
       LIBRARY_DESTINATION_CONFIG[LIBRARY_DESTINATION.LEGAL_STUDY];
 
     const getLibraryRecordId = (record, destinationType) => {
-      if (destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE) {
-        return (
-          extractId(record?.legalReferenceId) ||
-          extractId(record?.legalReference) ||
-          extractId(record?.legalReferenceRecord) ||
-          extractId(record?.id)
-        );
+      const config = getLibraryDestinationConfig(destinationType);
+      const fields = config.recordIdFields || [
+        "legalStudyId",
+        "legalStudy",
+        "legalStudies",
+        "legalStudiesId",
+      ];
+      for (const field of fields) {
+        const id = extractId(record?.[field]);
+        if (id) return id;
       }
-      return (
-        extractId(record?.legalStudyId) ||
-        extractId(record?.legalStudy) ||
-        extractId(record?.legalStudies) ||
-        extractId(record?.legalStudiesId) ||
-        extractId(record?.id)
-      );
+      return extractId(record?.id);
     };
 
     const getLibraryRecordDisplayName = (record, destinationType) => {
@@ -2352,11 +2520,15 @@
         record.referenceCode ||
         record.code ||
         record.referenceNo ||
+        record.customerCode ||
         "";
       const title =
         record.title ||
         record.name ||
         record.projectName ||
+        record.customerName ||
+        record.companyLegalName ||
+        record.fullName ||
         record.description ||
         (record.id ? `${fallbackLabel} #${record.id}` : fallbackLabel);
       return code && String(code) !== String(title) ? `${code} - ${title}` : title;
@@ -2368,15 +2540,20 @@
       extractId(record?.companyId) ||
       extractId(record?.company);
 
-    const getRecordDestinationId = (record, destinationType) =>
-      destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE
-        ? extractId(record?.legalReferenceId) ||
-          extractId(record?.legalReference) ||
-          extractId(record?.legalReferenceRecord)
-        : extractId(record?.legalStudyId) ||
-          extractId(record?.legalStudy) ||
-          extractId(record?.legalStudies) ||
-          extractId(record?.legalStudiesId);
+    const getRecordDestinationId = (record, destinationType) => {
+      const config = getLibraryDestinationConfig(destinationType);
+      const fields = config.recordIdFields || [
+        "legalStudyId",
+        "legalStudy",
+        "legalStudies",
+        "legalStudiesId",
+      ];
+      for (const field of fields) {
+        const id = extractId(record?.[field]);
+        if (id) return id;
+      }
+      return null;
+    };
 
     // Plain-text label used for a non-folder grouping node (e.g. the
     // synthetic "Knowledge" category wrapper in LibraryMoveModal) — no icon
@@ -2481,6 +2658,61 @@
       try {
         const res = await ctx.api.request({ url: "folders:list", params });
         return res?.data?.data || [];
+      } catch {
+        return [];
+      }
+    }
+
+    // Real Document folders of the given Internal Work item (no parent-record
+    // step — the item itself is always the parent). Mirrors
+    // fetchCaseDocumentFolders exactly, keyed by projectInternalId instead of
+    // projectId, matching ProjectDocument.js's own folder scope.
+    async function fetchProjectInternalDocumentFolders(projectInternalId) {
+      const safeId = extractId(projectInternalId);
+      if (!safeId) return [];
+      const params = {
+        pageSize: 2000,
+        page: 1,
+        sort: ["createdAt"],
+        filter: JSON.stringify({
+          $and: [
+            { projectInternalId: { $eq: safeId } },
+            { isDeleted: { $ne: true } },
+          ],
+        }),
+      };
+      try {
+        const res = await ctx.api.request({ url: "folders:list", params });
+        return res?.data?.data || [];
+      } catch {
+        return [];
+      }
+    }
+
+    // Folders belonging to the given customer's own "Customer" document
+    // space. Filtered purely by folders.customerId (no moduleScope filter)
+    // to match CustomerDocument.js's own "activeSpace === 'customer'"
+    // predicate exactly — Customer folders share moduleScope with Case
+    // folders in this schema, so moduleScope alone can't distinguish them.
+    async function fetchCustomerDocumentFolders(customerId) {
+      const safeCustomerId = extractId(customerId);
+      if (!safeCustomerId) return [];
+      const params = {
+        pageSize: 2000,
+        page: 1,
+        sort: ["createdAt"],
+        filter: JSON.stringify({
+          $and: [
+            { customerId: { $eq: safeCustomerId } },
+            { isDeleted: { $ne: true } },
+          ],
+        }),
+      };
+      try {
+        const res = await ctx.api.request({ url: "folders:list", params });
+        return (res?.data?.data || []).filter(
+          (folder) => folder?.storageType !== "personal",
+        );
       } catch {
         return [];
       }
@@ -5175,7 +5407,7 @@
     };
 
     // ============================================================
-    // §RICHTEXT — QuillEditor (ctx.requireAsync CDN) + MentionPicker + CommentComposer
+    // §RICHTEXT — QuillEditor (ctx.requireAsync CDN, with inline "@" mention) + CommentComposer
     // ============================================================
 
     // ── Async loader: ctx.requireAsync returns the UMD export directly ────
@@ -5190,6 +5422,11 @@
         .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="${size}"]::before { content: "${size}"; }
       `,
     ).join("");
+    // Shared visual style for an inline "@Name" mention chip — used both by
+    // the Quill MentionBlot below (authoring) and matches what
+    // getCommentText()'s ".mention-tag, [data-id]" selector expects to find.
+    const MENTION_TAG_STYLE_CSS =
+      "color: #096dd9; background: #e6f4ff; border-radius: 4px; padding: 0 4px; font-weight: 600; font-size: 13px; border: 1px solid #91caff; margin: 0 2px; display: inline-block;";
     const loadQuillAsync = () => {
       if (_quillLoadPromise) return _quillLoadPromise;
       _quillLoadPromise = ctx
@@ -5215,6 +5452,51 @@
             SizeStyle.whitelist = QUILL_FONT_SIZES;
             Q.register(SizeStyle, true);
           } catch {}
+          try {
+            // Custom inline "mention" embed — the "@Name" chip inserted when
+            // picking a lawyer from the in-editor "@" trigger dropdown (see
+            // QuillEditor below). Registered once here, before any Quill
+            // instance is created, so quill.insertEmbed(i, "mention", {...})
+            // works for every editor instance. Markup (class "mention-tag" +
+            // data-id) matches what getCommentText() and the mention
+            // auto-sync logic already expect from the legacy contentEditable
+            // mention format.
+            const Embed = Q.import("blots/embed");
+            class MentionBlot extends Embed {
+              static create(data) {
+                const node = super.create();
+                node.setAttribute("data-id", data.id);
+                node.setAttribute("contenteditable", "false");
+                node.classList.add("mention-tag");
+                node.style.cssText = MENTION_TAG_STYLE_CSS;
+                node.textContent = `@${data.name}`;
+                return node;
+              }
+              static value(node) {
+                return {
+                  id: node.getAttribute("data-id"),
+                  name: (node.textContent || "").replace(/^@/, ""),
+                };
+              }
+            }
+            MentionBlot.blotName = "mention";
+            // NOT "span" — Parchment's Registry.query() matches a pasted
+            // DOM node to a registered Blot primarily by bare tagName
+            // (this.tags[node.tagName]), with no way to additionally
+            // require a class/attribute for a Blot (only Attributors
+            // support class-scoped matching). Since ordinary <span> tags
+            // are near-universal in any pasted rich text (Word, Google
+            // Docs, other apps' bold/colored spans, even this app's own
+            // comment history), registering the mention blot under "span"
+            // meant Quill's clipboard converter (matchBlot) treated EVERY
+            // pasted <span> as a mention embed — reading its (usually
+            // absent) data-id attribute and text content, and silently
+            // replacing the span with a bogus "@name" mention chip. A
+            // unique, real-HTML-incompatible tag name means no pasted
+            // content can ever collide with this registration.
+            MentionBlot.tagName = "law-mention";
+            Q.register(MentionBlot, true);
+          } catch {}
           return Q;
         });
       return _quillLoadPromise;
@@ -5226,10 +5508,11 @@
     const QUILL_CUSTOM_CSS = `
         .ql-container.ql-snow { border: none !important; font-family: Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; border-radius: 0 0 8px 8px !important; }
         .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #f0f0f0 !important; padding: 6px 8px !important; background: #f8f8f8 !important; border-radius: 8px 8px 0 0 !important; flex-wrap: wrap !important; }
-        .ql-editor { min-height: 110px; max-height: 380px; overflow-y: auto; font-size: 14px; line-height: 1.7; padding: 12px 16px; font-family: Montserrat, sans-serif; }
+        .ql-editor { min-height: 40px; max-height: 240px; overflow-y: auto; font-size: 14px; line-height: 1.7; padding: 12px 16px; font-family: Montserrat, sans-serif; }
         .ql-editor.ql-blank::before { color: #bfbfbf; font-style: normal; }
         .ql-editor blockquote { border-left: 3px solid #1890ff; padding-left: 10px; color: #595959; margin: 6px 0; }
         .ql-editor pre { background: #f6f8fa; border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: #333; }
+        .ql-editor img { max-width: 100%; height: auto; display: block; border-radius: 4px; margin: 4px 0; }
         .ql-snow .ql-stroke { stroke: #555 !important; }
         .ql-snow .ql-fill { fill: #555 !important; }
         .ql-snow.ql-toolbar button:hover .ql-stroke, .ql-snow .ql-toolbar button:hover .ql-stroke { stroke: #1890ff !important; }
@@ -5247,20 +5530,152 @@
       placeholder,
       onSubmit,
       onUploadClick,
+      lawyers = [],
+      assignedIds = [],
+      onAssignMultiple,
     }) => {
       const containerRef = useRef(null);
+      // Ref to the outer wrapper (position:relative) — used as the anchor
+      // for the mention dropdown's rect-delta position math below, instead
+      // of relying on offsetTop/offsetLeft chains through Quill's internal
+      // DOM (which can silently break, see the mention dropdown effect).
+      const wrapperRef = useRef(null);
       const quillRef = useRef(null);
       const [ready, setReady] = useState(false);
       const [error, setError] = useState(null);
+      const onChangeRef = useRef(onChange);
       const onUploadClickRef = useRef(onUploadClick);
       const onSubmitRef = useRef(onSubmit);
+      const lawyersRef = useRef(lawyers);
+      const assignedIdsRef = useRef(assignedIds);
+      const onAssignMultipleRef = useRef(onAssignMultiple);
+      // Mention ids ever seen as an inline chip in this editor session — lets
+      // the delete-sync below (only) prune ids the user actually deleted the
+      // chip for, without touching ids that arrived pre-set from outside
+      // (e.g. editing an old comment whose assignees predate inline mentions
+      // and have no chip in the body at all).
+      const seenMentionIdsRef = useRef(new Set());
+      // Set true by the capture-phase paste listener below, consumed (and
+      // cleared) by the very next text-change event — lets "@" trigger
+      // detection skip the change produced by a paste. NOT reset by a
+      // fixed-delay timer: Quill's own Clipboard module (quill.js 1.3.7)
+      // does not apply pasted content synchronously within the "paste"
+      // event — it defers via its own internal `setTimeout(..., 1)` so the
+      // browser has time to finish writing the pasted DOM into a hidden
+      // container first. A same-tick `setTimeout(0)` reset here would fire
+      // BEFORE that (0ms < 1ms), clearing the flag before Quill's deferred
+      // updateContents() ever runs, which is exactly why the flag needs to
+      // be consumed by the text-change handler itself instead of by a timer.
+      const pasteInProgressRef = useRef(false);
+      // Safety net only, in case a paste is cancelled or otherwise never
+      // produces a text-change (e.g. empty clipboard) — without this the
+      // flag above could stay stuck "on" and wrongly suppress the next,
+      // unrelated "@" trigger. Cleared/replaced on every paste and consumed
+      // whenever the flag itself is consumed.
+      const pasteFallbackResetTimerRef = useRef(null);
 
+      // ── "@" mention dropdown — typing "@" directly in the editor opens a
+      // lawyer picker at the caret (replaces the old standalone "Mention
+      // someone" button). Selecting an entry inserts a Quill "mention" embed
+      // (registered in loadQuillAsync) and adds the lawyer to assignedIds.
+      const [mentionOpen, setMentionOpen] = useState(false);
+      const [mentionQuery, setMentionQuery] = useState("");
+      const [mentionActiveIdx, setMentionActiveIdx] = useState(0);
+      const [mentionPos, setMentionPos] = useState({ top: 0, left: 0, maxHeight: 360 });
+      const mentionMatchRef = useRef(null); // { start, length } — Quill text-index space
+      const mentionOpenRef = useRef(false);
+      const mentionActiveIdxRef = useRef(0);
+      const selectMentionLawyerRef = useRef(null);
+      // Row elements of the currently rendered dropdown list, keyed by index —
+      // populated via a ref callback in the render below, used to keep the
+      // arrow-key-highlighted row scrolled into view (mouse hover doesn't need
+      // this since the pointer is already over a visible row).
+      const mentionItemElsRef = useRef({});
+
+      useEffect(() => {
+        onChangeRef.current = onChange;
+      }, [onChange]);
       useEffect(() => {
         onUploadClickRef.current = onUploadClick;
       }, [onUploadClick]);
       useEffect(() => {
         onSubmitRef.current = onSubmit;
       }, [onSubmit]);
+      useEffect(() => {
+        lawyersRef.current = lawyers;
+      }, [lawyers]);
+      useEffect(() => {
+        assignedIdsRef.current = assignedIds;
+      }, [assignedIds]);
+      useEffect(() => {
+        onAssignMultipleRef.current = onAssignMultiple;
+      }, [onAssignMultiple]);
+      useEffect(() => {
+        mentionOpenRef.current = mentionOpen;
+      }, [mentionOpen]);
+      useEffect(() => {
+        mentionActiveIdxRef.current = mentionActiveIdx;
+      }, [mentionActiveIdx]);
+      // Keep the arrow-key-highlighted row visible — mouse hover already
+      // scrolls the row into view naturally, but ArrowUp/ArrowDown only move
+      // mentionActiveIdx without touching scrollTop, so the highlighted row
+      // could sit outside the dropdown's scrollable viewport otherwise.
+      useEffect(() => {
+        if (!mentionOpen) return;
+        mentionItemElsRef.current[mentionActiveIdx]?.scrollIntoView({
+          block: "nearest",
+        });
+      }, [mentionActiveIdx, mentionOpen]);
+
+      const mentionFiltered = useMemo(() => {
+        const q = mentionQuery.toLowerCase();
+        const list = q
+          ? lawyers.filter((l) => l.lawyerName.toLowerCase().includes(q))
+          : lawyers;
+        return list.slice(0, 8);
+      }, [lawyers, mentionQuery]);
+      const mentionFilteredRef = useRef(mentionFiltered);
+      useEffect(() => {
+        mentionFilteredRef.current = mentionFiltered;
+      }, [mentionFiltered]);
+
+      const closeMentionDropdown = () => {
+        setMentionOpen(false);
+        setMentionQuery("");
+        mentionMatchRef.current = null;
+      };
+
+      // Capture-phase "paste" listener on the outer wrapper (an ancestor of
+      // Quill's own contenteditable root) — fires during the DOM capturing
+      // phase, which runs before Quill's own paste handler (attached
+      // directly to its root element, invoked in the at-target phase).
+      // Marking pasteInProgressRef here, before Quill has processed
+      // anything, guarantees the flag is already true once Quill eventually
+      // gets around to applying the paste. It is deliberately NOT reset by
+      // a short timer here (see pasteInProgressRef's declaration comment) —
+      // only consumed by the text-change handler below, plus a generous
+      // fallback timer in case that never fires.
+      useEffect(() => {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const handlePasteCapture = () => {
+          pasteInProgressRef.current = true;
+          if (pasteFallbackResetTimerRef.current) {
+            clearTimeout(pasteFallbackResetTimerRef.current);
+          }
+          pasteFallbackResetTimerRef.current = setTimeout(() => {
+            pasteInProgressRef.current = false;
+            pasteFallbackResetTimerRef.current = null;
+          }, 500);
+        };
+        wrapper.addEventListener("paste", handlePasteCapture, true);
+        return () => {
+          wrapper.removeEventListener("paste", handlePasteCapture, true);
+          if (pasteFallbackResetTimerRef.current) {
+            clearTimeout(pasteFallbackResetTimerRef.current);
+          }
+        };
+      }, []);
 
       // Load Quill via ctx.requireAsync then init
       useEffect(() => {
@@ -5276,7 +5691,7 @@
 
             const q = new Quill(containerRef.current, {
               theme: "snow",
-              placeholder: placeholder || "Write a comment...",
+              placeholder: placeholder || "Write a comment... (@ to mention someone)",
               modules: {
                 toolbar: {
                   container: [
@@ -5358,15 +5773,206 @@
               q.setSelection(q.getLength(), 0);
             }
 
-            q.on("text-change", () => {
+            const selectMentionLawyer = (lawyer) => {
+              const match = mentionMatchRef.current;
+              if (!match) return;
+              q.deleteText(match.start, match.length, "user");
+              q.insertEmbed(
+                match.start,
+                "mention",
+                { id: lawyer.id, name: lawyer.lawyerName },
+                "user",
+              );
+              q.insertText(match.start + 1, " ", "user");
+              q.setSelection(match.start + 2, 0, "user");
+
+              seenMentionIdsRef.current.add(String(lawyer.id));
+              const current = assignedIdsRef.current || [];
+              if (!current.includes(lawyer.id) && onAssignMultipleRef.current) {
+                onAssignMultipleRef.current([...current, lawyer.id]);
+              }
+              closeMentionDropdown();
+            };
+            selectMentionLawyerRef.current = selectMentionLawyer;
+
+            q.on("text-change", (delta) => {
               const editorEl =
                 containerRef.current &&
                 containerRef.current.querySelector(".ql-editor");
               if (!editorEl) return;
               const html = editorEl.innerHTML;
               const empty = html === "<p><br></p>" || html === "";
-              onChange(empty ? "" : html);
+              onChangeRef.current(empty ? "" : html);
+
+              // Mark any mention chip currently in the html as "seen", then
+              // drop assignedIds that were seen before but no longer appear
+              // (i.e. the user deleted that chip) — ids that never had a
+              // chip in this editor (old-style assignees on an edited
+              // comment) are left untouched.
+              (lawyersRef.current || []).forEach((l) => {
+                if (html.includes(`data-id="${l.id}"`)) {
+                  seenMentionIdsRef.current.add(String(l.id));
+                }
+              });
+              const currentAssignedIds = assignedIdsRef.current || [];
+              if (onAssignMultipleRef.current && currentAssignedIds.length > 0) {
+                const keep = currentAssignedIds.filter(
+                  (id) =>
+                    !seenMentionIdsRef.current.has(String(id)) ||
+                    html.includes(`data-id="${id}"`),
+                );
+                if (keep.length !== currentAssignedIds.length) {
+                  onAssignMultipleRef.current(keep);
+                }
+              }
+
+              // "@" trigger detection — skipped for pasted (or otherwise
+              // bulk-inserted, e.g. cloned) text. Quill still reports paste
+              // as text-change source "user", same as normal typing, so it
+              // can't be filtered out via the source argument. Two checks,
+              // combined: pasteInProgressRef (consumed here, see its
+              // declaration comment for why it can't be reset by a fixed
+              // timer) catches the actual paste; the per-event "insert
+              // longer than 1 character" check is a fallback for any other
+              // bulk-insert path (e.g. programmatic). Without this, pasting
+              // text that happens to contain "@" anywhere (an email
+              // address, a Twitter handle, quoted text with an @mention
+              // already in it) gets misread as the user typing a mention
+              // trigger.
+              const wasPasting = pasteInProgressRef.current;
+              if (wasPasting) {
+                pasteInProgressRef.current = false;
+                if (pasteFallbackResetTimerRef.current) {
+                  clearTimeout(pasteFallbackResetTimerRef.current);
+                  pasteFallbackResetTimerRef.current = null;
+                }
+              }
+              const insertOps = (delta?.ops || []).filter(
+                (op) => typeof op.insert === "string",
+              );
+              const isBulkInsert =
+                wasPasting || insertOps.some((op) => op.insert.length > 1);
+              if (isBulkInsert) {
+                closeMentionDropdown();
+                return;
+              }
+              // No insert at all in this delta (pure retain/delete, e.g. a
+              // formatting toggle or a mention-chip removal elsewhere) means
+              // nothing was actually typed just now — evaluating the regex
+              // below would only be replaying whatever text already happens
+              // to sit before the caret (which can be a leftover "@word"
+              // from an earlier paste), reopening the dropdown for no new
+              // keystroke. Still allow delete-only deltas that DO originate
+              // from backspacing inside an active query (mentionOpenRef is
+              // true) so narrowing an in-progress "@name" by backspacing
+              // keeps working.
+              const hasNewInsert = insertOps.length > 0;
+              if (!hasNewInsert && !mentionOpenRef.current) {
+                closeMentionDropdown();
+                return;
+              }
+              const sel = q.getSelection();
+              if (!sel) {
+                closeMentionDropdown();
+                return;
+              }
+              const textBeforeCaret = q.getText(0, sel.index);
+              const match = textBeforeCaret.match(/@([^\s@]{0,30})$/);
+              if (!match) {
+                closeMentionDropdown();
+                return;
+              }
+              mentionMatchRef.current = {
+                start: sel.index - match[0].length,
+                length: match[0].length,
+              };
+              setMentionQuery(match[1]);
+              setMentionActiveIdx(0);
+              setMentionOpen(true);
+
+              const bounds = q.getBounds(sel.index);
+              // q.getBounds() returns coordinates relative to q.root (the
+              // actual .ql-editor contenteditable node — Quill's Selection
+              // computes bounds against its own scroll root, NOT the outer
+              // .ql-container that containerRef points to). Mixing that
+              // with containerRef.current's own offset was the bug behind
+              // the dropdown rendering far from the caret (the two don't
+              // share a coordinate space).
+              //
+              // Fix: read both rects via getBoundingClientRect() and take
+              // the delta against wrapperRef (the position:relative
+              // containing block the dropdown is positioned within). A
+              // rect delta between two elements stays correct regardless of
+              // any transform/scroll/zoom on shared ancestors — both rects
+              // shift together — unlike relying on an offsetParent chain.
+              const editorRect = q.root.getBoundingClientRect();
+              const wrapperRect = wrapperRef.current.getBoundingClientRect();
+              const editorOffsetTop = editorRect.top - wrapperRect.top;
+              const editorOffsetLeft = editorRect.left - wrapperRect.left;
+              const viewportCaretTop = editorRect.top + bounds.top;
+              const viewportCaretBottom = editorRect.top + bounds.bottom;
+              // A little breathing room below the "@" text so the dropdown
+              // doesn't sit flush against the caret line.
+              const GAP = 10;
+              const MARGIN = 12;
+              const MIN_HEIGHT = 120;
+              const MAX_HEIGHT = 360;
+              const spaceBelow = window.innerHeight - viewportCaretBottom - GAP - MARGIN;
+              const spaceAbove = viewportCaretTop - GAP - MARGIN;
+              // Prefer opening below (matches where the user is typing); only
+              // flip upward when below doesn't even fit the minimum useful
+              // height AND above actually has more room — otherwise, sizing
+              // the panel to the side with more room (instead of always
+              // reserving a fixed 246px) keeps it from overshooting past the
+              // caret and unnecessarily covering comments above the composer.
+              const openUp = spaceBelow < MIN_HEIGHT && spaceAbove > spaceBelow;
+              const available = openUp ? spaceAbove : spaceBelow;
+              const dropdownHeight = Math.max(
+                MIN_HEIGHT,
+                Math.min(MAX_HEIGHT, available),
+              );
+              setMentionPos({
+                top: openUp
+                  ? editorOffsetTop + bounds.top - dropdownHeight - GAP
+                  : editorOffsetTop + bounds.bottom + GAP,
+                left: editorOffsetLeft + bounds.left,
+                maxHeight: dropdownHeight,
+              });
             });
+
+            const handleMentionKeydown = (e) => {
+              if (!mentionOpenRef.current) return;
+              const list = mentionFilteredRef.current;
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setMentionActiveIdx((i) =>
+                  Math.min(i + 1, Math.max(list.length - 1, 0)),
+                );
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setMentionActiveIdx((i) => Math.max(i - 1, 0));
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") {
+                if (list[mentionActiveIdxRef.current]) {
+                  e.preventDefault();
+                  selectMentionLawyer(list[mentionActiveIdxRef.current]);
+                }
+                return;
+              }
+              if (e.key === "Escape") {
+                closeMentionDropdown();
+              }
+            };
+            // Capture-phase, registered before the Ctrl+Enter submit shortcut
+            // so arrow/Enter/Escape are consumed by the mention dropdown
+            // first when it's open.
+            q.root.addEventListener("keydown", handleMentionKeydown, true);
+            cleanupFns.push(() =>
+              q.root.removeEventListener("keydown", handleMentionKeydown, true),
+            );
 
             const handleSubmitShortcut = (e) => {
               if (!((e.ctrlKey || e.metaKey) && e.key === "Enter")) return;
@@ -5407,11 +6013,17 @@
       return React.createElement(
         "div",
         {
+          ref: wrapperRef,
           style: {
             border: "1px solid #d9d9d9",
             borderRadius: 8,
             background: "#fff",
             boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
+            // Anchor for the mention dropdown below — its position:absolute
+            // top/left are computed via a getBoundingClientRect() delta
+            // against this wrapper (see the mention position effect),
+            // relying on this being the dropdown's containing block.
+            position: "relative",
           },
         },
         // Inject Quill custom CSS via React style element (sandbox-safe)
@@ -5444,261 +6056,91 @@
               )
             : null,
         React.createElement("div", { ref: containerRef }),
-      );
-    };
-
-    // ── MentionPicker ──────────────────────────────────────────────────
-    // Standalone "@ Nhắc đến ai" button + dropdown. No global event listeners.
-    // Outside-click detection uses a fullscreen backdrop overlay (sandbox-safe pattern).
-    const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
-      const { Tag } = ctx.antd;
-      const [open, setOpen] = useState(false);
-      const [search, setSearch] = useState("");
-      const pickerRef = React.useRef(null);
-
-      const closeDropdown = () => {
-        setOpen(false);
-        setSearch("");
-      };
-
-      const filtered = useMemo(() => {
-        const q = search.toLowerCase();
-        return q
-          ? lawyers.filter((l) => l.lawyerName.toLowerCase().includes(q))
-          : lawyers;
-      }, [lawyers, search]);
-
-      const toggle = (lawyer) => {
-        const already = assignedIds.includes(lawyer.id);
-        const next = already
-          ? assignedIds.filter((id) => id !== lawyer.id)
-          : [...assignedIds, lawyer.id];
-        onAssignMultiple(next);
-      };
-
-      const removeTag = (id) =>
-        onAssignMultiple(assignedIds.filter((i) => i !== id));
-
-      return React.createElement(
-        "div",
-        {
-          style: {
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 6,
-            marginTop: 8,
-          },
-        },
-
-        // ── @ Button ─────────────────────────────────────────────────
-        React.createElement(
-          "div",
-          { ref: pickerRef, style: { position: "relative" } },
+        // "@" mention suggestion dropdown — position:absolute against the
+        // outer wrapper (position:relative), computed from the editor's own
+        // offsetTop/offsetLeft + Quill's caret bounds, so it tracks the "@"
+        // text position regardless of ancestor CSS. Backdrop stays
+        // position:fixed/inset:0 for full-viewport outside-click coverage.
+        mentionOpen &&
+          mentionFiltered.length > 0 &&
           React.createElement(
-            "button",
-            {
-              type: "button",
-              onClick: () => {
-                setOpen((v) => !v);
-                setSearch("");
-              },
-              style: {
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                fontSize: 12,
-                fontFamily: FONT,
-                fontWeight: 600,
-                padding: "5px 12px",
-                borderRadius: 20,
-                border: open ? "1px solid #1890ff" : "1px solid #d9d9d9",
-                background: open ? "#e6f4ff" : "#fff",
-                color: open ? "#096dd9" : "#595959",
-                cursor: "pointer",
-                userSelect: "none",
-                transition: "all 0.15s",
-              },
-              onMouseEnter: (e) => {
-                if (!open) {
-                  e.currentTarget.style.borderColor = "#1890ff";
-                  e.currentTarget.style.color = "#1890ff";
-                }
-              },
-              onMouseLeave: (e) => {
-                if (!open) {
-                  e.currentTarget.style.borderColor = "#d9d9d9";
-                  e.currentTarget.style.color = "#595959";
-                }
-              },
-            },
-            React.createElement(
-              "span",
-              { style: { fontSize: 14, fontWeight: 700 } },
-              "@",
-            ),
-            "Mention someone",
-          ),
-
-          // ── Dropdown ───────────────────────────────────────────────
-          open &&
+            React.Fragment,
+            null,
+            React.createElement("div", {
+              style: { position: "fixed", inset: 0, zIndex: 99998 },
+              onClick: closeMentionDropdown,
+            }),
             React.createElement(
               "div",
               {
                 style: {
                   position: "absolute",
-                  top: "calc(100% + 6px)",
-                  left: 0,
-                  zIndex: 9999,
+                  top: mentionPos.top,
+                  left: mentionPos.left,
+                  zIndex: 99999,
                   background: "#fff",
                   border: "1px solid #e0e0e0",
-                  borderRadius: 12,
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
-                  minWidth: 240,
-                  maxHeight: 280,
+                  borderRadius: 10,
+                  boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
+                  minWidth: 230,
+                  maxHeight: mentionPos.maxHeight || 360,
                   overflowY: "auto",
-                  padding: "6px 0",
+                  padding: "4px 0",
                 },
+                onClick: (e) => e.stopPropagation(),
               },
-              // Search input
-              React.createElement(
-                "div",
-                {
-                  style: { padding: "6px 10px", borderBottom: "1px solid #f0f0f0" },
-                },
-                React.createElement("input", {
-                  autoFocus: true,
-                  value: search,
-                  onChange: (e) => setSearch(e.target.value),
-                  placeholder: "Search lawyer name...",
-                  style: {
-                    width: "100%",
-                    boxSizing: "border-box",
-                    border: "1px solid #e0e0e0",
-                    borderRadius: 8,
-                    padding: "5px 10px",
-                    fontSize: 12,
-                    fontFamily: FONT,
-                    outline: "none",
-                  },
-                }),
-              ),
-              // List
-              filtered.length === 0
-                ? React.createElement(
-                    "div",
-                    {
-                      style: {
-                        padding: "12px",
-                        textAlign: "center",
-                        color: "#bfbfbf",
-                        fontSize: 12,
-                        fontFamily: FONT,
-                      },
+              ...mentionFiltered.map((l, idx) =>
+                React.createElement(
+                  "div",
+                  {
+                    key: l.id,
+                    ref: (el) => {
+                      mentionItemElsRef.current[idx] = el;
                     },
-                    "Not found",
-                  )
-                : filtered.map((l) => {
-                    const selected = assignedIds.includes(l.id);
-                    return React.createElement(
+                    onMouseDown: (e) => {
+                      e.preventDefault();
+                      selectMentionLawyerRef.current?.(l);
+                    },
+                    onMouseEnter: () => setMentionActiveIdx(idx),
+                    style: {
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      background: idx === mentionActiveIdx ? "#e6f4ff" : "transparent",
+                      borderLeft:
+                        idx === mentionActiveIdx
+                          ? "3px solid #1890ff"
+                          : "3px solid transparent",
+                    },
+                  },
+                  React.createElement(Av, { name: l.lawyerName, size: 26 }),
+                  React.createElement(
+                    "div",
+                    null,
+                    React.createElement(
                       "div",
                       {
-                        key: l.id,
-                        onMouseDown: (e) => {
-                          e.preventDefault();
-                          toggle(l);
-                        },
                         style: {
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "8px 14px",
-                          cursor: "pointer",
-                          background: selected ? "#e6f4ff" : "transparent",
-                          borderLeft: selected
-                            ? "3px solid #1890ff"
-                            : "3px solid transparent",
-                          transition: "background 0.1s",
-                        },
-                        onMouseEnter: (e) => {
-                          if (!selected)
-                            e.currentTarget.style.background = "#f5f5f5";
-                        },
-                        onMouseLeave: (e) => {
-                          if (!selected)
-                            e.currentTarget.style.background = "transparent";
+                          fontSize: 13,
+                          fontWeight: idx === mentionActiveIdx ? 700 : 500,
+                          color: idx === mentionActiveIdx ? "#096dd9" : "#262626",
+                          fontFamily: FONT,
                         },
                       },
-                      React.createElement(Av, { name: l.lawyerName, size: 28 }),
-                      React.createElement(
-                        "div",
-                        { style: { flex: 1 } },
-                        React.createElement(
-                          "div",
-                          {
-                            style: {
-                              fontSize: 13,
-                              fontWeight: selected ? 700 : 400,
-                              color: selected ? "#096dd9" : "#262626",
-                              fontFamily: FONT,
-                            },
-                          },
-                          l.lawyerName,
-                        ),
-                        l.lawyerType &&
-                          React.createElement(
-                            "div",
-                            { style: { fontSize: 11, color: "#8c8c8c" } },
-                            l.lawyerType,
-                          ),
-                      ),
-                      selected &&
-                        React.createElement(
-                          "span",
-                          {
-                            style: {
-                              fontSize: 16,
-                              color: "#1890ff",
-                              fontWeight: 700,
-                            },
-                          },
-                          "✓",
-                        ),
-                    );
-                  }),
+                      l.lawyerName,
+                    ),
+                  ),
+                ),
+              ),
             ),
-        ),
-
-        // ── Selected Tags ─────────────────────────────────────────────
-        assignedIds.map((id) => {
-          const lawyer = lawyers.find((l) => l.id === id);
-          if (!lawyer) return null;
-          return React.createElement(
-            Tag,
-            {
-              key: id,
-              closable: true,
-              onClose: () => removeTag(id),
-              style: {
-                borderRadius: 16,
-                background: "#e6f4ff",
-                color: "#096dd9",
-                border: "1px solid #91caff",
-                fontSize: 12,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "2px 10px 2px 6px",
-              },
-            },
-            React.createElement(Av, { name: lawyer.lawyerName, size: 16 }),
-            lawyer.lawyerName,
-          );
-        }),
+          ),
       );
     };
 
-    // ── CommentComposer — wraps QuillEditor + MentionPicker ────────────
+    // ── CommentComposer — wraps QuillEditor (which now owns the "@" mention
+    // dropdown directly, typed inline instead of via a separate button) ────
     const CommentComposer = ({
       value,
       onChange,
@@ -5718,8 +6160,6 @@
           placeholder,
           onSubmit,
           onUploadClick,
-        }),
-        React.createElement(MentionPicker, {
           lawyers,
           assignedIds,
           onAssignMultiple,
@@ -6394,6 +6834,7 @@
       refreshTrigger,
       taskContext = {},
       caseId = null, // 🌟 Bổ sung caseId để tạo deep-link
+      sortOrder = "oldest", // "oldest" | "newest" — hiển thị thứ tự bình luận
     }) => {
       // ProjectInternal (Internal Work) tasks have no Case/Reference to move
       // documents into — the file-level move actions swap to a single
@@ -6481,8 +6922,11 @@
               files: batch,
             });
           });
+          // Earliest -> latest, matching a normal chat thread's reading
+          // order (composer sits fixed at the bottom, right after the
+          // newest message).
           const allItems = [...noteItems, ...fileOnlyItems].sort(
-            (a, b) => b._time - a._time,
+            (a, b) => a._time - b._time,
           );
           setFeed(allItems);
           if (onFilesUpdate) onFilesUpdate(files);
@@ -6599,10 +7043,17 @@
 
           // ── BƯỚC 2: Tạo Document records cùng batchId ────────────
           if (hasFiles) {
+            const uploadProjectInternalId = taskContext.projectInternalId;
             const folderIdMap = await createTaskUploadFoldersFromEntries(
               pendingDocs,
               projectFolderId,
-              { currentUser },
+              {
+                currentUser,
+                caseId: actualCaseId,
+                taskId: taskContext.taskId,
+                subTaskId: taskContext.subTaskId,
+                projectInternalId: uploadProjectInternalId,
+              },
             );
             const toISO = (val) => {
               if (!val) return null;
@@ -6633,8 +7084,15 @@
                 uploadedById: currentUser?.id || null,
                 ...buildTaskUploadDocumentLink(collectionName, recordId, {
                   folderId: targetFolderId,
+                  projectInternalId: uploadProjectInternalId,
                 }),
-                storageType: "cases",
+                // Internal Work uploads (uploadProjectInternalId set) get
+                // stamped storageType: "project_internal" instead of
+                // "cases" — buildTaskUploadDocumentLink above already
+                // switches moduleScope the same way.
+                storageType: uploadProjectInternalId
+                  ? PROJECT_INTERNAL_MODULE_SCOPE
+                  : "cases",
                 createdById: currentUser?.id || null,
                 createdAt: new Date().toISOString(),
                 batchId,
@@ -6978,7 +7436,7 @@
             label: "Download",
             disabled: !fullUrl,
           },
-          canEdit && !isProjectInternalContext && !linkedLegalStudy && {
+          canEdit && !linkedLegalStudy && {
             key: "move_legal_study",
             icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
             label: "Move to Reference",
@@ -6993,8 +7451,18 @@
             icon: TASK_FILE_ACTION_ICONS.folder,
             label: "Move to Case's Document",
           },
-          // ProjectInternal tasks have no Case/Reference — only offer moving
-          // up to the company-level Knowledge library instead.
+          // Internal Work equivalent of "Move to Case's Document" above —
+          // moves into the current Internal Work item's own Document tree.
+          canEdit && isProjectInternalContext && {
+            key: "move_to_project_internal_document",
+            icon: TASK_FILE_ACTION_ICONS.folder,
+            label: "Move to Internal Work's Document",
+          },
+          canEdit && isProjectInternalContext && {
+            key: "move_to_customer_document",
+            icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+            label: "Move to Customer",
+          },
           canEdit && isProjectInternalContext && {
             key: "move_to_library",
             icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
@@ -7037,6 +7505,20 @@
             setLibraryMoveTarget({
               record: f,
               destinationType: LIBRARY_DESTINATION.CASE_DOCUMENT,
+            });
+            return;
+          }
+          if (key === "move_to_project_internal_document") {
+            setLibraryMoveTarget({
+              record: f,
+              destinationType: LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT,
+            });
+            return;
+          }
+          if (key === "move_to_customer_document") {
+            setLibraryMoveTarget({
+              record: f,
+              destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
             });
             return;
           }
@@ -7287,6 +7769,36 @@
                 React.createElement(
                   Button,
                   {
+                    key: "move-project-internal-document",
+                    size: "small",
+                    disabled: selectedCount === 0,
+                    onClick: () =>
+                      setBulkMoveTarget({
+                        records: selectedFiles,
+                        destinationType: LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT,
+                        itemKey,
+                      }),
+                  },
+                  "Move to Internal Work's Document",
+                ),
+                React.createElement(
+                  Button,
+                  {
+                    key: "move-customer-document",
+                    size: "small",
+                    disabled: selectedCount === 0,
+                    onClick: () =>
+                      setBulkMoveTarget({
+                        records: selectedFiles,
+                        destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
+                        itemKey,
+                      }),
+                  },
+                  "Move to Customer",
+                ),
+                React.createElement(
+                  Button,
+                  {
                     key: "move-library",
                     size: "small",
                     disabled: selectedCount === 0,
@@ -7316,22 +7828,22 @@
                   },
                   "Move to Document",
                 ),
-                React.createElement(
-                  Button,
-                  {
-                    key: "move-reference",
-                    size: "small",
-                    disabled: selectedCount === 0,
-                    onClick: () =>
-                      setBulkMoveTarget({
-                        records: selectedFiles,
-                        destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
-                        itemKey,
-                      }),
-                  },
-                  "Move to Reference",
-                ),
               ]),
+          React.createElement(
+            Button,
+            {
+              key: "move-reference",
+              size: "small",
+              disabled: selectedCount === 0,
+              onClick: () =>
+                setBulkMoveTarget({
+                  records: selectedFiles,
+                  destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
+                  itemKey,
+                }),
+            },
+            "Move to Reference",
+          ),
           React.createElement(
             "span",
             {
@@ -7439,7 +7951,7 @@
                       marginLeft: "auto",
                     },
                   },
-                  timeAgo(time),
+                  fmt(time, "full"),
                 ),
               ),
               isEditing
@@ -7560,60 +8072,6 @@
                               },
                             },
                             renderRichText(note.body, lawyers),
-                          ),
-                        note?.assignees &&
-                          note.assignees.length > 0 &&
-                          React.createElement(
-                            "div",
-                            {
-                              style: {
-                                marginTop: 8,
-                                display: "flex",
-                                gap: 6,
-                                flexWrap: "wrap",
-                                alignItems: "center",
-                              },
-                            },
-                            React.createElement(
-                              "span",
-                              {
-                                style: {
-                                  fontSize: 12,
-                                  color: "#8c8c8c",
-                                  fontFamily: FONT,
-                                },
-                              },
-                              "Mentioned:",
-                            ),
-                            ...note.assignees.map((assigneeItem) => {
-                              const assigneeId =
-                                typeof assigneeItem === "object" &&
-                                assigneeItem !== null
-                                  ? assigneeItem.id
-                                  : assigneeItem;
-                              const l = lawyers?.find((lw) => lw.id === assigneeId);
-                              if (!l) return null;
-                              return React.createElement(
-                                "span",
-                                {
-                                  key: l.id,
-                                  style: {
-                                    fontSize: 12,
-                                    color: "#096dd9",
-                                    background: "#e6f4ff",
-                                    border: "1px solid #91caff",
-                                    padding: "2px 8px",
-                                    borderRadius: 4,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    fontFamily: FONT,
-                                    fontWeight: 500,
-                                  },
-                                },
-                                "@",
-                                l.lawyerName,
-                              );
-                            }),
                           ),
                         ...files.map((f) => renderFileRow(f, itemTargetId)),
                         renderBulkSelectBar(itemTargetId, files),
@@ -8141,7 +8599,10 @@
       const isMentionOnly = assignedIds.length > 0 && !hasCommentText;
       const canSend =
         (hasCommentText || pendingDocs.length > 0) && !isMentionOnly && !sending;
-      const visibleFeed = showAll ? feed : feed.slice(0, INITIAL_COUNT);
+      // feed is sorted earliest -> latest; collapsed view keeps the most
+      // recent INITIAL_COUNT (the ones nearest the composer) rather than
+      // the oldest, so "load more" reveals older history upward.
+      const visibleFeed = showAll ? feed : feed.slice(-INITIAL_COUNT);
       const hasMore = feed.length > INITIAL_COUNT;
 
       const rootItems = [];
@@ -8160,15 +8621,23 @@
         replyMap[k].sort((a, b) => a._time - b._time);
       });
 
+      // rootItems is always earliest -> latest (matches visibleFeed) —
+      // reversed only for the "newest first" display option so replies
+      // (rendered inside renderItem, unaffected by this) stay chronological
+      // regardless of the top-level sort order.
+      const orderedRootItems =
+        sortOrder === "newest" ? [...rootItems].reverse() : rootItems;
+
       const renderComposerBlock = (isInline = false) => {
         return React.createElement(
           "div",
           {
             style: {
               padding: isInline ? "12px 0 0 0" : "16px 20px",
-              borderBottom: isInline ? "none" : "4px solid #f0f0f0",
+              borderTop: isInline ? "none" : "4px solid #f0f0f0",
               background: "#fff",
               marginTop: isInline ? 8 : 0,
+              flexShrink: isInline ? undefined : 0,
             },
           },
           replyingTo &&
@@ -8294,67 +8763,74 @@
         {
           style: {
             height: "100%",
-            overflowY: "auto",
-            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
             background: "#fff",
           },
         },
-        !replyingTo ? renderComposerBlock(false) : null,
+        // Danh sách bình luận cuộn riêng ở trên — mới nhất -> cũ nhất (đã
+        // sort ở reload()); composer bên dưới nằm ngoài vùng cuộn này nên
+        // luôn hiển thị cố định, không cần cuộn hết mới thấy ô nhập.
         React.createElement(
           "div",
-          { style: { paddingBottom: 24 } },
-          loading
-            ? React.createElement(
-                "div",
-                { style: { textAlign: "center", padding: "24px 0" } },
-                React.createElement(Spin, { size: "small" }),
-              )
-            : feed.length === 0
+          { style: { flex: 1, overflowY: "auto", overflowX: "hidden" } },
+          React.createElement(
+            "div",
+            { style: { paddingBottom: 24 } },
+            loading
               ? React.createElement(
                   "div",
-                  {
-                    style: {
-                      textAlign: "center",
-                      padding: "32px 0",
-                      fontSize: 13,
-                      fontFamily: FONT,
-                      color: "#bfbfbf",
-                    },
-                  },
-                  "No comments or documents yet",
+                  { style: { textAlign: "center", padding: "24px 0" } },
+                  React.createElement(Spin, { size: "small" }),
                 )
-              : React.createElement(
-                  "div",
-                  null,
-                  ...rootItems.map((item, i) => renderItem(item, `item-${i}`)),
-                  hasMore &&
-                    React.createElement(
-                      "div",
-                      {
-                        onClick: () => setShowAll((v) => !v),
-                        style: {
-                          margin: "16px",
-                          textAlign: "center",
-                          fontSize: 12,
-                          fontFamily: FONT,
-                          color: "#1890ff",
-                          cursor: "pointer",
-                          padding: "7px 0",
-                          border: "1px dashed #91caff",
-                          borderRadius: 6,
-                          background: "#f0f8ff",
-                        },
-                        onMouseEnter: (e) =>
-                          (e.currentTarget.style.background = "#d6ecff"),
-                        onMouseLeave: (e) =>
-                          (e.currentTarget.style.background = "#f0f8ff"),
+              : feed.length === 0
+                ? React.createElement(
+                    "div",
+                    {
+                      style: {
+                        textAlign: "center",
+                        padding: "32px 0",
+                        fontSize: 13,
+                        fontFamily: FONT,
+                        color: "#bfbfbf",
                       },
-                      showAll
-                        ? `▲ Collapse (showing ${INITIAL_COUNT} of ${feed.length})`
-                        : `▼ View ${feed.length - INITIAL_COUNT} more comments (${feed.length} total)`,
-                    ),
-                ),
+                    },
+                    "No comments or documents yet",
+                  )
+                : React.createElement(
+                    "div",
+                    null,
+                    ...orderedRootItems.map((item, i) => renderItem(item, `item-${i}`)),
+                    hasMore &&
+                      React.createElement(
+                        "div",
+                        {
+                          onClick: () => setShowAll((v) => !v),
+                          style: {
+                            margin: "16px",
+                            textAlign: "center",
+                            fontSize: 12,
+                            fontFamily: FONT,
+                            color: "#1890ff",
+                            cursor: "pointer",
+                            padding: "7px 0",
+                            border: "1px dashed #91caff",
+                            borderRadius: 6,
+                            background: "#f0f8ff",
+                          },
+                          onMouseEnter: (e) =>
+                            (e.currentTarget.style.background = "#d6ecff"),
+                          onMouseLeave: (e) =>
+                            (e.currentTarget.style.background = "#f0f8ff"),
+                        },
+                        showAll
+                          ? `▲ Collapse (showing ${INITIAL_COUNT} of ${feed.length})`
+                          : `▼ View ${feed.length - INITIAL_COUNT} more comments (${feed.length} total)`,
+                      ),
+                  ),
+          ),
         ),
+        !replyingTo ? renderComposerBlock(false) : null,
         React.createElement("input", {
           key: "pending-replace-input",
           ref: pendingReplaceInputRef,
@@ -8382,7 +8858,10 @@
           lawyers,
           projectFolderId,
           caseId: getDeepLinkCaseId(caseId || taskContext.caseId),
+          taskId: taskContext.taskId,
+          subTaskId: taskContext.subTaskId,
           isProjectInternalContext,
+          projectInternalId: taskContext.projectInternalId,
         }),
         replacingFileDoc &&
           React.createElement(FileUploadModal, {
@@ -8400,7 +8879,10 @@
             lawyers,
             projectFolderId,
             caseId: getDeepLinkCaseId(caseId || taskContext.caseId),
+            taskId: taskContext.taskId,
+            subTaskId: taskContext.subTaskId,
             isProjectInternalContext,
+            projectInternalId: taskContext.projectInternalId,
           }),
         libraryMoveTarget &&
           React.createElement(LibraryMoveModal, {
@@ -8556,6 +9038,17 @@
       const config = getLibraryDestinationConfig(destinationType);
       const isCaseDocument = destinationType === LIBRARY_DESTINATION.CASE_DOCUMENT;
       const isKnowledge = destinationType === LIBRARY_DESTINATION.KNOWLEDGE;
+      // Same shape as CASE_DOCUMENT — the parent is always the current
+      // Internal Work item, no parent-record picker.
+      const isProjectInternalDoc =
+        destinationType === LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT;
+      // Same shape as LEGAL_STUDY/LEGAL_REFERENCE — has its own parent-record
+      // picker (browse customers), unlike the 3 destinations above.
+      const isCustomerDoc = destinationType === LIBRARY_DESTINATION.CUSTOMER_DOCUMENT;
+      // Destinations with no "select parent record" step — the parent is
+      // always implied by context (current case / current Internal Work
+      // item / company-wide Knowledge).
+      const hasImplicitScope = isCaseDocument || isKnowledge || isProjectInternalDoc;
       // Accepts either a single `record` (legacy single-file/folder move) or a
       // `records` array (bulk move) — everything below operates on the array.
       const targetRecords = useMemo(
@@ -8587,7 +9080,7 @@
         primaryAtt?.title ||
         primaryAtt?.filename ||
         (primaryIsFolder ? "Folder" : "Document");
-      const selectedParentRecord = isCaseDocument || isKnowledge
+      const selectedParentRecord = hasImplicitScope
         ? null
         : parentRecords.find(
             (item) =>
@@ -8615,6 +9108,20 @@
           // the folder-loading effect below and keep the submit button enabled.
           setParentRecords([]);
           setSelectedRecordId("__knowledge__");
+          setTargetFolderId("root");
+          setFolders([]);
+          setFolderTree([]);
+          return;
+        }
+        if (isProjectInternalDoc) {
+          // No parent-record picker — the parent is always the current
+          // Internal Work item.
+          setParentRecords([]);
+          setSelectedRecordId(
+            sourceContext?.projectInternalId
+              ? String(extractId(sourceContext.projectInternalId))
+              : null,
+          );
           setTargetFolderId("root");
           setFolders([]);
           setFolderTree([]);
@@ -8650,8 +9157,10 @@
         destinationType,
         isCaseDocument,
         isKnowledge,
+        isProjectInternalDoc,
         isBulk,
         sourceContext?.caseId,
+        sourceContext?.projectInternalId,
       ]);
 
       useEffect(() => {
@@ -8668,7 +9177,11 @@
             ? await fetchCaseDocumentFolders(selectedRecordId)
             : isKnowledge
               ? await fetchKnowledgeFolders()
-              : await fetchLibraryDestinationFolders(destinationType, selectedRecordId);
+              : isProjectInternalDoc
+                ? await fetchProjectInternalDocumentFolders(selectedRecordId)
+                : isCustomerDoc
+                  ? await fetchCustomerDocumentFolders(selectedRecordId)
+                  : await fetchLibraryDestinationFolders(destinationType, selectedRecordId);
           if (cancelled) return;
           setFolders(rows);
           const rawTree = buildLibraryFolderTree(rows);
@@ -8715,6 +9228,8 @@
         destinationType,
         isCaseDocument,
         isKnowledge,
+        isProjectInternalDoc,
+        isCustomerDoc,
         isBulk,
         primaryRecord?.folderId,
       ]);
@@ -8722,7 +9237,7 @@
       const getFolderName = (folderId) => {
         const id = String(extractId(folderId) || "");
         if (!id) {
-          return isCaseDocument || isKnowledge
+          return hasImplicitScope
             ? config.label
             : getLibraryRecordDisplayName(selectedParentRecord, destinationType) ||
                 config.label;
@@ -8745,6 +9260,11 @@
         } else if (isKnowledge) {
           // No parent record to validate — any Knowledge folder (or its root)
           // is a valid target.
+        } else if (isProjectInternalDoc) {
+          if (!parentRecordId) {
+            message.warning("Cannot determine the current Internal Work item");
+            return;
+          }
         } else if (!parentRecordId || !selectedParentRecord) {
           message.warning(`Please select a ${config.label} record`);
           return;
@@ -8769,7 +9289,7 @@
                 (item) => String(extractId(item.id)) === String(safeTargetFolderId || ""),
               )
             : null;
-          const internalCompanyId = isCaseDocument
+          const internalCompanyId = isCaseDocument || isProjectInternalDoc
             ? null
             : isKnowledge
               ? getLibraryRecordInternalCompanyId(targetKnowledgeFolder)
@@ -8778,9 +9298,13 @@
             ? ACTIVITY_ACTION.MOVE_TO_CASE_DOCUMENT
             : isKnowledge
               ? ACTIVITY_ACTION.MOVE_TO_KNOWLEDGE
-              : destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
-                ? ACTIVITY_ACTION.LINK_LEGAL_STUDY
-                : ACTIVITY_ACTION.LINK_LEGAL_REFERENCE;
+              : isProjectInternalDoc
+                ? ACTIVITY_ACTION.MOVE_TO_PROJECT_INTERNAL_DOCUMENT
+                : isCustomerDoc
+                  ? ACTIVITY_ACTION.MOVE_TO_CUSTOMER_DOCUMENT
+                  : destinationType === LIBRARY_DESTINATION.LEGAL_STUDY
+                    ? ACTIVITY_ACTION.LINK_LEGAL_STUDY
+                    : ACTIVITY_ACTION.LINK_LEGAL_REFERENCE;
 
           const updatedRecords = [];
           for (const rec of targetRecords) {
@@ -8801,13 +9325,13 @@
               ![LEGAL_STUDY_MODULE_SCOPE, LEGAL_REFERENCE_MODULE_SCOPE].includes(rec.moduleScope)
                 ? rec.moduleScope
                 : CASE_DOCUMENT_SCOPE);
-            const sourceSnapshot = isCaseDocument || isKnowledge
+            const sourceSnapshot = isCaseDocument || isKnowledge || isProjectInternalDoc || isCustomerDoc
               ? null
               : {
                   ...(parseLegalStudySource(rec?.legalStudySource) || {}),
                   ...buildLegalStudySource(sourceContext),
                 };
-            const relationPayload = isCaseDocument || isKnowledge
+            const relationPayload = isCaseDocument || isKnowledge || isProjectInternalDoc || isCustomerDoc
               ? { legalStudyId: null, legalReferenceId: null }
               : {
                   legalStudyId:
@@ -8833,10 +9357,36 @@
                 destinationType === LIBRARY_DESTINATION.LEGAL_REFERENCE ? userId || null : null,
               updatedAt: now,
               ...(userId ? { updatedById: userId } : {}),
-              ...(isCaseDocument ? { caseId: parentRecordId } : {}),
-              // Knowledge is company-scoped, not case-scoped — clear any
-              // stale caseId a task-attachment file may have carried in.
-              ...(isKnowledge ? { caseId: null } : {}),
+              // ProjectDocument.js treats ANY record carrying a
+              // projectInternalId as its own regardless of moduleScope, so
+              // it must be cleared on every OTHER destination — not just
+              // cosmetic, otherwise a moved file would still show up back in
+              // Internal Work's document list. customerId is NOT cleared
+              // here: Case documents legitimately carry their case's own
+              // customerId as normal data (CaseCreateForm.js nests every
+              // Case folder under its Customer's own root folder), so this
+              // file staying visible under that customer in
+              // CustomerDocument.js is correct, not a leak.
+              ...(isCaseDocument
+                ? { caseId: parentRecordId, projectInternalId: null }
+                : {}),
+              // Knowledge is company-scoped, not case/customer-scoped —
+              // clear any stale caseId/projectInternalId/customerId a
+              // task-attachment file may have carried in.
+              ...(isKnowledge
+                ? { caseId: null, projectInternalId: null, customerId: null }
+                : {}),
+              ...(isProjectInternalDoc
+                ? { caseId: null, projectInternalId: parentRecordId, customerId: null }
+                : {}),
+              // CustomerDocument.js's own "customer" space filters purely by
+              // customerId regardless of moduleScope (same leak risk as
+              // projectInternalId above) — clear it on every other
+              // destination so a file moved OUT of Customer stops showing
+              // there.
+              ...(isCustomerDoc
+                ? { caseId: null, projectInternalId: null, customerId: parentRecordId }
+                : {}),
             };
 
             let updatedRecord = null;
@@ -9003,8 +9553,7 @@
                 sourceLabel &&
                   React.createElement("div", { style: { color: "#6B7280" } }, "Source: ", sourceLabel),
               ),
-          !isCaseDocument &&
-            !isKnowledge &&
+          !hasImplicitScope &&
             React.createElement(
               "div",
               null,
@@ -9123,7 +9672,10 @@
       editDoc = null,
       projectFolderId,
       caseId = null,
+      taskId = null,
+      subTaskId = null,
       isProjectInternalContext = false,
+      projectInternalId = null,
     }) => {
       const [form] = Form.useForm();
       const [fileList, setFileList] = useState([]);
@@ -9835,8 +10387,15 @@
               updatedAt: now,
               uploadedById: extractId(currentUser?.id) || null,
               folderId: extractId(targetFolderId),
-              moduleScope: CASE_DOCUMENT_SCOPE,
-              storageType: "cases",
+              // Internal Work tasks (projectInternalId set) store their
+              // documents in the projectInternal space instead of the
+              // Case space — matches ProjectDocument.js's own
+              // moduleScope/storageType for that space.
+              moduleScope: projectInternalId
+                ? PROJECT_INTERNAL_MODULE_SCOPE
+                : CASE_DOCUMENT_SCOPE,
+              storageType: projectInternalId ? PROJECT_INTERNAL_MODULE_SCOPE : "cases",
+              ...(projectInternalId ? { projectInternalId: extractId(projectInternalId) } : {}),
               ...(entry?.attIds && { fileAttachment: entry.attIds }),
             };
           };
@@ -9856,7 +10415,7 @@
             const folderIdMap = await createTaskUploadFoldersFromEntries(
               uploadEntries,
               projectFolderId,
-              { currentUser },
+              { currentUser, caseId, taskId, subTaskId, projectInternalId },
             );
             for (const entry of uploadEntries) {
               const relativeFolderPath = getRelativeFolderPath(entry.relativePath);
@@ -9866,6 +10425,7 @@
                 ...buildPayload(entry, targetFolderId),
                 ...buildTaskUploadDocumentLink(collectionName, recordId, {
                   folderId: targetFolderId,
+                  projectInternalId,
                 }),
                 createdById: currentUser?.id || null,
                 createdAt: now,
@@ -13742,6 +14302,7 @@
       const [editFileTitle, setEditFileTitle] = useState("");
       const [expandedPreviews, setExpandedPreviews] = useState({});
       const [cmtRefreshTrigger, setCmtRefreshTrigger] = useState(0);
+      const [commentSortOrder, setCommentSortOrder] = useState("oldest");
       const [libraryMoveTarget, setLibraryMoveTarget] = useState(null);
       const [generateTarget, setGenerateTarget] = useState(null);
       const [configureTarget, setConfigureTarget] = useState(null);
@@ -14275,7 +14836,11 @@
             title: `Điền biến & Generate — ${doc?.title || ""}`,
             open: true,
             onCancel: onClose,
-            width: previewUrl ? "80%" : 640,
+            centered: true,
+            width: previewUrl ? "96vw" : 640,
+            bodyStyle: previewUrl
+              ? { padding: 0, maxWidth: "100%", overflowX: "hidden", overflowY: "hidden" }
+              : undefined,
             footer: previewUrl
               ? [
                   React.createElement(
@@ -14313,8 +14878,7 @@
             : previewUrl
               ? React.createElement("iframe", {
                   src: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewUrl)}`,
-                  width: "100%",
-                  height: "70vh",
+                  style: { width: "100%", height: "88vh", display: "block" },
                   frameBorder: "0",
                 })
               : React.createElement(
@@ -14363,6 +14927,7 @@
           Array.isArray(doc?.variableConfig) ? doc.variableConfig : [],
         );
         const [saving, setSaving] = useState(false);
+        const [scanning, setScanning] = useState(false);
 
         const updateRow = (index, patch) =>
           setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -14370,6 +14935,42 @@
           setRows((prev) => [...prev, { key: "", source: "system", sourceKey: "", label: "" }]);
         const removeRow = (index) =>
           setRows((prev) => prev.filter((_, i) => i !== index));
+
+        // Scans the attached .docx for {{tag}} placeholders and adds an empty row for any tag
+        // that isn't mapped yet — lets the lawyer see exactly which variables the template
+        // actually uses instead of guessing, then fill in the mapping themselves.
+        const handleScan = async () => {
+          setScanning(true);
+          try {
+            const tags = await scanDocxVariableTags(doc);
+            const existingKeys = new Set(rows.map((r) => r.key).filter(Boolean));
+            const missingTags = tags.filter((tag) => !existingKeys.has(tag));
+            if (missingTags.length === 0) {
+              message.info(
+                tags.length === 0
+                  ? "Không tìm thấy biến {{...}} nào trong file."
+                  : "Mọi biến trong file đã được cấu hình.",
+              );
+              return;
+            }
+            setRows((prev) => [
+              ...prev,
+              ...missingTags.map((tag) => ({
+                key: tag,
+                source: "system",
+                sourceKey: "",
+                label: "",
+              })),
+            ]);
+            message.success(
+              `Tìm thấy ${missingTags.length} biến chưa cấu hình: ${missingTags.join(", ")}. Vui lòng chọn nguồn dữ liệu cho từng biến bên dưới.`,
+            );
+          } catch (error) {
+            message.error("Quét file thất bại: " + (error?.message || "Vui lòng thử lại"));
+          } finally {
+            setScanning(false);
+          }
+        };
 
         const displayRows = mode === "inherited" ? inheritedConfig : rows;
 
@@ -14484,7 +15085,16 @@
                   ),
                 ),
             mode !== "inherited" &&
-              React.createElement(Button, { type: "dashed", onClick: addRow }, "+ Thêm biến"),
+              React.createElement(
+                Space,
+                null,
+                React.createElement(Button, { type: "dashed", onClick: addRow }, "+ Thêm biến"),
+                React.createElement(
+                  Button,
+                  { onClick: handleScan, loading: scanning },
+                  "Quét file tìm biến",
+                ),
+              ),
           ),
         );
       };
@@ -14559,7 +15169,7 @@
                   icon: TASK_FILE_ACTION_ICONS.preview,
                   label: "Điền biến & Generate",
                 },
-              canEdit && !detailProjectInternalId && !linkedLegalStudy && {
+              canEdit && !linkedLegalStudy && {
                 key: "move_legal_study",
                 icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
                 label: "Move to Reference",
@@ -14575,8 +15185,18 @@
                 icon: TASK_FILE_ACTION_ICONS.folder,
                 label: "Move to Case's Document",
               },
-              // ProjectInternal tasks have no Case/Reference — only offer
-              // moving up to the company-level Knowledge library instead.
+              // Internal Work equivalent of "Move to Case's Document" above —
+              // moves into the current Internal Work item's own Document tree.
+              canEdit && !!detailProjectInternalId && {
+                key: "move_to_project_internal_document",
+                icon: TASK_FILE_ACTION_ICONS.folder,
+                label: "Move to Internal Work's Document",
+              },
+              canEdit && !!detailProjectInternalId && {
+                key: "move_to_customer_document",
+                icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
+                label: "Move to Customer",
+              },
               canEdit && !!detailProjectInternalId && {
                 key: "move_to_library",
                 icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
@@ -14609,6 +15229,20 @@
                 setLibraryMoveTarget({
                   record: f,
                   destinationType: LIBRARY_DESTINATION.CASE_DOCUMENT,
+                });
+                return;
+              }
+              if (key === "move_to_project_internal_document") {
+                setLibraryMoveTarget({
+                  record: f,
+                  destinationType: LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT,
+                });
+                return;
+              }
+              if (key === "move_to_customer_document") {
+                setLibraryMoveTarget({
+                  record: f,
+                  destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
                 });
                 return;
               }
@@ -15051,10 +15685,25 @@
           React.createElement(
             "div",
             {
+              id: "law-task-detail-standalone-root",
+              // Renders in normal document flow, inside whatever container
+              // Nocobase actually places it in (confirmed via screenshot to
+              // be a real popup/dialog with its own bounded height, not a
+              // bare page). height:100% fills that container; maxHeight+
+              // overflowY are a same-context fallback ceiling/scrollbar for
+              // when the ancestor doesn't constrain height on its own (e.g.
+              // previewed inline in the Admin UI page/block designer).
+              // position:fixed was tried here earlier to force a scrollbar
+              // in every context, but it broke the real popup case (fixed
+              // positioning ignores the popup's own layout, producing the
+              // duplicated header/misaligned panel seen in testing) — do
+              // not reintroduce it without solving that regression first.
               style: {
                 display: "flex",
                 flexDirection: "column",
-                height: "100vh",
+                height: "100%",
+                maxHeight: "100vh",
+                overflowY: "auto",
                 background: "#fff",
                 fontFamily: FONT,
               },
@@ -15849,10 +16498,23 @@
                 },
                 headerBar(
                   "Comments & Reports",
-                  React.createElement(ReloadButton, {
-                    onReload: () => setCmtRefreshTrigger((v) => v + 1),
-                    size: "small",
-                  }),
+                  React.createElement(
+                    "div",
+                    { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement(Segmented, {
+                      size: "small",
+                      value: commentSortOrder,
+                      onChange: (value) => setCommentSortOrder(value),
+                      options: [
+                        { label: "Newest", value: "newest" },
+                        { label: "Oldest", value: "oldest" },
+                      ],
+                    }),
+                    React.createElement(ReloadButton, {
+                      onReload: () => setCmtRefreshTrigger((v) => v + 1),
+                      size: "small",
+                    }),
+                  ),
                 ),
                 React.createElement(
                   "div",
@@ -15867,6 +16529,7 @@
                     refreshTrigger: cmtRefreshTrigger,
                     caseId: detailCaseId,
                     taskContext: legalStudyTaskContext,
+                    sortOrder: commentSortOrder,
                   }),
                 ),
               ),
@@ -16929,6 +17592,12 @@
             const safeProjectId =
               extractId(tkRes.projectId) ||
               (!safeProjectInternalId ? extractId(ids.caseId) : null);
+            // Internal Work tasks (safeProjectInternalId set, no
+            // safeProjectId) have their own folder tree scoped by
+            // projectInternalId instead of projectId — without this branch,
+            // folderPromise resolved to null for every Internal Work task,
+            // leaving projectFolderId permanently null and every upload from
+            // such a task with nowhere real to attach.
             const folderPromise = safeProjectId
               ? withResourceSchemaSafeParams("folders:list", {
                   pageSize: 1000,
@@ -16940,7 +17609,20 @@
                       : null,
                   )
                   .catch(() => null)
-              : Promise.resolve(null);
+              : safeProjectInternalId
+                ? withResourceSchemaSafeParams("folders:list", {
+                    pageSize: 1000,
+                    filter: JSON.stringify({
+                      projectInternalId: { $eq: safeProjectInternalId },
+                    }),
+                  })
+                    .then((safeParams) =>
+                      safeParams
+                        ? ctx.api.request({ url: "folders:list", params: safeParams })
+                        : null,
+                    )
+                    .catch(() => null)
+                : Promise.resolve(null);
             const [allTasks, allServicesRows, projRes, folderRes, projectInternalRes] =
               await Promise.all([
                 safeProjectId
@@ -16949,7 +17631,7 @@
                 safeProjectId
                   ? fetchAll(
                       "projectServices:list",
-                      "id,serviceId,serviceName,serviceType,description,basePrice,status",
+                      "id,serviceId,serviceName,serviceType,description,basePrice,status,folderId",
                       { projectId: { $eq: safeProjectId } },
                     )
                   : Promise.resolve([]),
@@ -17020,8 +17702,56 @@
             );
 
             if (folderRes?.data?.data) {
-              setAllProjectFolders(folderRes.data.data);
-              const root = folderRes.data.data.find((f) => !f.parentId);
+              const fetchedFolders = folderRes.data.data;
+              // The Nocobase workflow "Automation create new folder internal
+              // work" already provisions this project's folder as soon as
+              // the Internal Work item is created — nested under the shared
+              // "Internal Work" folder, so it has a non-null parentId. Pick
+              // the EARLIEST-created folder for this projectInternalId
+              // regardless of parentId (do NOT require `!parentId` — that
+              // used to make this block blind to the workflow's folder and
+              // auto-create a second, duplicate, parent-less "root" folder
+              // every time, which documents then randomly ended up split
+              // across depending on upload timing). Only fall back to
+              // auto-creating here if the workflow genuinely hasn't run yet
+              // (it's an Asynchronously-triggered workflow, so there's a
+              // real — if narrow — race window right after the Internal
+              // Work item is created).
+              let root =
+                fetchedFolders.length > 0
+                  ? [...fetchedFolders].sort(
+                      (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+                    )[0]
+                  : null;
+              if (!root && safeProjectInternalId) {
+                try {
+                  const nowIso = new Date().toISOString();
+                  const rootUserId = extractId(user?.id);
+                  const rootRes = await createTaskFolderRecord({
+                    name:
+                      projectInternalData?.projectName ||
+                      projectInternalData?.projectCode ||
+                      "Internal Work",
+                    type: "project_internal",
+                    storageType: "project_internal",
+                    moduleScope: "project_internal",
+                    projectInternalId: safeProjectInternalId,
+                    createdAt: nowIso,
+                    updatedAt: nowIso,
+                    ...(rootUserId
+                      ? { createdById: rootUserId, updatedById: rootUserId }
+                      : {}),
+                  });
+                  root = rootRes?.data?.data || rootRes?.data || null;
+                  if (root) fetchedFolders.push(root);
+                } catch (e) {
+                  console.warn(
+                    "Could not auto-create Internal Work root folder",
+                    e,
+                  );
+                }
+              }
+              setAllProjectFolders(fetchedFolders);
               setProjectFolderId(root ? extractId(root.id) : null);
             } else {
               setAllProjectFolders([]);
@@ -17224,9 +17954,7 @@
           type: detailInfo?.type,
           tasks: projectTasks,
           services,
-          allProjectFolders,
           projectFolderId,
-          projectId: extractId(task?.projectId) || extractId(task?.caseId) || extractId(ids.caseId),
         });
 
       return React.createElement(
