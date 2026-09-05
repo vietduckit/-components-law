@@ -17,9 +17,22 @@
 -- sub-folder created inside a service folder), which this definition
 -- correctly excludes since their parent IS within the same case.
 --
+-- Service-folder identification (step 2/3): a folder counts as a service
+-- folder if EITHER it's tagged folderTemplateKey = 'case_service' OR it's
+-- the real target of a projectServices.folderId FK (the source of truth —
+-- see JsField/BackfillCaseServiceFolderTemplateKey.js). Folders created
+-- before the 2026-09-04 tagging change are real service folders but were
+-- never stamped, so a tag-only filter silently misses them (caught live:
+-- a case's service folder sitting untagged under "Legal dossiers", not
+-- reparented by this script's first version). A folder already carrying
+-- one of the 5 fixed template keys is excluded even if the FK points at
+-- it — that would be a data conflict to investigate by hand, not
+-- something to silently reparent/retag.
+--
 -- Idempotent: safe to run again — a case that already has an "obsolete"
--- folder is skipped by step 1; a case_service folder already parented
--- under the correct Obsolete folder is left untouched by step 2.
+-- folder is skipped by step 1; a service folder already parented under
+-- the correct Obsolete folder (and already tagged) is left untouched by
+-- steps 2/3.
 -- ============================================================
 
 -- ---- Step 1: create the missing "Obsolete" folder for every case that --
@@ -56,15 +69,45 @@ SELECT
   mo."customerId", mo."internalCompanyId", mo."moduleScope", now(), now()
 FROM missing_obsolete mo;
 
--- ---- Step 2: reparent every case_service folder onto its case's -------
--- Obsolete folder, if it isn't already there (covers both "sitting as a
--- case-root sibling" and "nested under Legal dossiers" prior states in
+-- ---- Step 2: reparent every service folder onto its case's Obsolete ---
+-- folder, if it isn't already there (covers "sitting as a case-root
+-- sibling", "nested under Legal dossiers", or any other prior parent in
 -- one pass — whatever its current parent is, if that parent isn't this
--- case's Obsolete folder, fix it).
+-- case's Obsolete folder, fix it). Matches by tag OR by the real
+-- projectServices.folderId FK (see the file header) so untagged
+-- pre-2026-09-04 service folders are caught too; a folder already
+-- carrying one of the 5 fixed template keys is never touched even if the
+-- FK points at it.
 UPDATE folders svc
 SET "parentId" = obs.id
 FROM folders obs
-WHERE svc."folderTemplateKey" = 'case_service'
+WHERE (
+    svc."folderTemplateKey" = 'case_service'
+    OR svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
+  )
+  AND (
+    svc."folderTemplateKey" IS NULL
+    OR svc."folderTemplateKey" NOT IN (
+      'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
+    )
+  )
   AND obs."folderTemplateKey" = 'obsolete'
   AND obs."projectId" = svc."projectId"
   AND svc."parentId" IS DISTINCT FROM obs.id;
+
+-- ---- Step 3: tag every service folder with folderTemplateKey ----------
+-- 'case_service' if it isn't already — closes the same pre-2026-09-04 gap
+-- for the tag itself, not just the parent (mirrors
+-- JsField/BackfillCaseServiceFolderTemplateKey.js, restricted here to
+-- folders that already belong to a case, i.e. projectId IS NOT NULL).
+UPDATE folders svc
+SET "folderTemplateKey" = 'case_service'
+WHERE svc."projectId" IS NOT NULL
+  AND svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
+  AND (
+    svc."folderTemplateKey" IS NULL
+    OR svc."folderTemplateKey" NOT IN (
+      'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
+    )
+  )
+  AND svc."folderTemplateKey" IS DISTINCT FROM 'case_service';
