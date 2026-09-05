@@ -33,24 +33,27 @@
 --   (a) it's tagged folderTemplateKey = 'case_service'
 --   (b) it's the real target of a projectServices.folderId FK (the
 --       source of truth — see JsField/BackfillCaseServiceFolderTemplateKey.js)
---   (c) POSITIONAL: it's a direct child of the case root, or a direct
---       child of "Legal dossiers" — the two documented wrong homes for a
---       service folder (case-root sibling for the oldest cases, nested
---       under Legal dossiers for the 2026-08-27 intermediate state) — and
---       its own folderTemplateKey isn't one of the 6 fixed template keys
---       AND its name doesn't match one of the 6 fixed display names
---       either (covers a system folder step 2 couldn't safely retag, e.g.
---       a genuine duplicate — never touched, left for manual review)
+--   (c) POSITIONAL + NAME MATCH: it's a direct child of the case root, or
+--       a direct child of "Legal dossiers" (the two documented wrong
+--       homes for a service folder — case-root sibling for the oldest
+--       cases, nested under Legal dossiers for the 2026-08-27
+--       intermediate state), its own folderTemplateKey isn't one of the
+--       6 fixed template keys, its name doesn't match one of the 6 fixed
+--       display names either, AND its name (case-insensitive, trimmed)
+--       matches a "projectServices"."serviceName" actually ordered for
+--       THIS case
 -- (b) and (c) both exist because real staging data has shown BOTH gaps:
 -- a service folder with no tag AND no projectServices.folderId FK at all
 -- (older than that link too), sitting as a plain root-level sibling next
 -- to the system folders — (a) and (b) alone silently miss it, only the
--- position gives it away. A folder already carrying one of the 6 fixed
--- template keys, or matching one of the 6 fixed display names, is
--- excluded even under (c) — the name check is what stops an untagged
--- system folder (fixed by step 2 already, but a duplicate would still
--- carry the name after step 2 skips it) from being misidentified as a
--- stray service folder.
+-- position gives it away. But position alone is too broad: staging also
+-- showed a user-created ad-hoc folder ("Draft") sitting directly under
+-- "Legal dossiers", which position-only matching would have wrongly swept
+-- into Obsolete. The service-name match is what tells the two apart — a
+-- real service folder's name traces back to an actual ordered service for
+-- that case; an ad-hoc folder's name doesn't. A folder already carrying
+-- one of the 6 fixed template keys, or matching one of the 6 fixed
+-- display names, is excluded even under (c) regardless of the name match.
 --
 -- Idempotent: safe to run again — a case that already has an "obsolete"
 -- folder is skipped by step 1; a system folder already correctly tagged
@@ -130,10 +133,13 @@ WHERE f.id = c.folder_id;
 
 -- ---- Step 3: reparent every service folder onto its case's Obsolete ---
 -- folder, if it isn't already there. "Service folder" = tag, OR FK, OR
--- position (see file header) — whichever current parent it has, if that
--- parent isn't this case's Obsolete folder, fix it. The 6 fixed display
--- names are excluded even when untagged, so a system folder step 2 could
--- not safely retag (e.g. a genuine duplicate) is never swept in here.
+-- position+name-match (see file header) — whichever current parent it
+-- has, if that parent isn't this case's Obsolete folder, fix it. The 6
+-- fixed display names are excluded even when untagged, so a system
+-- folder step 2 could not safely retag (e.g. a genuine duplicate) is
+-- never swept in here; a user-created ad-hoc folder sitting at root or
+-- under Legal dossiers is excluded too, since its name won't match any
+-- service actually ordered for the case.
 WITH candidates AS (
   SELECT svc.id AS folder_id, obs.id AS obsolete_id
   FROM folders svc
@@ -151,21 +157,30 @@ WITH candidates AS (
     AND (
       svc."folderTemplateKey" = 'case_service'
       OR svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
-      OR EXISTS (
-          SELECT 1 FROM folders root
-          WHERE root."projectId" = svc."projectId"
-            AND root.id = svc."parentId"
-            AND NOT EXISTS (
-              SELECT 1 FROM folders p2
-              WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
-            )
+      OR (
+        (
+          EXISTS (
+            SELECT 1 FROM folders root
+            WHERE root."projectId" = svc."projectId"
+              AND root.id = svc."parentId"
+              AND NOT EXISTS (
+                SELECT 1 FROM folders p2
+                WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
+              )
+          )
+          OR EXISTS (
+            SELECT 1 FROM folders dossiers
+            WHERE dossiers."projectId" = svc."projectId"
+              AND dossiers.id = svc."parentId"
+              AND dossiers."folderTemplateKey" = 'legal_dossiers'
+          )
         )
-      OR EXISTS (
-          SELECT 1 FROM folders dossiers
-          WHERE dossiers."projectId" = svc."projectId"
-            AND dossiers.id = svc."parentId"
-            AND dossiers."folderTemplateKey" = 'legal_dossiers'
+        AND EXISTS (
+          SELECT 1 FROM "projectServices" ps
+          WHERE ps."projectId" = svc."projectId"
+            AND lower(trim(ps."serviceName")) = lower(trim(svc.name))
         )
+      )
     )
 )
 UPDATE folders svc
@@ -176,9 +191,9 @@ WHERE svc.id = c.folder_id
 
 -- ---- Step 4: tag every service folder with folderTemplateKey ----------
 -- 'case_service' if it isn't already — same candidate definition as step
--- 3, so a folder caught only by position or FK also gets the tag it needs
--- for CaseDocument.js/Library.js's delete-lock check (mirrors
--- JsField/BackfillCaseServiceFolderTemplateKey.js).
+-- 3, so a folder caught only by position+name-match or FK also gets the
+-- tag it needs for CaseDocument.js/Library.js's delete-lock check
+-- (mirrors JsField/BackfillCaseServiceFolderTemplateKey.js).
 WITH candidates AS (
   SELECT svc.id AS folder_id
   FROM folders svc
@@ -194,21 +209,30 @@ WITH candidates AS (
     )
     AND (
       svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
-      OR EXISTS (
-          SELECT 1 FROM folders root
-          WHERE root."projectId" = svc."projectId"
-            AND root.id = svc."parentId"
-            AND NOT EXISTS (
-              SELECT 1 FROM folders p2
-              WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
-            )
+      OR (
+        (
+          EXISTS (
+            SELECT 1 FROM folders root
+            WHERE root."projectId" = svc."projectId"
+              AND root.id = svc."parentId"
+              AND NOT EXISTS (
+                SELECT 1 FROM folders p2
+                WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
+              )
+          )
+          OR EXISTS (
+            SELECT 1 FROM folders dossiers
+            WHERE dossiers."projectId" = svc."projectId"
+              AND dossiers.id = svc."parentId"
+              AND dossiers."folderTemplateKey" = 'legal_dossiers'
+          )
         )
-      OR EXISTS (
-          SELECT 1 FROM folders dossiers
-          WHERE dossiers."projectId" = svc."projectId"
-            AND dossiers.id = svc."parentId"
-            AND dossiers."folderTemplateKey" = 'legal_dossiers'
+        AND EXISTS (
+          SELECT 1 FROM "projectServices" ps
+          WHERE ps."projectId" = svc."projectId"
+            AND lower(trim(ps."serviceName")) = lower(trim(svc.name))
         )
+      )
     )
 )
 UPDATE folders svc

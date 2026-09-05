@@ -33,18 +33,23 @@
 //   (a) tagged folderTemplateKey === "case_service"
 //   (b) the real target of a projectServices.folderId FK (the source of
 //       truth, per JsField/BackfillCaseServiceFolderTemplateKey.js)
-//   (c) POSITIONAL: a direct child of the case root, or of "Legal
-//       dossiers" — the two documented wrong homes for a service folder —
-//       and not itself one of the 6 fixed template keys, AND its name
-//       doesn't match one of the 6 fixed display names either (an
-//       untagged system folder, not a stray service folder)
+//   (c) POSITIONAL + NAME MATCH: a direct child of the case root, or of
+//       "Legal dossiers" — the two documented wrong homes for a service
+//       folder — not itself one of the 6 fixed template keys, its name
+//       doesn't match one of the 6 fixed display names either, AND its
+//       name (case-insensitive, trimmed) matches a serviceName actually
+//       ordered for THIS case. Position alone is too broad — staging
+//       showed a user-created ad-hoc folder ("Draft") sitting directly
+//       under Legal dossiers, which position-only matching would have
+//       wrongly swept into Obsolete; the service-name match is what
+//       tells the two apart.
 // (a)/(b) alone still miss real data seen live on staging: a service
 // folder with NO tag and NO FK link at all (older than that link too),
 // sitting as a plain root-level sibling next to the system folders — only
-// its position gives it away. Every service folder should have a parent
-// with folderTemplateKey === "obsolete"; if the case has no "obsolete"
-// folder yet, one is created (as a direct child of the root) before
-// reparenting anything onto it.
+// position (plus the name match) gives it away. Every service folder
+// should have a parent with folderTemplateKey === "obsolete"; if the case
+// has no "obsolete" folder yet, one is created (as a direct child of the
+// root) before reparenting anything onto it.
 //
 // Only ever writes to the ONE case currently selected, only when you press
 // the button, and only touches: (a) backfilling a missing system-folder
@@ -140,20 +145,23 @@ const SYSTEM_FOLDER_NAME_TO_KEY = {
 // if ANY of:
 //   (a) tagged folderTemplateKey === "case_service"
 //   (b) the real target of a projectServices.folderId FK
-//   (c) POSITIONAL: a direct child of the case root, or of "Legal
-//       dossiers" — the two documented wrong homes for a service folder —
-//       and not itself one of the 6 fixed template keys, AND its name
-//       doesn't match one of the 6 fixed display names either (an
-//       untagged system folder, handled separately below, not a stray
-//       service folder)
+//   (c) POSITIONAL + NAME MATCH: a direct child of the case root, or of
+//       "Legal dossiers" — the two documented wrong homes for a service
+//       folder — not itself one of the 6 fixed template keys, its name
+//       doesn't match one of the 6 fixed display names either, AND its
+//       name (case-insensitive, trimmed) matches a serviceName actually
+//       ordered for THIS case (projectServices.serviceName) — position
+//       alone is too broad: a user-created ad-hoc folder (e.g. "Draft")
+//       can sit in the same spot, and only the service-name match tells
+//       the two apart
 // (b) alone still misses real staging data: a service folder with no tag
 // AND no FK link at all (older than that link), sitting as a plain
-// root-level sibling next to the system folders — only position gives it
-// away. Folders created before the 2026-09-04 tagging change are real
-// service folders but were never stamped "case_service", so relying on
-// the tag alone misses them too (as seen live: a case's service folder
-// sitting untagged under "Legal dossiers").
-function analyzeCase(folders, projectServiceFolderIds) {
+// root-level sibling next to the system folders — only position (plus the
+// name match) gives it away. Folders created before the 2026-09-04
+// tagging change are real service folders but were never stamped
+// "case_service", so relying on the tag alone misses them too (as seen
+// live: a case's service folder sitting untagged under "Legal dossiers").
+function analyzeCase(folders, projectServiceFolderIds, serviceNames) {
   const root = findRoot(folders);
   const obsolete = folders.find((f) => f.folderTemplateKey === "obsolete") || null;
   const obsoleteId = obsolete ? String(extractId(obsolete.id)) : null;
@@ -179,8 +187,8 @@ function analyzeCase(folders, projectServiceFolderIds) {
     const pid = String(extractId(f.parentId));
     if (f.folderTemplateKey === "case_service") return true;
     if (projectServiceFolderIds.has(fid)) return true;
-    if (rootId && pid === rootId) return true;
-    if (dossiersId && pid === dossiersId) return true;
+    const isPositional = (rootId && pid === rootId) || (dossiersId && pid === dossiersId);
+    if (isPositional && serviceNames.has(normalizeName(f.name))) return true;
     return false;
   });
 
@@ -295,6 +303,7 @@ function CaseFolderStructureInspector() {
   }, []);
 
   const [projectServiceFolderIds, setProjectServiceFolderIds] = useState(new Set());
+  const [serviceNames, setServiceNames] = useState(new Set());
 
   const loadFolders = async (caseId) => {
     setLoadingFolders(true);
@@ -316,14 +325,24 @@ function CaseFolderStructureInspector() {
           ],
           sort: ["createdAt"],
         }),
+        // Fetch ALL services for this case (not just ones with a folderId
+        // FK) — the name set doubles as the "is this a real ordered
+        // service" check for the untagged/unlinked positional fallback.
         fetchAllList("projectServices:list", {
-          filter: JSON.stringify({ projectId: { $eq: caseId }, folderId: { $ne: null } }),
-          fields: ["id", "folderId"],
+          filter: JSON.stringify({ projectId: { $eq: caseId } }),
+          fields: ["id", "folderId", "serviceName"],
         }),
       ]);
       setFolders(folderRows);
       setProjectServiceFolderIds(
-        new Set(serviceRows.map((s) => String(extractId(s.folderId))).filter(Boolean)),
+        new Set(
+          serviceRows
+            .map((s) => String(extractId(s.folderId)))
+            .filter((v) => v && v !== "null"),
+        ),
+      );
+      setServiceNames(
+        new Set(serviceRows.map((s) => normalizeName(s.serviceName)).filter(Boolean)),
       );
     } catch (e) {
       setError(e?.message || String(e));
@@ -336,12 +355,13 @@ function CaseFolderStructureInspector() {
     setSelectedCaseId(caseId);
     setFolders(null);
     setProjectServiceFolderIds(new Set());
+    setServiceNames(new Set());
     loadFolders(caseId);
   };
 
   const analysis = useMemo(
-    () => (folders ? analyzeCase(folders, projectServiceFolderIds) : null),
-    [folders, projectServiceFolderIds],
+    () => (folders ? analyzeCase(folders, projectServiceFolderIds, serviceNames) : null),
+    [folders, projectServiceFolderIds, serviceNames],
   );
 
   const childrenById = useMemo(() => {
@@ -475,7 +495,7 @@ function CaseFolderStructureInspector() {
                     <li>{analysis.misplacedServices.length} folder dịch vụ chưa nằm dưới Obsolete.</li>
                   ) : null}
                   {analysis.untaggedServices.length > 0 ? (
-                    <li>{analysis.untaggedServices.length} folder dịch vụ chưa được gắn tag "case_service" (tạo trước ngày gắn tag, nhận diện qua projectServices.folderId hoặc vị trí đang nằm ngang hàng/dưới Legal dossiers).</li>
+                    <li>{analysis.untaggedServices.length} folder dịch vụ chưa được gắn tag "case_service" (tạo trước ngày gắn tag, nhận diện qua projectServices.folderId hoặc tên trùng 1 dịch vụ đã đăng ký cho case này khi đang nằm ngang hàng/dưới Legal dossiers).</li>
                   ) : null}
                   {analysis.conflicting.length > 0 ? (
                     <li style={{ color: "#ad4e00" }}>
