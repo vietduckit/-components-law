@@ -122,3 +122,57 @@ CREATE TRIGGER trg_contract_cascade_case_status
   AFTER UPDATE OF "paymentStatus" ON contracts
   FOR EACH ROW
   EXECUTE FUNCTION public.cascade_payment_status_to_case();
+
+-- ---- Trigger: auto-create a Payment Request when a Case finishes unpaid -
+CREATE OR REPLACE FUNCTION public.auto_create_payment_request_on_case_done()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_contract RECORD;
+  v_new_id BIGINT;
+BEGIN
+  IF NEW.status <> 'done' OR OLD.status IS NOT DISTINCT FROM 'done' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW."contractId" IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId",
+         "paymentStatus", "outStandingAmount"
+  INTO v_contract
+  FROM contracts
+  WHERE id = NEW."contractId";
+
+  IF v_contract.id IS NULL OR v_contract."paymentStatus" = 'paid' THEN
+    RETURN NEW;
+  END IF;
+
+  -- "paymentRequests".id has no DB-side default (Nocobase snowflake id,
+  -- normally assigned by the app) — same id-generation convention already
+  -- used by pgsql/AutoCreateTaskFromTemplate.sql for the same situation.
+  v_new_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
+
+  INSERT INTO "paymentRequests" (
+    id, title, status, "contractId", "customerId", "internalCompanyId",
+    "requestedAmount", "createdAt", "updatedAt"
+  ) VALUES (
+    v_new_id,
+    'Auto: Case hoàn thành - ' || COALESCE(v_contract."contractCode", '') || ' - ' || COALESCE(v_contract."contractName", ''),
+    'submitted',
+    v_contract.id, v_contract."customerId", v_contract."internalCompanyId",
+    v_contract."outStandingAmount",
+    now(), now()
+  );
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_case_done_payment_request ON projects;
+CREATE TRIGGER trg_case_done_payment_request
+  AFTER UPDATE OF "status" ON projects
+  FOR EACH ROW
+  EXECUTE FUNCTION public.auto_create_payment_request_on_case_done();
