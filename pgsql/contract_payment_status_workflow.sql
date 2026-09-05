@@ -177,6 +177,61 @@ CREATE TRIGGER trg_case_done_payment_request
   FOR EACH ROW
   EXECUTE FUNCTION public.auto_create_payment_request_on_case_done();
 
+-- ---- Trigger: auto-complete a Case once all its tasks are finished ------
+-- "Finished" = status 'done' or 'cancelled'. Requires at least 1 task to
+-- exist (a case with zero tasks hasn't started, not finished — never
+-- auto-completes on that basis alone). Only drives the case FORWARD into
+-- 'done' — adding a new not-yet-done task to an already-'done' case, or
+-- reopening a task, does not revert it; not asked for, not built.
+-- Feeds directly into trg_case_done_payment_request above: this trigger
+-- only sets projects.status, the existing trigger reacts to that same
+-- column changing, so the payment-request chain needs no changes here.
+-- No backfill for this one (by request) — only fires on a task's status
+-- changing from here on; pre-existing cases keep whatever status they
+-- already have, even if their tasks already all qualify today.
+CREATE OR REPLACE FUNCTION public.case_auto_complete_when_tasks_done()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_project_id BIGINT;
+  v_total INT;
+  v_unfinished INT;
+  v_current_status VARCHAR;
+BEGIN
+  v_project_id := NEW."projectId";
+  IF v_project_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*) INTO v_total FROM tasks WHERE "projectId" = v_project_id;
+  IF v_total = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*) INTO v_unfinished
+  FROM tasks
+  WHERE "projectId" = v_project_id
+    AND (status IS NULL OR status NOT IN ('done', 'cancelled'));
+  IF v_unfinished > 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT status INTO v_current_status FROM projects WHERE id = v_project_id;
+  IF v_current_status IS DISTINCT FROM 'done' THEN
+    UPDATE projects SET status = 'done' WHERE id = v_project_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_case_auto_complete_when_tasks_done ON tasks;
+CREATE TRIGGER trg_case_auto_complete_when_tasks_done
+  AFTER UPDATE OF "status" ON tasks
+  FOR EACH ROW
+  EXECUTE FUNCTION public.case_auto_complete_when_tasks_done();
+
 -- ---- One-time backfill: correct all pre-existing rows -------------------
 -- New contracts/payments from here on are handled entirely by the triggers
 -- above. This is only for rows that already existed *before* this migration
