@@ -767,7 +767,20 @@ DROP FUNCTION IF EXISTS public.cascade_payment_status_to_case();
 DROP FUNCTION IF EXISTS public.contract_recompute_outstanding();
 DROP FUNCTION IF EXISTS public.contract_init_outstanding();
 DROP FUNCTION IF EXISTS public.contract_resolved_total(bigint);
+DROP FUNCTION IF EXISTS public.contract_resolved_total_from_row(contracts);
 "
 ```
 
 Leave the 3 added columns in place (unused, harmless) rather than risk a destructive `DROP COLUMN` on a shared dev database.
+
+---
+
+## Execution notes (added post-execution — 3 real gaps caught during verification)
+
+Three things the plan as originally written got wrong or left incomplete, each caught by actually running its own verification steps rather than assuming the SQL/script would work as drafted:
+
+1. **Task 2:** `contract_resolved_total(NEW.id)` returned `NULL` when called from the `BEFORE INSERT` trigger — a `SELECT ... FROM contracts WHERE id = $1` can't see `NEW` because the row isn't in the table yet at that point. Fixed by splitting the formula into `contract_resolved_total_from_row(contracts)` (works on an in-memory row, used by the trigger) and keeping `contract_resolved_total(bigint)` as a thin lookup wrapper around it for every other (after-the-fact, row-already-committed) call site. One formula, two entry points for the two situations that actually arise.
+2. **Task 5:** `"paymentRequests".id` (like `projects.id`) has no DB-side default — it's a Nocobase snowflake id normally assigned by the app. A raw trigger-driven `INSERT` needs to generate one itself; used the same `(EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT` convention already established in `pgsql/AutoCreateTaskFromTemplate.sql` for the identical situation, rather than inventing a new one.
+3. **Task 8 (end-to-end verification):** `contracts.outStandingAmount` held correct values in Postgres the whole time but was never registered as a Nocobase field (Task 7 only registered the 2 `paymentStatus` fields) — so it was invisible through the API/UI. `JsField/RegisterContractPaymentStatusFields.js` and the spec (§4) were both updated to also register it, mirroring `invoices.outStandingAmount`'s existing field shape. This is exactly the class of gap Task 8 exists to catch — a plan can verify each trigger in isolation and still ship a feature nobody can see.
+
+None of these needed a design change — the spec's architecture held up; these were implementation-detail bugs the plan's own step-by-step verification surfaced and fixed inline, per this skill's process (fix and move on, no need to re-review from scratch).

@@ -46,7 +46,7 @@ All additive, all guarded (`ADD COLUMN IF NOT EXISTS`), safe to run on a databas
 |---|---|---|---|
 | `paymentStatus` | varchar(255) | `'unpaid'` | Mirrors the linked contract's `paymentStatus` (via `projects.contractId`). `NULL`/no-contract cases stay at the default; there is nothing to collect yet. |
 
-Both new `paymentStatus` columns are registered in NocoBase as a `select` field with the same 3-option enum, mirroring the existing `contracts.status` field's `uiSchema` shape (`{value, label, color}` options: `unpaid`→red, `partial`→gold, `paid`→green) so they render as a normal colored status pill in the UI.
+Both new `paymentStatus` columns are registered in NocoBase as a `select` field with the same 3-option enum, mirroring the existing `contracts.status` field's `uiSchema` shape (`{value, label, color}` options: `unpaid`→red, `partial`→gold, `paid`→green) so they render as a normal colored status pill in the UI. `contracts.outStandingAmount` is likewise registered as a plain `number` field, mirroring `invoices.outStandingAmount`'s existing shape — a column can hold correct values in Postgres while remaining completely invisible to the Nocobase API/UI until it's registered as a field on top of it; this was caught during end-to-end verification and is not optional.
 
 ## 5. Single source of truth: `contract_resolved_total(contract_id)`
 
