@@ -17,7 +17,18 @@
 -- sub-folder created inside a service folder), which this definition
 -- correctly excludes since their parent IS within the same case.
 --
--- Service-folder identification (step 2/3): a folder counts as a service
+-- System-folder identification (step 2): the 6 fixed folders are always
+-- created with one exact, well-known display name each (see
+-- CaseCreateForm.js's defaultChildren) — "Legal Study", "LSC & Related",
+-- "Legal docs", "Legal dossiers", "Report and Result", "Obsolete". Some
+-- older cases have these folders with the tag never stamped at all
+-- (missing, not just the service-folder tag) — step 2 recognizes them by
+-- name (case-insensitive, trimmed) and backfills their correct key, since
+-- there is exactly one of each per case by construction. This MUST run
+-- before service-folder detection below, so an untagged system folder is
+-- never mistaken for a stray service folder sitting at case-root level.
+--
+-- Service-folder identification (step 3/4): a folder counts as a service
 -- folder if ANY of:
 --   (a) it's tagged folderTemplateKey = 'case_service'
 --   (b) it's the real target of a projectServices.folderId FK (the
@@ -27,18 +38,25 @@
 --       service folder (case-root sibling for the oldest cases, nested
 --       under Legal dossiers for the 2026-08-27 intermediate state) — and
 --       its own folderTemplateKey isn't one of the 6 fixed template keys
+--       AND its name doesn't match one of the 6 fixed display names
+--       either (covers a system folder step 2 couldn't safely retag, e.g.
+--       a genuine duplicate — never touched, left for manual review)
 -- (b) and (c) both exist because real staging data has shown BOTH gaps:
 -- a service folder with no tag AND no projectServices.folderId FK at all
 -- (older than that link too), sitting as a plain root-level sibling next
 -- to the system folders — (a) and (b) alone silently miss it, only the
 -- position gives it away. A folder already carrying one of the 6 fixed
--- template keys is excluded even under (c) — that would be a data
--- conflict to investigate by hand, not something to silently reparent.
+-- template keys, or matching one of the 6 fixed display names, is
+-- excluded even under (c) — the name check is what stops an untagged
+-- system folder (fixed by step 2 already, but a duplicate would still
+-- carry the name after step 2 skips it) from being misidentified as a
+-- stray service folder.
 --
 -- Idempotent: safe to run again — a case that already has an "obsolete"
--- folder is skipped by step 1; a service folder already parented under
+-- folder is skipped by step 1; a system folder already correctly tagged
+-- is left untouched by step 2; a service folder already parented under
 -- the correct Obsolete folder (and already tagged) is left untouched by
--- steps 2/3.
+-- steps 3/4.
 -- ============================================================
 
 -- ---- Step 1: create the missing "Obsolete" folder for every case that --
@@ -75,10 +93,47 @@ SELECT
   mo."customerId", mo."internalCompanyId", mo."moduleScope", now(), now()
 FROM missing_obsolete mo;
 
--- ---- Step 2: reparent every service folder onto its case's Obsolete ---
+-- ---- Step 2: backfill the tag on system folders whose own key was ------
+-- never stamped, matched by their exact known display name. Restricted to
+-- direct children of the case root, since that's the only place these 6
+-- folders are ever created — a same-named folder nested deeper is a
+-- coincidence, not a system folder, and is intentionally left alone.
+WITH root_map AS (
+  SELECT f.id AS root_id, f."projectId"
+  FROM folders f
+  WHERE f."projectId" IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM folders p
+      WHERE p.id = f."parentId" AND p."projectId" = f."projectId"
+    )
+),
+sysnames (disp_name, tpl_key) AS (
+  VALUES
+    ('legal study', 'legal_study'),
+    ('lsc & related', 'lsc_related'),
+    ('legal docs', 'legal_docs'),
+    ('legal dossiers', 'legal_dossiers'),
+    ('report and result', 'report_result'),
+    ('obsolete', 'obsolete')
+),
+candidates AS (
+  SELECT f.id AS folder_id, sn.tpl_key
+  FROM folders f
+  JOIN root_map r ON r."projectId" = f."projectId" AND r.root_id = f."parentId"
+  JOIN sysnames sn ON lower(trim(f.name)) = sn.disp_name
+  WHERE f."folderTemplateKey" IS DISTINCT FROM sn.tpl_key
+)
+UPDATE folders f
+SET "folderTemplateKey" = c.tpl_key
+FROM candidates c
+WHERE f.id = c.folder_id;
+
+-- ---- Step 3: reparent every service folder onto its case's Obsolete ---
 -- folder, if it isn't already there. "Service folder" = tag, OR FK, OR
 -- position (see file header) — whichever current parent it has, if that
--- parent isn't this case's Obsolete folder, fix it.
+-- parent isn't this case's Obsolete folder, fix it. The 6 fixed display
+-- names are excluded even when untagged, so a system folder step 2 could
+-- not safely retag (e.g. a genuine duplicate) is never swept in here.
 WITH candidates AS (
   SELECT svc.id AS folder_id, obs.id AS obsolete_id
   FROM folders svc
@@ -89,6 +144,9 @@ WITH candidates AS (
       OR svc."folderTemplateKey" NOT IN (
         'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
       )
+    )
+    AND lower(trim(svc.name)) NOT IN (
+      'legal study', 'lsc & related', 'legal docs', 'legal dossiers', 'obsolete', 'report and result'
     )
     AND (
       svc."folderTemplateKey" = 'case_service'
@@ -116,9 +174,9 @@ FROM candidates c
 WHERE svc.id = c.folder_id
   AND svc."parentId" IS DISTINCT FROM c.obsolete_id;
 
--- ---- Step 3: tag every service folder with folderTemplateKey ----------
+-- ---- Step 4: tag every service folder with folderTemplateKey ----------
 -- 'case_service' if it isn't already — same candidate definition as step
--- 2, so a folder caught only by position or FK also gets the tag it needs
+-- 3, so a folder caught only by position or FK also gets the tag it needs
 -- for CaseDocument.js/Library.js's delete-lock check (mirrors
 -- JsField/BackfillCaseServiceFolderTemplateKey.js).
 WITH candidates AS (
@@ -130,6 +188,9 @@ WITH candidates AS (
       OR svc."folderTemplateKey" NOT IN (
         'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
       )
+    )
+    AND lower(trim(svc.name)) NOT IN (
+      'legal study', 'lsc & related', 'legal docs', 'legal dossiers', 'obsolete', 'report and result'
     )
     AND (
       svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)

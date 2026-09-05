@@ -15,6 +15,18 @@
 // projectId whose own parentId does NOT belong to another folder of the
 // same projectId.
 //
+// System-folder identification: the 6 fixed folders are always created
+// with one exact, well-known display name each (see CaseCreateForm.js's
+// defaultChildren) — "Legal Study", "LSC & Related", "Legal docs",
+// "Legal dossiers", "Report and Result", "Obsolete". Some older cases have
+// these with NO tag stamped at all (missing entirely, not just the
+// service-folder tag) — recognized by name (case-insensitive, trimmed,
+// restricted to direct children of the root) and backfilled in place
+// (tag only, never moved), since there's exactly one of each per case by
+// construction. This runs BEFORE service-folder detection below, so an
+// untagged system folder is never mistaken for a stray service folder
+// sitting at case-root level.
+//
 // Service-folder identification (same as
 // pgsql/backfill_case_obsolete_folder_structure.sql): a folder counts as a
 // service folder if ANY of:
@@ -23,7 +35,9 @@
 //       truth, per JsField/BackfillCaseServiceFolderTemplateKey.js)
 //   (c) POSITIONAL: a direct child of the case root, or of "Legal
 //       dossiers" — the two documented wrong homes for a service folder —
-//       and not itself one of the 6 fixed template keys
+//       and not itself one of the 6 fixed template keys, AND its name
+//       doesn't match one of the 6 fixed display names either (an
+//       untagged system folder, not a stray service folder)
 // (a)/(b) alone still miss real data seen live on staging: a service
 // folder with NO tag and NO FK link at all (older than that link too),
 // sitting as a plain root-level sibling next to the system folders — only
@@ -33,14 +47,15 @@
 // reparenting anything onto it.
 //
 // Only ever writes to the ONE case currently selected, only when you press
-// the button, and only touches: (a) creating a missing "Obsolete" folder,
-// (b) updating parentId on service folders that aren't under it yet, (c)
-// stamping folderTemplateKey = "case_service" on service folders that were
-// never tagged. Never deletes, never touches other cases. A folder that's
-// the real FK target of a projectServices row but already carries a
-// DIFFERENT folderTemplateKey (one of the 6 fixed template keys) is left
-// alone and flagged instead — that's a data conflict worth investigating
-// by hand, not something to silently reparent/retag.
+// the button, and only touches: (a) backfilling a missing system-folder
+// tag by name, (b) creating a missing "Obsolete" folder, (c) updating
+// parentId on service folders that aren't under it yet, (d) stamping
+// folderTemplateKey = "case_service" on service folders that were never
+// tagged. Never deletes, never touches other cases. A folder that's the
+// real FK target of a projectServices row but already carries a DIFFERENT
+// folderTemplateKey (one of the 6 fixed template keys) is left alone and
+// flagged instead — that's a data conflict worth investigating by hand,
+// not something to silently reparent/retag.
 //
 // How to run: paste this whole file into a temporary Nocobase JS block
 // (Admin UI -> any page -> add a "JS block").
@@ -105,13 +120,32 @@ const PROTECTED_TEMPLATE_KEYS = new Set([
   "obsolete",
 ]);
 
+const normalizeName = (s) => String(s || "").trim().toLowerCase();
+
+// The 6 fixed folders are always created with one exact, well-known
+// display name each (see CaseCreateForm.js's defaultChildren) — some
+// older cases have these with no tag stamped at all (not just the
+// service-folder tag). Matched by name so an untagged system folder is
+// never mistaken for a stray service folder sitting at case-root level.
+const SYSTEM_FOLDER_NAME_TO_KEY = {
+  "legal study": "legal_study",
+  "lsc & related": "lsc_related",
+  "legal docs": "legal_docs",
+  "legal dossiers": "legal_dossiers",
+  "report and result": "report_result",
+  obsolete: "obsolete",
+};
+
 // Source of truth for "this folder is a service folder" — a folder counts
 // if ANY of:
 //   (a) tagged folderTemplateKey === "case_service"
 //   (b) the real target of a projectServices.folderId FK
 //   (c) POSITIONAL: a direct child of the case root, or of "Legal
 //       dossiers" — the two documented wrong homes for a service folder —
-//       and not itself one of the 6 fixed template keys
+//       and not itself one of the 6 fixed template keys, AND its name
+//       doesn't match one of the 6 fixed display names either (an
+//       untagged system folder, handled separately below, not a stray
+//       service folder)
 // (b) alone still misses real staging data: a service folder with no tag
 // AND no FK link at all (older than that link), sitting as a plain
 // root-level sibling next to the system folders — only position gives it
@@ -127,8 +161,20 @@ function analyzeCase(folders, projectServiceFolderIds) {
   const dossiers = folders.find((f) => f.folderTemplateKey === "legal_dossiers") || null;
   const dossiersId = dossiers ? String(extractId(dossiers.id)) : null;
 
+  // System folders whose own tag was never stamped, matched by exact
+  // display name — restricted to direct children of the root, since
+  // that's the only place these 6 folders are ever created.
+  const untaggedSystemFolders = folders
+    .filter((f) => rootId && String(extractId(f.parentId)) === rootId)
+    .filter((f) => {
+      const expectedKey = SYSTEM_FOLDER_NAME_TO_KEY[normalizeName(f.name)];
+      return expectedKey && f.folderTemplateKey !== expectedKey;
+    })
+    .map((f) => ({ folder: f, expectedKey: SYSTEM_FOLDER_NAME_TO_KEY[normalizeName(f.name)] }));
+
   const serviceFolders = folders.filter((f) => {
     if (PROTECTED_TEMPLATE_KEYS.has(f.folderTemplateKey)) return false;
+    if (SYSTEM_FOLDER_NAME_TO_KEY[normalizeName(f.name)]) return false;
     const fid = String(extractId(f.id));
     const pid = String(extractId(f.parentId));
     if (f.folderTemplateKey === "case_service") return true;
@@ -151,7 +197,14 @@ function analyzeCase(folders, projectServiceFolderIds) {
   );
   const untaggedServices = fixable.filter((f) => f.folderTemplateKey !== "case_service");
 
-  return { root, obsolete, misplacedServices, untaggedServices, conflicting };
+  return {
+    root,
+    obsolete,
+    misplacedServices,
+    untaggedServices,
+    conflicting,
+    untaggedSystemFolders,
+  };
 }
 
 const TEMPLATE_KEY_COLORS = {
@@ -164,12 +217,22 @@ const TEMPLATE_KEY_COLORS = {
   report_result: "default",
 };
 
-function FolderNode({ folder, childrenById, depth, obsoleteId, misplacedIds, untaggedIds, conflictingIds }) {
+function FolderNode({
+  folder,
+  childrenById,
+  depth,
+  obsoleteId,
+  misplacedIds,
+  untaggedIds,
+  conflictingIds,
+  needsSystemTagMap,
+}) {
   const kids = childrenById.get(String(extractId(folder.id))) || [];
   const fid = String(extractId(folder.id));
   const isMisplaced = misplacedIds.has(fid);
   const isUntagged = untaggedIds.has(fid);
   const isConflicting = conflictingIds.has(fid);
+  const needsSystemTag = needsSystemTagMap.get(fid);
   return (
     <div style={{ marginLeft: depth * 20, marginTop: 4 }}>
       <Text style={isMisplaced || isConflicting ? { color: "#cf1322" } : undefined}>
@@ -183,6 +246,9 @@ function FolderNode({ folder, childrenById, depth, obsoleteId, misplacedIds, unt
       ) : null}
       {isMisplaced ? <Tag color="red">sai vị trí — chưa nằm dưới Obsolete</Tag> : null}
       {isUntagged ? <Tag color="orange">chưa gắn tag case_service</Tag> : null}
+      {needsSystemTag ? (
+        <Tag color="cyan">folder hệ thống — thiếu tag "{needsSystemTag}"</Tag>
+      ) : null}
       {isConflicting ? (
         <Tag color="volcano">FK trỏ vào đây nhưng đã có folderTemplateKey khác — kiểm tra thủ công</Tag>
       ) : null}
@@ -196,6 +262,7 @@ function FolderNode({ folder, childrenById, depth, obsoleteId, misplacedIds, unt
           misplacedIds={misplacedIds}
           untaggedIds={untaggedIds}
           conflictingIds={conflictingIds}
+          needsSystemTagMap={needsSystemTagMap}
         />
       ))}
     </div>
@@ -291,12 +358,26 @@ function CaseFolderStructureInspector() {
     analysis &&
     (!analysis.obsolete ||
       analysis.misplacedServices.length > 0 ||
-      analysis.untaggedServices.length > 0);
+      analysis.untaggedServices.length > 0 ||
+      analysis.untaggedSystemFolders.length > 0);
 
   const handleFix = async () => {
     if (!analysis || !selectedCaseId) return;
     setFixing(true);
     try {
+      // Backfill missing system-folder tags first (by name, see
+      // analyzeCase) — independent of Obsolete/service handling below.
+      await Promise.all(
+        analysis.untaggedSystemFolders.map(({ folder, expectedKey }) =>
+          ctx.api.request({
+            url: "folders:update",
+            method: "POST",
+            params: { filterByTk: extractId(folder.id) },
+            data: { folderTemplateKey: expectedKey },
+          }),
+        ),
+      );
+
       let obsoleteId = analysis.obsolete ? extractId(analysis.obsolete.id) : null;
       if (!obsoleteId) {
         if (!analysis.root) {
@@ -383,6 +464,13 @@ function CaseFolderStructureInspector() {
               description={
                 <ul style={{ margin: 0, paddingLeft: 18 }}>
                   {!analysis.obsolete ? <li>Chưa có folder Obsolete.</li> : null}
+                  {analysis.untaggedSystemFolders.length > 0 ? (
+                    <li>
+                      {analysis.untaggedSystemFolders.length} folder hệ thống (
+                      {analysis.untaggedSystemFolders.map((s) => s.folder.name).join(", ")}) chưa được gắn tag riêng —
+                      sẽ chỉ gắn lại tag, không di chuyển.
+                    </li>
+                  ) : null}
                   {analysis.misplacedServices.length > 0 ? (
                     <li>{analysis.misplacedServices.length} folder dịch vụ chưa nằm dưới Obsolete.</li>
                   ) : null}
@@ -416,6 +504,14 @@ function CaseFolderStructureInspector() {
                 misplacedIds={new Set(analysis.misplacedServices.map((f) => String(extractId(f.id))))}
                 untaggedIds={new Set(analysis.untaggedServices.map((f) => String(extractId(f.id))))}
                 conflictingIds={new Set(analysis.conflicting.map((f) => String(extractId(f.id))))}
+                needsSystemTagMap={
+                  new Map(
+                    analysis.untaggedSystemFolders.map(({ folder, expectedKey }) => [
+                      String(extractId(folder.id)),
+                      expectedKey,
+                    ]),
+                  )
+                }
               />
             ) : (
               <Empty description="Không tìm thấy folder gốc cho case này" />
