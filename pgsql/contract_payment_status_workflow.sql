@@ -62,3 +62,44 @@ CREATE TRIGGER trg_contract_init_outstanding
   BEFORE INSERT ON contracts
   FOR EACH ROW
   EXECUTE FUNCTION public.contract_init_outstanding();
+
+-- ---- Trigger: recompute the contract whenever a payment's status changes -
+CREATE OR REPLACE FUNCTION public.contract_recompute_outstanding()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_contract_id BIGINT;
+  v_total NUMERIC;
+  v_received NUMERIC;
+BEGIN
+  v_contract_id := COALESCE(NEW."contractId", OLD."contractId");
+  IF v_contract_id IS NULL THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  v_total := contract_resolved_total(v_contract_id);
+
+  SELECT COALESCE(SUM(p.amount), 0) INTO v_received
+  FROM payments p
+  WHERE p."contractId" = v_contract_id
+    AND LOWER(p."paymentStatus") = 'received';
+
+  UPDATE contracts
+  SET "outStandingAmount" = v_total - v_received,
+      "paymentStatus" = CASE
+        WHEN (v_total - v_received) <= 0 THEN 'paid'
+        WHEN v_received > 0 THEN 'partial'
+        ELSE 'unpaid'
+      END
+  WHERE id = v_contract_id;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_payment_recompute_contract ON payments;
+CREATE TRIGGER trg_payment_recompute_contract
+  AFTER INSERT OR UPDATE OF "paymentStatus" ON payments
+  FOR EACH ROW
+  EXECUTE FUNCTION public.contract_recompute_outstanding();
