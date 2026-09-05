@@ -176,3 +176,31 @@ CREATE TRIGGER trg_case_done_payment_request
   AFTER UPDATE OF "status" ON projects
   FOR EACH ROW
   EXECUTE FUNCTION public.auto_create_payment_request_on_case_done();
+
+-- ---- One-time backfill: correct all pre-existing rows -------------------
+-- New contracts/payments from here on are handled entirely by the triggers
+-- above. This is only for rows that already existed *before* this migration
+-- ran — their outStandingAmount/paymentStatus are still at the column
+-- default (0/'unpaid') because ADD COLUMN ... DEFAULT doesn't fire an
+-- INSERT trigger. Safe to run repeatedly — recompute, not increment.
+WITH received AS (
+  SELECT "contractId", COALESCE(SUM(amount), 0) AS total_received
+  FROM payments
+  WHERE "contractId" IS NOT NULL AND LOWER("paymentStatus") = 'received'
+  GROUP BY "contractId"
+)
+UPDATE contracts c
+SET "outStandingAmount" = contract_resolved_total(c.id) - COALESCE(r.total_received, 0),
+    "paymentStatus" = CASE
+      WHEN (contract_resolved_total(c.id) - COALESCE(r.total_received, 0)) <= 0 THEN 'paid'
+      WHEN COALESCE(r.total_received, 0) > 0 THEN 'partial'
+      ELSE 'unpaid'
+    END
+FROM (SELECT c2.id FROM contracts c2) AS all_contracts
+LEFT JOIN received r ON r."contractId" = all_contracts.id
+WHERE c.id = all_contracts.id;
+
+UPDATE projects p
+SET "paymentStatus" = c."paymentStatus"
+FROM contracts c
+WHERE p."contractId" = c.id;
