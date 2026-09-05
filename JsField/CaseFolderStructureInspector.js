@@ -1,14 +1,18 @@
 // ============================================================
 // ONE-TIME INSPECTOR + FIXER JS BLOCK — NOT a reusable field/action block.
 //
-// Companion to pgsql/backfill_case_obsolete_folder_structure.sql: that
-// script already backfilled every case that existed at the time it ran.
-// This block is for spot-checking a SPECIFIC case's folder tree afterwards
-// (or any case created/edited since) and, if its case_service folders
-// aren't correctly parented under "Obsolete", fixing just that one case
-// on the spot — same logic as the SQL backfill, but scoped to one case and
-// driven through the Nocobase API (a JS Block runs client-side, it can't
-// run raw SQL).
+// Companion to pgsql/backfill_case_obsolete_folder_structure.sql — same
+// detection/fix logic, driven through the Nocobase API instead of raw SQL
+// (a JS Block runs client-side, it can't run SQL directly). Two modes:
+//   - Pick one case from the dropdown to inspect its tree and fix just
+//     that case with the "Cập nhật lại cấu trúc case này" button.
+//   - "Quét & cập nhật tất cả case" loops every case in the system,
+//     analyzes each one, and applies the same fix to every case that has
+//     an anomaly — for bringing the whole database up to date in one
+//     pass instead of clicking through cases one at a time. Cases already
+//     correct are left untouched (no-op); each case is fully independent,
+//     so an error on one case doesn't stop the rest — the results table
+//     shows exactly what happened to each one.
 //
 // Root-folder identification mirrors pgsql/backfill_case_obsolete_folder_
 // structure.sql exactly: a case's root folder is the one folder for that
@@ -51,23 +55,23 @@
 // has no "obsolete" folder yet, one is created (as a direct child of the
 // root) before reparenting anything onto it.
 //
-// Only ever writes to the ONE case currently selected, only when you press
-// the button, and only touches: (a) backfilling a missing system-folder
-// tag by name, (b) creating a missing "Obsolete" folder, (c) updating
-// parentId on service folders that aren't under it yet, (d) stamping
-// folderTemplateKey = "case_service" on service folders that were never
-// tagged. Never deletes, never touches other cases. A folder that's the
-// real FK target of a projectServices row but already carries a DIFFERENT
-// folderTemplateKey (one of the 6 fixed template keys) is left alone and
-// flagged instead — that's a data conflict worth investigating by hand,
-// not something to silently reparent/retag.
+// Every write only happens when you press a button (single-case fix or
+// bulk scan-all), and only ever touches: (a) backfilling a missing
+// system-folder tag by name, (b) creating a missing "Obsolete" folder,
+// (c) updating parentId on service folders that aren't under it yet, (d)
+// stamping folderTemplateKey = "case_service" on service folders that
+// were never tagged. Never deletes. A folder that's the real FK target of
+// a projectServices row but already carries a DIFFERENT folderTemplateKey
+// (one of the 6 fixed template keys) is left alone and flagged instead —
+// that's a data conflict worth investigating by hand, not something to
+// silently reparent/retag.
 //
 // How to run: paste this whole file into a temporary Nocobase JS block
 // (Admin UI -> any page -> add a "JS block").
 // ============================================================
 const { React, antd } = ctx;
 const { useState, useEffect, useMemo } = React;
-const { Select, Button, Alert, Tag, Typography, Spin, Empty, message } = antd;
+const { Select, Button, Alert, Tag, Typography, Spin, Empty, message, Table, Modal } = antd;
 const { Text, Title } = Typography;
 
 const extractId = (val) => (typeof val === "object" && val !== null ? val.id : val);
@@ -215,6 +219,108 @@ function analyzeCase(folders, projectServiceFolderIds, serviceNames) {
   };
 }
 
+// Fetches one case's folders + services and runs analyzeCase — shared by
+// the single-case view and the "scan all cases" bulk mode below.
+async function fetchAndAnalyzeCase(caseId) {
+  const [folderRows, serviceRows] = await Promise.all([
+    fetchAllList("folders:list", {
+      filter: JSON.stringify({ projectId: { $eq: caseId }, isDeleted: { $ne: true } }),
+      fields: [
+        "id",
+        "name",
+        "type",
+        "folderTemplateKey",
+        "parentId",
+        "projectId",
+        "customerId",
+        "internalCompanyId",
+        "moduleScope",
+      ],
+      sort: ["createdAt"],
+    }),
+    fetchAllList("projectServices:list", {
+      filter: JSON.stringify({ projectId: { $eq: caseId } }),
+      fields: ["id", "folderId", "serviceName"],
+    }),
+  ]);
+  const projectServiceFolderIds = new Set(
+    serviceRows.map((s) => String(extractId(s.folderId))).filter((v) => v && v !== "null"),
+  );
+  const serviceNames = new Set(
+    serviceRows.map((s) => normalizeName(s.serviceName)).filter(Boolean),
+  );
+  return {
+    folders: folderRows,
+    projectServiceFolderIds,
+    serviceNames,
+    analysis: analyzeCase(folderRows, projectServiceFolderIds, serviceNames),
+  };
+}
+
+// Applies one case's fix (system-folder tags, Obsolete creation, service
+// reparent + tag) — shared by the single-case "Cập nhật lại" button and
+// the bulk scan. Returns a short human-readable summary of what changed.
+async function applyCaseFix(caseId, analysis) {
+  const notes = [];
+
+  if (analysis.untaggedSystemFolders.length > 0) {
+    await Promise.all(
+      analysis.untaggedSystemFolders.map(({ folder, expectedKey }) =>
+        ctx.api.request({
+          url: "folders:update",
+          method: "POST",
+          params: { filterByTk: extractId(folder.id) },
+          data: { folderTemplateKey: expectedKey },
+        }),
+      ),
+    );
+    notes.push(`gắn lại tag cho ${analysis.untaggedSystemFolders.length} folder hệ thống`);
+  }
+
+  let obsoleteId = analysis.obsolete ? extractId(analysis.obsolete.id) : null;
+  if (!obsoleteId) {
+    if (!analysis.root) {
+      throw new Error("Không tìm thấy folder gốc — không thể tạo Obsolete.");
+    }
+    const created = await ctx.api.request({
+      url: "folders:create",
+      method: "POST",
+      data: buildObsoleteFolderData(analysis.root, caseId, ctx.currentUser?.id),
+    });
+    obsoleteId = created?.data?.data?.id || created?.data?.id;
+    if (!obsoleteId) {
+      throw new Error("Tạo folder Obsolete thất bại — không có id trả về.");
+    }
+    notes.push("tạo folder Obsolete");
+  }
+
+  const misplacedIds = new Set(analysis.misplacedServices.map((f) => extractId(f.id)));
+  const untaggedIds = new Set(analysis.untaggedServices.map((f) => extractId(f.id)));
+  const allById = new Map(
+    [...analysis.misplacedServices, ...analysis.untaggedServices].map((f) => [extractId(f.id), f]),
+  );
+
+  if (allById.size > 0) {
+    await Promise.all(
+      Array.from(allById.keys()).map((id) => {
+        const data = {};
+        if (misplacedIds.has(id)) data.parentId = parseInt(obsoleteId);
+        if (untaggedIds.has(id)) data.folderTemplateKey = "case_service";
+        return ctx.api.request({
+          url: "folders:update",
+          method: "POST",
+          params: { filterByTk: id },
+          data,
+        });
+      }),
+    );
+    if (misplacedIds.size > 0) notes.push(`dời ${misplacedIds.size} folder dịch vụ vào Obsolete`);
+    if (untaggedIds.size > 0) notes.push(`gắn tag case_service cho ${untaggedIds.size} folder`);
+  }
+
+  return notes;
+}
+
 const TEMPLATE_KEY_COLORS = {
   obsolete: "purple",
   case_service: "blue",
@@ -304,46 +410,17 @@ function CaseFolderStructureInspector() {
 
   const [projectServiceFolderIds, setProjectServiceFolderIds] = useState(new Set());
   const [serviceNames, setServiceNames] = useState(new Set());
+  const [analysis, setAnalysis] = useState(null);
 
   const loadFolders = async (caseId) => {
     setLoadingFolders(true);
     setError(null);
     try {
-      const [folderRows, serviceRows] = await Promise.all([
-        fetchAllList("folders:list", {
-          filter: JSON.stringify({ projectId: { $eq: caseId }, isDeleted: { $ne: true } }),
-          fields: [
-            "id",
-            "name",
-            "type",
-            "folderTemplateKey",
-            "parentId",
-            "projectId",
-            "customerId",
-            "internalCompanyId",
-            "moduleScope",
-          ],
-          sort: ["createdAt"],
-        }),
-        // Fetch ALL services for this case (not just ones with a folderId
-        // FK) — the name set doubles as the "is this a real ordered
-        // service" check for the untagged/unlinked positional fallback.
-        fetchAllList("projectServices:list", {
-          filter: JSON.stringify({ projectId: { $eq: caseId } }),
-          fields: ["id", "folderId", "serviceName"],
-        }),
-      ]);
-      setFolders(folderRows);
-      setProjectServiceFolderIds(
-        new Set(
-          serviceRows
-            .map((s) => String(extractId(s.folderId)))
-            .filter((v) => v && v !== "null"),
-        ),
-      );
-      setServiceNames(
-        new Set(serviceRows.map((s) => normalizeName(s.serviceName)).filter(Boolean)),
-      );
+      const result = await fetchAndAnalyzeCase(caseId);
+      setFolders(result.folders);
+      setProjectServiceFolderIds(result.projectServiceFolderIds);
+      setServiceNames(result.serviceNames);
+      setAnalysis(result.analysis);
     } catch (e) {
       setError(e?.message || String(e));
     } finally {
@@ -356,13 +433,9 @@ function CaseFolderStructureInspector() {
     setFolders(null);
     setProjectServiceFolderIds(new Set());
     setServiceNames(new Set());
+    setAnalysis(null);
     loadFolders(caseId);
   };
-
-  const analysis = useMemo(
-    () => (folders ? analyzeCase(folders, projectServiceFolderIds, serviceNames) : null),
-    [folders, projectServiceFolderIds, serviceNames],
-  );
 
   const childrenById = useMemo(() => {
     const map = new Map();
@@ -385,60 +458,10 @@ function CaseFolderStructureInspector() {
     if (!analysis || !selectedCaseId) return;
     setFixing(true);
     try {
-      // Backfill missing system-folder tags first (by name, see
-      // analyzeCase) — independent of Obsolete/service handling below.
-      await Promise.all(
-        analysis.untaggedSystemFolders.map(({ folder, expectedKey }) =>
-          ctx.api.request({
-            url: "folders:update",
-            method: "POST",
-            params: { filterByTk: extractId(folder.id) },
-            data: { folderTemplateKey: expectedKey },
-          }),
-        ),
+      const notes = await applyCaseFix(selectedCaseId, analysis);
+      message.success(
+        notes.length ? `Đã cập nhật: ${notes.join(", ")}.` : "Không có gì cần cập nhật.",
       );
-
-      let obsoleteId = analysis.obsolete ? extractId(analysis.obsolete.id) : null;
-      if (!obsoleteId) {
-        if (!analysis.root) {
-          throw new Error("Không tìm thấy folder gốc của case này — không thể tạo Obsolete.");
-        }
-        const created = await ctx.api.request({
-          url: "folders:create",
-          method: "POST",
-          data: buildObsoleteFolderData(analysis.root, selectedCaseId, ctx.currentUser?.id),
-        });
-        obsoleteId = created?.data?.data?.id || created?.data?.id;
-      }
-      if (!obsoleteId) {
-        throw new Error("Tạo folder Obsolete thất bại — không có id trả về.");
-      }
-
-      // Union of "needs reparent" and "needs tag" — one folders:update call
-      // per affected folder, combining whichever fields it actually needs.
-      const misplacedIds = new Set(analysis.misplacedServices.map((f) => extractId(f.id)));
-      const untaggedIds = new Set(analysis.untaggedServices.map((f) => extractId(f.id)));
-      const allById = new Map(
-        [...analysis.misplacedServices, ...analysis.untaggedServices].map((f) => [
-          extractId(f.id),
-          f,
-        ]),
-      );
-
-      await Promise.all(
-        Array.from(allById.keys()).map((id) => {
-          const data = {};
-          if (misplacedIds.has(id)) data.parentId = parseInt(obsoleteId);
-          if (untaggedIds.has(id)) data.folderTemplateKey = "case_service";
-          return ctx.api.request({
-            url: "folders:update",
-            method: "POST",
-            params: { filterByTk: id },
-            data,
-          });
-        }),
-      );
-      message.success("Đã cập nhật lại cấu trúc folder cho case này.");
       await loadFolders(selectedCaseId);
     } catch (e) {
       message.error(`Cập nhật thất bại: ${e?.message || String(e)}`);
@@ -446,6 +469,84 @@ function CaseFolderStructureInspector() {
       setFixing(false);
     }
   };
+
+  // ---- Bulk mode: scan every case, fix whichever ones have an anomaly ----
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(null);
+  const [scanResults, setScanResults] = useState(null);
+
+  const runScanAll = async () => {
+    setScanning(true);
+    setScanResults(null);
+    const results = [];
+    try {
+      for (let i = 0; i < cases.length; i++) {
+        const c = cases[i];
+        const caseId = extractId(c.id);
+        const label = `${c.caseCode ? c.caseCode + " - " : ""}${c.projectName || ""}`;
+        setScanProgress(`Đang xử lý ${i + 1}/${cases.length}: ${label}`);
+        try {
+          const { analysis: caseAnalysis } = await fetchAndAnalyzeCase(caseId);
+          const caseHasAnomaly =
+            !caseAnalysis.obsolete ||
+            caseAnalysis.misplacedServices.length > 0 ||
+            caseAnalysis.untaggedServices.length > 0 ||
+            caseAnalysis.untaggedSystemFolders.length > 0;
+          if (!caseHasAnomaly) {
+            results.push({ caseId, label, status: "ok", notes: "Đã đúng chuẩn" });
+            continue;
+          }
+          const notes = await applyCaseFix(caseId, caseAnalysis);
+          results.push({
+            caseId,
+            label,
+            status: "fixed",
+            notes: notes.length ? notes.join(", ") : "Không có gì cần cập nhật",
+          });
+        } catch (e) {
+          results.push({ caseId, label, status: "error", notes: e?.message || String(e) });
+        }
+      }
+    } finally {
+      setScanProgress(null);
+      setScanning(false);
+      setScanResults(results);
+      // If the case currently open in the single-case view was touched by
+      // the scan, refresh it so its tree reflects the just-applied fix.
+      if (selectedCaseId) {
+        loadFolders(selectedCaseId);
+      }
+    }
+  };
+
+  const handleScanAll = () => {
+    Modal.confirm({
+      title: "Quét & cập nhật tất cả case?",
+      content: `Sẽ kiểm tra toàn bộ ${cases.length} case và tự động sửa (gắn tag hệ thống, tạo Obsolete, dời/gắn tag folder dịch vụ) cho từng case có bất thường. Không xóa gì, chỉ cập nhật.`,
+      okText: "Chạy",
+      cancelText: "Hủy",
+      onOk: runScanAll,
+    });
+  };
+
+  const scanColumns = [
+    { title: "Case", dataIndex: "label", key: "label" },
+    {
+      title: "Kết quả",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      render: (status) =>
+        status === "ok" ? (
+          <Tag color="green">đã đúng</Tag>
+        ) : status === "fixed" ? (
+          <Tag color="blue">đã sửa</Tag>
+        ) : (
+          <Tag color="red">lỗi</Tag>
+        ),
+    },
+    { title: "Chi tiết", dataIndex: "notes", key: "notes" },
+  ];
 
   return (
     <div style={{ padding: 12 }}>
@@ -469,6 +570,36 @@ function CaseFolderStructureInspector() {
           label: `${c.caseCode ? c.caseCode + " - " : ""}${c.projectName || ""}`,
         }))}
       />
+      {" "}
+      <Button loading={scanning} disabled={loadingCases} onClick={handleScanAll}>
+        Quét & cập nhật tất cả case ({cases.length})
+      </Button>
+
+      {scanning ? (
+        <Alert style={{ marginTop: 16 }} type="info" showIcon message={scanProgress || "Đang quét..."} />
+      ) : null}
+
+      {scanResults ? (
+        <div style={{ marginTop: 16 }}>
+          <Alert
+            type={scanResults.some((r) => r.status === "error") ? "warning" : "success"}
+            showIcon
+            message={`Quét xong ${scanResults.length} case: ${
+              scanResults.filter((r) => r.status === "fixed").length
+            } đã sửa, ${scanResults.filter((r) => r.status === "ok").length} đã đúng chuẩn, ${
+              scanResults.filter((r) => r.status === "error").length
+            } lỗi.`}
+          />
+          <Table
+            style={{ marginTop: 8 }}
+            size="small"
+            rowKey="caseId"
+            columns={scanColumns}
+            dataSource={scanResults}
+            pagination={{ pageSize: 10 }}
+          />
+        </div>
+      ) : null}
 
       {error ? <Alert style={{ marginTop: 16 }} type="error" message={error} /> : null}
 
