@@ -103,3 +103,22 @@ CREATE TRIGGER trg_payment_recompute_contract
   AFTER INSERT OR UPDATE OF "paymentStatus" ON payments
   FOR EACH ROW
   EXECUTE FUNCTION public.contract_recompute_outstanding();
+
+-- ---- Trigger: cascade a contract's paymentStatus to its linked Case -----
+CREATE OR REPLACE FUNCTION public.cascade_payment_status_to_case()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  UPDATE projects
+  SET "paymentStatus" = NEW."paymentStatus"
+  WHERE "contractId" = NEW.id;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_contract_cascade_case_status ON contracts;
+CREATE TRIGGER trg_contract_cascade_case_status
+  AFTER UPDATE OF "paymentStatus" ON contracts
+  FOR EACH ROW
+  EXECUTE FUNCTION public.cascade_payment_status_to_case();
