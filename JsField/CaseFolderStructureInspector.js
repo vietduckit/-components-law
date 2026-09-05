@@ -15,25 +15,32 @@
 // projectId whose own parentId does NOT belong to another folder of the
 // same projectId.
 //
-// Service-folder identification goes one step further than that SQL
-// script: a folder counts as a service folder if EITHER it's tagged
-// folderTemplateKey === "case_service" OR it's the real target of a
-// projectServices.folderId FK (the source of truth, per
-// JsField/BackfillCaseServiceFolderTemplateKey.js) — folders created
-// before the 2026-09-04 tagging change are real service folders but were
-// never stamped, so the SQL script's tag-only filter silently skips them.
-// Every service folder should have a parent with folderTemplateKey ===
-// "obsolete"; if the case has no "obsolete" folder yet, one is created
-// (as a direct child of the root) before reparenting anything onto it.
+// Service-folder identification (same as
+// pgsql/backfill_case_obsolete_folder_structure.sql): a folder counts as a
+// service folder if ANY of:
+//   (a) tagged folderTemplateKey === "case_service"
+//   (b) the real target of a projectServices.folderId FK (the source of
+//       truth, per JsField/BackfillCaseServiceFolderTemplateKey.js)
+//   (c) POSITIONAL: a direct child of the case root, or of "Legal
+//       dossiers" — the two documented wrong homes for a service folder —
+//       and not itself one of the 6 fixed template keys
+// (a)/(b) alone still miss real data seen live on staging: a service
+// folder with NO tag and NO FK link at all (older than that link too),
+// sitting as a plain root-level sibling next to the system folders — only
+// its position gives it away. Every service folder should have a parent
+// with folderTemplateKey === "obsolete"; if the case has no "obsolete"
+// folder yet, one is created (as a direct child of the root) before
+// reparenting anything onto it.
 //
 // Only ever writes to the ONE case currently selected, only when you press
 // the button, and only touches: (a) creating a missing "Obsolete" folder,
 // (b) updating parentId on service folders that aren't under it yet, (c)
 // stamping folderTemplateKey = "case_service" on service folders that were
-// never tagged. Never deletes, never touches other cases. A service folder
-// whose FK match already carries a DIFFERENT folderTemplateKey (one of the
-// 5 fixed template keys) is left alone and flagged instead — that's a data
-// conflict worth investigating by hand, not something to silently retag.
+// never tagged. Never deletes, never touches other cases. A folder that's
+// the real FK target of a projectServices row but already carries a
+// DIFFERENT folderTemplateKey (one of the 6 fixed template keys) is left
+// alone and flagged instead — that's a data conflict worth investigating
+// by hand, not something to silently reparent/retag.
 //
 // How to run: paste this whole file into a temporary Nocobase JS block
 // (Admin UI -> any page -> add a "JS block").
@@ -98,24 +105,44 @@ const PROTECTED_TEMPLATE_KEYS = new Set([
   "obsolete",
 ]);
 
-// Source of truth for "this folder is a service folder": the real FK,
-// projectServices.folderId — NOT folderTemplateKey alone. Folders created
-// before the 2026-09-04 tagging change are real service folders but were
-// never stamped "case_service", so relying on the tag misses them (as seen
-// live: a case's service folder sitting untagged under "Legal dossiers").
+// Source of truth for "this folder is a service folder" — a folder counts
+// if ANY of:
+//   (a) tagged folderTemplateKey === "case_service"
+//   (b) the real target of a projectServices.folderId FK
+//   (c) POSITIONAL: a direct child of the case root, or of "Legal
+//       dossiers" — the two documented wrong homes for a service folder —
+//       and not itself one of the 6 fixed template keys
+// (b) alone still misses real staging data: a service folder with no tag
+// AND no FK link at all (older than that link), sitting as a plain
+// root-level sibling next to the system folders — only position gives it
+// away. Folders created before the 2026-09-04 tagging change are real
+// service folders but were never stamped "case_service", so relying on
+// the tag alone misses them too (as seen live: a case's service folder
+// sitting untagged under "Legal dossiers").
 function analyzeCase(folders, projectServiceFolderIds) {
   const root = findRoot(folders);
   const obsolete = folders.find((f) => f.folderTemplateKey === "obsolete") || null;
   const obsoleteId = obsolete ? String(extractId(obsolete.id)) : null;
+  const rootId = root ? String(extractId(root.id)) : null;
+  const dossiers = folders.find((f) => f.folderTemplateKey === "legal_dossiers") || null;
+  const dossiersId = dossiers ? String(extractId(dossiers.id)) : null;
 
-  const serviceFolders = folders.filter(
+  const serviceFolders = folders.filter((f) => {
+    if (PROTECTED_TEMPLATE_KEYS.has(f.folderTemplateKey)) return false;
+    const fid = String(extractId(f.id));
+    const pid = String(extractId(f.parentId));
+    if (f.folderTemplateKey === "case_service") return true;
+    if (projectServiceFolderIds.has(fid)) return true;
+    if (rootId && pid === rootId) return true;
+    if (dossiersId && pid === dossiersId) return true;
+    return false;
+  });
+
+  const conflicting = folders.filter(
     (f) =>
-      f.folderTemplateKey === "case_service" ||
+      f.folderTemplateKey &&
+      PROTECTED_TEMPLATE_KEYS.has(f.folderTemplateKey) &&
       projectServiceFolderIds.has(String(extractId(f.id))),
-  );
-
-  const conflicting = serviceFolders.filter(
-    (f) => f.folderTemplateKey && PROTECTED_TEMPLATE_KEYS.has(f.folderTemplateKey),
   );
   const fixable = serviceFolders.filter((f) => !conflicting.includes(f));
 
@@ -360,7 +387,7 @@ function CaseFolderStructureInspector() {
                     <li>{analysis.misplacedServices.length} folder dịch vụ chưa nằm dưới Obsolete.</li>
                   ) : null}
                   {analysis.untaggedServices.length > 0 ? (
-                    <li>{analysis.untaggedServices.length} folder dịch vụ chưa được gắn tag "case_service" (tạo trước ngày gắn tag, nhận diện qua projectServices.folderId).</li>
+                    <li>{analysis.untaggedServices.length} folder dịch vụ chưa được gắn tag "case_service" (tạo trước ngày gắn tag, nhận diện qua projectServices.folderId hoặc vị trí đang nằm ngang hàng/dưới Legal dossiers).</li>
                   ) : null}
                   {analysis.conflicting.length > 0 ? (
                     <li style={{ color: "#ad4e00" }}>

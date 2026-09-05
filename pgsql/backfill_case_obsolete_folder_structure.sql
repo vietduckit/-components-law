@@ -18,16 +18,22 @@
 -- correctly excludes since their parent IS within the same case.
 --
 -- Service-folder identification (step 2/3): a folder counts as a service
--- folder if EITHER it's tagged folderTemplateKey = 'case_service' OR it's
--- the real target of a projectServices.folderId FK (the source of truth —
--- see JsField/BackfillCaseServiceFolderTemplateKey.js). Folders created
--- before the 2026-09-04 tagging change are real service folders but were
--- never stamped, so a tag-only filter silently misses them (caught live:
--- a case's service folder sitting untagged under "Legal dossiers", not
--- reparented by this script's first version). A folder already carrying
--- one of the 5 fixed template keys is excluded even if the FK points at
--- it — that would be a data conflict to investigate by hand, not
--- something to silently reparent/retag.
+-- folder if ANY of:
+--   (a) it's tagged folderTemplateKey = 'case_service'
+--   (b) it's the real target of a projectServices.folderId FK (the
+--       source of truth — see JsField/BackfillCaseServiceFolderTemplateKey.js)
+--   (c) POSITIONAL: it's a direct child of the case root, or a direct
+--       child of "Legal dossiers" — the two documented wrong homes for a
+--       service folder (case-root sibling for the oldest cases, nested
+--       under Legal dossiers for the 2026-08-27 intermediate state) — and
+--       its own folderTemplateKey isn't one of the 6 fixed template keys
+-- (b) and (c) both exist because real staging data has shown BOTH gaps:
+-- a service folder with no tag AND no projectServices.folderId FK at all
+-- (older than that link too), sitting as a plain root-level sibling next
+-- to the system folders — (a) and (b) alone silently miss it, only the
+-- position gives it away. A folder already carrying one of the 6 fixed
+-- template keys is excluded even under (c) — that would be a data
+-- conflict to investigate by hand, not something to silently reparent.
 --
 -- Idempotent: safe to run again — a case that already has an "obsolete"
 -- folder is skipped by step 1; a service folder already parented under
@@ -70,44 +76,82 @@ SELECT
 FROM missing_obsolete mo;
 
 -- ---- Step 2: reparent every service folder onto its case's Obsolete ---
--- folder, if it isn't already there (covers "sitting as a case-root
--- sibling", "nested under Legal dossiers", or any other prior parent in
--- one pass — whatever its current parent is, if that parent isn't this
--- case's Obsolete folder, fix it). Matches by tag OR by the real
--- projectServices.folderId FK (see the file header) so untagged
--- pre-2026-09-04 service folders are caught too; a folder already
--- carrying one of the 5 fixed template keys is never touched even if the
--- FK points at it.
-UPDATE folders svc
-SET "parentId" = obs.id
-FROM folders obs
-WHERE (
-    svc."folderTemplateKey" = 'case_service'
-    OR svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
-  )
-  AND (
-    svc."folderTemplateKey" IS NULL
-    OR svc."folderTemplateKey" NOT IN (
-      'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
+-- folder, if it isn't already there. "Service folder" = tag, OR FK, OR
+-- position (see file header) — whichever current parent it has, if that
+-- parent isn't this case's Obsolete folder, fix it.
+WITH candidates AS (
+  SELECT svc.id AS folder_id, obs.id AS obsolete_id
+  FROM folders svc
+  JOIN folders obs ON obs."projectId" = svc."projectId" AND obs."folderTemplateKey" = 'obsolete'
+  WHERE svc."projectId" IS NOT NULL
+    AND (
+      svc."folderTemplateKey" IS NULL
+      OR svc."folderTemplateKey" NOT IN (
+        'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
+      )
     )
-  )
-  AND obs."folderTemplateKey" = 'obsolete'
-  AND obs."projectId" = svc."projectId"
-  AND svc."parentId" IS DISTINCT FROM obs.id;
+    AND (
+      svc."folderTemplateKey" = 'case_service'
+      OR svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
+      OR EXISTS (
+          SELECT 1 FROM folders root
+          WHERE root."projectId" = svc."projectId"
+            AND root.id = svc."parentId"
+            AND NOT EXISTS (
+              SELECT 1 FROM folders p2
+              WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
+            )
+        )
+      OR EXISTS (
+          SELECT 1 FROM folders dossiers
+          WHERE dossiers."projectId" = svc."projectId"
+            AND dossiers.id = svc."parentId"
+            AND dossiers."folderTemplateKey" = 'legal_dossiers'
+        )
+    )
+)
+UPDATE folders svc
+SET "parentId" = c.obsolete_id
+FROM candidates c
+WHERE svc.id = c.folder_id
+  AND svc."parentId" IS DISTINCT FROM c.obsolete_id;
 
 -- ---- Step 3: tag every service folder with folderTemplateKey ----------
--- 'case_service' if it isn't already — closes the same pre-2026-09-04 gap
--- for the tag itself, not just the parent (mirrors
--- JsField/BackfillCaseServiceFolderTemplateKey.js, restricted here to
--- folders that already belong to a case, i.e. projectId IS NOT NULL).
+-- 'case_service' if it isn't already — same candidate definition as step
+-- 2, so a folder caught only by position or FK also gets the tag it needs
+-- for CaseDocument.js/Library.js's delete-lock check (mirrors
+-- JsField/BackfillCaseServiceFolderTemplateKey.js).
+WITH candidates AS (
+  SELECT svc.id AS folder_id
+  FROM folders svc
+  WHERE svc."projectId" IS NOT NULL
+    AND (
+      svc."folderTemplateKey" IS NULL
+      OR svc."folderTemplateKey" NOT IN (
+        'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
+      )
+    )
+    AND (
+      svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
+      OR EXISTS (
+          SELECT 1 FROM folders root
+          WHERE root."projectId" = svc."projectId"
+            AND root.id = svc."parentId"
+            AND NOT EXISTS (
+              SELECT 1 FROM folders p2
+              WHERE p2.id = root."parentId" AND p2."projectId" = root."projectId"
+            )
+        )
+      OR EXISTS (
+          SELECT 1 FROM folders dossiers
+          WHERE dossiers."projectId" = svc."projectId"
+            AND dossiers.id = svc."parentId"
+            AND dossiers."folderTemplateKey" = 'legal_dossiers'
+        )
+    )
+)
 UPDATE folders svc
 SET "folderTemplateKey" = 'case_service'
-WHERE svc."projectId" IS NOT NULL
-  AND svc.id IN (SELECT "folderId" FROM "projectServices" WHERE "folderId" IS NOT NULL)
-  AND (
-    svc."folderTemplateKey" IS NULL
-    OR svc."folderTemplateKey" NOT IN (
-      'legal_study', 'lsc_related', 'legal_docs', 'legal_dossiers', 'obsolete', 'report_result'
-    )
-  )
+FROM candidates c
+WHERE svc.id = c.folder_id
   AND svc."folderTemplateKey" IS DISTINCT FROM 'case_service';
