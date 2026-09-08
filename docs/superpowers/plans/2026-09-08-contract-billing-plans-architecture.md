@@ -4,9 +4,9 @@
 
 **Goal:** Move Retainer billing state off `contracts` + a JSON blob and into a new `contractBillingPlans` collection — one source of truth for Retainer state, reserving room for By-case/milestone plan types later without another schema migration.
 
-**Architecture:** New collection `contractBillingPlans` (belongsTo `contracts`) owns all retainer-specific fields as real typed columns. The existing SQL trigger + `DateFieldScheduleTrigger` Workflow (already built and verified this session) move to watch this new collection instead of `contracts`. Retainer calculation logic that was duplicated across 3 UI files moves into a new `shared-lib/law-billing.js` module, loaded via `ctx.importAsync()` — the same pattern already proven with `CaseDashboard.js`.
+**Architecture:** New collection `contractBillingPlans` (belongsTo `contracts`) owns all retainer-specific fields as real typed columns. The existing SQL trigger + `DateFieldScheduleTrigger` Workflow (already built and verified this session) move to watch this new collection instead of `contracts`. Retainer display-formatting logic (originally planned to move into a shared `ctx.importAsync()` module — see Task 4's deviation note) stays duplicated per-file, matching this project's default single-file-block convention.
 
-**Tech Stack:** Nocobase JS Blocks (`ctx.api.request()`), PostgreSQL (`plpgsql` triggers), Nocobase Workflow (`schedule`/`calculation`/`dateCalculation`/`condition`/`create`/`update` node types, DATE_FIELD schedule mode), `shared-lib` versioned-URL ES modules.
+**Tech Stack:** Nocobase JS Blocks (`ctx.api.request()`), PostgreSQL (`plpgsql` triggers), Nocobase Workflow (`schedule`/`calculation`/`dateCalculation`/`condition`/`create`/`update` node types, DATE_FIELD schedule mode).
 
 **Spec:** [2026-09-08-contract-billing-plans-architecture-design.md](../specs/2026-09-08-contract-billing-plans-architecture-design.md)
 
@@ -625,72 +625,16 @@ Committed as `07b73bb`.
 
 ---
 
-## Task 4: Shared retainer logic — `shared-lib/law-billing.js`
+## Task 4: Retainer display logic (duplicated per-file, not shared)
 
-**Files:**
-- Create: `shared-lib/law-billing.js`
+**DEVIATION FROM THE SPEC (§7), confirmed with the user:** §7 called for a new `shared-lib/law-billing.js` loaded via `ctx.importAsync()`. The user asked to skip this — the file-manager-hosted-URL deployment doesn't fit their actual Nocobase environment for this feature. `shared-lib/law-billing.js` was written, verified (`node --check`), committed, then reverted (commit `3bc88d0`) once this was raised.
 
-**Interfaces:**
-- Produces: `calcRetainerNextPaymentDate(startDate, interval, unit)`, `retainerDurationSuffix(unit, count)`, `resolveActiveBillingPlanDisplay(plan)` — Tasks 5-7 import all three via `ctx.importAsync()`.
+This does **not** weaken the redesign's core value: the reason `retainerRule.interval`/`resolveRetainerNextPaymentDate` needed fixing three times this session was that Retainer **state** (what cycle a contract is on, its next date) lived in multiple disagreeing places — that's fixed by `contractBillingPlans` being the one source of truth (Tasks 1-3), independent of whether the *display-formatting* helper functions around that state are shared or duplicated. Duplicating a small set of pure, stable, rarely-changing formatting functions is exactly this project's normal, default pattern (`CLAUDE.md`'s single-file-block convention) — `shared-lib` was always an opt-in exception (its own README still lists it as "chờ review + test", not yet the established convention).
 
-This moves the exact, already-working logic from `ContractCreateForm.js`/`ContractPaymentScheduleDetailBlock.js` (read directly from those files during planning, not reconstructed from memory) into one file, plus one new function that didn't exist before (`resolveActiveBillingPlanDisplay`, replacing the old `resolveRetainerNextPaymentDate` pattern with one that reads the plan's own live state instead of approximating it).
-
-- [ ] **Step 1: Write the shared module**
-
-Create `shared-lib/law-billing.js`:
+**Files:** None — no new file. The three functions below are pasted verbatim into each of Tasks 5, 6, and 7 (identical code, repeated 3 times — copy exactly, don't paraphrase, so the three files can't drift from each other in subtle ways):
 
 ```js
-// shared-lib/law-billing.js
-// Retainer billing calculation logic shared by ContractCreateForm.js,
-// ContractPaymentScheduleDetailBlock.js, and PaymentRequestCreateBlock.js.
-// Load via: const Shared = await ctx.importAsync(LAW_BILLING_URL);
-// Deploy convention: see shared-lib/README.md (versioned filename, e.g.
-// law-billing-v1.js — do not overwrite an existing version's URL).
-
-export const VERSION = '1.0.0';
-
-function parseNum(v) {
-  const n = parseFloat(String(v ?? '').replace(/[^\d.-]/g, ''));
-  return Number.isNaN(n) ? 0 : n;
-}
-
-function toDateInput(date) {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function normalizeDateInput(value) {
-  if (!value) return '';
-  const raw = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const date = new Date(raw);
-  return Number.isNaN(date.getTime()) ? raw : toDateInput(date);
-}
-
-function addDays(dateValue, days) {
-  if (!dateValue && days !== 0) return '';
-  const source = new Date(`${normalizeDateInput(dateValue)}T00:00:00`);
-  if (Number.isNaN(source.getTime())) return '';
-  source.setDate(source.getDate() + days);
-  return toDateInput(source);
-}
-
-function addMonthsClamped(dateValue, monthCount) {
-  if (!dateValue || !monthCount) return '';
-  const source = new Date(`${normalizeDateInput(dateValue)}T00:00:00`);
-  if (Number.isNaN(source.getTime())) return '';
-  const y = source.getFullYear();
-  const m = source.getMonth();
-  const d = source.getDate();
-  const targetFirst = new Date(y, m + monthCount, 1);
-  const lastDay = new Date(targetFirst.getFullYear(), targetFirst.getMonth() + 1, 0).getDate();
-  targetFirst.setDate(Math.min(d, lastDay));
-  return toDateInput(targetFirst);
-}
-
-export function normalizeRetainerUnit(unit) {
+function normalizeRetainerUnit(unit) {
   const key = String(unit || '')
     .trim()
     .toLowerCase()
@@ -703,7 +647,7 @@ export function normalizeRetainerUnit(unit) {
   return key || 'month';
 }
 
-export function calcRetainerNextPaymentDate(paymentDate, retainerDuration, repeatUnit) {
+function calcRetainerNextPaymentDate(paymentDate, retainerDuration, repeatUnit) {
   const duration = parseNum(retainerDuration);
   const unit = normalizeRetainerUnit(repeatUnit);
   if (!paymentDate || duration <= 0) return '';
@@ -715,7 +659,7 @@ export function calcRetainerNextPaymentDate(paymentDate, retainerDuration, repea
   return '';
 }
 
-export function retainerDurationSuffix(retainerPeriod, durationValue) {
+function retainerDurationSuffix(retainerPeriod, durationValue) {
   const singular = parseNum(durationValue) === 1;
   if (retainerPeriod === 'day') return singular ? 'day' : 'days';
   if (retainerPeriod === 'week') return singular ? 'week' : 'weeks';
@@ -730,7 +674,7 @@ export function retainerDurationSuffix(retainerPeriod, durationValue) {
 // had actually been auto-billed). Once a plan exists, its own
 // nextBillingDate *is* the live, correct next-payment date — this reads
 // it directly instead of approximating it a second time.
-export function resolveActiveBillingPlanDisplay(plan) {
+function resolveActiveBillingPlanDisplay(plan) {
   if (!plan) return null;
   const totalCycles = plan.retainerTotalCycles ?? null;
   const cyclesBilled = plan.retainerCyclesBilled ?? 0;
@@ -757,48 +701,27 @@ export function resolveActiveBillingPlanDisplay(plan) {
 }
 ```
 
-- [ ] **Step 2: Verify syntax**
+`parseNum`/`toDateInput`/`normalizeDateInput`/`addDays`/`addMonthsClamped` are **not** repeated above — all three target files already have their own local copies of these lower-level helpers (this session confirmed by reading `ContractPaymentScheduleDetailBlock.js` directly: `toDateInput` line 247, `normalizeDateInput` line 254, `addDays` line 262, `addMonthsClamped` line 270). Each task below keeps that file's existing copies and only replaces the retainer-specific functions built on top of them.
 
-Run: `node --check "shared-lib/law-billing.js"`
-Expected: no output, exit code 0.
-
-- [ ] **Step 3: Deploy**
-
-Follow `shared-lib/README.md`'s existing process: upload `law-billing.js` to Nocobase's file storage as `law-billing-v1.js` (versioned filename, not overwriting anything), get its public URL. This is a manual step (the user has to do the upload through the Nocobase file-manager UI) — record the resulting URL, it's needed as `LAW_BILLING_URL` in Tasks 5-7.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add "shared-lib/law-billing.js"
-git commit -m "feat(shared-lib): extract retainer billing calculation logic (law-billing.js)"
-```
+- [x] **Step 1 (was: write shared module):** superseded by the deviation above — nothing to do here, the code block above is pasted directly into Tasks 5-7.
 
 ---
 
-## Task 5: `ContractCreateForm.js` — nested plan creation + shared-lib
+## Task 5: `ContractCreateForm.js` — nested plan creation
 
 **Files:**
 - Modify: `All Module/Contract/ContractCreateForm.js`
 
 **Interfaces:**
-- Consumes: `shared-lib/law-billing.js` (Task 4) — `calcRetainerNextPaymentDate`, `retainerDurationSuffix`.
 - Produces: `contracts:create` calls now include a nested `billingPlans: [{...}]` array when the contract is a Retainer, instead of building `paymentSchedule.retainerRule` and the now-removed `retainerDuration`/`retainerPeriod`/`monthlyFee` fields.
 
 - [ ] **Step 1: Read the current retainer-submission code to confirm nothing has drifted**
 
 Re-read `buildPaymentSchedulePayload` (around line 1877) and the submit payload block (around line 11460-11490) in `All Module/Contract/ContractCreateForm.js` — these were last touched by this session's `retainerRule.interval` fix (commit `7f91803`). Confirm the `retainerRule`-building block and the `monthlyFee: null, retainerPeriod: null, retainerDuration: isRetainer ? nullableNum(form.retainerDuration) : null,` lines are still there as last read. If they differ, stop and reconcile before continuing.
 
-- [ ] **Step 2: Load the shared module**
+- [ ] **Step 2: Confirm this file already has `calcRetainerNextPaymentDate`/`retainerDurationSuffix`**
 
-Near the top of the file, alongside any other `ctx.importAsync` usage (or, if none exists yet in this file, near the other module-level constants):
-
-```js
-const LAW_BILLING_URL = "<URL from Task 4 Step 3>";
-const Shared = await ctx.importAsync(LAW_BILLING_URL);
-const { calcRetainerNextPaymentDate, retainerDurationSuffix } = Shared;
-```
-
-Delete the file's own local `calcRetainerNextPaymentDate`/`retainerDurationSuffix`/`normalizeRetainerUnit`/`addDays`/`addMonthsClamped`/`toDateInput`/`normalizeDateInput` definitions if this file has its own copies of the date-math helpers *only* used by these two functions (keep any of those helpers if something else in this large file also depends on them independently — check each helper's other call sites before deleting).
+This file already defines these locally (`calcRetainerNextPaymentDate` used by `buildPaymentSchedulePayload`, `retainerDurationSuffix` at line 2238) — per Task 4's deviation note, they stay exactly as-is, no shared-module loading needed. Nothing to change in this step; it exists only to confirm Step 1's read didn't reveal a drift in these two functions either.
 
 - [ ] **Step 3: Replace `buildPaymentSchedulePayload`'s retainer-rule construction**
 
@@ -864,7 +787,7 @@ Expected: no output, exit code 0.
 
 ```bash
 git add "All Module/Contract/ContractCreateForm.js"
-git commit -m "refactor(ContractCreateForm): create billingPlans nested record instead of contracts.retainerRule/retainerDuration; load retainer logic from shared-lib"
+git commit -m "refactor(ContractCreateForm): create billingPlans nested record instead of contracts.retainerRule/retainerDuration"
 ```
 
 (Deploying this to dev/staging's live JS Block happens in Task 9, together with Tasks 6-7's changes, as one combined manual paste — not per-task, since none of Tasks 5-7 is independently useful in the live app until all three are deployed together.)
@@ -877,7 +800,6 @@ git commit -m "refactor(ContractCreateForm): create billingPlans nested record i
 - Modify: `All Module/Contract/ContractPaymentScheduleDetailBlock.js`
 
 **Interfaces:**
-- Consumes: `shared-lib/law-billing.js` (Task 4) — `resolveActiveBillingPlanDisplay`.
 - Produces: `RetainerRule` component now renders from a `contractBillingPlans` record (via the contract's `billingPlans` relation), not `schedule.retainerRule`.
 
 - [ ] **Step 1: Read the current `RetainerRule` component and its call site to confirm nothing has drifted**
@@ -888,15 +810,9 @@ Re-read `RetainerRule` (line 972) and its usage at line 1568 (`RetainerRule({ ru
 
 Wherever this block fetches the contract record (`contracts:get` or similar, likely in the component that sets `contextRecord`/`record` state), add `billingPlans` to its `appends` so the active plan comes back with the contract in the same request.
 
-- [ ] **Step 3: Load the shared module**
+- [ ] **Step 3: Replace `resolveRetainerNextPaymentDate` with `resolveActiveBillingPlanDisplay`**
 
-```js
-const LAW_BILLING_URL = "<URL from Task 4 Step 3>";
-const Shared = await ctx.importAsync(LAW_BILLING_URL);
-const { resolveActiveBillingPlanDisplay } = Shared;
-```
-
-Delete `resolveRetainerNextPaymentDate` (line 308) — no longer needed, replaced by `resolveActiveBillingPlanDisplay`. Delete `calcRetainerNextPaymentDate` (line 296) and `normalizeRetainerUnit` too if nothing else in this file uses them independently (check other call sites first).
+Replace the `resolveRetainerNextPaymentDate` function (line 308-313) with the `resolveActiveBillingPlanDisplay` function from Task 4's code block (local to this file, not imported — per Task 4's deviation note). Keep this file's own existing `calcRetainerNextPaymentDate` (line 296) and `normalizeRetainerUnit` — `resolveActiveBillingPlanDisplay` calls `calcRetainerNextPaymentDate`, which already exists here unchanged.
 
 - [ ] **Step 4: Replace `RetainerRule`'s rendering to use the live plan**
 
@@ -968,7 +884,6 @@ git commit -m "refactor(ContractPaymentScheduleDetailBlock): RetainerRule reads 
 - Modify: `All Module/Payment/PaymentRequestCreateBlock.js`
 
 **Interfaces:**
-- Consumes: `shared-lib/law-billing.js` (Task 4).
 - Produces: any retainer-aware display/logic in this block reads the contract's active `contractBillingPlans` record instead of parsing `paymentSchedule.retainerRule`.
 
 - [ ] **Step 1: Read the current retainer-reading code to confirm nothing has drifted**
@@ -979,13 +894,9 @@ Re-read the `retainerRule` construction block (line 603-614, fixed by this sessi
 
 Wherever this block loads the selected contract's data (`contracts:get`/`contracts:list`), add `billingPlans` to `appends`.
 
-- [ ] **Step 3: Load the shared module**
+- [ ] **Step 3: Add `resolveActiveBillingPlanDisplay` locally**
 
-```js
-const LAW_BILLING_URL = "<URL from Task 4 Step 3>";
-const Shared = await ctx.importAsync(LAW_BILLING_URL);
-const { resolveActiveBillingPlanDisplay } = Shared;
-```
+This file's existing `retainerRule` block (Step 1) already calls this file's own `calcRetainerNextPaymentDate` (confirmed present per this session's Task 3 fix, commit `85a57e3`) — add the `resolveActiveBillingPlanDisplay` function from Task 4's code block alongside it (local to this file, not imported — per Task 4's deviation note); keep `calcRetainerNextPaymentDate`/`retainerDurationSuffix` as they already exist here.
 
 - [ ] **Step 4: Replace the `retainerRule` block**
 
