@@ -581,7 +581,7 @@ Trigger: schedule, mode=1 (DATE_FIELD), collection=contracts, startsOn.field=nex
 
 `nextDateCalc` is produced as a `'YYYY-MM-DD'` string (a trailing `format` step), not a Date object — directly writable into the `date` column. `nextDateTsCalc`/`endDateTsCalc` duplicate the same date as epoch-seconds numbers purely for the Condition's comparison. This split, and the `or`/`and` word-form operators, are the result of a real bug found during Step 3's first attempt (see below) — mathjs has no `||`/`&&`, and its `>`/`<` operators reject two date strings ("Cannot convert ... to a number"), both confirmed by running this repo's own installed `mathjs` package directly with `node -e`, not assumed.
 
-- [ ] **Step 1: Run the workflow-creation script**
+- [x] **Step 1: Run the workflow-creation script**
 
 Paste the full contents of `JsField/CreateRetainerBillingWorkflow.js` into a temporary Action block's onClick (or the browser dev console on any admin page) and run it. Expected console output: `[created] workflow id=...` followed by 9 `[created] node "..." id=...` lines (`periodAmountCalc`, `nextPeriodsBilledCalc`, `createPaymentRequest`, `nextDateCalc`, `nextDateTsCalc`, `endDateTsCalc`, `stopCondition`, `updateStop`, `updateContinue`), then the "Next steps" reminder. Re-running the script is safe even after a previous run — it **deletes** any workflow with this exact title first, then rebuilds it fresh (not "skip if exists" like this plan's other setup scripts), because Nocobase locks a workflow's node graph once it has recorded any execution (`versionStats.executed > 0` guard in `plugin-workflow/src/server/actions/nodes.ts`) — a Test run counts as an execution even when it errors, so a fix-forward edit isn't available afterward.
 
@@ -591,11 +591,13 @@ UPDATE contracts SET "paymentSchedule" = jsonb_set("paymentSchedule", '{retainer
 WHERE "contractName" IN ('plan-verify-retainer-fixed', 'plan-verify-retainer-openended');
 ```
 
-- [ ] **Step 2: Force the server to pick up the new workflow**
+- [x] **Step 2: Force the server to pick up the new workflow**
 
 Admin → Workflow → open "Retainer billing - auto-create next payment request" → toggle it **Disabled** then **Enabled** once, even though the script created it with `enabled: true` (same in-memory-cache caveat as every other script-created workflow this session — see this plan's Architecture note).
 
-- [ ] **Step 3: Test run against the Task 4 verification contract**
+- [x] **Step 3: Test run against the Task 4 verification contract**
+
+**Result (first attempt):** failed with `SyntaxError: Value expected (char 13)` on the `stopCondition` node — root cause was `||`/`&&`, which don't exist in mathjs (word forms `or`/`and` only). Fixing that surfaced a second bug: mathjs's `>` can't compare two date strings ("Cannot convert ... to a number"), which required the `nextDateTsCalc`/`endDateTsCalc` epoch-seconds nodes added to the script (see the node graph and script header comment for the fix, empirically verified by running this repo's own installed `mathjs` via `node -e` for all 4 branch combinations before touching the live workflow again). After the fix — rebuilt via the same script, which deletes and recreates the workflow since a Test run locks the node graph — the run succeeded: 1 `paymentRequests` row, `requestedAmount = 3000000`.
 
 On the workflow's canvas, click **Execute manually**. This opens a modal with a **"Trigger data"** field (a searchable record picker, component `TriggerCollectionRecordSelect`) — type `plan-verify-retainer-fixed` and select the matching `contracts` row (`totalAmount = 18000000`, `retainerDuration = 6`, from Task 4 Step 3).
 
@@ -615,14 +617,16 @@ SELECT "nextRetainerBillingDate", "retainerPeriodsBilled" FROM contracts WHERE i
 ```
 Expected: `retainerPeriodsBilled = 1`, `nextRetainerBillingDate = 2026-11-01` (one month after the `2026-10-01` set in Task 4 Step 3).
 
-- [ ] **Step 4: Run the test 5 more times to confirm the stop condition**
+- [x] **Step 4: Run the test 5 more times to confirm the stop condition**
 
 Repeat Step 3's test-run trigger 5 more times (6 total) — re-fetch the contract's current state each time before triggering again, since Test run simulates the trigger against whatever `data` you supply, not a live re-query. Confirm:
 - After the 6th run: `retainerPeriodsBilled = 6`, `nextRetainerBillingDate = NULL`.
 - `paymentRequests` now has exactly 6 rows for this `contractId`.
 - A 7th test run creates nothing further to worry about in production use: once `nextRetainerBillingDate` is `NULL`, the DATE_FIELD trigger's own `loadRecordsToSchedule`/`getRecordNextTime` no longer schedules this contract at all (no `startsOn` value to fire on) — a manual Test run can still be forced against it, but the live schedule won't.
 
-- [ ] **Step 5: Test the `endDate` stop condition independently of cycle count**
+**Result:** confirmed — `retainerPeriodsBilled = 6`, `nextRetainerBillingDate = NULL`, `paymentRequests` count = 6 at that point, exactly matching prediction. An extra (7th) manual "Execute manually" click was then made past this point, which — as the paragraph above anticipated — still ran (Test run bypasses the trigger's own `nextRetainerBillingDate`-based eligibility query, unlike the real scheduled path), creating 1 more `paymentRequests` row and leaving `retainerPeriodsBilled = 7`, `nextRetainerBillingDate` still `NULL`. Confirms the stop is durable (doesn't "resume" once tripped) even under a forced manual re-trigger; harmless since this whole contract is deleted in Task 7's cleanup.
+
+- [x] **Step 5: Test the `endDate` stop condition independently of cycle count**
 
 Create a second verification contract where `endDate` would be reached *before* `retainerDuration` cycles complete:
 
@@ -654,6 +658,8 @@ SELECT COUNT(*) FROM "paymentRequests" WHERE "contractId" = <enddate_id>;
 SELECT "nextRetainerBillingDate", "retainerPeriodsBilled" FROM contracts WHERE id = <enddate_id>;
 ```
 Expected: `COUNT = 3`, `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 3` — stopped because of `endDate`, not because `retainerDuration` (12) was reached.
+
+**Result:** confirmed exactly — contract id 224, `COUNT = 3`, `retainerPeriodsBilled = 3`, `nextRetainerBillingDate = NULL`, stopped at cycle 3 of 12. Task 6's automation is now verified end-to-end: both stop conditions (cycle count and end date) fire correctly and independently.
 
 ---
 
