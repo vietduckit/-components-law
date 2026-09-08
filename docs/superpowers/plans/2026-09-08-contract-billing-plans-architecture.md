@@ -212,6 +212,27 @@ git commit -m "feat(nocobase): script to create the contractBillingPlans collect
 ```
 Committed as `358a0b3` (initial) + `32e1bc2` (dateOnly/createdAt fix).
 
+- [x] **Step 5 (found during Task 9): create the missing inverse relation field**
+
+Discovered while testing Task 9 Step 2 against a real contract created through the deployed UI: `contractBillingPlans` → `contracts` (`belongsTo`, from Task 1 Step 1) has no inverse `contracts` → `contractBillingPlans` (`hasMany`) field — Nocobase doesn't auto-create the reverse side of a relation. Without it, `contracts` has no field literally named `billingPlans` at all, so `ContractCreateForm.js`'s nested `billingPlans: [...]` in its `contracts:create` payload (Task 5) was silently dropped — no error, just zero rows created, confirmed live (a real Retainer contract saved through the deployed UI produced zero matching `contractBillingPlans` rows). Fixed via `JsField/RegisterContractsBillingPlansInverseField.js`:
+
+```js
+const fieldPayload = () => ({
+  name: "billingPlans",
+  type: "hasMany",
+  target: "contractBillingPlans",
+  foreignKey: "contractId",
+  sourceKey: "id",
+  uiSchema: {
+    type: "array",
+    title: "Billing Plans",
+    "x-component": "AssociationField",
+    "x-component-props": { multiple: true },
+  },
+});
+```
+Same idempotent skip-if-exists pattern as this project's other field-registration scripts. `node --check` passed. Committed separately (see git log) — run this, then retry Task 9 Step 2 (create a fresh Retainer contract) to confirm the fix actually closes the loop.
+
 ---
 
 ## Task 2: SQL trigger — initialize retainer billing state on the new collection
