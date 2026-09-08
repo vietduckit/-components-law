@@ -901,38 +901,40 @@ git commit -m "refactor(ContractPaymentScheduleDetailBlock): RetainerRule reads 
 **Interfaces:**
 - Produces: any retainer-aware display/logic in this block reads the contract's active `contractBillingPlans` record instead of parsing `paymentSchedule.retainerRule`.
 
-- [ ] **Step 1: Read the current retainer-reading code to confirm nothing has drifted**
+- [x] **Step 1: Read the current retainer-reading code to confirm nothing has drifted**
 
 Re-read the `retainerRule` construction block (line 603-614, fixed by this session's Task 3, commit `85a57e3`) and `normalizeSchedule`'s handling of `schedule.retainerRule` in this file. If it differs from what this plan describes, stop and reconcile before continuing.
 
-- [ ] **Step 2: Fetch the active billing plan alongside the contract**
+**Result:** confirmed unchanged. Also found, same as Task 6, that `schedule.retainerRule` has 3 more readers beyond this construction site: `contractProfile` (contract-type inference), and `buildRequestableItems`'s planned-date/description/sourceSnapshot fields (money-relevant line-item building, not just display) — all fixed automatically by fixing the source, same pattern as Task 6.
+
+- [x] **Step 2: Fetch the active billing plan alongside the contract**
 
 Wherever this block loads the selected contract's data (`contracts:get`/`contracts:list`), add `billingPlans` to `appends`.
 
-- [ ] **Step 3: Add `resolveActiveBillingPlanDisplay` locally**
+**Result:** two call sites needed it, not one — `getAny(CONTRACT_RESOURCES, safeId, {appends:[...]})` (single-contract fetch) **and** the `listAny(CONTRACT_RESOURCES, {..., appends:[...]})` that populates the full contract list used by this same function's fast-path lookup (`fromList`) before ever falling back to the single-fetch. Missing the list one would have meant `billingPlans` was absent whenever a contract was picked from an already-loaded list — the common case.
+
+- [x] **Step 3: Add `resolveActiveBillingPlanDisplay` locally**
 
 This file's existing `retainerRule` block (Step 1) already calls this file's own `calcRetainerNextPaymentDate` (confirmed present per this session's Task 3 fix, commit `85a57e3`) — add the `resolveActiveBillingPlanDisplay` function from Task 4's code block alongside it (local to this file, not imported — per Task 4's deviation note); keep `calcRetainerNextPaymentDate`/`retainerDurationSuffix` as they already exist here.
 
-- [ ] **Step 4: Replace the `retainerRule` block**
+**Result:** `retainerDurationSuffix` did **not** already exist in this file (only `calcRetainerNextPaymentDate`/`normalizeRetainerUnit` did) — added it too, needed by `resolveActiveBillingPlanDisplay`'s `displayText`.
 
-Replace the `retainerRule = schedule?.retainerRule ? { ...calcRetainerNextPaymentDate(...) } : null` construction (line 603-614) with:
-```js
-const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || null;
-const retainerDisplay = activePlan ? resolveActiveBillingPlanDisplay(activePlan) : null;
-```
-and update whatever downstream JSX reads `retainerRule.nextPaymentDate`/`retainerRule.displayText` to read `retainerDisplay.nextPaymentDate`/`retainerDisplay.displayText` instead.
+- [x] **Step 4: Replace the `retainerRule` block**
 
-- [ ] **Step 5: Verify syntax**
+**Result:** implemented differently than originally drafted, to match Task 6's "fix once at the source" pattern instead of introducing a second `retainerDisplay` variable: `normalizeSchedule` now derives its own `retainerRule` field (same `{enabled, unit, interval, nextPaymentDate, displayText}` shape every downstream reader already expects) from `contract.billingPlans`'s active plan when present, falling back to the legacy JSON computation otherwise — so `contractProfile`/`buildRequestableItems` needed no changes at all, exactly like Task 6.
+
+- [x] **Step 5: Verify syntax**
 
 Run: `node --check "All Module/Payment/PaymentRequestCreateBlock.js"`
 Expected: no output, exit code 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add "All Module/Payment/PaymentRequestCreateBlock.js"
 git commit -m "refactor(PaymentRequestCreateBlock): read the live contractBillingPlans record instead of paymentSchedule.retainerRule"
 ```
+Committed as `53232ad`.
 
 ---
 
