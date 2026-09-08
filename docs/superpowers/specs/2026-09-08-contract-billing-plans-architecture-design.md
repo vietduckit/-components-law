@@ -168,7 +168,9 @@ Given there are few or no real Retainer contracts today, a single idempotent bac
 
 ## 7. Shared-lib extraction
 
-New file `shared-lib/law-billing.js` (separate from `law-shared.js` — this is domain/business logic, not a generic formatting utility like `fmtVND`), following the exact versioned-URL deploy pattern already established and proven with `CaseDashboard.js` (see `shared-lib/README.md`).
+**Deviation, applied during implementation:** this section's `ctx.importAsync()`-based sharing was built, verified, and then dropped at the user's request — the file-manager-hosted-URL deployment doesn't fit their actual Nocobase environment for this feature. The functions below stay duplicated across the three consumer files instead, matching this project's default single-file-block convention (`shared-lib` was always an opt-in exception, not yet the established pattern — see `shared-lib/README.md`'s own "chờ review" status). This does not weaken §2's "single source of truth" goal: that goal is about Retainer *state* (owned by `contractBillingPlans`, §4), not about whether the display-formatting helpers around that state happen to be shared or duplicated.
+
+Original plan (not applied): a new file `shared-lib/law-billing.js` (separate from `law-shared.js` — this is domain/business logic, not a generic formatting utility like `fmtVND`), following the exact versioned-URL deploy pattern already established and proven with `CaseDashboard.js` (see `shared-lib/README.md`).
 
 Moves in:
 - `calcRetainerNextPaymentDate(startDate, interval, unit)` — unchanged signature, now defined once.
