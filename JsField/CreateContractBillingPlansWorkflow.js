@@ -21,6 +21,32 @@
 //     $context.data.contractId (the plan's own FK column) — simpler than
 //     going through the relation for that one field.
 //
+// Also notifies the contract's "Person Responsible" lawyer (contracts.lawyers,
+// a belongsTo -> lawyers collection, "Many to one" per Admin UI Configure
+// fields) via the "payment" in-app channel, right after the payment request
+// is created. Needs appends: ["contracts", "contracts.lawyers"] (nested
+// append path — standard Nocobase repository.findOne() behavior) so
+// $context.data.contracts.lawyers.userId resolves. Uses .userId (the
+// lawyer's own scalar FK to users), not .user.id, per the lesson learned
+// earlier this session with CreatePaymentRequestNotificationWorkflow.js's
+// receivers field (an object-typed receiver entry is treated as a DB
+// filter query, not a user id, by parseUserSelectionConfig.ts).
+//
+// content/title syntax verified by running this repo's own installed
+// `handlebars` package directly (node -e), not assumed: NotificationInstruction.ts
+// only special-cases `content` for a *separate* Handlebars pass (data:
+// processor.getScope(), i.e. the SAME {$context, $jobsMapByNodeKey, ...}
+// shape as every other node) -- title/receivers/channelName go through the
+// normal processor.getParsedValue() resolution first. Both passes accept
+// the SAME {{$context.data.x}} / {{$jobsMapByNodeKey.x}} syntax, confirmed
+// by compiling it with real Handlebars -- a bare {{title}} (no $context/
+// $jobsMapByNodeKey prefix) resolves to an EMPTY string on both, since
+// getScope() never flattens $context.data's own fields to the top level.
+// (This likely means CreatePaymentRequestNotificationWorkflow.js's existing
+// content: "{{title}} (KH: {{customers.shortName}})" has been silently
+// rendering empty since Phase 5 -- a separate, not-yet-confirmed loose end,
+// not fixed here.)
+//
 // Same in-memory-cache caveat as every other script-created workflow
 // this session: after running, toggle Disabled -> Enabled once in
 // Admin -> Workflow.
@@ -45,7 +71,7 @@ const workflowPayload = () => ({
     mode: 1,
     collection: "contractBillingPlans",
     startsOn: { field: "nextBillingDate" },
-    appends: ["contracts"],
+    appends: ["contracts", "contracts.lawyers"],
   },
 });
 
@@ -92,6 +118,34 @@ const createPaymentRequestNodePayload = (upstreamId) => ({
         requestedAmount: "{{$jobsMapByNodeKey.periodAmountCalc}}",
       },
     },
+  },
+});
+
+// Notification title/content use the same {{$context.data.x}} /
+// {{$jobsMapByNodeKey.x}} syntax as every other node — verified against
+// real Handlebars, see this file's header comment. Reuses the "payment"
+// in-app channel already proven working by
+// JsField/CreatePaymentRequestNotificationWorkflow.js earlier this
+// session. ignoreFail: true (unlike that workflow) because this
+// notification is one step in a longer chain that must still reach
+// stopCondition/updateStop/updateContinue even if sending fails (e.g. a
+// contract with no "Person Responsible" lawyer set, or a lawyer with no
+// linked user account) — a notification problem must never block the
+// billing-cycle advancement logic downstream.
+const notifyResponsibleLawyerNodePayload = (upstreamId) => ({
+  type: "notification",
+  key: "notifyResponsibleLawyer",
+  title: "Notify contract's responsible lawyer",
+  upstreamId,
+  branchIndex: null,
+  config: {
+    channelName: "payment",
+    receivers: ["{{$context.data.contracts.lawyers.userId}}"],
+    title: "Yêu cầu thanh toán tự động (Retainer)",
+    content:
+      "{{$jobsMapByNodeKey.createPaymentRequest.title}} - Số tiền: {{$jobsMapByNodeKey.periodAmountCalc}} VND. Vui lòng xem xét và duyệt.",
+    options: {},
+    ignoreFail: true,
   },
 });
 
@@ -219,7 +273,8 @@ const updateContinueNodePayload = (upstreamId) => ({
   const n1 = await createNode(periodAmountNodePayload());
   const n2 = await createNode(nextPeriodsBilledNodePayload(n1.id));
   const n3 = await createNode(createPaymentRequestNodePayload(n2.id));
-  const n4 = await createNode(nextDateNodePayload(n3.id));
+  const n3b = await createNode(notifyResponsibleLawyerNodePayload(n3.id));
+  const n4 = await createNode(nextDateNodePayload(n3b.id));
   const n5 = await createNode(nextDateTsNodePayload(n4.id));
   const n6 = await createNode(endDateTsNodePayload(n5.id));
   const n7 = await createNode(stopConditionNodePayload(n6.id));
