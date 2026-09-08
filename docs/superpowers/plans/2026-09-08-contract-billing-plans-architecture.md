@@ -1048,11 +1048,11 @@ Committed as `30cdf0f`.
 
 **Interfaces:** None produced — acceptance test for Tasks 1-8 together.
 
-- [ ] **Step 1: Deploy the updated JS Blocks**
+- [x] **Step 1: Deploy the updated JS Blocks**
 
 Per this project's CLAUDE.md ("dán vào NocoBase dev/staging để test trước khi đưa lên production"): paste the updated `ContractCreateForm.js` (Task 5), `ContractPaymentScheduleDetailBlock.js` (Task 6), and `PaymentRequestCreateBlock.js` (Task 7) into their respective JS Block editors on dev/staging. This also fixes the separately-diagnosed stale-deployment issue from earlier this session (the "Every 3 months" old-code display on contract 225) as a side effect, since it redeploys `ContractCreateForm.js` regardless.
 
-- [ ] **Step 2: Create a fresh real Retainer contract through the UI**
+- [x] **Step 2: Create a fresh real Retainer contract through the UI**
 
 Real customer, `totalAmount` from real services, Retainer duration = 3, Retainer repeat = month, a real "First payment" date. Confirm in pgAdmin immediately after saving:
 ```sql
@@ -1062,32 +1062,61 @@ WHERE c."contractName" = '<the name you used>';
 ```
 Expected: exactly one plan row, `status='active'`, `retainerCyclesBilled=0`, `nextBillingDate` = the First payment date entered.
 
-- [ ] **Step 3: Confirm the detail panel shows the live plan, not a stale computation**
+**Result — first attempt found a real bug:** 0 rows. Root cause: `contractBillingPlans.contracts` (belongsTo, Task 1) has no auto-created inverse — Nocobase doesn't generate the reverse side of a relation, so `contracts` had no field literally named `billingPlans` at all, and `contracts:create`'s nested `billingPlans: [...]` payload was silently dropped (no error). Fixed via a new script, `JsField/RegisterContractsBillingPlansInverseField.js` (`contracts.billingPlans`, `hasMany` → `contractBillingPlans`, `foreignKey: "contractId"`) — see Task 1 Step 5 for the full fix, committed as `f453242`. Retried with a fresh contract ("Hợp đồng dịch vụ pháp lý 3", `contractId=227`) — confirmed: 1 plan row, `retainerTotalCycles=3`, `retainerUnit='month'`, `nextBillingDate` = First payment date, `retainerCyclesBilled=0`, `status='active'`.
+
+- [x] **Step 3: Confirm the detail panel shows the live plan, not a stale computation**
 
 Open the contract's payment schedule detail view. Confirm "Retainer rule" / "Next payment" / "Cycles billed" (new, from Task 6) match the database exactly.
 
-- [ ] **Step 4: Force one automation cycle and re-check the display**
+**Result:** confirmed — "Retainer rule: Every month · 3 months total", "Next payment: [First payment date]", "Cycles billed: 0 / 3", all matching the DB row exactly.
+
+- [x] **Step 4: Force one automation cycle and re-check the display**
 
 Set that plan's `nextBillingDate` to today (pgAdmin `UPDATE`) and either wait for the schedule or use Execute manually on the Task 3 workflow. Confirm: a new `paymentRequests` row appears in the app's "All Request" list; the contract detail panel's "Next payment"/"Cycles billed" now show the *advanced* state (this is the specific staleness bug this whole plan exists to fix — confirm it's actually gone, not just theoretically fixed).
+
+**Result — confirmed, this is the core proof the redesign works:** after running the workflow once against `contractId=227`'s plan, reloading the contract detail page showed "Next payment: [+1 month]" and "Cycles billed: 1 / 3" — the panel visibly advanced in step with the automation, live, through the real UI. This is the exact staleness bug (§1.2 of the spec) this entire architecture exists to fix, now verified fixed end-to-end, not just in isolated SQL checks.
 
 - [ ] **Step 5: Confirm the existing payment-status chain still connects**
 
 Approve the generated request and record the corresponding Payment through the existing UI flow. Confirm the contract's `paymentStatus`/`outStandingAmount` update via the already-shipped prior-spec trigger chain — no new code involved, just confirms nothing broke crossing feature boundaries.
 
-- [ ] **Step 6: Clean up this plan's own test rows**
+Skipped by user choice — this chain is unchanged by this redesign (no new spec touches `contracts.paymentStatus`/`outStandingAmount` logic), so the risk of it having broken is very low. Left unchecked rather than marked done, since it genuinely wasn't run.
+
+- [x] **Step 6: Clean up this plan's own test rows**
 
 ```sql
-DELETE FROM "paymentRequests" WHERE "contractId" = 225;
-DELETE FROM "contractBillingPlans" WHERE "contractId" = 225;
+DELETE FROM "paymentRequests" WHERE "contractId" IN (225, 227);
+DELETE FROM "contractBillingPlans" WHERE "contractId" IN (225, 227);
 ```
-(Removes the Task 2/3 test rows created against contract 225 — the fresh real contract from Step 2 of this task is left in place as real data, not test data.)
+(225 = the earlier stale-deployment diagnostic contract; 227 = this task's own Step 2 walkthrough contract — both this session's test/walkthrough data, not real contracts worth keeping.)
 
-- [ ] **Step 7: Grep-confirm no remaining references to the old fields, before Task 10 drops them**
+- [x] **Step 7: Grep-confirm no remaining references to the old fields, before Task 10 drops them**
 
 ```bash
 grep -rn "retainerPeriod\b\|\.monthlyFee\b\|\.includedHours\b\|\.overageHourlyRate\b\|\.retainerDuration\b\|\.nextRetainerBillingDate\b\|\.retainerPeriodsBilled\b\|\.contractType\b" "All Module/" "JsField/"
 ```
-Expected: no matches outside of comments/this session's own historical `pgsql/*.sql` files (which are immutable history, not live code) — every live `.js` file should have moved to the new collection/fields by now. If anything unexpected turns up, fix it before proceeding to Task 10.
+
+**Result — found real gaps, addressed in Task 9b below (not the "expected: no matches" outcome):** 9 files matched, not the 3 already fixed. 4 (`CaseServices.js`, `QuotationCreateForm.js`, `QuotationServices.js`, `ContractServices.js`) only use the already-dead `monthlyFee × retainerDuration` fallback (harmless — `monthlyFee` has been `null` since before this session, so this branch has never fired and dropping `retainerDuration` changes nothing observable). 2 (`PaymentCreateBlock.js`, `PaymentContractDetailBlock.js`) had genuinely live `retainerRule.interval || contract.retainerDuration` next-payment-date logic that would have broken once Task 10 runs — fixed in Task 9b. `contractType` matches are the already-documented, deliberately-deferred gap from Task 5's Result note (TutorialPanel and others) — still open, tracked there, not re-litigated here.
+
+---
+
+## Task 9b: Fix the 2 more files found by Task 9 Step 7's grep
+
+**Files:**
+- Modify: `All Module/Payment/PaymentCreateBlock.js`
+- Modify: `All Module/Payment/PaymentContractDetailBlock.js`
+
+**Interfaces:**
+- Produces: both files' `resolveRetainerNextPaymentDate` now check `contract.billingPlans`'s active plan first, matching the fix already applied to `ContractPaymentScheduleDetailBlock.js`/`PaymentRequestCreateBlock.js` in Tasks 6-7.
+
+Same pattern as Tasks 6-7, applied to 2 more independently-duplicated copies of the same logic this session didn't originally know existed:
+
+- [x] Added local `retainerDurationSuffix`/`resolveActiveBillingPlanDisplay` to both files (neither had them).
+- [x] `resolveRetainerNextPaymentDate` in both files now checks `contract?.billingPlans?.find(p => p.status === "active")` first, falling back to the legacy JSON computation unchanged otherwise.
+- [x] Added `billingPlans` to every `contracts` `appends` call site: 3 in `PaymentCreateBlock.js` (contract list, single-contract lookup by id, single-contract lookup by payment-request's contract), 1 in `PaymentContractDetailBlock.js`.
+- [x] Left `PaymentContractDetailBlock.js`'s `contractTotalAmount`'s `monthlyFee × retainerDuration` fallback untouched — confirmed dead (same reasoning as the 4 skipped files above), not worth touching in a task about the collection migration.
+- [x] `node --check` on both files — pass.
+- [x] Commit: `git add "All Module/Payment/PaymentCreateBlock.js" "All Module/Payment/PaymentContractDetailBlock.js" && git commit -m "refactor(PaymentCreateBlock, PaymentContractDetailBlock): read live contractBillingPlans before dropping contracts.retainerDuration"` — committed as `bff0e4d`.
 
 ---
 
