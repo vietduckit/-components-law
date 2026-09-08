@@ -547,61 +547,49 @@ git commit -m "feat(nocobase): register nextRetainerBillingDate/retainerPeriodsB
 
 ---
 
-## Task 6: Build the Nocobase Workflow (manual, no code)
+## Task 6: Build the Nocobase Workflow (scripted, via `DateFieldScheduleTrigger`)
 
-**Files:** none — Nocobase Admin UI configuration only, for the reasons in this plan's Architecture/Global Constraints (a Workflow row created via script/API has previously not been picked up by the running server's in-memory cache; building it through the normal UI editor is the proven-safe path, verified working earlier this session for the "Payment Request created — notify assignee" workflow).
+**DEVIATION FROM THE ORIGINAL DESIGN BELOW, confirmed with the user:** this task was originally written as a manual, UI-only build (Static/cron Schedule trigger + Query + Loop), for the same "script-created workflow rows may not be picked up by the server's in-memory cache" reason documented in this plan's Architecture note. Mid-execution, reading `packages/plugins/@nocobase/plugin-workflow/src/server/triggers/ScheduleTrigger/DateFieldScheduleTrigger.ts` in full (in the `nocobase` reference repo) surfaced a built-in trigger mode — `type: 'schedule'`, `config.mode: 1` (`SCHEDULE_MODE.DATE_FIELD`) — that watches a date field on a collection directly and fires exactly once per matching row, with no Query/Loop needed at all: it hooks `contracts.afterSaveWithAssociations`, so the workflow's own final Update node writing a new `nextRetainerBillingDate` re-arms the same trigger for the next cycle automatically. This is simpler than the Query+Loop design and avoids depending on a Loop instruction/plugin this session never verified is installed. The user was shown both options (with the trade-off below) via AskUserQuestion and chose this one.
+
+**Trade-off accepted:** the DATE_FIELD trigger has no `repeat` config in this design, so `getRecordNextTime()` will not fire retroactively for a date already in the past — if the server is down (or this workflow disabled) at the exact moment a contract's `nextRetainerBillingDate` is reached, that cycle stays silently un-fired until someone manually edits that contract's `nextRetainerBillingDate` forward. The original Query `<= today` design would have self-healed from downtime automatically, at the cost of the unverified Loop dependency. Given this system's actual cadence (monthly/quarterly cycles, a visibly-stuck date field, human review already in the loop before any money moves), this was judged an acceptable trade for the simpler, fully-verified design.
+
+**Files:**
+- Create: `JsField/CreateRetainerBillingWorkflow.js` (ONE-TIME setup script, not a reusable block — same pattern as `JsField/CreatePaymentRequestNotificationWorkflow.js` and `JsField/RegisterRetainerBillingFields.js` earlier in this plan).
 
 **Interfaces:**
 - Consumes: `contracts.nextRetainerBillingDate`, `contracts.retainerPeriodsBilled`, `contracts.retainerDuration`, `contracts.totalAmount`, `contracts.customerId`, `contracts.internalCompanyId`, `contracts.contractCode`, `contracts.contractName`, `contracts.endDate`, `contracts.paymentSchedule` (for `retainerRule.unit`) — all from Task 4/5.
 - Produces: new `paymentRequests` rows with `status: 'submitted'` — the existing `trg_payment_recompute_contract` → `trg_contract_cascade_case_status` chain (already shipped, prior spec) takes it from there with no further changes needed.
 
-- [ ] **Step 1: Create the workflow and its Schedule trigger**
+Node graph (every node's exact `type`/`config` shape is documented inline in the script's header comment, sourced from Nocobase's own instruction/trigger source — not guessed):
 
-Admin → Workflow → Add new:
-- Title: `Retainer billing — auto-create next payment request`
-- Trigger type: **Schedule**
-- Trigger mode: repeating, daily, time `01:00` (any off-peak time is fine — this only needs to run once per day, not at a specific business-sensitive moment)
-- Save.
+```
+Trigger: schedule, mode=1 (DATE_FIELD), collection=contracts, startsOn.field=nextRetainerBillingDate
+  -> Calculation "periodAmountCalc":        totalAmount / retainerDuration
+  -> Calculation "nextPeriodsBilledCalc":   retainerPeriodsBilled + 1
+  -> Create "createPaymentRequest" (paymentRequests): status=submitted,
+     contractId/customerId/internalCompanyId copied from the contract,
+     requestedAmount = periodAmountCalc, title built from
+     contractCode/contractName/nextPeriodsBilledCalc
+  -> dateCalculation "nextDateCalc":        format(add(nextRetainerBillingDate, 1, retainerRule.unit), 'YYYY-MM-DD')
+  -> Condition "stopCondition":             nextPeriodsBilledCalc >= retainerDuration
+                                             || (endDate != null && nextDateCalc > endDate)
+       branchIndex=1 (true)  -> Update "updateStop":     retainerPeriodsBilled=nextPeriodsBilledCalc, nextRetainerBillingDate=null
+       branchIndex=0 (false) -> Update "updateContinue": retainerPeriodsBilled=nextPeriodsBilledCalc, nextRetainerBillingDate=nextDateCalc
+```
 
-- [ ] **Step 2: Add the Query node**
+`nextDateCalc` is produced as a `'YYYY-MM-DD'` string (a trailing `format` step), not a Date object — directly writable into the `date` column, and safely comparable to `endDate` via plain lexicographic `>` with no dependency on unverified mathjs Date-object support.
 
-Add a **Query record** node, collection `contracts`, filter:
-- `nextRetainerBillingDate` is set (not empty)
-- `nextRetainerBillingDate` ≤ today (use the "Date variable: Now" / current-date system variable Nocobase's filter UI offers for date fields — exact widget label may differ by version; the goal is "on or before today", not a hardcoded date)
+- [ ] **Step 1: Run the workflow-creation script**
 
-- [ ] **Step 3: Add a Loop node over the Query result**
+Paste the full contents of `JsField/CreateRetainerBillingWorkflow.js` into a temporary Action block's onClick (or the browser dev console on any admin page) and run it. Expected console output: `[created] workflow id=...` followed by 7 `[created] node "..." id=...` lines (`periodAmountCalc`, `nextPeriodsBilledCalc`, `createPaymentRequest`, `nextDateCalc`, `stopCondition`, `updateStop`, `updateContinue`), then the "Next steps" reminder. Re-running the script is safe — it skips if a workflow titled `Retainer billing - auto-create next payment request` already exists.
 
-Add a **Loop** node, source: the Query node's result set from Step 2. Everything in Steps 4-7 goes **inside** this loop, executing once per matched contract.
+- [ ] **Step 2: Force the server to pick up the new workflow**
 
-- [ ] **Step 4: Compute the per-period amount**
+Admin → Workflow → open "Retainer billing - auto-create next payment request" → toggle it **Disabled** then **Enabled** once, even though the script created it with `enabled: true` (same in-memory-cache caveat as every other script-created workflow this session — see this plan's Architecture note).
 
-Add a **Calculation** node (inside the loop): `periodAmount = {{loop item}}.totalAmount / {{loop item}}.retainerDuration`.
+- [ ] **Step 3: Test run against the Task 4 verification contract**
 
-- [ ] **Step 5: Create the Payment Request**
-
-Add a **Create record** node, collection `paymentRequests`:
-- `title`: `Retainer: {{loop item.contractCode}} - {{loop item.contractName}} - Kỳ {{loop item.retainerPeriodsBilled + 1}}` (human-readable per this project's established notification-content convention — never a bare id; adjust the exact concatenation to whatever field-reference syntax this Nocobase version's Create-record title input actually accepts, following the same variable-picker pattern already used successfully this session for the payment-request notification workflow's content field).
-- `status`: `submitted`
-- `contractId`: `{{loop item.id}}`
-- `customerId`: `{{loop item.customerId}}`
-- `internalCompanyId`: `{{loop item.internalCompanyId}}`
-- `requestedAmount`: `{{periodAmount}}` (Step 4's result)
-
-- [ ] **Step 6: Compute the next cycle's state**
-
-Add a **Calculation** node (inside the loop, after Step 5):
-- `nextPeriodsBilled = {{loop item}}.retainerPeriodsBilled + 1`
-- `nextDate`: `{{loop item}}.nextRetainerBillingDate` advanced by 1 unit, where the unit comes from `{{loop item}}.paymentSchedule.retainerRule.unit` (`day` / `week` / `month` / `quarter` / `year`). If this Nocobase version's Calculation node doesn't expose a date-add-by-unit function directly usable per-row, use a **Condition** node branching on the unit value first, each branch doing a fixed date-add (`+1 day`, `+7 days`, `+1 month`, `+3 months`, `+1 year`) via whatever date-math the Calculation node supports — the destination value is the same either way, just the node-graph shape differs slightly by version.
-
-- [ ] **Step 7: Decide whether to continue or stop, then update the contract**
-
-Add a **Condition** node (inside the loop, after Step 6): true when `nextPeriodsBilled >= {{loop item}}.retainerDuration` OR (`{{loop item}}.endDate` is set AND `nextDate > {{loop item}}.endDate`).
-- **True branch** → **Update record** node, target `{{loop item.id}}` on `contracts`: `retainerPeriodsBilled: {{nextPeriodsBilled}}`, `nextRetainerBillingDate: null` (stop — cycles exhausted or term ended).
-- **False branch** → **Update record** node, same target: `retainerPeriodsBilled: {{nextPeriodsBilled}}`, `nextRetainerBillingDate: {{nextDate}}` (continue to the next cycle).
-
-- [ ] **Step 8: Test run against the Task 4 verification contract**
-
-Use the Workflow editor's **Test run** feature (or temporarily set `plan-verify-retainer-fixed`'s `nextRetainerBillingDate` to today via pgAdmin if Test run doesn't support Schedule triggers in this Nocobase version) against the `plan-verify-retainer-fixed` contract from Task 4 Step 3 (`totalAmount = 18000000`, `retainerDuration = 6`).
+Use the Workflow editor's **Test run** feature, supplying the `plan-verify-retainer-fixed` contract from Task 4 Step 3 (`totalAmount = 18000000`, `retainerDuration = 6`) as the trigger's `data` (`DateFieldScheduleTrigger.validateContext` requires a `data` record — the UI's Test run form should prompt for which record to simulate).
 
 In pgAdmin, confirm:
 ```sql
@@ -615,14 +603,14 @@ SELECT "nextRetainerBillingDate", "retainerPeriodsBilled" FROM contracts WHERE i
 ```
 Expected: `retainerPeriodsBilled = 1`, `nextRetainerBillingDate = 2026-11-01` (one month after the `2026-10-01` set in Task 4 Step 3).
 
-- [ ] **Step 9: Run the test 5 more times to confirm the stop condition**
+- [ ] **Step 4: Run the test 5 more times to confirm the stop condition**
 
-Repeat Step 8's test-run trigger 5 more times (6 total). Confirm:
+Repeat Step 3's test-run trigger 5 more times (6 total) — re-fetch the contract's current state each time before triggering again, since Test run simulates the trigger against whatever `data` you supply, not a live re-query. Confirm:
 - After the 6th run: `retainerPeriodsBilled = 6`, `nextRetainerBillingDate = NULL`.
 - `paymentRequests` now has exactly 6 rows for this `contractId`.
-- A 7th test run creates nothing further (the Query node in Step 2 no longer matches this contract, since `nextRetainerBillingDate` is `NULL`).
+- A 7th test run creates nothing further to worry about in production use: once `nextRetainerBillingDate` is `NULL`, the DATE_FIELD trigger's own `loadRecordsToSchedule`/`getRecordNextTime` no longer schedules this contract at all (no `startsOn` value to fire on) — a manual Test run can still be forced against it, but the live schedule won't.
 
-- [ ] **Step 10: Test the `endDate` stop condition independently of cycle count**
+- [ ] **Step 5: Test the `endDate` stop condition independently of cycle count**
 
 Create a second verification contract where `endDate` would be reached *before* `retainerDuration` cycles complete:
 
@@ -636,29 +624,24 @@ INSERT INTO contracts (
   12000000,
   12,
   '2026-12-15',
-  '{"retainerRule": {"enabled": true}, "firstPaymentDate": "2026-10-01"}'::jsonb,
+  '{"retainerRule": {"enabled": true, "unit": "month"}, "firstPaymentDate": "2026-10-01"}'::jsonb,
   now(), now()
 )
 RETURNING id, "nextRetainerBillingDate", "retainerPeriodsBilled";
 ```
 Expected: `nextRetainerBillingDate = 2026-10-01`, `retainerPeriodsBilled = 0` (Task 4's init trigger doesn't look at `endDate` at all — only Task 6's Condition node does, which is exactly what this step tests).
 
-Run the Workflow (Test run, or set `nextRetainerBillingDate` to today) twice:
-- After run 1: `nextRetainerBillingDate = 2026-11-01`, `retainerPeriodsBilled = 1` (11-01 is still before the 12-15 `endDate`, so the false branch fired — continue).
-- After run 2: `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 2` (the *next* candidate date would be `2026-12-01`, and Step 7's Calculation already computed `nextDate = 2026-12-01` for the comparison — but note the Condition in Task 6 Step 7 checks whether **`nextDate` itself** exceeds `endDate`, and `2026-12-01` is still before `2026-12-15`, so this should actually still continue to a 3rd cycle, not stop at run 2).
+Run the Workflow (Test run, supplying this contract's current row each time) three times:
+- After run 1: `nextRetainerBillingDate = 2026-11-01`, `retainerPeriodsBilled = 1` (11-01 is still before the 12-15 `endDate` — continue).
+- After run 2: `nextRetainerBillingDate = 2026-12-01`, `retainerPeriodsBilled = 2` (12-01 is still before 12-15 — continue).
+- After run 3: the next candidate date is `2027-01-01`, which **is** past `2026-12-15` → `stopCondition`'s true branch fires → `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 3`. Run 3 still creates its own payment request for the `2026-12-01` cycle (Create happens before the next-cycle check) — only the cycle *after* that is the one skipped.
 
-  Correct the expectation: run 2 should produce `nextRetainerBillingDate = 2026-12-01`, `retainerPeriodsBilled = 2` (still before `endDate`). Run a 3rd time: the next candidate date would be `2027-01-01`, which **is** past `2026-12-15` → this 3rd run's Condition node's true branch fires → `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 3`, and `paymentRequests` still only has 3 rows total for this contract (the 3rd run does create a request for the `2026-12-01` cycle itself — Step 5 creates the request for the *current* due date before Step 6/7 compute and check the *next* one — only the request for the cycle *after* that gets skipped).
-
-  Confirm via:
-  ```sql
-  SELECT COUNT(*) FROM "paymentRequests" WHERE "contractId" = <enddate_id>;
-  SELECT "nextRetainerBillingDate", "retainerPeriodsBilled" FROM contracts WHERE id = <enddate_id>;
-  ```
-  Expected: `COUNT = 3`, `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 3` — stopped because of `endDate`, not because `retainerDuration` (12) was reached.
-
-- [ ] **Step 11: Enable the workflow**
-
-Toggle the workflow to **Enabled** in the Admin UI (it must be explicitly saved/enabled through the same editor used to build it — this is the proven-safe path per this plan's Architecture note).
+Confirm via:
+```sql
+SELECT COUNT(*) FROM "paymentRequests" WHERE "contractId" = <enddate_id>;
+SELECT "nextRetainerBillingDate", "retainerPeriodsBilled" FROM contracts WHERE id = <enddate_id>;
+```
+Expected: `COUNT = 3`, `nextRetainerBillingDate = NULL`, `retainerPeriodsBilled = 3` — stopped because of `endDate`, not because `retainerDuration` (12) was reached.
 
 ---
 
