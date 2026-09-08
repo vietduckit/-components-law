@@ -271,11 +271,13 @@ CREATE TRIGGER trg_contract_billing_plan_init_retainer_state
   EXECUTE FUNCTION public.contract_billing_plan_init_retainer_state();
 ```
 
-- [ ] **Step 2: Apply it in pgAdmin and verify**
+- [x] **Step 2: Apply it in pgAdmin and verify**
 
 Paste into pgAdmin's Query Tool (same `db.dev.samset.net` / `law306` connection used throughout this session) and execute.
 
-- [ ] **Step 3: Verify the trigger against a fresh fixed-term retainer plan insert**
+**Result:** first attempt at Steps 3-4 below returned `nextBillingDate = NULL` for both test rows — the test inserts had been run before this step's SQL actually completed successfully (confirmed via `SELECT tgname, tgrelid::regclass, tgenabled FROM pg_trigger WHERE tgname = 'trg_contract_billing_plan_init_retainer_state'` returning 0 rows the first time). Re-ran this file, trigger confirmed present and enabled (`tgenabled = 'O'`), re-ran the test inserts — correct results below.
+
+- [x] **Step 3: Verify the trigger against a fresh fixed-term retainer plan insert**
 
 ```sql
 INSERT INTO "contractBillingPlans" (
@@ -289,7 +291,9 @@ RETURNING id, "nextBillingDate", "retainerCyclesBilled";
 ```
 Expected: `nextBillingDate = 2026-10-01`, `retainerCyclesBilled = 0`. (Reuses contract 225 from this session's earlier testing purely as a valid existing `contractId` to satisfy the FK — this row is deleted again in Task 9's cleanup, it is not meant to represent contract 225's real plan.)
 
-- [ ] **Step 4: Verify open-ended plans are excluded**
+**Result:** confirmed — id=3, `nextBillingDate=2026-10-01`, `retainerCyclesBilled=0`. This row's id is reused as the Task 3 test-run target.
+
+- [x] **Step 4: Verify open-ended plans are excluded**
 
 ```sql
 INSERT INTO "contractBillingPlans" (
@@ -303,16 +307,21 @@ RETURNING id, "nextBillingDate", "retainerCyclesBilled";
 ```
 Expected: `nextBillingDate = NULL` (open-ended, correctly excluded from automation per spec §3 Non-goals).
 
-- [ ] **Step 5: Re-run the file to confirm idempotency**
+**Result:** confirmed — id=4, `nextBillingDate=NULL`, `retainerCyclesBilled=0`.
+
+- [x] **Step 5: Re-run the file to confirm idempotency**
 
 Paste `pgsql/contract_billing_plans_trigger.sql` into pgAdmin again. Expected: no errors, no duplicate triggers.
 
-- [ ] **Step 6: Commit**
+Already exercised in practice — this file was run twice during Step 2/3's debugging (the second run is what actually created the working trigger), with no errors on either run.
+
+- [x] **Step 6: Commit**
 
 ```bash
 git add "pgsql/contract_billing_plans_trigger.sql"
 git commit -m "feat(pgsql): contractBillingPlans retainer state init trigger"
 ```
+Committed as `55a151c`.
 
 ---
 
