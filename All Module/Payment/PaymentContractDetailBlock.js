@@ -141,7 +141,52 @@ const calcRetainerNextPaymentDate = (paymentDate, retainerDuration, repeatUnit) 
   return "";
 };
 
+const retainerDurationSuffix = (retainerPeriod, durationValue) => {
+  const singular = parseNum(durationValue) === 1;
+  if (retainerPeriod === "day") return singular ? "day" : "days";
+  if (retainerPeriod === "week") return singular ? "week" : "weeks";
+  if (retainerPeriod === "month") return singular ? "month" : "months";
+  if (retainerPeriod === "quarter") return singular ? "quarter" : "quarters";
+  if (retainerPeriod === "year") return singular ? "year" : "years";
+  return singular ? "cycle" : "cycles";
+};
+
+// Replaces recomputing "startDate + 1 unit" blind to actual progress —
+// once a plan exists, its own nextBillingDate is the live, correct
+// answer, written by the retainer-billing automation directly.
+const resolveActiveBillingPlanDisplay = (plan) => {
+  if (!plan) return null;
+  const totalCycles = plan.retainerTotalCycles ?? null;
+  const cyclesBilled = plan.retainerCyclesBilled ?? 0;
+  if (plan.nextBillingDate) {
+    return {
+      nextPaymentDate: normalizeDateInput(plan.nextBillingDate),
+      cyclesBilled,
+      totalCycles,
+      displayText: totalCycles
+        ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+        : `Every ${plan.retainerUnit} · open-ended`,
+    };
+  }
+  return {
+    nextPaymentDate: calcRetainerNextPaymentDate(plan.startDate, 1, plan.retainerUnit),
+    cyclesBilled,
+    totalCycles,
+    displayText: totalCycles
+      ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+      : `Every ${plan.retainerUnit} · open-ended`,
+  };
+};
+
+// Prefers the live contractBillingPlans record (via contract.billingPlans)
+// when present — the single source of truth the retainer-billing
+// automation reads and writes directly. Falls back to the legacy
+// paymentSchedule.retainerRule JSON for contracts not yet backfilled.
 const resolveRetainerNextPaymentDate = (contract, schedule) => {
+  const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || null;
+  if (activePlan) {
+    return resolveActiveBillingPlanDisplay(activePlan)?.nextPaymentDate || "";
+  }
   const rule = schedule?.retainerRule || null;
   const storedDate = normalizeDateInput(rule?.nextPaymentDate);
   if (storedDate) return storedDate;
@@ -498,7 +543,7 @@ const PaymentContractDetailBlock = () => {
           relationRecord(freshInvoice?.contract);
         const freshContract =
           (contractId
-            ? await getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers"] }).catch(() => null)
+            ? await getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "billingPlans"] }).catch(() => null)
             : null) ||
           directContract ||
           null;

@@ -237,7 +237,52 @@
     return Array.isArray(raw) ? { installments: raw } : raw;
   };
 
+  const retainerDurationSuffix = (retainerPeriod, durationValue) => {
+    const singular = parseNum(durationValue) === 1;
+    if (retainerPeriod === "day") return singular ? "day" : "days";
+    if (retainerPeriod === "week") return singular ? "week" : "weeks";
+    if (retainerPeriod === "month") return singular ? "month" : "months";
+    if (retainerPeriod === "quarter") return singular ? "quarter" : "quarters";
+    if (retainerPeriod === "year") return singular ? "year" : "years";
+    return singular ? "cycle" : "cycles";
+  };
+
+  // Replaces recomputing "startDate + 1 unit" blind to actual progress —
+  // once a plan exists, its own nextBillingDate is the live, correct
+  // answer, written by the retainer-billing automation directly.
+  const resolveActiveBillingPlanDisplay = (plan) => {
+    if (!plan) return null;
+    const totalCycles = plan.retainerTotalCycles ?? null;
+    const cyclesBilled = plan.retainerCyclesBilled ?? 0;
+    if (plan.nextBillingDate) {
+      return {
+        nextPaymentDate: normalizeDateInput(plan.nextBillingDate),
+        cyclesBilled,
+        totalCycles,
+        displayText: totalCycles
+          ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+          : `Every ${plan.retainerUnit} · open-ended`,
+      };
+    }
+    return {
+      nextPaymentDate: calcRetainerNextPaymentDate(plan.startDate, 1, plan.retainerUnit),
+      cyclesBilled,
+      totalCycles,
+      displayText: totalCycles
+        ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+        : `Every ${plan.retainerUnit} · open-ended`,
+    };
+  };
+
+  // Prefers the live contractBillingPlans record (via contract.billingPlans)
+  // when present — the single source of truth the retainer-billing
+  // automation reads and writes directly. Falls back to the legacy
+  // paymentSchedule.retainerRule JSON for contracts not yet backfilled.
   const resolveRetainerNextPaymentDate = (contract) => {
+    const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || null;
+    if (activePlan) {
+      return resolveActiveBillingPlanDisplay(activePlan)?.nextPaymentDate || "";
+    }
     const schedule = resolvePaymentSchedule(contract);
     const rule = schedule?.retainerRule || null;
     const storedDate = normalizeDateInput(rule?.nextPaymentDate);
@@ -862,7 +907,7 @@
       let mounted = true;
       Promise.all([
         listAny(INVOICE_RESOURCES, { pageSize: 500, sort: ["-createdAt"] }).catch(() => []),
-        listAny(CONTRACT_RESOURCES, { pageSize: 500, sort: ["-createdAt"], appends: ["customers"] }).catch(() => []),
+        listAny(CONTRACT_RESOURCES, { pageSize: 500, sort: ["-createdAt"], appends: ["customers", "billingPlans"] }).catch(() => []),
         listAny(CUSTOMER_RESOURCES, { pageSize: 500, sort: ["createdAt"] }).catch(() => []),
         listAny(COMPANY_RESOURCES, { pageSize: 500, sort: ["createdAt"] }).catch(() => []),
         listAny(USER_RESOURCES, { pageSize: 500 }).catch(() => []),
@@ -946,7 +991,7 @@
       setLoading(true);
       try {
         const [contract, payments] = await Promise.all([
-          getAny(CONTRACT_RESOURCES, safeId, { appends: ["customers"] }),
+          getAny(CONTRACT_RESOURCES, safeId, { appends: ["customers", "billingPlans"] }),
           listPaymentsByContract(safeId),
         ]);
         setSelectedContract(contract || null);
@@ -1005,7 +1050,7 @@
         if (!contractId) throw new Error("No contract linked to this payment request item.");
 
         const [contract, payments] = await Promise.all([
-          getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany"] }),
+          getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany", "billingPlans"] }),
           listPaymentsByContract(contractId).catch(() => []),
         ]);
         const scheduleItemId = String(
