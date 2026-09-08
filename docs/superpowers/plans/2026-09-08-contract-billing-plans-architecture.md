@@ -31,7 +31,9 @@
 **Interfaces:**
 - Produces: collection `contractBillingPlans` with fields `contracts` (belongsTo → `contracts`, FK `contractId`), `planType`, `status`, `totalAmount`, `startDate`, `endDate`, `retainerUnit`, `retainerTotalCycles`, `retainerCyclesBilled`, `nextBillingDate` — every later task in this plan reads/writes these exact field names.
 
-- [ ] **Step 1: Write the collection-creation script**
+- [x] **Step 1: Write the collection-creation script**
+
+**Result:** first run revealed a real bug — `type: "date"` maps to Sequelize `DATE(3)` (Postgres `timestamp with time zone`), not a date-only column; the correct Nocobase field type is `type: "dateOnly"` (Sequelize `DATEONLY`), confirmed against `packages/core/database/src/fields/date-field.ts` vs `date-only-field.ts`. Also `timestamps: true` produced no `createdAt`/`updatedAt` columns — replaced with explicit field entries (`interface: "createdAt"`/`"updatedAt"` on a `type: "date"` field, which is the mechanism `date-field.ts` itself uses to wire up automatic timestamp tracking). Script also changed from skip-if-exists to delete-and-recreate so the fix could be applied cleanly. Second run confirmed correct: all 13 columns present, `startDate`/`endDate`/`nextBillingDate` are plain `date`, `createdAt`/`updatedAt` are `timestamp with time zone`.
 
 Create `JsField/CreateContractBillingPlansCollection.js`:
 
@@ -185,29 +187,30 @@ const collectionPayload = () => ({
 })();
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 Run: `node --check "JsField/CreateContractBillingPlansCollection.js"`
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Run it and verify**
+- [x] **Step 3: Run it and verify**
 
 Paste into a temporary Action block's onClick (or browser dev console) and run. Expected console: `[created] collection "contractBillingPlans" contractBillingPlans` then the "Done." line.
 
-In pgAdmin, confirm the table and all 10 columns exist:
+In pgAdmin, confirm the table and all 13 columns exist:
 ```sql
 SELECT column_name, data_type FROM information_schema.columns
 WHERE table_name = 'contractBillingPlans'
 ORDER BY ordinal_position;
 ```
-Expected: `id`, `contractId`, `planType`, `status`, `totalAmount`, `startDate`, `endDate`, `retainerUnit`, `retainerTotalCycles`, `retainerCyclesBilled`, `nextBillingDate`, `createdAt`, `updatedAt` (13 rows — Nocobase adds `id`/`createdAt`/`updatedAt` automatically).
+Expected: `id`, `createdAt`, `updatedAt`, `planType`, `status`, `totalAmount`, `startDate`, `endDate`, `retainerUnit`, `retainerTotalCycles`, `retainerCyclesBilled`, `nextBillingDate`, `contractId` (13 rows). **Confirmed working** after the Step 1 fix (see its Result note).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add "JsField/CreateContractBillingPlansCollection.js"
 git commit -m "feat(nocobase): script to create the contractBillingPlans collection"
 ```
+Committed as `358a0b3` (initial) + `32e1bc2` (dateOnly/createdAt fix).
 
 ---
 
