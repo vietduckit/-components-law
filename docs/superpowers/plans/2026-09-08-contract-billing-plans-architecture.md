@@ -1131,7 +1131,7 @@ Same pattern as Tasks 6-7, applied to 2 more independently-duplicated copies of 
 
 **`contractType` deliberately excluded from this run.** Checked during Task 10 prep: within `ContractCreateForm.js`, `contractType` (including its `TutorialPanel` usage) turned out to be entirely form-state-driven, never read back from a saved record — safer than Task 5's original note suggested. But `contractType` also drives the colored "Type" badge in the native Nocobase "All Contracts" grid (seen live in this session's own screenshots) — that rendering is configured through the Admin UI's own field/list-view metadata, which this plan cannot audit by reading `.js` files. Given this is the one genuinely hard-to-reverse step in the whole plan, dropping a column with an unverified native-UI dependency isn't worth the risk for a single extra column. `contracts.contractType` stays for now; the 7 other columns (all confirmed safe — every live reader fixed in Tasks 5-7/9b, every remaining reference confirmed dead) are dropped in this run.
 
-- [ ] **Step 1: Write the migration file**
+- [x] **Step 1: Write the migration file**
 
 Create `pgsql/contracts_drop_dead_columns.sql`:
 
@@ -1161,7 +1161,7 @@ ALTER TABLE contracts DROP COLUMN IF EXISTS "nextRetainerBillingDate";
 ALTER TABLE contracts DROP COLUMN IF EXISTS "retainerPeriodsBilled";
 ```
 
-- [ ] **Step 2: Also remove the now-orphaned Nocobase field metadata**
+- [x] **Step 2: Also remove the now-orphaned Nocobase field metadata**
 
 Dropping a Postgres column directly (rather than through `fields:destroy`) can leave Nocobase's own field registry pointing at a column that no longer exists. After running Step 1's SQL, also run, once, in a temporary Action block:
 
@@ -1183,7 +1183,7 @@ const FIELDS_TO_REMOVE = [
 })();
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```sql
 SELECT column_name FROM information_schema.columns
@@ -1194,13 +1194,27 @@ Expected: 0 rows. (`contractType` deliberately not included in this check — it
 
 Reload the Admin UI's contract list/detail views — confirm nothing errors out referencing a missing field (this is the live check that Task 9 Step 7's grep was actually thorough).
 
-- [ ] **Step 4: Re-run Step 1's SQL to confirm idempotency**
+**Result — found one more real dependency, fixed live:** `retainerDuration`'s `DROP COLUMN` failed first attempt — `trg_contract_init_retainer_billing_state` (the *old* trigger from the 2026-09-05/07 retainer-billing-automation feature, still attached to `contracts`, never explicitly retired once Tasks 5-7 stopped feeding it) directly depended on the column. This trigger had been silently dead weight since Task 5 (its outputs — `contracts.nextRetainerBillingDate`/`retainerPeriodsBilled` — stopped being read by anything once the UI moved to `contractBillingPlans`), just never dropped. Fixed via new file `pgsql/contracts_drop_obsolete_retainer_trigger.sql` (`DROP TRIGGER`/`DROP FUNCTION IF EXISTS`), committed as `aeeb668`. Re-ran `contracts_drop_dead_columns.sql` and the field-metadata script after that — all 7 columns and their Nocobase field metadata confirmed gone (`retainerDuration` check: 0 rows).
 
-Expected: no errors (all `DROP COLUMN IF EXISTS`, already gone).
+- [x] **Step 4: Re-run Step 1's SQL to confirm idempotency**
 
-- [ ] **Step 5: Commit**
+Expected: no errors (all `DROP COLUMN IF EXISTS`, already gone). Exercised naturally by the Step 3 retry above (same file, re-run after the trigger fix) — no errors on the columns already dropped in the first pass.
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add "pgsql/contracts_drop_dead_columns.sql"
 git commit -m "feat(pgsql): drop contracts columns superseded by contractBillingPlans"
 ```
+Committed as `7da8b73` (bundled with the field-metadata script, both written together) + `aeeb668` (the obsolete-trigger fix that unblocked `retainerDuration`).
+
+---
+
+## Plan status: complete
+
+Tasks 1-10 (+9b) all done and verified — collection created, trigger + workflow built and tested end-to-end (including the new `status='completed'` transition), 5 UI files migrated to read `contractBillingPlans` instead of `paymentSchedule.retainerRule` (3 originally scoped + 2 found via Task 9's grep sweep), existing data backfilled, a real contract walked through the full UI end-to-end confirming the exact staleness bug this redesign exists to fix is gone, and 7 of 8 superseded `contracts` columns dropped (`contractType` deliberately deferred — see Task 10's note).
+
+**Known open items, not blocking, tracked for whenever they're picked up:**
+- `contractType` column removal — needs a native Admin UI list-view/grid audit this plan can't perform from files alone (Task 10's note).
+- Task 9 Step 5 (payment-status chain confirmation) — skipped by user choice, low risk, not run.
+- Sub-projects 2-4 of the original 4-part decomposition (By-case audit, combo/package pricing review, Invoice/Payment chain audit) — explicit future work, per the spec's Overview.
