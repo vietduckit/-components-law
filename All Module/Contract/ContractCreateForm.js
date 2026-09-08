@@ -1880,23 +1880,9 @@
     const totalAmount =
       baseAmount || cleanRows.reduce((sum, row) => sum + row.amount, 0);
     const enabledRetainerRule = !!isRetainer;
-    const unit = form.retainerRepeatUnit || "month";
-    // Always exactly 1 — this system has no "bill every N units" concept
-    // beyond a single unit. "Retainer duration" (form label; hint "Leave
-    // blank for open-ended retainer"; placeholder "Number of billing
-    // cycles") is a TOTAL CYCLE COUNT, never a step size. This used to feed
-    // that count in here directly, so a 6-cycle monthly retainer's "next
-    // payment" jumped +6 months instead of +1.
-    const interval = 1;
-    const totalCycles = nullableNum(form.retainerDuration);
-    const anchorType = unit;
-    const anchorValue = 1;
     const firstPaymentDate = enabledRetainerRule
       ? form.paymentDate || null
       : cleanRows[0]?.paymentDate || null;
-    const nextPaymentDate = enabledRetainerRule
-      ? calcRetainerNextPaymentDate(firstPaymentDate, interval, unit)
-      : null;
     const hasScheduleData =
       cleanRows.length ||
       enabledRetainerRule ||
@@ -1907,6 +1893,13 @@
       return null;
     }
 
+    // Retainer schedule state (unit/duration/cycles-billed/next billing
+    // date) is no longer built here — it lives on the nested billingPlans
+    // record instead (see the contracts:create submit payload), which is
+    // the single source of truth the retainer-billing automation reads
+    // and writes directly. Building a parallel retainerRule snapshot here
+    // was the root cause of this UI showing stale data next to the live
+    // automation state.
     return {
       version: 1,
       mode: enabledRetainerRule
@@ -1922,19 +1915,6 @@
       baseAmount,
       firstPaymentDate,
       totalAmount: totalAmount || nullableNum(form.totalAmount),
-      retainerRule: {
-        enabled: enabledRetainerRule,
-        anchorType,
-        anchorValue,
-        interval,
-        unit,
-        nextPaymentDate,
-        displayText: enabledRetainerRule
-          ? totalCycles
-            ? `Every ${unit} · ${totalCycles} ${retainerDurationSuffix(unit, totalCycles)} total`
-            : `Every ${unit} · open-ended`
-          : "",
-      },
       installments: cleanRows.map((row, index) => {
         const cumulativeTotal = cleanRows
           .slice(0, index + 1)
@@ -5163,6 +5143,23 @@
                 : filteredCombos.map((c, i) => {
                     const itemCount = (c.serviceComboItems || []).length;
                     const comboCurrency = currencyFromRecord(c, currencies, defaultCurrency);
+                    // Illustrative only — sums each service's own standalone
+                    // basePrice × quantity so the user can see, at a glance,
+                    // how much cheaper the package is vs. buying the lines
+                    // separately. Does not touch packageSubTotal/totalAmount.
+                    const individualTotal = (c.serviceComboItems || []).reduce((sum, item) => {
+                      const svc = item.services || {};
+                      // serviceComboItems.basePrice is a snapshot taken when the
+                      // line was added to the combo — prefer it over the live
+                      // services join so historical combos keep their original
+                      // per-line price even if the catalog price changes later.
+                      const price = parseNum(item.basePrice ?? svc.basePrice ?? svc.unitPrice ?? svc.price ?? 0);
+                      const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+                      return sum + price * qty;
+                    }, 0);
+                    const packagePrice = parseNum(c.packageSubTotal);
+                    const comboSavings = individualTotal - packagePrice;
+                    const comboSavingsPct = individualTotal > 0 ? Math.round((comboSavings / individualTotal) * 100) : 0;
                     return React.createElement(
                       "tr",
                       {
@@ -5195,8 +5192,20 @@
                       React.createElement(
                         "td",
                         { style: modalTdStyle({ textAlign: "right" }) },
+                        comboSavings !== 0 &&
+                          React.createElement(
+                            "div",
+                            { style: { fontSize: 11, color: C.sub, textDecoration: "line-through" } },
+                            formatMoneyByCurrency(individualTotal, comboCurrency),
+                          ),
                         React.createElement("div", { style: { fontWeight: 700, color: C.text } }, formatMoneyByCurrency(c.packageSubTotal, comboCurrency)),
                         React.createElement("div", { style: { fontSize: 10.5, color: C.sub } }, `VAT ${parseNum(c.packageVatRate)}%`),
+                        comboSavings > 0 &&
+                          React.createElement(
+                            "div",
+                            { style: { fontSize: 10.5, color: "#52c41a", fontWeight: 600 } },
+                            `Tiết kiệm ${formatMoneyByCurrency(comboSavings, comboCurrency)} (${comboSavingsPct}%)`,
+                          ),
                       ),
                       React.createElement("td", { style: modalTdStyle({ textAlign: "center", color: C.sub, fontSize: 12.5 }) }, itemCount),
                       React.createElement(
@@ -5889,8 +5898,57 @@
     // a CSS grid, not an HTML table) rendered right before the first row of
     // each applied-combo section, so combo-derived rows are visually grouped —
     // with inline "+ Add service" (into this combo) and "Remove combo" actions.
-    const renderComboSectionHeader = (combo, instanceId) =>
-      React.createElement(
+    // Reference-only comparison against the combo's catalog definition — the
+    // same figures the "Apply Package" picker shows before applying,
+    // resurfaced here so they stay visible once the package is on the
+    // contract. Doesn't affect combo.originalAmount, the actual per-instance
+    // amount charged.
+    const getComboHeaderPriceComparison = (combo) => {
+      const comboIdVal = extractId(combo?.comboId);
+      if (!comboIdVal) return null;
+      const catalogCombo = combos.find((c) => extractId(c.id) === comboIdVal);
+      if (!catalogCombo) return null;
+      const individualTotal = (catalogCombo.serviceComboItems || []).reduce((sum, item) => {
+        const svc = item.services || {};
+        const price = parseNum(item.basePrice ?? svc.basePrice ?? svc.unitPrice ?? svc.price ?? 0);
+        const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
+        return sum + price * qty;
+      }, 0);
+      const packagePrice = parseNum(combo.originalAmount);
+      const savings = individualTotal - packagePrice;
+      const savingsPct = individualTotal > 0 ? Math.round((savings / individualTotal) * 100) : 0;
+      return {
+        individualTotal,
+        packagePrice,
+        savings,
+        savingsPct,
+        currency: currencyFromRecord(catalogCombo, currencies, defaultCurrency),
+      };
+    };
+
+    // A package row's own basePrice is always 0 — this looks up what that one
+    // line would cost standalone, from the combo catalog snapshot (matched via
+    // the row's own _comboCatalogId + serviceId), purely for display.
+    const getComboLineIndividualPrice = (row) => {
+      const comboIdVal = extractId(row?._comboCatalogId);
+      if (!comboIdVal) return null;
+      const catalogCombo = combos.find((c) => extractId(c.id) === comboIdVal);
+      if (!catalogCombo) return null;
+      const svcIdVal = extractId(row?.serviceId);
+      const item = (catalogCombo.serviceComboItems || []).find(
+        (it) => extractId(it.services?.id) === svcIdVal,
+      );
+      if (!item) return null;
+      const svc = item.services || {};
+      return {
+        price: parseNum(item.basePrice ?? svc.basePrice ?? svc.unitPrice ?? svc.price ?? 0),
+        currency: currencyFromRecord(catalogCombo, currencies, defaultCurrency),
+      };
+    };
+
+    const renderComboSectionHeader = (combo, instanceId) => {
+      const priceComparison = getComboHeaderPriceComparison(combo);
+      return React.createElement(
         "div",
         {
           key: `combo-header-${instanceId}`,
@@ -5942,6 +6000,18 @@
                 ? `${combo.originalAmount.toLocaleString("vi-VN")} ${combo.currencyCode} → ${formatMoneyByCurrency(combo.convertedAmount, defaultCurrency)}`
                 : formatMoneyByCurrency(combo.convertedAmount, defaultCurrency),
             ),
+          priceComparison &&
+            React.createElement(
+              "span",
+              { style: { fontSize: 11.5, color: C.sub } },
+              `Giá lẻ: ${formatMoneyByCurrency(priceComparison.individualTotal, priceComparison.currency)}`,
+            ),
+          priceComparison && priceComparison.savings > 0 &&
+            React.createElement(
+              "span",
+              { style: { fontSize: 11.5, color: "#52c41a", fontWeight: 600 } },
+              `Tiết kiệm ${formatMoneyByCurrency(priceComparison.savings, priceComparison.currency)} (${priceComparison.savingsPct}%)`,
+            ),
           onAddServiceToCombo &&
             React.createElement(
               "button",
@@ -5989,6 +6059,7 @@
             ),
         ),
       );
+    };
 
     const modalButtonStyle = {
       border: "none",
@@ -6963,17 +7034,34 @@
                       "div",
                       { style: cellStyle },
                       packageMode
-                        ? React.createElement(
-                            "span",
-                            {
-                              style: {
-                                color: C.primary,
-                                fontWeight: 700,
-                                fontSize: 13,
-                              },
-                            },
-                            "Included in package",
-                          )
+                        ? (() => {
+                            // Same standalone-price lookup used by the Service
+                            // Combo config screen's own Base Price column —
+                            // shown here instead of the "Included in package"
+                            // label so the per-line discount is visible.
+                            const individual = getComboLineIndividualPrice(row);
+                            return React.createElement(
+                              "div",
+                              { style: { display: "flex", flexDirection: "column", gap: 2 } },
+                              individual
+                                ? React.createElement(
+                                    "span",
+                                    { style: { color: C.text, fontWeight: 700, fontSize: 13 } },
+                                    formatMoneyByCurrency(individual.price, individual.currency),
+                                  )
+                                : React.createElement(
+                                    "span",
+                                    { style: { color: C.primary, fontWeight: 700, fontSize: 13 } },
+                                    "Included in package",
+                                  ),
+                              individual &&
+                                React.createElement(
+                                  "span",
+                                  { style: { fontSize: 10.5, color: C.primary, fontWeight: 600 } },
+                                  "Included in package",
+                                ),
+                            );
+                          })()
                         : React.createElement(
                             "div",
                             { style: { display: "grid", gap: 8, width: "100%" } },
@@ -7670,9 +7758,12 @@
   };
 
   const RetainerScheduleSection = ({ form, onUpdate }) => {
+    // Always 1 — retainerDuration is a total cycle count, not a step
+    // size (same fix as buildPaymentSchedulePayload; this call site was
+    // missed when that one was fixed earlier this session).
     const nextPaymentDate = calcRetainerNextPaymentDate(
       form.paymentDate,
-      form.retainerDuration,
+      1,
       form.retainerRepeatUnit,
     );
 
@@ -10107,6 +10198,7 @@
         ...prev,
         {
           instanceId: comboInstanceId,
+          comboId: String(comboId),
           comboName: combo.comboName || "",
           originalAmount: parseNum(combo.packageSubTotal),
           convertedAmount: convertedSubTotal,
@@ -11360,7 +11452,6 @@
               ? null
               : toIso(form.endDate),
           paymentDate: toIsoDateTime(resolvedPaymentDate),
-          monthlyFee: null,
           fixedAmount:
             headerTotals.totalAmount || parseNum(form.fixedAmount) || null,
           hourlyRate: visibleFeeFields.hourlyRate
@@ -11372,12 +11463,19 @@
           successFee: visibleFeeFields.successFee
             ? parseNum(form.successFee) || null
             : null,
-          retainerPeriod: null,
-          retainerDuration: isRetainer
-            ? nullableNum(form.retainerDuration)
-            : null,
-          includedHours: null,
-          overageHourlyRate: null,
+          billingPlans: isRetainer
+            ? [
+                {
+                  planType: "retainer",
+                  status: "active",
+                  totalAmount: headerTotals.totalAmount || parseNum(form.fixedAmount) || null,
+                  startDate: toIso(form.paymentDate),
+                  endDate: toIso(form.endDate),
+                  retainerUnit: form.retainerRepeatUnit || "month",
+                  retainerTotalCycles: nullableNum(form.retainerDuration),
+                },
+              ]
+            : undefined,
           subTotal: headerTotals.subTotal,
           vatAmount: headerTotals.vatAmount,
           totalAmount: headerTotals.totalAmount,
@@ -12010,15 +12108,16 @@
                         ),
                       }),
                     ),
-                    React.createElement(
-                      Field,
-                      { label: "Billing cycle" },
-                      React.createElement(SelectInput, {
-                        value: form.billingCycle,
-                        onChange: (v) => setF("billingCycle", v),
-                        options: BILLING_CYCLES,
-                      }),
-                    ),
+                    !isRetainer &&
+                      React.createElement(
+                        Field,
+                        { label: "Billing cycle" },
+                        React.createElement(SelectInput, {
+                          value: form.billingCycle,
+                          onChange: (v) => setF("billingCycle", v),
+                          options: BILLING_CYCLES,
+                        }),
+                      ),
                     visibleFeeFields.retainerDuration &&
                       React.createElement(
                         Field,
