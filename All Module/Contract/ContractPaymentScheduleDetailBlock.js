@@ -296,15 +296,12 @@ const calcRetainerNextPaymentDate = (paymentDate, retainerDuration, repeatUnit) 
   return "";
 };
 
-const resolveRetainerNextPaymentDate = (record, schedule, rule) => {
-  const storedDate = normalizeDateInput(rule?.nextPaymentDate);
-  if (storedDate) return storedDate;
-  return calcRetainerNextPaymentDate(
+const resolveRetainerNextPaymentDate = (record, schedule, rule) =>
+  calcRetainerNextPaymentDate(
     schedule?.firstPaymentDate || record?.paymentDate,
-    rule?.interval || record?.retainerDuration,
+    1,
     rule?.unit || record?.retainerRepeatUnit || record?.retainerPeriod,
   );
-};
 
 const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
 
