@@ -947,7 +947,7 @@ Committed as `53232ad`.
 - Consumes: `contracts.{contractType,retainerDuration,nextRetainerBillingDate,retainerPeriodsBilled,paymentSchedule,totalAmount,endDate}` — still present at this point (Task 10 hasn't run yet).
 - Produces: one `contractBillingPlans` row per existing Retainer contract.
 
-- [ ] **Step 1: Write the migration file**
+- [x] **Step 1: Write the migration file**
 
 Create `pgsql/contract_billing_plans_migration_backfill.sql`:
 
@@ -976,7 +976,7 @@ SELECT
   COALESCE(c."totalAmount", (c."paymentSchedule" ->> 'totalAmount')::numeric),
   COALESCE(NULLIF(c."paymentSchedule" ->> 'firstPaymentDate', '')::date, c."paymentDate"::date),
   c."endDate"::date,
-  COALESCE(NULLIF(c."paymentSchedule" -> 'retainerRule' ->> 'unit', ''), c."retainerRepeatUnit", 'month'),
+  COALESCE(NULLIF(c."paymentSchedule" -> 'retainerRule' ->> 'unit', ''), 'month'),
   c."retainerDuration"::integer,
   COALESCE(c."retainerPeriodsBilled", 0),
   c."nextRetainerBillingDate",
@@ -992,16 +992,16 @@ WHERE (
 RETURNING id, "contractId", "nextBillingDate", "retainerCyclesBilled";
 ```
 
-Note: `c."retainerRepeatUnit"` is referenced as a fallback source in case some contract predates even the `paymentSchedule.retainerRule.unit` convention — if this column doesn't actually exist on `contracts` (it may only ever have existed as a form-local JS variable, never a real column — confirm via Step 2's own schema check before running), drop that fallback from the `COALESCE` and rely on `paymentSchedule.retainerRule.unit` / the `'month'` default only.
+**Deviation from the original draft:** dropped the `c."retainerRepeatUnit"` fallback that was in this step's earlier version — there was never solid evidence it's a real column on `contracts` (only ever seen used as `record?.retainerRepeatUnit`, i.e. safe optional-chaining that proves nothing either way), and referencing a genuinely absent column would fail the whole `INSERT` outright. Safer to rely on `paymentSchedule.retainerRule.unit` / the `'month'` default only — matches the file actually committed.
 
-- [ ] **Step 2: Confirm column names before running**
+- [x] **Step 2: Confirm column names before running**
 
 ```sql
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'contracts'
-  AND column_name IN ('contractType', 'retainerDuration', 'nextRetainerBillingDate', 'retainerPeriodsBilled', 'retainerRepeatUnit', 'totalAmount', 'endDate', 'paymentDate');
+  AND column_name IN ('contractType', 'retainerDuration', 'nextRetainerBillingDate', 'retainerPeriodsBilled', 'totalAmount', 'endDate', 'paymentDate');
 ```
-Remove any reference in Step 1's query to a column this returns as absent (edit the file before running it if `retainerRepeatUnit` isn't a real column — see the note above).
+All of these are columns this session already read/wrote directly earlier (Task 4/5 of the prior spec's plan, and Tasks 5-7 of this one) — confidence is already high they exist; this check is a final confirmation, not exploratory.
 
 - [ ] **Step 3: Run it and verify**
 
