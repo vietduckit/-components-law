@@ -1881,14 +1881,21 @@
       baseAmount || cleanRows.reduce((sum, row) => sum + row.amount, 0);
     const enabledRetainerRule = !!isRetainer;
     const unit = form.retainerRepeatUnit || "month";
-    const interval = parseNum(form.retainerDuration) || 1;
+    // Always exactly 1 — this system has no "bill every N units" concept
+    // beyond a single unit. "Retainer duration" (form label; hint "Leave
+    // blank for open-ended retainer"; placeholder "Number of billing
+    // cycles") is a TOTAL CYCLE COUNT, never a step size. This used to feed
+    // that count in here directly, so a 6-cycle monthly retainer's "next
+    // payment" jumped +6 months instead of +1.
+    const interval = 1;
+    const totalCycles = nullableNum(form.retainerDuration);
     const anchorType = unit;
     const anchorValue = 1;
     const firstPaymentDate = enabledRetainerRule
       ? form.paymentDate || null
       : cleanRows[0]?.paymentDate || null;
     const nextPaymentDate = enabledRetainerRule
-      ? calcRetainerNextPaymentDate(firstPaymentDate, form.retainerDuration, unit)
+      ? calcRetainerNextPaymentDate(firstPaymentDate, interval, unit)
       : null;
     const hasScheduleData =
       cleanRows.length ||
@@ -1923,7 +1930,9 @@
         unit,
         nextPaymentDate,
         displayText: enabledRetainerRule
-          ? `Every ${interval} ${retainerDurationSuffix(unit, interval)}`
+          ? totalCycles
+            ? `Every ${unit} · ${totalCycles} ${retainerDurationSuffix(unit, totalCycles)} total`
+            : `Every ${unit} · open-ended`
           : "",
       },
       installments: cleanRows.map((row, index) => {
