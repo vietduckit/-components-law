@@ -43,7 +43,7 @@ const contextRecord =
 const PAYMENT_RESOURCES = ["payments", "Payment", "payment"];
 const PAYMENT_REQUEST_RESOURCES = ["paymentRequests", "PaymentRequests", "payment_requests"];
 const PAYMENT_REQUEST_ITEM_RESOURCES = ["paymentRequestItems", "PaymentRequestItems", "payment_request_items"];
-const USER_RESOURCES = ["users"];
+const LAWYER_RESOURCES = ["lawyers", "Lawyer", "lawyer"];
 const MONEY_TOLERANCE = 0;
 const ACTUAL_PAYMENT_STATUSES = ["received", "paid", "completed", "partial"];
 const NON_ACTIVE_STATUSES = ["cancelled", "canceled", "void"];
@@ -100,14 +100,8 @@ const getCurrentUser = () =>
   ctx.store?.getState?.()?.currentUser ||
   null;
 
-const userLabel = (record) =>
-  compact([
-    firstPresent(record, ["nickname", "displayName", "name", "username", "email"]),
-    firstPresent(record, ["email"]) &&
-    firstPresent(record, ["email"]) !== firstPresent(record, ["nickname", "displayName", "name", "username", "email"])
-      ? `(${firstPresent(record, ["email"])})`
-      : "",
-  ]).join(" ") || (record?.id ? `User #${record.id}` : "-");
+const lawyerLabel = (record) =>
+  firstPresent(record, ["lawyerName", "nickname", "name"]) || (record?.id ? `Lawyer #${record.id}` : "-");
 
 const customerLabel = (record) =>
   compact([
@@ -127,6 +121,21 @@ const buildDefaultPaymentRequestTitle = (record, requestType) =>
     contractLabel(record),
     "Payment schedule",
   ]).join(" - ");
+
+// Wrapped in a single <span> (not a Fragment) so the [text, "*"] pair stays
+// on one line even when the parent label uses display:grid — a Fragment's
+// children get flattened into the grid as SEPARATE items, each landing on
+// its own row, which is what threw required fields' input off-alignment
+// with their non-required row-mates.
+const fieldLabel = (text, required = false) =>
+  required
+    ? React.createElement(
+        "span",
+        null,
+        text,
+        React.createElement("span", { style: { color: "#ff4d4f", marginLeft: 2 } }, "*"),
+      )
+    : text;
 
 const removeKeys = (record, keys = []) => {
   const next = { ...(record || {}) };
@@ -207,7 +216,7 @@ const refreshNocoBaseDataBlocks = async () => {
 const formatMoney = (value) => {
   const n = parseNum(value);
   if (!n && (value === undefined || value === null || value === "")) return "—";
-  return `${Math.round(n).toLocaleString("vi-VN")} VNĐ`;
+  return `${Math.round(n).toLocaleString("vi-VN")} VND`;
 };
 
 const formatDate = (value) => {
@@ -296,12 +305,46 @@ const calcRetainerNextPaymentDate = (paymentDate, retainerDuration, repeatUnit) 
   return "";
 };
 
-const resolveRetainerNextPaymentDate = (record, schedule, rule) =>
-  calcRetainerNextPaymentDate(
-    schedule?.firstPaymentDate || record?.paymentDate,
-    1,
-    rule?.unit || record?.retainerRepeatUnit || record?.retainerPeriod,
-  );
+const retainerDurationSuffix = (retainerPeriod, durationValue) => {
+  const singular = parseNum(durationValue) === 1;
+  if (retainerPeriod === "day") return singular ? "day" : "days";
+  if (retainerPeriod === "week") return singular ? "week" : "weeks";
+  if (retainerPeriod === "month") return singular ? "month" : "months";
+  if (retainerPeriod === "quarter") return singular ? "quarter" : "quarters";
+  if (retainerPeriod === "year") return singular ? "year" : "years";
+  return singular ? "cycle" : "cycles";
+};
+
+// Replaces the old resolveRetainerNextPaymentDate pattern (which always
+// recomputed "startDate + 1 unit" and had no way to know how many cycles
+// had actually been auto-billed). Once a plan exists, its own
+// nextBillingDate *is* the live, correct next-payment date — this reads
+// it directly instead of approximating it a second time.
+const resolveActiveBillingPlanDisplay = (plan) => {
+  if (!plan) return null;
+  const totalCycles = plan.retainerTotalCycles ?? null;
+  const cyclesBilled = plan.retainerCyclesBilled ?? 0;
+  if (plan.nextBillingDate) {
+    return {
+      nextPaymentDate: normalizeDateInput(plan.nextBillingDate),
+      cyclesBilled,
+      totalCycles,
+      displayText: totalCycles
+        ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+        : `Every ${plan.retainerUnit} · open-ended`,
+    };
+  }
+  // Plan exists but automation hasn't initialized nextBillingDate yet
+  // (e.g. open-ended plan, or not yet saved) — best-effort preview only.
+  return {
+    nextPaymentDate: calcRetainerNextPaymentDate(plan.startDate, 1, plan.retainerUnit),
+    cyclesBilled,
+    totalCycles,
+    displayText: totalCycles
+      ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+      : `Every ${plan.retainerUnit} · open-ended`,
+  };
+};
 
 const normalizeStatus = (status) => String(status || "").trim().toLowerCase();
 
@@ -310,13 +353,13 @@ const isActualPaidStatus = (status) => ACTUAL_PAYMENT_STATUSES.includes(normaliz
 
 const modeLabel = (mode) => {
   const labels = {
-    multiple_payments: "Thanh toán nhiều đợt",
-    one_time: "Thanh toán một lần",
-    monthly: "Hàng tháng",
-    quarterly: "Hàng quý",
-    milestone: "Theo milestone",
-    manual: "Nhập thủ công",
-    recurring: "Lặp định kỳ",
+    multiple_payments: "Multiple payments",
+    one_time: "One time",
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+    milestone: "By milestone",
+    manual: "Manual",
+    recurring: "Recurring",
   };
   return labels[String(mode || "").trim()] || mode || "";
 };
@@ -324,18 +367,18 @@ const modeLabel = (mode) => {
 const statusMeta = (status) => {
   const key = String(status || "planned").toLowerCase().trim();
   const map = {
-    planned: { label: "Dự kiến", bg: C.neutralBg, color: C.neutralText },
-    partial: { label: "Thanh toán một phần", bg: C.warningBg, color: C.warningText },
-    pending: { label: "Đang chờ", bg: C.warningBg, color: C.warningText },
-    due: { label: "Đến hạn", bg: C.warningBg, color: C.warningText },
-    overdue: { label: "Quá hạn", bg: C.dangerBg, color: C.dangerText },
-    received: { label: "Đã nhận", bg: C.successBg, color: C.successText },
-    paid: { label: "Đã thanh toán", bg: C.successBg, color: C.successText },
-    completed: { label: "Hoàn tất", bg: C.successBg, color: C.successText },
-    cancelled: { label: "Đã hủy", bg: C.neutralBg, color: C.neutralText },
-    canceled: { label: "Đã hủy", bg: C.neutralBg, color: C.neutralText },
+    planned: { label: "Planned", bg: C.neutralBg, color: C.neutralText },
+    partial: { label: "Partial", bg: C.warningBg, color: C.warningText },
+    pending: { label: "Pending", bg: C.warningBg, color: C.warningText },
+    due: { label: "Due", bg: C.warningBg, color: C.warningText },
+    overdue: { label: "Overdue", bg: C.dangerBg, color: C.dangerText },
+    received: { label: "Received", bg: C.successBg, color: C.successText },
+    paid: { label: "Paid", bg: C.successBg, color: C.successText },
+    completed: { label: "Completed", bg: C.successBg, color: C.successText },
+    cancelled: { label: "Cancelled", bg: C.neutralBg, color: C.neutralText },
+    canceled: { label: "Cancelled", bg: C.neutralBg, color: C.neutralText },
   };
-  return map[key] || { label: status || "Dự kiến", bg: C.neutralBg, color: C.neutralText };
+  return map[key] || { label: status || "Planned", bg: C.neutralBg, color: C.neutralText };
 };
 
 const installmentAmountFromPercent = (percentage, baseAmount) => {
@@ -360,7 +403,7 @@ const normalizeInstallment = (row, index, runningTotal, baseAmount) => {
       row?.installmentLabel ||
       row?.installment ||
       row?.name ||
-      `Đợt ${index + 1}`,
+      `Installment ${index + 1}`,
     content: row?.content || row?.description || row?.note || row?.timingNote || "",
     paymentDate: row?.paymentDate || row?.dueDate || row?.date || row?.timing || "",
     amount,
@@ -371,8 +414,16 @@ const normalizeInstallment = (row, index, runningTotal, baseAmount) => {
 };
 
 const normalizeSchedule = (record) => {
-  const raw = safeJsonParse(record?.paymentSchedule);
-  if (!raw) return null;
+  // By-case contracts (billingCycle "one_time"/"multiple_payments" with no
+  // manually-entered schedule) legitimately have paymentSchedule = null —
+  // that used to make this function bail out to null entirely, which hid
+  // the whole "Create payment request" section for every by-case contract.
+  // Falling through with an empty object here lets the rest of this
+  // function — and buildRequestableItems's own fallback below — derive a
+  // single full-amount request line from the contract's own totalAmount/
+  // fixedAmount instead, the same way it already does for retainer
+  // contracts with no explicit schedule.
+  const raw = safeJsonParse(record?.paymentSchedule) || {};
 
   const schedule = Array.isArray(raw)
     ? {
@@ -391,7 +442,9 @@ const normalizeSchedule = (record) => {
     : Array.isArray(schedule?.rows)
       ? schedule.rows
       : [];
-  const baseAmount = parseNum(schedule?.baseAmount ?? schedule?.totalAmount ?? record?.totalAmount);
+  const baseAmount = parseNum(
+    schedule?.baseAmount ?? schedule?.totalAmount ?? record?.totalAmount ?? record?.fixedAmount,
+  );
 
   let runningTotal = 0;
   const installments = sourceRows
@@ -406,14 +459,36 @@ const normalizeSchedule = (record) => {
     baseAmount ||
     parseNum(schedule?.totalAmount) ||
     installments.reduce((sum, row) => sum + row.amount, 0) ||
-    parseNum(record?.totalAmount);
+    parseNum(record?.totalAmount) ||
+    parseNum(record?.fixedAmount);
 
-  const retainerRule = schedule?.retainerRule
+  // Prefer the live contractBillingPlans record when present (via
+  // record.billingPlans, appended by fetchContract) — this is the single
+  // source of truth the retainer-billing automation reads and writes
+  // directly, so reading it here means this display can never disagree
+  // with the automation's actual state. Falls back to the legacy
+  // paymentSchedule.retainerRule JSON only for contracts that predate
+  // this collection and haven't been backfilled into it yet.
+  const activePlan = record?.billingPlans?.find((p) => p.status === "active") || null;
+  const planDisplay = activePlan ? resolveActiveBillingPlanDisplay(activePlan) : null;
+  const retainerRule = activePlan
     ? {
-        ...schedule.retainerRule,
-        nextPaymentDate: resolveRetainerNextPaymentDate(record, schedule, schedule.retainerRule),
+        enabled: true,
+        unit: activePlan.retainerUnit,
+        interval: 1,
+        nextPaymentDate: planDisplay?.nextPaymentDate || "",
+        displayText: planDisplay?.displayText || "",
       }
-    : null;
+    : schedule?.retainerRule
+      ? {
+          ...schedule.retainerRule,
+          nextPaymentDate: calcRetainerNextPaymentDate(
+            schedule.firstPaymentDate || record?.paymentDate,
+            1,
+            schedule.retainerRule.unit || record?.retainerRepeatUnit,
+          ),
+        }
+      : null;
 
   return {
     version: schedule?.version || 1,
@@ -423,6 +498,7 @@ const normalizeSchedule = (record) => {
     totalAmount,
     baseAmount,
     retainerRule,
+    billingPlan: activePlan,
     installments,
   };
 };
@@ -432,14 +508,18 @@ const hasRenderableSchedule = (schedule) =>
     schedule &&
     (schedule.installments.length ||
       schedule.retainerRule?.enabled ||
-      schedule.mode === "recurring")
+      schedule.mode === "recurring" ||
+      // By-case contracts with no explicit schedule but a real contract
+      // value still have something payable — buildRequestableItems falls
+      // back to one single full-amount line for exactly this case.
+      parseNum(schedule.totalAmount) > 0)
   );
 
 const fetchContract = async (contractId) => {
   if (!contractId) return null;
   const res = await ctx.api.request({
     url: "contracts:get",
-    params: { filterByTk: contractId },
+    params: { filterByTk: contractId, appends: ["billingPlans"] },
   });
   return unwrapApiRecord(res);
 };
@@ -567,7 +647,17 @@ const resolveInternalCompanyId = (record) =>
   extractId(record?.companyId) ||
   extractId(record?.companies);
 
-const buildRequestableItems = (record, schedule) => {
+// Total already received directly against the CONTRACT (not tied to any
+// scheduleItemId) — needed for the by-case fallback line below, since a
+// by-case contract with no installments array has nowhere else for
+// applyPaymentSummary's per-installment paidAmount matching to apply.
+const paidContractTotal = (payments = []) =>
+  (payments || []).reduce((sum, payment) => {
+    if (isInactiveStatus(payment?.paymentStatus) || !isActualPaidStatus(payment?.paymentStatus)) return sum;
+    return sum + parseNum(payment?.amount);
+  }, 0);
+
+const buildRequestableItems = (record, schedule, payments = []) => {
   if (!schedule) return [];
   const rows = (schedule.installments || [])
     .filter((row) => parseNum(row.remainingAmount ?? row.amount) > MONEY_TOLERANCE)
@@ -621,6 +711,35 @@ const buildRequestableItems = (record, schedule) => {
         totalAmount: amount,
       },
     });
+  } else if (!rows.length && parseNum(schedule.totalAmount) > 0) {
+    // By-case contract (billingCycle one_time/multiple_payments) with no
+    // manually-entered installment schedule — the whole contract value is
+    // one payable line, minus whatever's already been paid against it
+    // directly (a by-case contract with no schedule has no scheduleItemId
+    // for individual payments to attach to, so applyPaymentSummary's
+    // per-installment matching never applies here).
+    const total = parseNum(schedule.totalAmount);
+    const remaining = Math.max(total - paidContractTotal(payments), 0);
+    if (remaining > MONEY_TOLERANCE) {
+      rows.push({
+        key: "contract_balance",
+        lineType: "contract_balance",
+        scheduleItemId: "contract_balance",
+        installmentNo: null,
+        lineLabel: "Full contract amount",
+        description: "One-time payment for the full contract value",
+        plannedPaymentDate: schedule.firstPaymentDate || record?.paymentDate || "",
+        requestedAmount: remaining,
+        paidAmountSnapshot: paidContractTotal(payments),
+        remainingAmountSnapshot: remaining,
+        sourceSnapshot: {
+          firstPaymentDate: schedule.firstPaymentDate || record?.paymentDate || "",
+          totalAmount: total,
+          paidAmount: paidContractTotal(payments),
+          remainingAmount: remaining,
+        },
+      });
+    }
   }
 
   return rows;
@@ -646,8 +765,8 @@ const buildRequestSnapshot = (record, schedule, items) => {
 };
 
 const paymentRequestPayloadVariants = (payload) => {
-  const relationKeys = ["contracts", "customers", "internalCompany", "requestedBy", "assignedTo", "reviewedBy", "createdPayment", "createdInvoice"];
-  const scalarKeys = ["contractId", "customerId", "internalCompanyId", "requestedById", "assignedToId", "reviewedById", "createdPaymentId", "createdInvoiceId"];
+  const relationKeys = ["contracts", "customers", "internalCompany", "requestedBy", "assignedLawyer", "reviewedBy", "createdPayment", "createdInvoice"];
+  const scalarKeys = ["contractId", "customerId", "internalCompanyId", "requestedById", "assignedLawyerId", "reviewedById", "createdPaymentId", "createdInvoiceId"];
   return [
     payload,
     removeKeys(payload, relationKeys),
@@ -728,18 +847,18 @@ const PaymentScheduleTable = ({ schedule }) => {
   if (AntTable) {
     const columnsConfig = [
       {
-        title: "Đợt",
+        title: "Installment",
         dataIndex: "label",
         width: 130,
         render: (value, row) =>
           React.createElement(
             "span",
             { style: { fontWeight: 600, color: C.text } },
-            value || `Đợt ${row.installmentNo}`,
+            value || `Installment ${row.installmentNo}`,
           ),
       },
       {
-        title: "Nội dung",
+        title: "Content",
         dataIndex: "content",
         ellipsis: true,
         render: (value) =>
@@ -750,7 +869,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "% Thanh toán",
+        title: "Payment %",
         dataIndex: "percentage",
         width: 120,
         align: "right",
@@ -758,13 +877,13 @@ const PaymentScheduleTable = ({ schedule }) => {
           value !== null && value !== undefined && value !== "" ? `${parseNum(value)}%` : "—",
       },
       {
-        title: "Ngày thanh toán",
+        title: "Payment date",
         dataIndex: "paymentDate",
         width: 150,
         render: formatDate,
       },
       {
-        title: "Kế hoạch",
+        title: "Planned",
         dataIndex: "amount",
         width: 160,
         align: "right",
@@ -776,7 +895,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Đã nhận",
+        title: "Received",
         dataIndex: "paidAmount",
         width: 160,
         align: "right",
@@ -788,7 +907,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Còn lại",
+        title: "Remaining",
         dataIndex: "remainingAmount",
         width: 160,
         align: "right",
@@ -800,7 +919,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Trạng thái",
+        title: "Status",
         dataIndex: "status",
         width: 130,
         render: (value) => React.createElement(StatusBadge, { status: value }),
@@ -846,14 +965,14 @@ const PaymentScheduleTable = ({ schedule }) => {
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: columns } },
-        React.createElement("div", { style: headerStyle }, "Đợt"),
-        React.createElement("div", { style: headerStyle }, "Nội dung"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "% Thanh toán"),
-        React.createElement("div", { style: headerStyle }, "Ngày thanh toán"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Kế hoạch"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Đã nhận"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Còn lại"),
-        React.createElement("div", { style: headerStyle }, "Trạng thái"),
+        React.createElement("div", { style: headerStyle }, "Installment"),
+        React.createElement("div", { style: headerStyle }, "Content"),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Payment %"),
+        React.createElement("div", { style: headerStyle }, "Payment date"),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Planned"),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Received"),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Remaining"),
+        React.createElement("div", { style: headerStyle }, "Status"),
       ),
       schedule.installments.map((row) =>
         React.createElement(
@@ -869,7 +988,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           React.createElement(
             "div",
             { style: { ...cellStyle, fontWeight: 800 } },
-            row.label || `Đợt ${row.installmentNo}`,
+            row.label || `Installment ${row.installmentNo}`,
           ),
           React.createElement(
             "div",
@@ -906,17 +1025,10 @@ const PaymentScheduleTable = ({ schedule }) => {
   );
 };
 
-const RetainerRule = ({ rule }) => {
-  if (!rule?.enabled) return null;
-  const text =
-    rule.displayText ||
-    compact([
-      rule.anchorType ? `Mốc: ${rule.anchorType}` : "",
-      rule.anchorValue ? `giá trị ${rule.anchorValue}` : "",
-      rule.interval && rule.unit ? `lặp mỗi ${rule.interval} ${rule.unit}` : "",
-    ]).join(" · ");
-  const nextPaymentDate = normalizeDateInput(rule.nextPaymentDate);
-  if (!text && !nextPaymentDate) return null;
+const RetainerRule = ({ plan }) => {
+  if (!plan) return null;
+  const display = resolveActiveBillingPlanDisplay(plan);
+  if (!display) return null;
   return React.createElement(
     "div",
     {
@@ -930,14 +1042,22 @@ const RetainerRule = ({ rule }) => {
         fontSize: 13,
       },
     },
-    React.createElement("strong", { style: { color: C.text } }, "Quy tắc retainer: "),
-    text,
-    nextPaymentDate
+    React.createElement("strong", { style: { color: C.text } }, "Retainer rule: "),
+    display.displayText,
+    display.nextPaymentDate
       ? React.createElement(
           "div",
           { style: { marginTop: 6 } },
           React.createElement("strong", { style: { color: C.text } }, "Next payment: "),
-          formatDate(nextPaymentDate),
+          formatDate(display.nextPaymentDate),
+        )
+      : null,
+    plan.retainerCyclesBilled
+      ? React.createElement(
+          "div",
+          { style: { marginTop: 6 } },
+          React.createElement("strong", { style: { color: C.text } }, "Cycles billed: "),
+          `${plan.retainerCyclesBilled}${plan.retainerTotalCycles ? ` / ${plan.retainerTotalCycles}` : ""}`,
         )
       : null,
   );
@@ -948,14 +1068,14 @@ const PaymentScheduleDetailBlock = () => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [users, setUsers] = useState([]);
+  const [lawyers, setLawyers] = useState([]);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestSaving, setRequestSaving] = useState(false);
   const [requestForm, setRequestForm] = useState({
     title: "",
     requestType: "create_payment",
     priority: "normal",
-    assignedToId: "",
+    assignedLawyerId: "",
     dueDate: "",
     requestNote: "",
     selectedItemKeys: [],
@@ -982,10 +1102,17 @@ const PaymentScheduleDetailBlock = () => {
 
     setLoading(true);
     Promise.all([
-      hasRenderableSchedule(localSchedule) ? Promise.resolve(contextRecord) : fetchContract(recordId),
+      // Also re-fetch (for billingPlans) even when contextRecord already
+      // has enough to render — contextRecord comes from the parent
+      // block's own query, which has no reason to append billingPlans,
+      // so relying on it here would silently show stale/absent retainer
+      // state for every contract whose page didn't happen to fetch it.
+      hasRenderableSchedule(localSchedule) && contextRecord?.billingPlans
+        ? Promise.resolve(contextRecord)
+        : fetchContract(recordId),
       listPaymentsByContract(recordId).catch((err) => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch payments failed", err);
-        if (mounted) setError("Không tải được dữ liệu thanh toán thực tế.");
+        if (mounted) setError("Could not load actual payment data.");
         return [];
       }),
     ])
@@ -998,7 +1125,7 @@ const PaymentScheduleDetailBlock = () => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch contract failed", err);
         if (mounted) {
           setRecord(contextRecord);
-          setError("Không tải được lịch thanh toán của hợp đồng.");
+          setError("Could not load the contract's payment schedule.");
         }
       })
       .finally(() => {
@@ -1015,16 +1142,15 @@ const PaymentScheduleDetailBlock = () => {
     [record, payments],
   );
   const requestableItems = useMemo(
-    () => buildRequestableItems(record || {}, schedule),
-    [record, schedule],
+    () => buildRequestableItems(record || {}, schedule, payments),
+    [record, schedule, payments],
   );
 
-  const loadUsers = async () => {
-    if (users.length) return users;
-    const rows = await listAny(USER_RESOURCES, { pageSize: 500 }).catch(() => []);
-    const filtered = (rows || []).filter((user) => extractId(user) !== 1);
-    setUsers(filtered);
-    return filtered;
+  const loadLawyers = async () => {
+    if (lawyers.length) return lawyers;
+    const rows = await listAny(LAWYER_RESOURCES, { pageSize: 500 }).catch(() => []);
+    setLawyers(rows || []);
+    return rows || [];
   };
 
   const setRequestField = (key, value) => {
@@ -1037,11 +1163,15 @@ const PaymentScheduleDetailBlock = () => {
       message?.warning?.("No payable schedule item is available for request.");
       return;
     }
-    await loadUsers();
+    await loadLawyers();
     setRequestForm((prev) => ({
       ...prev,
       title: buildDefaultPaymentRequestTitle(record || {}, prev.requestType),
       selectedItemKeys: rows.map((item) => item.key),
+      // Default to 7 days from today every time the modal opens fresh —
+      // not just on the component's first mount, since requestForm is
+      // reused across open/close cycles without unmounting.
+      dueDate: prev.dueDate || addDays(toDateInput(new Date()), 7),
     }));
     setRequestOpen(true);
   };
@@ -1065,14 +1195,18 @@ const PaymentScheduleDetailBlock = () => {
       message?.warning?.("Please enter a payment request title.");
       return;
     }
-    if (!requestForm.assignedToId) {
+    if (!requestForm.assignedLawyerId) {
       message?.warning?.("Please select an assignee to process this request.");
+      return;
+    }
+    if (!requestForm.dueDate) {
+      message?.warning?.("Please select a due date.");
       return;
     }
 
     const currentUser = getCurrentUser();
     const currentUserId = extractId(currentUser);
-    const assignedToId = extractId(requestForm.assignedToId);
+    const assignedLawyerId = extractId(requestForm.assignedLawyerId);
     const contractId = resolveContractId(record || {});
     const customerId = resolveCustomerId(record || {});
     const internalCompanyId = resolveInternalCompanyId(record || {});
@@ -1092,8 +1226,8 @@ const PaymentScheduleDetailBlock = () => {
       internalCompany: internalCompanyId || undefined,
       requestedById: currentUserId,
       requestedBy: currentUserId || undefined,
-      assignedToId,
-      assignedTo: assignedToId || undefined,
+      assignedLawyerId,
+      assignedLawyer: assignedLawyerId || undefined,
       dueDate: requestForm.dueDate || null,
       requestedAmount,
       approvedAmount: null,
@@ -1164,15 +1298,25 @@ const PaymentScheduleDetailBlock = () => {
   }
 
   const countText = schedule.installments.length
-    ? `${schedule.installments.length} đợt`
-    : "Lịch định kỳ";
-  const totalPaid = schedule.installments.reduce((sum, row) => sum + parseNum(row.paidAmount), 0);
-  const totalRemaining = schedule.installments.reduce((sum, row) => sum + parseNum(row.remainingAmount), 0);
+    ? `${schedule.installments.length} installments`
+    : schedule.retainerRule?.enabled || schedule.mode === "recurring"
+      ? "Recurring schedule"
+      : "One-time payment";
+  // By-case contracts with no installment schedule have nothing for
+  // per-installment paidAmount/remainingAmount to sum from — fall back to
+  // the contract-level total (mirrors buildRequestableItems's own
+  // contract_balance fallback line above).
+  const totalPaid = schedule.installments.length
+    ? schedule.installments.reduce((sum, row) => sum + parseNum(row.paidAmount), 0)
+    : paidContractTotal(payments);
+  const totalRemaining = schedule.installments.length
+    ? schedule.installments.reduce((sum, row) => sum + parseNum(row.remainingAmount), 0)
+    : Math.max(parseNum(schedule.totalAmount) - paidContractTotal(payments), 0);
   const selectedRequestItems = requestableItems.filter((item) => (requestForm.selectedItemKeys || []).includes(item.key));
   const requestTotal = selectedRequestItems.reduce((sum, item) => sum + parseNum(item.requestedAmount), 0);
-  const userOptions = users.map((user) => ({
-    value: extractId(user),
-    label: userLabel(user),
+  const lawyerOptions = lawyers.map((lawyer) => ({
+    value: extractId(lawyer),
+    label: lawyerLabel(lawyer),
   }));
   const requestModal = AntModal
     ? React.createElement(
@@ -1204,7 +1348,7 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text, gridColumn: "1 / -1" } },
-              "Title",
+              fieldLabel("Title", true),
               AntInput
                 ? React.createElement(AntInput, {
                     value: requestForm.title,
@@ -1269,26 +1413,26 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              "Assignee",
+              fieldLabel("Assignee", true),
               AntSelect
                 ? React.createElement(AntSelect, {
                     showSearch: true,
                     allowClear: true,
-                    value: requestForm.assignedToId || undefined,
-                    placeholder: "Select user",
+                    value: requestForm.assignedLawyerId || undefined,
+                    placeholder: "Select lawyer",
                     optionFilterProp: "label",
-                    onChange: (value) => setRequestField("assignedToId", value || ""),
-                    options: userOptions,
+                    onChange: (value) => setRequestField("assignedLawyerId", value || ""),
+                    options: lawyerOptions,
                   })
                 : React.createElement("input", {
-                    value: requestForm.assignedToId,
-                    onChange: (event) => setRequestField("assignedToId", event.target.value),
+                    value: requestForm.assignedLawyerId,
+                    onChange: (event) => setRequestField("assignedLawyerId", event.target.value),
                   }),
             ),
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              "Due date",
+              fieldLabel("Due date", true),
               AntInput
                 ? React.createElement(AntInput, {
                     type: "date",
@@ -1423,41 +1567,42 @@ const PaymentScheduleDetailBlock = () => {
           flexWrap: "wrap",
         },
       },
+      // Informational content (schedule summary + stat pills) on the left,
+      // the primary action button isolated at the top-right corner — was
+      // previously crammed into the same right-aligned group as the pills,
+      // making it look sandwiched between them instead of a standalone
+      // action in the standard top-right position.
       React.createElement(
         "div",
-        null,
+        { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
         React.createElement(
           "div",
-          { style: { fontSize: 13, color: C.sub, marginTop: 4 } },
-          // compact([countText, modeLabel(schedule.mode)]).join(" · "),
+          { style: { fontSize: 13, color: C.sub } },
+          compact([countText, modeLabel(schedule.mode)]).join(" · "),
         ),
+        React.createElement(SummaryPill, { label: "First payment date", value: formatDate(schedule.firstPaymentDate) }),
+        React.createElement(SummaryPill, { label: "Received", value: formatMoney(totalPaid) }),
+        React.createElement(SummaryPill, { label: "Remaining", value: formatMoney(totalRemaining) }),
       ),
-      React.createElement(
-        "div",
-        { style: { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
-        AntButton
-          ? React.createElement(
-              AntButton,
-              {
-                type: "primary",
-                onClick: openPaymentRequestModal,
-                disabled: !requestableItems.length || requestSaving,
-              },
-              "Create payment request",
-            )
-          : React.createElement(
-              "button",
-              {
-                type: "button",
-                onClick: openPaymentRequestModal,
-                disabled: !requestableItems.length || requestSaving,
-              },
-              "Create payment request",
-            ),
-        React.createElement(SummaryPill, { label: "Ngày thanh toán đầu tiên", value: formatDate(schedule.firstPaymentDate) }),
-        React.createElement(SummaryPill, { label: "Đã nhận", value: formatMoney(totalPaid) }),
-        React.createElement(SummaryPill, { label: "Còn lại", value: formatMoney(totalRemaining) }),
-      ),
+      AntButton
+        ? React.createElement(
+            AntButton,
+            {
+              type: "primary",
+              onClick: openPaymentRequestModal,
+              disabled: !requestableItems.length || requestSaving,
+            },
+            "Create payment request",
+          )
+        : React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: openPaymentRequestModal,
+              disabled: !requestableItems.length || requestSaving,
+            },
+            "Create payment request",
+          ),
     ),
     error
       ? AntAlert
@@ -1484,7 +1629,7 @@ const PaymentScheduleDetailBlock = () => {
     schedule.installments.length
       ? React.createElement(PaymentScheduleTable, { schedule })
       : null,
-    React.createElement(RetainerRule, { rule: schedule.retainerRule }),
+    React.createElement(RetainerRule, { plan: schedule.billingPlan }),
     requestModal,
   );
 };
