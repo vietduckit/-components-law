@@ -594,13 +594,11 @@ const normalizeSchedule = (contract) => {
   const retainerRule = schedule?.retainerRule
     ? {
         ...schedule.retainerRule,
-        nextPaymentDate:
-          normalizeDateInput(schedule.retainerRule.nextPaymentDate) ||
-          calcRetainerNextPaymentDate(
-            schedule.firstPaymentDate || contract?.paymentDate,
-            schedule.retainerRule.interval || contract?.retainerDuration,
-            schedule.retainerRule.unit || contract?.retainerRepeatUnit || contract?.retainerPeriod,
-          ),
+        nextPaymentDate: calcRetainerNextPaymentDate(
+          schedule.firstPaymentDate || contract?.paymentDate,
+          1,
+          schedule.retainerRule.unit || contract?.retainerRepeatUnit || contract?.retainerPeriod,
+        ),
       }
     : null;
 
