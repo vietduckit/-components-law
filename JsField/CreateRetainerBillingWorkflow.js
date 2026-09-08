@@ -47,18 +47,40 @@
 //     -> Calculation: periodAmount = totalAmount / retainerDuration
 //     -> Calculation: nextPeriodsBilled = retainerPeriodsBilled + 1
 //     -> Create record (paymentRequests): submitted, requestedAmount=periodAmount
-//     -> dateCalculation: nextDate = format(add(nextRetainerBillingDate, 1, unit), 'YYYY-MM-DD')
+//     -> dateCalculation: nextDateCalc (string)   = format(add(nextRetainerBillingDate, 1, unit), 'YYYY-MM-DD')
+//     -> dateCalculation: nextDateTsCalc (number) = toTimestamp(add(nextRetainerBillingDate, 1, unit))
+//     -> dateCalculation: endDateTsCalc (number)  = toTimestamp(endDate)
 //     -> Condition: nextPeriodsBilled >= retainerDuration
-//                   OR (endDate set AND nextDate > endDate)
+//                   OR (endDate set AND nextDateTsCalc > endDateTsCalc)
 //          true  -> Update contract: retainerPeriodsBilled=nextPeriodsBilled, nextRetainerBillingDate=null (stop)
-//          false -> Update contract: retainerPeriodsBilled=nextPeriodsBilled, nextRetainerBillingDate=nextDate (continue)
+//          false -> Update contract: retainerPeriodsBilled=nextPeriodsBilled, nextRetainerBillingDate=nextDateCalc (continue)
 //
-// nextDate is produced as a 'YYYY-MM-DD' STRING (a trailing `format` step
-// in the dateCalculation node), not a Date object — this makes it both
-// directly writable into the "date" column AND safely comparable to
-// endDate with plain lexicographic `>` inside the Condition's math.js
-// expression, with no dependency on how mathjs handles raw Date objects
-// (never verified this session).
+// nextDate is produced TWICE, in two different node outputs, for two
+// different purposes:
+//   - nextDateCalc: a 'YYYY-MM-DD' STRING (trailing `format` step) — the
+//     value actually written into the "date" column.
+//   - nextDateTsCalc: an epoch-SECONDS NUMBER (trailing `toTimestamp`
+//     step) — used only inside the Condition's comparison.
+// This two-node split exists because of two mathjs behaviors empirically
+// verified against this repo's own installed mathjs (not guessed):
+//   1. mathjs's logical operators are the WORD forms `or`/`and`, not the
+//      symbolic `||`/`&&` — `math.evaluate('$$0 || $$1')` throws
+//      "SyntaxError: Value expected". This is the exact error hit when
+//      this workflow was first test-run (see git history of this file).
+//   2. mathjs's relational operators (`>`, `<`, etc.) do NOT do
+//      lexicographic string comparison — `math.evaluate('$$0 > $$1', {$$0:
+//      "2026-12-15", $$1: "2027-01-01"})` throws "Cannot convert ... to a
+//      number". Two date STRINGS can't be ordered with `>` in mathjs;
+//      they must be converted to numbers (epoch seconds) first.
+// endDateTsCalc converts contracts.endDate the same way, purely so it can
+// be compared numerically to nextDateTsCalc — it runs unconditionally
+// (dateCalculation nodes aren't skippable), including when endDate is
+// null. `new Date(null)` is a *valid* JS Date (epoch 0), so this never
+// errors, it just produces a meaningless huge-negative comparison input
+// when endDate is unset — which is exactly why the Condition's `and` only
+// ever reaches the `>` comparison after `{{$context.data.endDate}} !=
+// null` has already gated it out (mathjs's `and` short-circuits — also
+// empirically confirmed, not assumed).
 //
 // Field/column names (contractCode, contractName, totalAmount,
 // retainerDuration, customerId, internalCompanyId, endDate,
@@ -88,8 +110,28 @@
 //
 // How to run: paste into a temporary Nocobase Action block's onClick, or
 // the browser dev console on any admin page (ctx is in scope there).
-// Idempotent — skips creating the workflow if one with this exact title
-// already exists.
+// Idempotent, but NOT "skip if exists" like this project's other setup
+// scripts — DELETES any existing workflow with this exact title first,
+// then rebuilds it fresh. This is deliberate: Nocobase locks a workflow's
+// node graph against further edits once it has recorded any execution
+// (see plugin-workflow/src/server/actions/nodes.ts's `versionStats.executed
+// > 0` guard on create/update/destroy/move) — a version-1 fix-forward via
+// flow_nodes:update is not available once a Test-run has happened, so
+// delete+recreate is simpler and more reliable than surgically editing a
+// copy-on-write revision. Safe to re-run this way because nothing else
+// references this workflow row by id — payment requests it created stand
+// on their own and are untouched by deleting the workflow that made them.
+//
+// BEFORE RUNNING THIS: any verification contract's paymentSchedule that
+// was inserted by hand (e.g. via the plan's Task 4 SQL, which predates
+// this workflow and never needed a "unit") MUST include
+// retainerRule.unit, e.g. '{"retainerRule": {"enabled": true, "unit":
+// "month"}, "firstPaymentDate": "..."}'::jsonb — otherwise
+// nextDateCalc/nextDateTsCalc's `add(1, unit)` step silently receives
+// unit: undefined, which dayjs treats as milliseconds: the node reports
+// SUCCESS but nextRetainerBillingDate never visibly advances. Real
+// contracts created via ContractCreateForm.js always set this field, so
+// this only affects hand-inserted test rows.
 // ============================================================
 
 const WORKFLOW_TITLE = "Retainer billing - auto-create next payment request";
@@ -193,11 +235,63 @@ const nextDateNodePayload = (upstreamId) => ({
   },
 });
 
-// Node 5 — Condition. ConditionInstruction.ts: engine/expression, same
+// Node 5 — dateCalculation. Same node type as nextDateCalc, but the last
+// step is toTimestamp (epoch seconds) instead of format — a number that
+// mathjs's `>` can actually compare, unlike two date strings (see header
+// comment). Duplicates the `add` step because a node's result is always
+// just its LAST step's return value — nextDateCalc and nextDateTsCalc
+// can't share one output despite computing "the same date".
+const nextDateTsNodePayload = (upstreamId) => ({
+  type: "dateCalculation",
+  key: "nextDateTsCalc",
+  title: "Compute next billing date (as timestamp, for comparison)",
+  upstreamId,
+  branchIndex: null,
+  config: {
+    input: "{{$context.data.nextRetainerBillingDate}}",
+    inputType: "date",
+    steps: [
+      {
+        function: "add",
+        arguments: { number: 1, unit: "{{$context.data.paymentSchedule.retainerRule.unit}}" },
+      },
+      {
+        function: "toTimestamp",
+        arguments: { unit: "second" },
+      },
+    ],
+  },
+});
+
+// Node 6 — dateCalculation. Converts contracts.endDate to the same
+// epoch-seconds representation as nextDateTsCalc so the Condition node
+// can compare them numerically. Runs even when endDate is null (see
+// header comment) — safe only because the Condition gates on
+// `endDate != null` BEFORE using this node's result.
+const endDateTsNodePayload = (upstreamId) => ({
+  type: "dateCalculation",
+  key: "endDateTsCalc",
+  title: "Compute end date (as timestamp, for comparison)",
+  upstreamId,
+  branchIndex: null,
+  config: {
+    input: "{{$context.data.endDate}}",
+    inputType: "date",
+    steps: [
+      {
+        function: "toTimestamp",
+        arguments: { unit: "second" },
+      },
+    ],
+  },
+});
+
+// Node 7 — Condition. ConditionInstruction.ts: engine/expression, same
 // math.js evaluator as Calculation. BRANCH_INDEX.ON_TRUE=1/ON_FALSE=0
-// from the same file. Symbolic && / || / != used (not the "and"/"or"
-// keyword forms) since only the symbolic operators were confirmed
-// against mathjs's own source/tests this session.
+// from the same file. Word-form `or`/`and` (mathjs has no `||`/`&&`) and
+// the two *Ts* nodes' numeric results (not date strings) — both fixes
+// empirically verified against this repo's own installed mathjs, see
+// this file's header comment.
 const stopConditionNodePayload = (upstreamId) => ({
   type: "condition",
   key: "stopCondition",
@@ -207,12 +301,12 @@ const stopConditionNodePayload = (upstreamId) => ({
   config: {
     engine: "math.js",
     expression:
-      "{{$jobsMapByNodeKey.nextPeriodsBilledCalc}} >= {{$context.data.retainerDuration}} || ({{$context.data.endDate}} != null && {{$jobsMapByNodeKey.nextDateCalc}} > {{$context.data.endDate}})",
+      "{{$jobsMapByNodeKey.nextPeriodsBilledCalc}} >= {{$context.data.retainerDuration}} or ({{$context.data.endDate}} != null and {{$jobsMapByNodeKey.nextDateTsCalc}} > {{$jobsMapByNodeKey.endDateTsCalc}})",
     rejectOnFalse: false,
   },
 });
 
-// Nodes 6/7 — Update record, one per branch. UpdateInstruction.ts:
+// Nodes 8/9 — Update record, one per branch. UpdateInstruction.ts:
 // config.collection + config.params -> repository.update({...params});
 // filterByTk targets the triggering contract row itself.
 const updateStopNodePayload = (upstreamId) => ({
@@ -256,9 +350,9 @@ const updateContinueNodePayload = (upstreamId) => ({
     url: "workflows:list",
     params: { filter: { title: WORKFLOW_TITLE }, paginate: false },
   });
-  if ((existing?.data?.data || []).length > 0) {
-    console.log(`[skip] Workflow "${WORKFLOW_TITLE}" already exists (id=${existing.data.data[0].id})`);
-    return;
+  for (const row of existing?.data?.data || []) {
+    await ctx.api.request({ url: "workflows:destroy", method: "POST", params: { filterByTk: row.id } });
+    console.log(`[deleted] previous workflow id=${row.id} (rebuilding fresh)`);
   }
 
   const created = await ctx.api.request({
@@ -288,11 +382,13 @@ const updateContinueNodePayload = (upstreamId) => ({
   const n2 = await createNode(nextPeriodsBilledNodePayload(n1.id));
   const n3 = await createNode(createPaymentRequestNodePayload(n2.id));
   const n4 = await createNode(nextDateNodePayload(n3.id));
-  const n5 = await createNode(stopConditionNodePayload(n4.id));
-  await createNode(updateStopNodePayload(n5.id));
-  await createNode(updateContinueNodePayload(n5.id));
+  const n5 = await createNode(nextDateTsNodePayload(n4.id));
+  const n6 = await createNode(endDateTsNodePayload(n5.id));
+  const n7 = await createNode(stopConditionNodePayload(n6.id));
+  await createNode(updateStopNodePayload(n7.id));
+  await createNode(updateContinueNodePayload(n7.id));
 
   console.log("Done. Next steps (see this file's header comment):");
   console.log("1. Admin -> Workflow -> open this workflow -> toggle Disabled then Enabled once (cache refresh).");
-  console.log("2. Run the plan's Task 6 Steps 8-10 verification against test contracts before trusting this in production.");
+  console.log("2. Re-run the plan's Task 6 verification steps against test contracts before trusting this in production.");
 })();

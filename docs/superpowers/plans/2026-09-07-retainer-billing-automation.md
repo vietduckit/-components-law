@@ -570,18 +570,26 @@ Trigger: schedule, mode=1 (DATE_FIELD), collection=contracts, startsOn.field=nex
      contractId/customerId/internalCompanyId copied from the contract,
      requestedAmount = periodAmountCalc, title built from
      contractCode/contractName/nextPeriodsBilledCalc
-  -> dateCalculation "nextDateCalc":        format(add(nextRetainerBillingDate, 1, retainerRule.unit), 'YYYY-MM-DD')
+  -> dateCalculation "nextDateCalc" (string):    format(add(nextRetainerBillingDate, 1, retainerRule.unit), 'YYYY-MM-DD')
+  -> dateCalculation "nextDateTsCalc" (number):  toTimestamp(add(nextRetainerBillingDate, 1, retainerRule.unit), 'second')
+  -> dateCalculation "endDateTsCalc" (number):   toTimestamp(endDate, 'second')
   -> Condition "stopCondition":             nextPeriodsBilledCalc >= retainerDuration
-                                             || (endDate != null && nextDateCalc > endDate)
+                                             or (endDate != null and nextDateTsCalc > endDateTsCalc)
        branchIndex=1 (true)  -> Update "updateStop":     retainerPeriodsBilled=nextPeriodsBilledCalc, nextRetainerBillingDate=null
        branchIndex=0 (false) -> Update "updateContinue": retainerPeriodsBilled=nextPeriodsBilledCalc, nextRetainerBillingDate=nextDateCalc
 ```
 
-`nextDateCalc` is produced as a `'YYYY-MM-DD'` string (a trailing `format` step), not a Date object — directly writable into the `date` column, and safely comparable to `endDate` via plain lexicographic `>` with no dependency on unverified mathjs Date-object support.
+`nextDateCalc` is produced as a `'YYYY-MM-DD'` string (a trailing `format` step), not a Date object — directly writable into the `date` column. `nextDateTsCalc`/`endDateTsCalc` duplicate the same date as epoch-seconds numbers purely for the Condition's comparison. This split, and the `or`/`and` word-form operators, are the result of a real bug found during Step 3's first attempt (see below) — mathjs has no `||`/`&&`, and its `>`/`<` operators reject two date strings ("Cannot convert ... to a number"), both confirmed by running this repo's own installed `mathjs` package directly with `node -e`, not assumed.
 
 - [ ] **Step 1: Run the workflow-creation script**
 
-Paste the full contents of `JsField/CreateRetainerBillingWorkflow.js` into a temporary Action block's onClick (or the browser dev console on any admin page) and run it. Expected console output: `[created] workflow id=...` followed by 7 `[created] node "..." id=...` lines (`periodAmountCalc`, `nextPeriodsBilledCalc`, `createPaymentRequest`, `nextDateCalc`, `stopCondition`, `updateStop`, `updateContinue`), then the "Next steps" reminder. Re-running the script is safe — it skips if a workflow titled `Retainer billing - auto-create next payment request` already exists.
+Paste the full contents of `JsField/CreateRetainerBillingWorkflow.js` into a temporary Action block's onClick (or the browser dev console on any admin page) and run it. Expected console output: `[created] workflow id=...` followed by 9 `[created] node "..." id=...` lines (`periodAmountCalc`, `nextPeriodsBilledCalc`, `createPaymentRequest`, `nextDateCalc`, `nextDateTsCalc`, `endDateTsCalc`, `stopCondition`, `updateStop`, `updateContinue`), then the "Next steps" reminder. Re-running the script is safe even after a previous run — it **deletes** any workflow with this exact title first, then rebuilds it fresh (not "skip if exists" like this plan's other setup scripts), because Nocobase locks a workflow's node graph once it has recorded any execution (`versionStats.executed > 0` guard in `plugin-workflow/src/server/actions/nodes.ts`) — a Test run counts as an execution even when it errors, so a fix-forward edit isn't available afterward.
+
+Before running: any hand-inserted verification contract (Task 4's `plan-verify-retainer-fixed`/`plan-verify-retainer-openended`, or Step 5 below) must have `paymentSchedule.retainerRule.unit` set (e.g. `"unit": "month"`) — Task 4's own INSERT statements didn't include it, since it wasn't needed until this task. Without it, `add(1, unit)` silently receives `unit: undefined`, which dayjs treats as milliseconds: the node reports success but the date never visibly advances. Fix existing rows first:
+```sql
+UPDATE contracts SET "paymentSchedule" = jsonb_set("paymentSchedule", '{retainerRule,unit}', '"month"')
+WHERE "contractName" IN ('plan-verify-retainer-fixed', 'plan-verify-retainer-openended');
+```
 
 - [ ] **Step 2: Force the server to pick up the new workflow**
 
@@ -589,7 +597,11 @@ Admin → Workflow → open "Retainer billing - auto-create next payment request
 
 - [ ] **Step 3: Test run against the Task 4 verification contract**
 
-Use the Workflow editor's **Test run** feature, supplying the `plan-verify-retainer-fixed` contract from Task 4 Step 3 (`totalAmount = 18000000`, `retainerDuration = 6`) as the trigger's `data` (`DateFieldScheduleTrigger.validateContext` requires a `data` record — the UI's Test run form should prompt for which record to simulate).
+On the workflow's canvas, click **Execute manually**. This opens a modal with a **"Trigger data"** field (a searchable record picker, component `TriggerCollectionRecordSelect`) — type `plan-verify-retainer-fixed` and select the matching `contracts` row (`totalAmount = 18000000`, `retainerDuration = 6`, from Task 4 Step 3).
+
+**On the first execution only**, this modal also shows a checkbox **"Automatically create a new version after execution"**, defaulting to **checked** — uncheck it before confirming, otherwise Nocobase creates a new workflow version after this run and navigates you to it, splitting the 6 repeated test runs across versions unnecessarily. The checkbox disappears entirely from run 2 onward (Nocobase only offers it before a version's first execution).
+
+Click Confirm. Re-open "Execute manually" and re-select the contract fresh (don't reuse a previous selection) for every subsequent run — the picker loads the record's data at selection time, and this workflow has no relation `appends` configured, so a stale selection would replay stale data instead of re-reading the row.
 
 In pgAdmin, confirm:
 ```sql
