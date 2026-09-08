@@ -715,19 +715,23 @@ function resolveActiveBillingPlanDisplay(plan) {
 **Interfaces:**
 - Produces: `contracts:create` calls now include a nested `billingPlans: [{...}]` array when the contract is a Retainer, instead of building `paymentSchedule.retainerRule` and the now-removed `retainerDuration`/`retainerPeriod`/`monthlyFee` fields.
 
-- [ ] **Step 1: Read the current retainer-submission code to confirm nothing has drifted**
+- [x] **Step 1: Read the current retainer-submission code to confirm nothing has drifted**
 
 Re-read `buildPaymentSchedulePayload` (around line 1877) and the submit payload block (around line 11460-11490) in `All Module/Contract/ContractCreateForm.js` — these were last touched by this session's `retainerRule.interval` fix (commit `7f91803`). Confirm the `retainerRule`-building block and the `monthlyFee: null, retainerPeriod: null, retainerDuration: isRetainer ? nullableNum(form.retainerDuration) : null,` lines are still there as last read. If they differ, stop and reconcile before continuing.
 
-- [ ] **Step 2: Confirm this file already has `calcRetainerNextPaymentDate`/`retainerDurationSuffix`**
+**Result:** confirmed unchanged, matched exactly.
+
+- [x] **Step 2: Confirm this file already has `calcRetainerNextPaymentDate`/`retainerDurationSuffix`**
 
 This file already defines these locally (`calcRetainerNextPaymentDate` used by `buildPaymentSchedulePayload`, `retainerDurationSuffix` at line 2238) — per Task 4's deviation note, they stay exactly as-is, no shared-module loading needed. Nothing to change in this step; it exists only to confirm Step 1's read didn't reveal a drift in these two functions either.
 
-- [ ] **Step 3: Replace `buildPaymentSchedulePayload`'s retainer-rule construction**
+- [x] **Step 3: Replace `buildPaymentSchedulePayload`'s retainer-rule construction**
 
 `paymentSchedule.retainerRule` stops being built for new saves — By-case's `installments`/`mode` fields in the same payload are unaffected. Remove the `retainerRule: { enabled, anchorType, anchorValue, interval, unit, nextPaymentDate, displayText }` object from the returned payload (lines ~1925-1937); nothing else in this function's return value changes.
 
-- [ ] **Step 4: Build the nested `billingPlans` array for the submit payload**
+**Result:** done. Also removed the now-dead `unit`/`interval`/`totalCycles`/`anchorType`/`anchorValue`/`nextPaymentDate` locals that existed only to feed the removed object.
+
+- [x] **Step 4: Build the nested `billingPlans` array for the submit payload**
 
 In the submit payload block (~line 11460-11490), these 5 lines/blocks are **not contiguous** — `fixedAmount`/`hourlyRate`/`estimatedHours`/`successFee` sit between the first and the rest (confirmed by directly reading the file during planning, not assumed). Delete each individually, in place:
 
@@ -768,27 +772,32 @@ New key, inserted where `retainerPeriod`/`retainerDuration` used to be:
 ```
 (`undefined` for non-Retainer contracts — Nocobase's nested-create simply does nothing for an `undefined`/absent relation key, so By-case contracts are unaffected.)
 
-`contractType` also gets removed from this same payload object if it's written here (grep the file for `contractType:` within this submit block specifically — it may be set once, near `Type`/`Fee Model`-related fields rather than beside the retainer block; find its actual line before deleting).
+**Result:** done. `contractType` was found written at line ~11423 in this same block, but deliberately **left untouched** — during implementation, found it's also read by `TutorialPanel` (line ~12284) and at least 2 other call sites in this same file not yet audited; removing it now, before those are understood, risks breaking something outside this task's scope. Deferred to Task 9 Step 7's grep (already covers `contractType`) + Task 10, when the column actually needs to go — a real gap this plan's Task 10 will need to expand to cover, not just the SQL/field-metadata cleanup it currently describes.
 
-- [ ] **Step 5: Update the "Next payment" preview shown during creation**
+- [x] **Step 5: Update the "Next payment" preview shown during creation**
 
-Wherever the create form currently previews the next payment date live (using `calcRetainerNextPaymentDate`/`retainerDurationSuffix` before the contract is even saved — there is no plan record to read yet at that point), keep using `calcRetainerNextPaymentDate(form.paymentDate, 1, form.retainerRepeatUnit)` directly (now via `Shared`, per Step 2) — this is the one legitimate case where a live computation is still correct, because no `contractBillingPlans` row exists until submit.
+Wherever the create form currently previews the next payment date live (using `calcRetainerNextPaymentDate`/`retainerDurationSuffix` before the contract is even saved — there is no plan record to read yet at that point), keep using `calcRetainerNextPaymentDate(form.paymentDate, 1, form.retainerRepeatUnit)` directly (local to this file, per Task 4's deviation note) — this is the one legitimate case where a live computation is still correct, because no `contractBillingPlans` row exists until submit.
 
-- [ ] **Step 6: Hide Billing Cycle for Retainer**
+**Result:** found a real, previously-undiscovered bug while doing this — `RetainerScheduleSection`'s own preview (a *different* component from `buildPaymentSchedulePayload`) was calling `calcRetainerNextPaymentDate(form.paymentDate, form.retainerDuration, form.retainerRepeatUnit)`, passing the total cycle count as the interval — the exact same bug class fixed elsewhere this session (commit `7f91803`), just a call site that fix missed. Fixed to `calcRetainerNextPaymentDate(form.paymentDate, 1, form.retainerRepeatUnit)`.
+
+- [x] **Step 6: Hide Billing Cycle for Retainer**
 
 Find wherever `Billing Cycle` (`form.billingCycle`) is rendered as a form field. Wrap it in the same kind of conditional visibility already used elsewhere in this file for fee-model-specific fields (e.g. `visibleFeeFields.retainerDuration &&`) — hide it when `isRetainer` is true.
 
-- [ ] **Step 7: Verify syntax**
+**Result:** done — wrapped in `!isRetainer &&`.
+
+- [x] **Step 7: Verify syntax**
 
 Run: `node --check "All Module/Contract/ContractCreateForm.js"`
 Expected: no output, exit code 0.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add "All Module/Contract/ContractCreateForm.js"
 git commit -m "refactor(ContractCreateForm): create billingPlans nested record instead of contracts.retainerRule/retainerDuration"
 ```
+Committed as `6b7050e` (bundled with the `RetainerScheduleSection` interval fix from Step 5's result, since both landed in the same file in the same pass).
 
 (Deploying this to dev/staging's live JS Block happens in Task 9, together with Tasks 6-7's changes, as one combined manual paste — not per-task, since none of Tasks 5-7 is independently useful in the live app until all three are deployed together.)
 
@@ -1066,6 +1075,8 @@ Expected: no matches outside of comments/this session's own historical `pgsql/*.
 **Interfaces:** None produced — cleanup only, executed strictly after Task 9 passes.
 
 **This task must not run until Task 9 is fully verified.** Per the Global Constraints and spec §10 (Rollback), this is the only non-trivially-reversible step in the whole plan.
+
+**Scope note added during Task 5:** `contractType` has more live readers in `ContractCreateForm.js` alone than originally assumed (`TutorialPanel` at ~line 12284, plus at least 2 other call sites, not yet audited) — before this task drops the column, each of those needs to be updated to derive contract type from the active `billingPlans` record instead (`plan?.planType === 'retainer' ? ...` or equivalent), not just the submit-payload write that Task 5 already stopped. Add this audit as an explicit step here when this task is actually executed, informed by whatever Task 9 Step 7's grep turns up.
 
 - [ ] **Step 1: Write the migration file**
 
