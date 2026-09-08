@@ -18,7 +18,7 @@ const CONTRACT_RESOURCES = ["contracts", "Contract", "contract"];
 const PAYMENT_RESOURCES = ["payments", "Payment", "payment"];
 const PAYMENT_REQUEST_RESOURCES = ["paymentRequests", "PaymentRequests", "payment_requests"];
 const PAYMENT_REQUEST_ITEM_RESOURCES = ["paymentRequestItems", "PaymentRequestItems", "payment_request_items"];
-const USER_RESOURCES = ["users"];
+const LAWYER_RESOURCES = ["lawyers", "Lawyer", "lawyer"];
 
 const MONEY_TOLERANCE = 0;
 const ACTUAL_PAYMENT_STATUSES = ["received", "paid", "completed", "partial"];
@@ -237,6 +237,58 @@ const calcRetainerNextPaymentDate = (paymentDate, retainerDuration, repeatUnit) 
   return "";
 };
 
+const retainerDurationSuffix = (retainerPeriod, durationValue) => {
+  const singular = parseNum(durationValue) === 1;
+  if (retainerPeriod === "day") return singular ? "day" : "days";
+  if (retainerPeriod === "week") return singular ? "week" : "weeks";
+  if (retainerPeriod === "month") return singular ? "month" : "months";
+  if (retainerPeriod === "quarter") return singular ? "quarter" : "quarters";
+  if (retainerPeriod === "year") return singular ? "year" : "years";
+  return singular ? "cycle" : "cycles";
+};
+
+// Replaces recomputing "startDate + 1 unit" blind to actual progress —
+// once a plan exists, its own nextBillingDate is the live, correct
+// answer, written by the retainer-billing automation directly.
+const resolveActiveBillingPlanDisplay = (plan) => {
+  if (!plan) return null;
+  const totalCycles = plan.retainerTotalCycles ?? null;
+  const cyclesBilled = plan.retainerCyclesBilled ?? 0;
+  if (plan.nextBillingDate) {
+    return {
+      nextPaymentDate: plan.nextBillingDate,
+      cyclesBilled,
+      totalCycles,
+      displayText: totalCycles
+        ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+        : `Every ${plan.retainerUnit} · open-ended`,
+    };
+  }
+  return {
+    nextPaymentDate: calcRetainerNextPaymentDate(plan.startDate, 1, plan.retainerUnit),
+    cyclesBilled,
+    totalCycles,
+    displayText: totalCycles
+      ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
+      : `Every ${plan.retainerUnit} · open-ended`,
+  };
+};
+
+// Wrapped in a single <span> (not a Fragment) so the [text, "*"] pair stays
+// on one line even when the parent label uses display:grid — a Fragment's
+// children get flattened into the grid as SEPARATE items, each landing on
+// its own row, which is what threw required fields' input off-alignment
+// with their non-required row-mates.
+const fieldLabel = (text, required = false) =>
+  required
+    ? React.createElement(
+        "span",
+        null,
+        text,
+        React.createElement("span", { style: { color: "#ff4d4f", marginLeft: 2 } }, "*"),
+      )
+    : text;
+
 const getCurrentUser = () =>
   ctx.currentUser ||
   ctx.state?.currentUser ||
@@ -244,14 +296,8 @@ const getCurrentUser = () =>
   ctx.store?.getState?.()?.currentUser ||
   null;
 
-const userLabel = (record) =>
-  compact([
-    firstPresent(record, ["nickname", "displayName", "name", "username", "email"]),
-    firstPresent(record, ["email"]) &&
-    firstPresent(record, ["email"]) !== firstPresent(record, ["nickname", "displayName", "name", "username", "email"])
-      ? `(${firstPresent(record, ["email"])})`
-      : "",
-  ]).join(" ") || (record?.id ? `User #${record.id}` : "-");
+const lawyerLabel = (record) =>
+  firstPresent(record, ["lawyerName", "nickname", "name"]) || (record?.id ? `Lawyer #${record.id}` : "-");
 
 const customerLabel = (record) =>
   compact([
@@ -591,21 +637,37 @@ const normalizeSchedule = (contract) => {
     })
     .filter((row) => row.content || row.paymentDate || row.amount > 0 || row.label);
 
-  const retainerRule = schedule?.retainerRule
+  // Prefer the live contractBillingPlans record when present (via
+  // contract.billingPlans) — the single source of truth the
+  // retainer-billing automation reads and writes directly. Falls back to
+  // the legacy paymentSchedule.retainerRule JSON for contracts not yet
+  // backfilled into that collection.
+  const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || null;
+  const planDisplay = activePlan ? resolveActiveBillingPlanDisplay(activePlan) : null;
+  const retainerRule = activePlan
     ? {
-        ...schedule.retainerRule,
-        nextPaymentDate: calcRetainerNextPaymentDate(
-          schedule.firstPaymentDate || contract?.paymentDate,
-          1,
-          schedule.retainerRule.unit || contract?.retainerRepeatUnit || contract?.retainerPeriod,
-        ),
+        enabled: true,
+        unit: activePlan.retainerUnit,
+        interval: 1,
+        nextPaymentDate: planDisplay?.nextPaymentDate || "",
+        displayText: planDisplay?.displayText || "",
       }
-    : null;
+    : schedule?.retainerRule
+      ? {
+          ...schedule.retainerRule,
+          nextPaymentDate: calcRetainerNextPaymentDate(
+            schedule.firstPaymentDate || contract?.paymentDate,
+            1,
+            schedule.retainerRule.unit || contract?.retainerRepeatUnit || contract?.retainerPeriod,
+          ),
+        }
+      : null;
 
   return {
     mode: normalizeModeKey(schedule.mode || contract?.billingCycle),
     firstPaymentDate: schedule.firstPaymentDate || contract?.paymentDate || "",
     retainerRule,
+    billingPlan: activePlan,
     totalAmount: parseNum(schedule.totalAmount ?? contract?.totalAmount),
     baseAmount,
     installments,
@@ -659,9 +721,32 @@ const contractMoneyInfo = (contract = {}, payments = []) => {
   const successFee = parseNum(firstPresent(contract, ["successFee"]));
   const subTotal = parseNum(firstPresent(contract, ["subTotal", "packageSubTotal"]));
   const vatAmount = parseNum(firstPresent(contract, ["vatAmount", "packageVatAmount"]));
+  const monthlyFee = parseNum(contract?.monthlyFee);
+  const retainerDuration = parseNum(contract?.retainerDuration);
+  // Same fallback chain as contractTotalAmount() in PaymentCreateBlock.js /
+  // PaymentContractDetailBlock.js (2026-09-05 — kept in sync after finding
+  // this file's version fell through to 0 for a retainer contract priced
+  // only via monthlyFee×retainerDuration, with no totalAmount field set:
+  // PaymentCreateBlock.js would then see a nonzero remaining balance while
+  // this file quoted 0, so a real payment request could never be created
+  // for it). hourlyAmount+successFee stays as this file's own lowest-
+  // priority fallback — hourly billing isn't used by this business and
+  // isn't being extended, but removing working behavior wasn't asked for.
   const totalAmount =
-    parseNum(firstPresent(contract, ["totalAmount", "packageTotalAmount", "grandTotal"])) ||
+    parseNum(
+      firstPresent(contract, [
+        "totalAmount",
+        "packageTotalAmount",
+        "grandTotal",
+        "contractValue",
+        "amount",
+      ]),
+    ) ||
     directFixedAmount ||
+    (subTotal > 0 || vatAmount > 0 ? subTotal + vatAmount : 0) ||
+    (monthlyFee > 0 && retainerDuration > 0
+      ? monthlyFee * retainerDuration
+      : 0) ||
     hourlyAmount + successFee;
   const fixedAmount =
     directFixedAmount ||
@@ -941,8 +1026,8 @@ const buildRequestSnapshot = (contract, schedule, items) => {
 };
 
 const paymentRequestPayloadVariants = (payload) => {
-  const relationKeys = ["contracts", "customers", "internalCompany", "requestedBy", "assignedTo", "reviewedBy", "createdPayment", "createdInvoice"];
-  const scalarKeys = ["contractId", "customerId", "internalCompanyId", "requestedById", "assignedToId", "reviewedById", "createdPaymentId", "createdInvoiceId"];
+  const relationKeys = ["contracts", "customers", "internalCompany", "requestedBy", "assignedLawyer", "reviewedBy", "createdPayment", "createdInvoice"];
+  const scalarKeys = ["contractId", "customerId", "internalCompanyId", "requestedById", "assignedLawyerId", "reviewedById", "createdPaymentId", "createdInvoiceId"];
   return [
     payload,
     removeKeys(payload, relationKeys),
@@ -981,7 +1066,7 @@ const PaymentRequestCreateBlock = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [contracts, setContracts] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [lawyers, setLawyers] = useState([]);
   const [selectedContract, setSelectedContract] = useState(null);
   const [contractPayments, setContractPayments] = useState([]);
   const [form, setForm] = useState({
@@ -990,8 +1075,10 @@ const PaymentRequestCreateBlock = () => {
     requestType: "create_payment",
     paymentBasis: "",
     priority: "normal",
-    assignedToId: "",
-    dueDate: "",
+    assignedLawyerId: "",
+    // Defaults to 7 days from today — the lawyer can still change it, but a
+    // request should never start out with no due date at all.
+    dueDate: addDays(toDateInput(new Date()), 7),
     requestNote: "",
     selectedItemKeys: [],
   });
@@ -1071,7 +1158,7 @@ const PaymentRequestCreateBlock = () => {
     setLoading(true);
     try {
       const fromList = (contractList || []).find((item) => String(extractId(item)) === String(safeId));
-      const contract = fromList || await getAny(CONTRACT_RESOURCES, safeId, { appends: ["customers", "internalCompany"] });
+      const contract = fromList || await getAny(CONTRACT_RESOURCES, safeId, { appends: ["customers", "internalCompany", "billingPlans"] });
       const payments = await listPaymentsByContract(safeId).catch(() => []);
       const nextSchedule = applyPaymentSummary(normalizeSchedule(contract || {}), payments || []);
       const nextBasis = recommendedPaymentBasis(contract || {}, nextSchedule, payments || []);
@@ -1096,14 +1183,14 @@ const PaymentRequestCreateBlock = () => {
   useEffect(() => {
     let mounted = true;
     Promise.all([
-      listAny(CONTRACT_RESOURCES, { pageSize: 500, sort: ["-createdAt"], appends: ["customers", "internalCompany"] }).catch(() => []),
-      listAny(USER_RESOURCES, { pageSize: 500 }).catch(() => []),
+      listAny(CONTRACT_RESOURCES, { pageSize: 500, sort: ["-createdAt"], appends: ["customers", "internalCompany", "billingPlans"] }).catch(() => []),
+      listAny(LAWYER_RESOURCES, { pageSize: 500 }).catch(() => []),
     ])
-      .then(async ([contractRows, userRows]) => {
+      .then(async ([contractRows, lawyerRows]) => {
         if (!mounted) return;
         const safeContracts = contractRows || [];
         setContracts(safeContracts);
-        setUsers((userRows || []).filter((user) => extractId(user) !== 1));
+        setLawyers(lawyerRows || []);
         if (seedContractId) {
           await loadContractContext(seedContractId, safeContracts, false);
         } else {
@@ -1151,8 +1238,12 @@ const PaymentRequestCreateBlock = () => {
       message.warning("Please enter a payment request title.");
       return;
     }
-    if (!form.assignedToId) {
+    if (!form.assignedLawyerId) {
       message.warning("Please select an assignee.");
+      return;
+    }
+    if (!form.dueDate) {
+      message.warning("Please select a due date.");
       return;
     }
     if (!selectedItems.length) {
@@ -1162,7 +1253,7 @@ const PaymentRequestCreateBlock = () => {
 
     const currentUser = getCurrentUser();
     const currentUserId = extractId(currentUser);
-    const assignedToId = extractId(form.assignedToId);
+    const assignedLawyerId = extractId(form.assignedLawyerId);
     const contractId = resolveContractId(selectedContract);
     const customerId = resolveCustomerId(selectedContract);
     const internalCompanyId = resolveInternalCompanyId(selectedContract);
@@ -1185,8 +1276,8 @@ const PaymentRequestCreateBlock = () => {
       internalCompany: internalCompanyId || undefined,
       requestedById: currentUserId,
       requestedBy: currentUserId || undefined,
-      assignedToId,
-      assignedTo: assignedToId || undefined,
+      assignedLawyerId,
+      assignedLawyer: assignedLawyerId || undefined,
       dueDate: form.dueDate || null,
       requestedAmount: requestTotal,
       approvedAmount: null,
@@ -1254,9 +1345,9 @@ const PaymentRequestCreateBlock = () => {
     value: extractId(contract),
     label: contractLabel(contract),
   }));
-  const userOptions = users.map((user) => ({
-    value: extractId(user),
-    label: userLabel(user),
+  const lawyerOptions = lawyers.map((lawyer) => ({
+    value: extractId(lawyer),
+    label: lawyerLabel(lawyer),
   }));
 
   if (loading && !selectedContract) {
@@ -1334,27 +1425,32 @@ const PaymentRequestCreateBlock = () => {
         {
           style: {
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(12, 1fr)",
             gap: 12,
           },
         },
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "1 / -1" } },
-          "Title",
+          fieldLabel("Title", true),
           React.createElement(Input, {
             value: form.title,
             placeholder: "Enter payment request title",
             onChange: (event) => setF("title", event.target.value),
           }),
         ),
+        // Contract holds a long "code - contract name" value, so it gets
+        // more than half the row; Payment basis (a short select) fills the
+        // rest — was previously auto-fit'd into an equal-width column with
+        // everything else, which looked cramped against its own content.
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Contract",
+          { style: { display: "grid", gap: 6, gridColumn: "span 7" } },
+          fieldLabel("Contract", true),
           React.createElement(Select, {
             showSearch: true,
             allowClear: true,
+            style: { width: "100%" },
             value: form.contractId || undefined,
             placeholder: "Select contract",
             optionFilterProp: "label",
@@ -1364,9 +1460,10 @@ const PaymentRequestCreateBlock = () => {
         ),
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Payment basis",
+          { style: { display: "grid", gap: 6, gridColumn: "span 5" } },
+          fieldLabel("Payment basis"),
           React.createElement(Select, {
+            style: { width: "100%" },
             value: form.paymentBasis || undefined,
             placeholder: "Auto after selecting contract",
             disabled: !selectedContract || !basisOptions.length,
@@ -1374,11 +1471,14 @@ const PaymentRequestCreateBlock = () => {
             onChange: handleBasisChange,
           }),
         ),
+        // Request type / Assignee / Priority / Due date are all short
+        // selects/dates — one clean row of 4 equal columns.
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Request type",
+          { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
+          fieldLabel("Request type"),
           React.createElement(Select, {
+            style: { width: "100%" },
             value: form.requestType,
             options: [
               { value: "create_payment", label: REQUEST_TYPE_LABELS.create_payment },
@@ -1399,23 +1499,25 @@ const PaymentRequestCreateBlock = () => {
         ),
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Assignee",
+          { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
+          fieldLabel("Assignee", true),
           React.createElement(Select, {
             showSearch: true,
             allowClear: true,
-            value: form.assignedToId || undefined,
-            placeholder: "Select user",
+            style: { width: "100%" },
+            value: form.assignedLawyerId || undefined,
+            placeholder: "Select lawyer",
             optionFilterProp: "label",
-            options: userOptions,
-            onChange: (value) => setF("assignedToId", value || ""),
+            options: lawyerOptions,
+            onChange: (value) => setF("assignedLawyerId", value || ""),
           }),
         ),
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Priority",
+          { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
+          fieldLabel("Priority"),
           React.createElement(Select, {
+            style: { width: "100%" },
             value: form.priority,
             options: [
               { value: "low", label: "Low" },
@@ -1428,10 +1530,11 @@ const PaymentRequestCreateBlock = () => {
         ),
         React.createElement(
           "label",
-          { style: { display: "grid", gap: 6 } },
-          "Due date",
+          { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
+          fieldLabel("Due date", true),
           React.createElement(Input, {
             type: "date",
+            style: { width: "100%" },
             value: form.dueDate,
             onChange: (event) => setF("dueDate", event.target.value),
           }),
