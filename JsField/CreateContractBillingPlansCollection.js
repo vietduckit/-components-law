@@ -18,15 +18,23 @@
 //
 // How to run: paste into a temporary Nocobase Action block's onClick,
 // or the browser dev console on any admin page (ctx is in scope
-// there). Idempotent — skips creating the collection if one with this
-// exact name already exists.
+// there). Idempotent, but NOT "skip if exists" — DELETES any existing
+// collection with this exact name first, then rebuilds it fresh. This
+// makes re-running safe after a field-definition mistake (exactly what
+// happened on the first run of this script: startDate/endDate/
+// nextBillingDate were created as `timestamp with time zone` instead of
+// plain `date`, because Nocobase's field type for a date-only column is
+// `dateOnly`, not `date` — `date` maps to Sequelize's DATE(3), a
+// timestamptz; confirmed by reading packages/core/database/src/fields/
+// date-field.ts vs date-only-field.ts in the nocobase reference repo.
+// Safe to delete-and-recreate because nothing referenced this brand new,
+// still-empty collection yet at the point this fix was needed.
 // ============================================================
 
 const COLLECTION_NAME = "contractBillingPlans";
 
 const collectionPayload = () => ({
   name: COLLECTION_NAME,
-  timestamps: true,
   fields: [
     {
       name: "contracts",
@@ -79,13 +87,13 @@ const collectionPayload = () => ({
     },
     {
       name: "startDate",
-      type: "date",
+      type: "dateOnly",
       interface: "date",
       uiSchema: { type: "string", title: "Start Date", "x-component": "DatePicker" },
     },
     {
       name: "endDate",
-      type: "date",
+      type: "dateOnly",
       interface: "date",
       uiSchema: { type: "string", title: "End Date", "x-component": "DatePicker" },
     },
@@ -121,9 +129,31 @@ const collectionPayload = () => ({
     },
     {
       name: "nextBillingDate",
-      type: "date",
+      type: "dateOnly",
       interface: "date",
       uiSchema: { type: "string", title: "Next Billing Date", "x-component": "DatePicker" },
+    },
+    {
+      name: "createdAt",
+      type: "date",
+      interface: "createdAt",
+      uiSchema: {
+        type: "datetime",
+        title: "Created At",
+        "x-component": "DatePicker",
+        "x-component-props": { showTime: true },
+      },
+    },
+    {
+      name: "updatedAt",
+      type: "date",
+      interface: "updatedAt",
+      uiSchema: {
+        type: "datetime",
+        title: "Updated At",
+        "x-component": "DatePicker",
+        "x-component-props": { showTime: true },
+      },
     },
   ],
 });
@@ -133,10 +163,11 @@ const collectionPayload = () => ({
     url: "collections:list",
     params: { filter: { name: COLLECTION_NAME }, paginate: false },
   });
-  if ((existing?.data?.data || []).length > 0) {
-    console.log(`[skip] Collection "${COLLECTION_NAME}" already exists`);
-    return;
+  for (const row of existing?.data?.data || []) {
+    await ctx.api.request({ url: "collections:destroy", method: "POST", params: { filterByTk: row.name } });
+    console.log(`[deleted] previous collection "${row.name}" (rebuilding fresh)`);
   }
+
   const created = await ctx.api.request({
     url: "collections:create",
     method: "POST",
