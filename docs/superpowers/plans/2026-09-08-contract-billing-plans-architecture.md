@@ -1129,7 +1129,7 @@ Same pattern as Tasks 6-7, applied to 2 more independently-duplicated copies of 
 
 **This task must not run until Task 9 is fully verified.** Per the Global Constraints and spec §10 (Rollback), this is the only non-trivially-reversible step in the whole plan.
 
-**Scope note added during Task 5:** `contractType` has more live readers in `ContractCreateForm.js` alone than originally assumed (`TutorialPanel` at ~line 12284, plus at least 2 other call sites, not yet audited) — before this task drops the column, each of those needs to be updated to derive contract type from the active `billingPlans` record instead (`plan?.planType === 'retainer' ? ...` or equivalent), not just the submit-payload write that Task 5 already stopped. Add this audit as an explicit step here when this task is actually executed, informed by whatever Task 9 Step 7's grep turns up.
+**`contractType` deliberately excluded from this run.** Checked during Task 10 prep: within `ContractCreateForm.js`, `contractType` (including its `TutorialPanel` usage) turned out to be entirely form-state-driven, never read back from a saved record — safer than Task 5's original note suggested. But `contractType` also drives the colored "Type" badge in the native Nocobase "All Contracts" grid (seen live in this session's own screenshots) — that rendering is configured through the Admin UI's own field/list-view metadata, which this plan cannot audit by reading `.js` files. Given this is the one genuinely hard-to-reverse step in the whole plan, dropping a column with an unverified native-UI dependency isn't worth the risk for a single extra column. `contracts.contractType` stays for now; the 7 other columns (all confirmed safe — every live reader fixed in Tasks 5-7/9b, every remaining reference confirmed dead) are dropped in this run.
 
 - [ ] **Step 1: Write the migration file**
 
@@ -1146,6 +1146,9 @@ Create `pgsql/contracts_drop_dead_columns.sql`:
 -- contract_billing_plans_migration_backfill.sql — confirm that ran
 -- successfully and Task 9 Step 7's grep is clean before running this.
 --
+-- contractType is deliberately NOT dropped here — see this task's note
+-- above (native Admin UI grid dependency, not auditable from .js files).
+--
 -- Idempotent: DROP COLUMN IF EXISTS is safe to run again.
 -- ============================================================
 
@@ -1156,7 +1159,6 @@ ALTER TABLE contracts DROP COLUMN IF EXISTS "overageHourlyRate";
 ALTER TABLE contracts DROP COLUMN IF EXISTS "retainerDuration";
 ALTER TABLE contracts DROP COLUMN IF EXISTS "nextRetainerBillingDate";
 ALTER TABLE contracts DROP COLUMN IF EXISTS "retainerPeriodsBilled";
-ALTER TABLE contracts DROP COLUMN IF EXISTS "contractType";
 ```
 
 - [ ] **Step 2: Also remove the now-orphaned Nocobase field metadata**
@@ -1166,7 +1168,8 @@ Dropping a Postgres column directly (rather than through `fields:destroy`) can l
 ```js
 const FIELDS_TO_REMOVE = [
   "retainerPeriod", "monthlyFee", "includedHours", "overageHourlyRate",
-  "retainerDuration", "nextRetainerBillingDate", "retainerPeriodsBilled", "contractType",
+  "retainerDuration", "nextRetainerBillingDate", "retainerPeriodsBilled",
+  // contractType intentionally excluded — see this task's note above.
 ];
 (async () => {
   for (const name of FIELDS_TO_REMOVE) {
@@ -1185,9 +1188,9 @@ const FIELDS_TO_REMOVE = [
 ```sql
 SELECT column_name FROM information_schema.columns
 WHERE table_name = 'contracts'
-  AND column_name IN ('retainerPeriod','monthlyFee','includedHours','overageHourlyRate','retainerDuration','nextRetainerBillingDate','retainerPeriodsBilled','contractType');
+  AND column_name IN ('retainerPeriod','monthlyFee','includedHours','overageHourlyRate','retainerDuration','nextRetainerBillingDate','retainerPeriodsBilled');
 ```
-Expected: 0 rows.
+Expected: 0 rows. (`contractType` deliberately not included in this check — it still exists, by design.)
 
 Reload the Admin UI's contract list/detail views — confirm nothing errors out referencing a missing field (this is the live check that Task 9 Step 7's grep was actually thorough).
 
