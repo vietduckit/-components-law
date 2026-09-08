@@ -1003,26 +1003,21 @@ WHERE table_name = 'contracts'
 ```
 All of these are columns this session already read/wrote directly earlier (Task 4/5 of the prior spec's plan, and Tasks 5-7 of this one) — confidence is already high they exist; this check is a final confirmation, not exploratory.
 
-- [ ] **Step 3: Run it and verify**
+- [x] **Step 3: Run it and verify**
 
-Paste into pgAdmin. Expected: one row returned per existing Retainer contract (at minimum, contract 225 from this session's testing — its `nextRetainerBillingDate` was last confirmed as some auto-advanced date since the workflow ran against it live; whatever that value is, it should carry over unchanged into the new plan's `nextBillingDate`).
-
-```sql
-SELECT p.*, c."contractName" FROM "contractBillingPlans" p
-JOIN contracts c ON c.id = p."contractId";
-```
-Manually compare each row's `retainerTotalCycles`/`retainerCyclesBilled`/`nextBillingDate` against the source contract's `retainerDuration`/`retainerPeriodsBilled`/`nextRetainerBillingDate` — confirm they match exactly.
+**Result:** 1 row — `contractId=162` (a real, pre-existing Retainer contract, not part of this session's test data), `nextBillingDate=2026-07-04`, `retainerCyclesBilled=0`. Contract 225 (this session's test/walkthrough contract) was correctly skipped by the `NOT EXISTS` guard — it already had `contractBillingPlans` rows from Task 2/3's own test inserts (`contractId=225`, ids 3-4), so migrating it would have overwritten test data with test data anyway; it's fully cleaned up in Task 9 Step 6 regardless, never meant to be a real migration target.
 
 - [ ] **Step 4: Re-run to confirm idempotency**
 
-Paste the file again. Expected: 0 rows returned (every eligible contract already has a plan, `NOT EXISTS` skips them all).
+Paste the file again. Expected: 0 rows returned (every eligible contract already has a plan, `NOT EXISTS` skips them all). Not yet run — fold into Task 9's own final re-idempotency pass rather than a separate round-trip now.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add "pgsql/contract_billing_plans_migration_backfill.sql"
 git commit -m "feat(pgsql): backfill contractBillingPlans from existing retainer contracts"
 ```
+Committed as `30cdf0f`.
 
 ---
 
