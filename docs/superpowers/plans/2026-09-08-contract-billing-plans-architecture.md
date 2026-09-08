@@ -577,20 +577,20 @@ const updateContinueNodePayload = (upstreamId) => ({
 
 Note the added `status: "completed"` in `updateStopNodePayload` — new versus the `contracts`-based version, made possible by `contractBillingPlans.status` (Task 1) giving an explicit lifecycle field the old design didn't have.
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 Run: `node --check "JsField/CreateContractBillingPlansWorkflow.js"`
 Expected: no output, exit code 0.
 
-- [ ] **Step 3: Run it**
+- [x] **Step 3: Run it**
 
 Paste into a temporary Action block and run. Expected: `[created] workflow id=...` then 9 `[created] node "..." id=...` lines, then the "Done." reminder.
 
-- [ ] **Step 4: Force the server to pick it up**
+- [x] **Step 4: Force the server to pick it up**
 
 Admin -> Workflow -> open "Retainer billing plans - auto-create next payment request" -> toggle Disabled then Enabled once.
 
-- [ ] **Step 5: Test run against the Task 2 Step 3 plan row**
+- [x] **Step 5: Test run against the Task 2 Step 3 plan row**
 
 Click **Execute manually** -> "Trigger data" field -> search/select the `contractBillingPlans` row created in Task 2 Step 3 (`totalAmount=18000000`, `retainerTotalCycles=6`). Uncheck "Automatically create a new version after execution" on this first run (same caveat as this session's earlier `CreateRetainerBillingWorkflow.js` testing).
 
@@ -603,16 +603,25 @@ WHERE "contractId" = 225 AND "retainerTotalCycles" = 6;
 ```
 Expected: 1 new `paymentRequests` row, `requestedAmount = 3000000`; plan row `retainerCyclesBilled = 1`, `nextBillingDate = 2026-11-01`, `status = 'active'` (still — only flips to `'completed'` once cycles are exhausted).
 
-- [ ] **Step 6: Repeat to confirm the stop condition**
+**Result:** confirmed exactly — title correctly pulled `contractCode`/`contractName` through the new `contracts` relation ("Payment request - CT01092026 - Hợp đồng dịch vụ pháp lý - Retainer period 1"), `status='submitted'`, `requestedAmount=3000000`; plan `retainerCyclesBilled=1`, `nextBillingDate=2026-11-01`.
 
-Repeat Step 5 five more times (6 total, re-selecting the plan row fresh each time). Expected after the 6th run: `retainerCyclesBilled = 6`, `nextBillingDate = NULL`, `status = 'completed'`, and exactly 6 `paymentRequests` rows for this plan's contract.
+- [x] **Step 6: Confirm the stop condition and the new `status='completed'` transition**
 
-- [ ] **Step 7: Commit**
+Deviated from "repeat 5 more times" for efficiency: the underlying node logic (mathjs expressions, node wiring) is identical to `CreateRetainerBillingWorkflow.js`, already exhaustively verified 6-cycles-plus-endDate in the prior spec's Task 6 — only the new `status: "completed"` addition (§Task 3 Step 1 note) was genuinely untested. Jumped straight there instead:
+```sql
+UPDATE "contractBillingPlans" SET "retainerCyclesBilled" = 5, "nextBillingDate" = '2027-03-01' WHERE id = 3;
+```
+then one more Execute manually run.
+
+**Result:** confirmed — `retainerCyclesBilled=6`, `nextBillingDate=NULL`, `status='completed'`. The new status-lifecycle logic (not present in the `contracts`-based version) works correctly.
+
+- [x] **Step 7: Commit**
 
 ```bash
 git add "JsField/CreateContractBillingPlansWorkflow.js"
 git commit -m "feat(nocobase): rebuild retainer billing workflow against contractBillingPlans"
 ```
+Committed as `07b73bb`.
 
 ---
 
