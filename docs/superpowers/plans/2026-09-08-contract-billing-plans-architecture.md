@@ -811,19 +811,23 @@ Committed as `6b7050e` (bundled with the `RetainerScheduleSection` interval fix 
 **Interfaces:**
 - Produces: `RetainerRule` component now renders from a `contractBillingPlans` record (via the contract's `billingPlans` relation), not `schedule.retainerRule`.
 
-- [ ] **Step 1: Read the current `RetainerRule` component and its call site to confirm nothing has drifted**
+- [x] **Step 1: Read the current `RetainerRule` component and its call site to confirm nothing has drifted**
 
 Re-read `RetainerRule` (line 972) and its usage at line 1568 (`RetainerRule({ rule: schedule.retainerRule })`), plus `resolveRetainerNextPaymentDate` (line 308, fixed by this session's Task 2, commit `202d7fc`). If these differ from what this plan describes, stop and reconcile before continuing.
 
-- [ ] **Step 2: Fetch the active billing plan alongside the contract**
+**Result:** confirmed unchanged. Also traced every other reader of `schedule.retainerRule` in the file before editing (`normalizeSchedule`, `hasRenderableSchedule`, `buildRequestableItems`, `countText`) — see this task's overall Result note below Step 7 for why that widened the fix.
+
+- [x] **Step 2: Fetch the active billing plan alongside the contract**
 
 Wherever this block fetches the contract record (`contracts:get` or similar, likely in the component that sets `contextRecord`/`record` state), add `billingPlans` to its `appends` so the active plan comes back with the contract in the same request.
 
-- [ ] **Step 3: Replace `resolveRetainerNextPaymentDate` with `resolveActiveBillingPlanDisplay`**
+- [x] **Step 3: Replace `resolveRetainerNextPaymentDate` with `resolveActiveBillingPlanDisplay`**
 
 Replace the `resolveRetainerNextPaymentDate` function (line 308-313) with the `resolveActiveBillingPlanDisplay` function from Task 4's code block (local to this file, not imported — per Task 4's deviation note). Keep this file's own existing `calcRetainerNextPaymentDate` (line 296) and `normalizeRetainerUnit` — `resolveActiveBillingPlanDisplay` calls `calcRetainerNextPaymentDate`, which already exists here unchanged.
 
-- [ ] **Step 4: Replace `RetainerRule`'s rendering to use the live plan**
+Also added `retainerDurationSuffix` (not previously present in this file at all — needed by `resolveActiveBillingPlanDisplay`'s `displayText`).
+
+- [x] **Step 4: Replace `RetainerRule`'s rendering to use the live plan**
 
 Replace the component (line 972-1007) so it takes a `plan` prop (the active `contractBillingPlans` record, found from `record.billingPlans?.find(p => p.status === 'active')`) instead of a `rule` prop:
 
@@ -869,21 +873,23 @@ const RetainerRule = ({ plan }) => {
 
 (Added a "Cycles billed" line — new information that wasn't previously displayed anywhere, now cheap to show since the component already has the plan record.)
 
-- [ ] **Step 5: Update the call site**
+- [x] **Step 5: Update the call site**
 
 Line 1568: replace `RetainerRule({ rule: schedule.retainerRule })` with `RetainerRule({ plan: record.billingPlans?.find((p) => p.status === "active") })`.
 
-- [ ] **Step 6: Verify syntax**
+- [x] **Step 6: Verify syntax**
 
 Run: `node --check "All Module/Contract/ContractPaymentScheduleDetailBlock.js"`
 Expected: no output, exit code 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add "All Module/Contract/ContractPaymentScheduleDetailBlock.js"
 git commit -m "refactor(ContractPaymentScheduleDetailBlock): RetainerRule reads the live contractBillingPlans record instead of a cached paymentSchedule snapshot"
 ```
+
+**Result — scope turned out bigger than Steps 1-7 anticipated, all handled in one pass (commit `d975273`):** `schedule.retainerRule` wasn't only read by the `RetainerRule` display component — `normalizeSchedule` itself builds a `retainerRule` field that `hasRenderableSchedule`, `buildRequestableItems` (the function that computes actual payment-request line items — money-relevant, not just display), and `countText` all read too. Fixed at the source instead of at each call site: `normalizeSchedule` now derives `retainerRule` from `record.billingPlans`'s active plan when present (falling back to the legacy JSON computation, inlined, for contracts not yet backfilled into `contractBillingPlans`), and exposes `billingPlan` on its return value for the `RetainerRule` call site to use. Also found `fetchContract` had no `appends` at all (needed `billingPlans` added), and that the component's own perf optimization — reusing `contextRecord` without a fresh fetch when it already "looks renderable" — would have silently skipped loading `billingPlans` for exactly the retainer contracts that need it; gated that fast path on `contextRecord?.billingPlans` being present too.
 
 ---
 
