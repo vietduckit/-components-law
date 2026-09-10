@@ -11449,6 +11449,9 @@ const ProjectCreateForm = () => {
           const skippedCount = comboRows.length - resolved.length;
           if (!resolved.length) {
             console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
+            message.warning(
+              `Combo "${comboEntry.comboName}" was not saved to the catalog — none of its services have a catalog link yet. Check "Also save to the shared catalog" on each custom service too.`,
+            );
             continue;
           }
           const byServiceId = new Map();
@@ -11499,6 +11502,7 @@ const ProjectCreateForm = () => {
             }
           } catch (comboErr) {
             console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
+            message.warning(`Could not save combo "${comboEntry.comboName}" to the catalog.`);
           }
         }
       }
