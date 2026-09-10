@@ -3541,13 +3541,21 @@
         setCatalogPromptChecked((prev) => ({ ...prev, [id]: !prev[id] }));
       };
 
+      // Creates the catalog definition first (services:create), then links
+      // it to the current company with this row's price (companyServices:create)
+      // — BR-DATA-02: every service picker in this codebase (CaseCreateForm.js/
+      // ContractCreateForm.js/QuotationCreateForm.js included) reads
+      // companyServices, not services directly, so skipping this second
+      // write would leave the new service invisible everywhere except this
+      // file's own picker (which reads services:list directly). Each row is
+      // its own try/catch so one failure doesn't abort the rest of the batch.
       const handleSaveSelectedToCatalog = async () => {
         const rowsToSave = catalogPromptRows.filter((r) => catalogPromptChecked[r.id]);
         const internalCompanyId = extractId(caseInfo?.internalCompanyId) || extractId(caseInfo?.internalCompany);
         setCatalogSaving(true);
-        try {
-          for (const r of rowsToSave) {
-            await ctx.api.request({
+        for (const r of rowsToSave) {
+          try {
+            const svcRes = await ctx.api.request({
               url: "services:create",
               method: "POST",
               data: {
@@ -3555,13 +3563,33 @@
                 serviceType: r._serviceType || null,
                 description: r._description || null,
                 basePrice: r._basePrice || 0,
+                currencyId: extractCurrencyId(r._currencyId) || null,
                 internalCompanyId: internalCompanyId || null,
               },
             });
+            const newServiceId = svcRes?.data?.data?.id;
+            if (newServiceId && internalCompanyId) {
+              try {
+                await ctx.api.request({
+                  url: "companyServices:create",
+                  method: "POST",
+                  data: {
+                    internalCompanyId,
+                    serviceId: newServiceId,
+                    price: r._basePrice || 0,
+                    basePrice: r._basePrice || 0,
+                    currencyId: extractCurrencyId(r._currencyId) || null,
+                  },
+                });
+              } catch (linkErr) {
+                console.warn("Could not link new service to company catalog:", linkErr);
+                message.warning(`"${r._svcName}" đã lưu vào catalog nhưng chưa gán được giá riêng cho company — cần thêm thủ công trong companyServices.`);
+              }
+            }
+          } catch (err) {
+            console.error(err);
+            message.warning(`Could not save "${r._svcName}" to the catalog: ` + (err?.message || ""));
           }
-        } catch (err) {
-          console.error(err);
-          message.warning("Some services could not be saved to the catalog: " + (err?.message || ""));
         }
         setCatalogSaving(false);
         setShowCatalogPrompt(false);
