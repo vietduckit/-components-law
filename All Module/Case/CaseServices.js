@@ -443,6 +443,16 @@
     };
     const isDeletedServiceLine = (record = {}) =>
       String(record?.status || record?.lineStatus || "").toLowerCase().trim() === "deleted";
+    // Diacritic-insensitive name matching (copied from ContractCreateForm.js) —
+    // two names that differ only by Vietnamese diacritics or extra whitespace
+    // should still count as the same service for the catalog-collision check.
+    const normalizeSearch = (value) =>
+      String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    const serviceNameKey = (value) =>
+      normalizeSearch(value).replace(/\s+/g, " ").trim();
     const isServiceEditLocked = (record = {}) =>
       ENFORCE_SERVICE_EDIT_LOCKS &&
       (
@@ -899,6 +909,12 @@
       // both for a brand-new row (via addRow) and for editing an existing
       // row's identity (via the "Service & Type" button-cell).
       const [svcModalOpen, setSvcModalOpen] = useState(false);
+      // "Save to catalog?" — appears once after Save, only if the batch
+      // created at least one custom-named (non-catalog) row.
+      const [catalogPromptRows, setCatalogPromptRows] = useState([]);
+      const [showCatalogPrompt, setShowCatalogPrompt] = useState(false);
+      const [catalogPromptChecked, setCatalogPromptChecked] = useState({});
+      const [catalogSaving, setCatalogSaving] = useState(false);
       const [modalView, setModalView] = useState("select"); // "select" | "create"
       const [activeRowId, setActiveRowId] = useState(null);
       const [svcSearch, setSvcSearch] = useState("");
@@ -3480,6 +3496,156 @@
         }
       };
 
+      // Batched Save for the draft table. Reuses three already-verified
+      // functions per row instead of re-deriving their cascade logic:
+      //   - createOneCaseService (unchanged) for new rows — same duplicate
+      //     check, pricing, folder provisioning it already had.
+      //   - softDeleteOneService (unchanged) for existing rows marked
+      //     _deleted — keeps soft-deleting linked contractServices/
+      //     quotationServices and resyncing their header totals, exactly
+      //     like handleDelete already does today.
+      //   - syncAllThree (unchanged), called once per identity field plus
+      //     one combined pricing call, for existing rows' edits — keeps
+      //     pushing the same change into linked quotationServices/
+      //     contractServices and resyncing quotation/contract/case totals,
+      //     exactly like handleInlineEdit already does today.
+      // Every existing (!_isNew, !_deleted) row runs its sync pass
+      // unconditionally, even if nothing actually changed — serviceId has
+      // no separate "as loaded" baseline to diff against (handleSelectCatalogService/
+      // handleCreateCustomService mutate it directly, not a _-prefixed
+      // draft copy), so reliable per-field no-op detection isn't cheap to
+      // get right. A few redundant no-op API calls per unchanged row is a
+      // safe tradeoff given a case typically has a handful of services, not
+      // hundreds — mirrors syncCaseTotalAmount's own "recompute from
+      // scratch every time" philosophy.
+
+      // Rows already present in the catalog (by normalized name) are shown
+      // but not checkable — avoids creating a duplicate catalog row for a
+      // typed name that happens to already be standardized under a
+      // slightly different-looking (but same-normalized) spelling.
+      const openCatalogPrompt = (rows) => {
+        const enriched = rows.map((r) => ({
+          ...r,
+          _alreadyInCatalog: serviceCatalog.some(
+            (s) => serviceNameKey(s.serviceName || s.name) === serviceNameKey(r._svcName),
+          ),
+        }));
+        setCatalogPromptRows(enriched);
+        setCatalogPromptChecked(
+          Object.fromEntries(enriched.filter((r) => !r._alreadyInCatalog).map((r) => [r.id, false])),
+        );
+        setShowCatalogPrompt(true);
+      };
+
+      const toggleCatalogPromptRow = (id) => {
+        setCatalogPromptChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+      };
+
+      const handleSaveSelectedToCatalog = async () => {
+        const rowsToSave = catalogPromptRows.filter((r) => catalogPromptChecked[r.id]);
+        const internalCompanyId = extractId(caseInfo?.internalCompanyId) || extractId(caseInfo?.internalCompany);
+        setCatalogSaving(true);
+        try {
+          for (const r of rowsToSave) {
+            await ctx.api.request({
+              url: "services:create",
+              method: "POST",
+              data: {
+                serviceName: r._svcName,
+                serviceType: r._serviceType || null,
+                description: r._description || null,
+                basePrice: r._basePrice || 0,
+                internalCompanyId: internalCompanyId || null,
+              },
+            });
+          }
+        } catch (err) {
+          console.error(err);
+          message.warning("Some services could not be saved to the catalog: " + (err?.message || ""));
+        }
+        setCatalogSaving(false);
+        setShowCatalogPrompt(false);
+        await finishSaveFlow();
+      };
+
+      const handleSkipCatalogPrompt = async () => {
+        setShowCatalogPrompt(false);
+        await finishSaveFlow();
+      };
+
+      const handleSave = async () => {
+        const invalid = services.find((r) => !r._deleted && !(r._svcName || "").trim());
+        if (invalid) {
+          message.warning("Please enter a name for every service.");
+          return;
+        }
+        setSubmitting(true);
+        const syncWarnings = [];
+        try {
+          const createdCustomRows = [];
+          for (const r of services) {
+            if (r._deleted && r._isNew) {
+              continue; // never persisted — nothing to do
+            } else if (r._deleted && !r._isNew) {
+              await softDeleteOneService(r, syncWarnings);
+            } else if (!r._deleted && r._isNew) {
+              const addAsPackage = servicePricingSummary.isPackageMode || !!(r.comboId || r.comboName);
+              const { id: psId } = await createOneCaseService({
+                serviceId: r.serviceId,
+                serviceName: r._svcName,
+                serviceType: r._serviceType,
+                description: r._description,
+                basePrice: addAsPackage ? 0 : r._basePrice,
+                vat: addAsPackage ? 0 : r._vat,
+                currencyId: r._currencyId || null,
+                comboTarget: (r.comboId || r.comboName) ? { comboId: r.comboId, comboName: r.comboName } : null,
+              }, { skipReload: true });
+              if (psId && r._isCustom) createdCustomRows.push({ ...r, id: psId });
+            } else {
+              await syncAllThree(r, "serviceName", r._svcName);
+              await syncAllThree(r, "serviceType", r._serviceType);
+              await syncAllThree(r, "description", r._description);
+              await syncAllThree(r, "serviceId", r.serviceId);
+              // basePrice + vat + currencyId must be applied together in ONE
+              // syncAllThree call: its basePrice branch reads record.vat as
+              // the fallback for "the field not being set right now", and
+              // record.vat is the frozen as-loaded value — two separate
+              // sequential calls (one for basePrice, one for vat) would each
+              // silently overwrite the other's change back to its old value.
+              // Pre-patching vat/currencyId onto the record passed in avoids
+              // that without touching syncAllThree itself.
+              const pricingRecord = { ...r, vat: r._vat, currencyId: extractCurrencyId(r._currencyId) || r.currencyId };
+              await syncAllThree(pricingRecord, "basePrice", r._basePrice);
+            }
+          }
+          await syncCaseTotalAmount(currentId);
+
+          if (syncWarnings.length > 0) {
+            message.warning(`Services saved. Could not sync: ${syncWarnings.join(", ")}.`);
+          }
+
+          const customRowsAwaitingCatalogDecision = createdCustomRows.filter((r) => r._svcName?.trim());
+          if (customRowsAwaitingCatalogDecision.length > 0) {
+            openCatalogPrompt(customRowsAwaitingCatalogDecision);
+          } else {
+            await finishSaveFlow();
+          }
+        } catch (err) {
+          console.error(err);
+          message.error("Failed to save: " + (err?.message || ""));
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
+      // Shared tail for both "nothing to prompt about" and the catalog
+      // prompt's own Save-selected/Skip buttons (Task 4).
+      const finishSaveFlow = async () => {
+        message.success("Services saved.");
+        setDirty(false);
+        await loadData();
+      };
+
       // â”€â”€ Open the service-select modal for a contract â”€â”€
       const openContractWithServiceSelect = (record) => {
         setServiceSelectModal({
@@ -4925,6 +5091,15 @@
         // by <td> layout at all.
         servicesSummaryPanel(),
 
+        dirty && React.createElement("div", { style: { ...ui.section, display: "flex", justifyContent: "flex-end", gap: 8 } },
+          React.createElement(Button, { onClick: () => { setDirty(false); loadData(); } }, "Cancel changes"),
+          React.createElement(Button, {
+            type: "primary",
+            loading: submitting,
+            onClick: submitting ? undefined : handleSave,
+          }, "Save"),
+        ),
+
         // SERVICE SELECT MODAL — select services before creating a contract/appendix or quotation
         React.createElement(Modal, {
           title: React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
@@ -5332,6 +5507,50 @@
               )
             )
             : renderAdhocComboTab()
+        ),
+
+        // SAVE TO CATALOG? — appears once after Save, only if this session
+        // created at least one custom-named (non-catalog) row.
+        React.createElement(Modal, {
+          title: "Save to catalog?",
+          open: showCatalogPrompt,
+          onCancel: handleSkipCatalogPrompt,
+          maskClosable: false,
+          footer: React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
+            React.createElement(Button, { onClick: handleSkipCatalogPrompt }, "Skip"),
+            React.createElement(Button, {
+              type: "primary",
+              loading: catalogSaving,
+              onClick: handleSaveSelectedToCatalog,
+            }, "Save selected"),
+          ),
+          width: 640,
+        },
+          React.createElement("div", { style: { marginBottom: 12, color: C.textSub, fontSize: 13 } },
+            "These services were typed manually and aren't in the standardized services catalog yet. Check any you'd like to add, so future cases can pick them from the catalog instead of retyping them.",
+          ),
+          React.createElement("div", { style: { display: "grid", gap: 8 } },
+            catalogPromptRows.map((r) => React.createElement("div", {
+              key: r.id,
+              style: { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, background: r._alreadyInCatalog ? C.bgSection : "#fff" },
+            },
+              r._alreadyInCatalog
+                ? React.createElement("div", { style: { width: 16 } })
+                : React.createElement("input", {
+                  type: "checkbox",
+                  checked: !!catalogPromptChecked[r.id],
+                  onChange: () => toggleCatalogPromptRow(r.id),
+                  style: { marginTop: 3 },
+                }),
+              React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { style: { fontWeight: 600, color: C.text } }, r._svcName),
+                React.createElement("div", { style: { fontSize: 12, color: C.textSub } },
+                  [r._serviceType, formatMoney(r._basePrice || 0, resolveCurrency(r._currencyId, currencies) || caseCurrency)].filter(Boolean).join(" · "),
+                ),
+              ),
+              r._alreadyInCatalog && React.createElement(Tag, { color: "default" }, "Already in the catalog"),
+            )),
+          ),
         )
       );
     };
