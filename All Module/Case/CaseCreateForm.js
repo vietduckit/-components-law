@@ -3898,12 +3898,20 @@ const ServicePickerModal = ({
     basePrice: 0,
     currencyId: extractCurrencyId(currency) ? String(extractCurrencyId(currency)) : "",
     taskTemplates: [],
+    saveToCatalog: false,
   });
   const [errors, setErrors] = useState({});
   const [creating, setCreating] = useState(false);
   const selectedNewSvcCurrency =
     findCurrencyById(currencies, newSvc.currencyId) ||
     (extractCurrencyId(currency) ? currency : null);
+  // Real-time duplicate check for the "Also save to the shared catalog"
+  // checkbox below — same comparison openCatalogPrompt-style dedup checks
+  // elsewhere use (serviceNameKey against svcOpts, the company-scoped list
+  // this modal's own "Select from Catalog" tab already reads).
+  const isNameAlreadyInCatalog =
+    !!newSvc.name.trim() &&
+    svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(newSvc.name));
 
   useEffect(() => {
     const defaultCurrencyId = extractCurrencyId(currency);
@@ -4207,6 +4215,7 @@ const ServicePickerModal = ({
         currencyId: extractCurrencyId(newSvc.currencyId) || extractCurrencyId(currency),
         currency: selectedNewSvcCurrency,
         taskTemplates: normalizeCustomTaskTemplates(newSvc.taskTemplates),
+        saveToCatalog: newSvc.saveToCatalog && !isNameAlreadyInCatalog,
       });
       onClose();
     } catch { }
@@ -5918,6 +5927,39 @@ const ServicePickerModal = ({
             ),
           ),
           renderCustomTaskEditor(),
+          React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: "10px 12px",
+                borderRadius: 6,
+                background: isNameAlreadyInCatalog ? C.bgSection : "#e6f4ff",
+                border: `1px solid ${isNameAlreadyInCatalog ? C.border : "#91caff"}`,
+              },
+            },
+            isNameAlreadyInCatalog
+              ? React.createElement("div", { style: { width: 15, flexShrink: 0 } })
+              : React.createElement("input", {
+                type: "checkbox",
+                id: "newSvcSaveToCatalog",
+                checked: newSvc.saveToCatalog,
+                onChange: (e) => setNewSvc({ ...newSvc, saveToCatalog: e.target.checked }),
+                style: { marginTop: 2, cursor: "pointer", flexShrink: 0 },
+              }),
+            React.createElement(
+              "label",
+              {
+                htmlFor: "newSvcSaveToCatalog",
+                style: { fontSize: 12.5, color: C.textLabel, cursor: isNameAlreadyInCatalog ? "default" : "pointer", lineHeight: 1.5 },
+              },
+              isNameAlreadyInCatalog
+                ? "This name already exists in the standardized catalog — pick it from the list instead of creating a duplicate."
+                : "Also save to the shared catalog (created only if you finish creating this case).",
+            ),
+          ),
         ),
         React.createElement(
           "div",
@@ -8357,13 +8399,6 @@ const ProjectCreateForm = () => {
   const [loadingServices, setLoadingServices] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState("");
-  // "Save to catalog?" — appears once after the case is successfully
-  // created, only if handleSubmit found at least one typed (non-catalog)
-  // service among rows. Popup close is deferred until Skip/Save Selected.
-  const [showCatalogPrompt, setShowCatalogPrompt] = useState(false);
-  const [catalogPromptRows, setCatalogPromptRows] = useState([]);
-  const [catalogPromptChecked, setCatalogPromptChecked] = useState({});
-  const [catalogSaving, setCatalogSaving] = useState(false);
   const [caseCodePreview, setCaseCodePreview] = useState(null);
   const lastAutoCaseCodeRef = useRef("");
   const caseCodeRequestRef = useRef(0);
@@ -9109,6 +9144,7 @@ const ProjectCreateForm = () => {
             pricingMode: form.pricingMode,
             _packageBasePrice: packageMode ? parseNum(svc.basePrice) : 0,
             _customTaskTemplates: customTaskTemplates,
+            _saveToCatalog: !!svc.saveToCatalog,
           },
         ]);
         addToPackageTotal(svc.basePrice);
@@ -9603,89 +9639,6 @@ const ProjectCreateForm = () => {
     },
     [form.pricingMode],
   );
-
-  // Rows already present in the catalog (by normalized name, via svcOpts —
-  // the same company-scoped list ServicePickerModal's "Select from Catalog"
-  // tab already reads) are shown but not checkable, avoiding a duplicate
-  // catalog entry for a typed name that's already standardized.
-  const openCatalogPrompt = (candidateRows) => {
-    const enriched = candidateRows.map((r) => ({
-      ...r,
-      _alreadyInCatalog: svcOpts.some(
-        (s) => serviceNameKey(s.serviceName) === serviceNameKey(r.serviceName),
-      ),
-    }));
-    setCatalogPromptRows(enriched);
-    setCatalogPromptChecked(
-      Object.fromEntries(enriched.filter((r) => !r._alreadyInCatalog).map((r) => [r.id, false])),
-    );
-    setShowCatalogPrompt(true);
-  };
-
-  const toggleCatalogPromptRow = (id) => {
-    setCatalogPromptChecked((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  // Creates the catalog definition first (services:create), then links it
-  // to the current company with the price entered on this row
-  // (companyServices:create) — BR-DATA-02: every service picker in this
-  // codebase (this form's own included) reads companyServices, not
-  // services directly, so skipping this second write would leave the new
-  // service invisible in every picker until someone adds the link by hand.
-  // No existing code writes to companyServices yet, so its exact field
-  // shape isn't proven — failures here are caught and warned about rather
-  // than blocking, since the services row (and the case itself) are
-  // already safely saved regardless.
-  const handleSaveSelectedToCatalog = async () => {
-    const rowsToSave = catalogPromptRows.filter((r) => catalogPromptChecked[r.id]);
-    setCatalogSaving(true);
-    for (const r of rowsToSave) {
-      try {
-        const svcRes = await ctx.api.request({
-          url: "services:create",
-          method: "POST",
-          data: {
-            serviceName: r.serviceName,
-            serviceType: r.serviceType || null,
-            description: r.description || null,
-            basePrice: r.basePrice || 0,
-            currencyId: r.currencyId || null,
-            internalCompanyId: parseInt(form.internalCompanyId),
-          },
-        });
-        const newServiceId = svcRes?.data?.data?.id;
-        if (newServiceId) {
-          try {
-            await ctx.api.request({
-              url: "companyServices:create",
-              method: "POST",
-              data: {
-                internalCompanyId: parseInt(form.internalCompanyId),
-                serviceId: newServiceId,
-                price: r.basePrice || 0,
-                basePrice: r.basePrice || 0,
-                currencyId: r.currencyId || null,
-              },
-            });
-          } catch (linkErr) {
-            console.warn("Could not link new service to company catalog:", linkErr);
-            message.warning(`"${r.serviceName}" đã lưu vào catalog nhưng chưa gán được giá riêng cho company — cần thêm thủ công trong companyServices.`);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        message.warning(`Could not save "${r.serviceName}" to the catalog: ` + (err?.message || ""));
-      }
-    }
-    setCatalogSaving(false);
-    setShowCatalogPrompt(false);
-    await closePopupAfterSubmit();
-  };
-
-  const handleSkipCatalogPrompt = async () => {
-    setShowCatalogPrompt(false);
-    await closePopupAfterSubmit();
-  };
 
   const handleSubmit = async () => {
     if (!form.internalCompanyId) {
@@ -11101,19 +11054,72 @@ const ProjectCreateForm = () => {
 
       message.success("Case created successfully!");
       isDirtyRef.current = false;
-      setSubmitStep("");
 
-      // rows already has combo-derived rows flattened in alongside
-      // individually-added ones (applyAdhocCombo/applyCombo push straight
-      // into rows) — a plain custom row and a custom combo-item row both
-      // end up with serviceId: null, so this one filter covers both.
-      const customRows = rows.filter((r) => !r.serviceId && r.serviceName?.trim());
-      if (customRows.length > 0) {
-        openCatalogPrompt(customRows);
-        setSubmittingState(false);
-        return; // popup stays open — closePopupAfterSubmit runs from Skip/Save Selected instead
+      // The user already opted in per-row (the "Also save to the shared
+      // catalog" checkbox in the Create New Service form, checked at the
+      // moment they typed the name) — nothing to ask here, just carry out
+      // what they already chose, now that the case is confirmed created.
+      // Deferred to this point (rather than writing immediately when the
+      // checkbox was checked) so deleting the row or abandoning the case
+      // before submit never leaves a "phantom" catalog entry behind.
+      const rowsToSaveToCatalog = rows.filter(
+        (r) => !r.serviceId && r.serviceName?.trim() && r._saveToCatalog,
+      );
+      if (rowsToSaveToCatalog.length > 0) {
+        setSubmitStep("Saving to catalog...");
+        let savedCount = 0;
+        for (const r of rowsToSaveToCatalog) {
+          // Defensive re-check — svcOpts could only have gone stale within
+          // this same form session, but skipping a would-be duplicate here
+          // costs nothing and matches the "never create a duplicate catalog
+          // entry" rule the Select-tab list already enforces.
+          if (svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(r.serviceName))) continue;
+          try {
+            const svcRes = await ctx.api.request({
+              url: "services:create",
+              method: "POST",
+              data: {
+                serviceName: r.serviceName,
+                serviceType: r.serviceType || null,
+                description: r.description || null,
+                basePrice: r.basePrice || 0,
+                currencyId: r.currencyId || null,
+                internalCompanyId: parseInt(form.internalCompanyId),
+              },
+            });
+            const newServiceId = svcRes?.data?.data?.id;
+            if (newServiceId) {
+              savedCount++;
+              // BR-DATA-02: every service picker in this codebase (this
+              // form's own included) reads companyServices, not services
+              // directly — skipping this link would leave the new service
+              // invisible everywhere until someone adds it by hand.
+              try {
+                await ctx.api.request({
+                  url: "companyServices:create",
+                  method: "POST",
+                  data: {
+                    internalCompanyId: parseInt(form.internalCompanyId),
+                    serviceId: newServiceId,
+                    price: r.basePrice || 0,
+                    basePrice: r.basePrice || 0,
+                    currencyId: r.currencyId || null,
+                  },
+                });
+              } catch (linkErr) {
+                console.warn("Could not link new service to company catalog:", linkErr);
+              }
+            }
+          } catch (err) {
+            console.warn(`Could not save "${r.serviceName}" to the catalog:`, err);
+          }
+        }
+        if (savedCount > 0) {
+          message.success(`${savedCount} service${savedCount === 1 ? "" : "s"} added to the catalog.`);
+        }
       }
 
+      setSubmitStep("");
       setSubmittingState(false);
       await closePopupAfterSubmit();
       return;
@@ -11820,53 +11826,6 @@ const ProjectCreateForm = () => {
             submitting ? "Processing..." : "Submit",
           ),
         ),
-    ),
-
-    // SAVE TO CATALOG? — appears once after the case is created, only if
-    // handleSubmit found at least one typed (non-catalog) service. Same
-    // markup/style as the already-shipped CaseServices.js version.
-    React.createElement(Modal, {
-      title: "Save to catalog?",
-      open: showCatalogPrompt,
-      onCancel: handleSkipCatalogPrompt,
-      maskClosable: false,
-      footer: React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
-        React.createElement(Button, { onClick: handleSkipCatalogPrompt }, "Skip"),
-        React.createElement(Button, {
-          type: "primary",
-          loading: catalogSaving,
-          onClick: handleSaveSelectedToCatalog,
-        }, "Save Selected"),
-      ),
-      width: 640,
-    },
-      React.createElement("div", { style: { marginBottom: 12, color: C.textSub, fontSize: 13 } },
-        "These services were typed manually and aren't in the standardized catalog yet. Check any you'd like to add for future cases.",
-      ),
-      React.createElement("div", { style: { display: "grid", gap: 8 } },
-        catalogPromptRows.map((r) => React.createElement("div", {
-          key: r.id,
-          style: { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, background: r._alreadyInCatalog ? "#fafafa" : "#fff" },
-        },
-          r._alreadyInCatalog
-            ? React.createElement("div", { style: { width: 16 } })
-            : React.createElement("input", {
-              type: "checkbox",
-              checked: !!catalogPromptChecked[r.id],
-              onChange: () => toggleCatalogPromptRow(r.id),
-              style: { marginTop: 3 },
-            }),
-          React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-            React.createElement("div", { style: { fontWeight: 600, color: C.text } }, r.serviceName),
-            React.createElement("div", { style: { fontSize: 12, color: C.textSub } },
-              [r.serviceType, formatMoney(r.basePrice || 0, resolveCurrency(r.currencyId, currencies) || selectedCurrency)].filter(Boolean).join(" · "),
-            ),
-          ),
-          r._alreadyInCatalog && React.createElement("span", {
-            style: { fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 999, background: "#f0f0f0", color: C.textSub, whiteSpace: "nowrap", alignSelf: "center" },
-          }, "Already in catalog"),
-        )),
-      ),
     ),
   );
 };
