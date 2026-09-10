@@ -4357,7 +4357,6 @@ const ServicePickerModal = ({
                   React.createElement("th", { style: comboTh({ width: "34%" }) }, "Service name"),
                   React.createElement("th", { style: comboTh({ width: 130 }) }, "Type"),
                   React.createElement("th", { style: comboTh() }, "Description"),
-                  React.createElement("th", { style: comboTh({ width: 64, textAlign: "center" }) }, "Qty"),
                   React.createElement("th", { style: comboTh({ width: 32 }) }, ""),
                 ),
               ),
@@ -4421,20 +4420,6 @@ const ServicePickerModal = ({
                             onBlur,
                           })
                         : React.createElement("span", { style: { color: C.textSub, fontSize: 12.5 } }, item.description || "—"),
-                    ),
-                    React.createElement(
-                      "td",
-                      { style: comboTd({ textAlign: "center" }) },
-                      React.createElement("input", {
-                        type: "number",
-                        min: 1,
-                        value: item.quantity,
-                        onChange: (e) =>
-                          updateComboItem(item._id, "quantity", Math.max(1, parseInt(e.target.value, 10) || 1)),
-                        style: inp({ width: 56, padding: "4px 6px", fontSize: 12.5, textAlign: "center" }),
-                        onFocus,
-                        onBlur,
-                      }),
                     ),
                     React.createElement(
                       "td",

@@ -4829,19 +4829,6 @@ const ServicePickerModal = ({
       ),
       React.createElement(
         "td",
-        { style: comboTd({ width: 64 }) },
-        React.createElement("input", {
-          type: "number",
-          min: 1,
-          value: item.quantity,
-          onChange: (e) => updateComboItem(item._id, "quantity", Math.max(1, parseInt(e.target.value, 10) || 1)),
-          style: inp({ width: 56, padding: "4px 6px", fontSize: 12.5, textAlign: "center" }),
-          onFocus,
-          onBlur,
-        }),
-      ),
-      React.createElement(
-        "td",
         { style: comboTd({ width: 118 }) },
         React.createElement(
           "button",
@@ -4885,7 +4872,7 @@ const ServicePickerModal = ({
       { key: `${item._id}-tasks` },
       React.createElement(
         "td",
-        { colSpan: 7, style: { padding: "0 10px 10px", borderBottom: `1px solid ${C.border}`, background: isCustom ? "#fffbe6" : "#fff" } },
+        { colSpan: 6, style: { padding: "0 10px 10px", borderBottom: `1px solid ${C.border}`, background: isCustom ? "#fffbe6" : "#fff" } },
         isCustom ? renderComboCustomItemTaskEditor(item) : renderComboItemTaskPanel(item),
       ),
     );
@@ -4906,7 +4893,6 @@ const ServicePickerModal = ({
           React.createElement("th", { style: comboTh({ width: "32%" }) }, "Service name"),
           React.createElement("th", { style: comboTh({ width: 120 }) }, "Type"),
           React.createElement("th", { style: comboTh() }, "Description"),
-          React.createElement("th", { style: comboTh({ width: 64, textAlign: "center" }) }, "Qty"),
           React.createElement("th", { style: comboTh({ width: 118 }) }, "Tasks"),
           React.createElement("th", { style: comboTh({ width: 32 }) }, ""),
         ),
