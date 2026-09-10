@@ -4009,6 +4009,7 @@ const ServicePickerModal = ({
         description: "",
         quantity: 1,
         taskTemplates: [],
+        saveToCatalog: false,
       },
     ]);
     setComboErrors((p) => ({ ...p, items: "" }));
@@ -4167,6 +4168,9 @@ const ServicePickerModal = ({
           description: (it.description || "").trim(),
           quantity: it.quantity,
           taskTemplates: it.taskTemplates,
+          saveToCatalog:
+            !!it.saveToCatalog &&
+            !svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(it.serviceName)),
         })),
       });
       onClose();
@@ -4599,6 +4603,10 @@ const ServicePickerModal = ({
 
   const renderComboItemCard = (item, index) => {
     const isCustom = item.source === "custom";
+    const isNameAlreadyInCatalog =
+      isCustom &&
+      !!(item.serviceName || "").trim() &&
+      svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(item.serviceName));
     const taskCount = (item.taskTemplates || []).length;
     const expanded = comboExpandedTaskItemId === item._id;
     return React.createElement(
@@ -4669,24 +4677,53 @@ const ServicePickerModal = ({
       ),
       isCustom
         ? React.createElement(
-          "div",
-          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 8 } },
-          React.createElement("input", {
-            value: item.serviceName || "",
-            onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
-            placeholder: "Service name...",
-            style: inp({ fontSize: 13, padding: "6px 9px" }),
-            onFocus,
-            onBlur,
-          }),
-          React.createElement("input", {
-            value: item.serviceType || "",
-            onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
-            placeholder: "Service type...",
-            style: inp({ fontSize: 12.5, padding: "5px 9px" }),
-            onFocus,
-            onBlur,
-          }),
+          React.Fragment,
+          null,
+          React.createElement(
+            "div",
+            { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 8 } },
+            React.createElement("input", {
+              value: item.serviceName || "",
+              onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
+              placeholder: "Service name...",
+              style: inp({ fontSize: 13, padding: "6px 9px" }),
+              onFocus,
+              onBlur,
+            }),
+            React.createElement("input", {
+              value: item.serviceType || "",
+              onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
+              placeholder: "Service type...",
+              style: inp({ fontSize: 12.5, padding: "5px 9px" }),
+              onFocus,
+              onBlur,
+            }),
+          ),
+          React.createElement(
+            "label",
+            {
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 11.5,
+                color: isNameAlreadyInCatalog ? C.textSub : C.text,
+                marginBottom: 8,
+                cursor: isNameAlreadyInCatalog ? "default" : "pointer",
+              },
+            },
+            isNameAlreadyInCatalog
+              ? React.createElement("span", { style: { width: 13 } })
+              : React.createElement("input", {
+                type: "checkbox",
+                checked: !!item.saveToCatalog,
+                onChange: (e) => updateComboItem(item._id, "saveToCatalog", e.target.checked),
+                style: { cursor: "pointer" },
+              }),
+            isNameAlreadyInCatalog
+              ? "Already in the standardized catalog"
+              : "Also save to the shared catalog",
+          ),
         )
         : React.createElement(
           "div",
@@ -9550,6 +9587,7 @@ const ProjectCreateForm = () => {
             _comboName: comboName,
             _comboSnapshot: comboSnapshot,
             _customTaskTemplates: itemTaskTemplates,
+            _saveToCatalog: !!item.saveToCatalog,
           });
         }
       });
