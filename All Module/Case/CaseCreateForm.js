@@ -910,7 +910,7 @@ const closeCurrentPopup = () => {
   return false;
 };
 
-const showDiscardConfirm = (onOk) => {
+const showDiscardConfirm = (onOk, options) => {
   if (showDiscardConfirm._open) return;
   const run = async () => {
     try {
@@ -925,9 +925,9 @@ const showDiscardConfirm = (onOk) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: "Discard changes?",
-      content: "Your unsaved input will be lost.",
-      okText: "Discard",
+      title: options?.title || "Discard changes?",
+      content: options?.content || "Your unsaved input will be lost.",
+      okText: options?.okText || "Discard",
       cancelText: "Continue editing",
       okButtonProps: { danger: true },
       maskClosable: false,
@@ -3880,6 +3880,7 @@ const ServicePickerModal = ({
   const [comboTab, setComboTab] = useState("select");
   const [comboSearch, setComboSearch] = useState("");
   const [comboName, setComboName] = useState("");
+  const [comboType, setComboType] = useState("");
   const [comboSubTotal, setComboSubTotal] = useState(0);
   const [comboCurrencyId, setComboCurrencyId] = useState(
     extractCurrencyId(currency) ? String(extractCurrencyId(currency)) : "",
@@ -4187,6 +4188,7 @@ const ServicePickerModal = ({
         packageSubTotal: comboSubTotal,
         packageVatRate: comboVatRate,
         currencyId: extractCurrencyId(comboCurrencyId) || extractCurrencyId(currency),
+        serviceComboType: comboType.trim() || null,
         saveComboToCatalog: comboSaveToCatalog,
         items: comboItems.map((it) => ({
           serviceId: it.serviceId,
@@ -5196,30 +5198,38 @@ const ServicePickerModal = ({
           ),
         React.createElement(
           "div",
-          { style: { marginBottom: 16 } },
+          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 16 } },
           React.createElement(
             "div",
-            { style: { display: "flex", alignItems: "center", marginBottom: 5 } },
-            React.createElement(
-              "span",
-              { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.textLabel } },
-              "Combo Name",
-            ),
-            React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
+            { style: { minWidth: 0 } },
+            renderNewSvcFieldLabel("Combo Name", true, null),
+            React.createElement("input", {
+              value: comboName,
+              onChange: (e) => {
+                setComboName(e.target.value);
+                setComboErrors((p) => ({ ...p, comboName: "" }));
+              },
+              placeholder: "E.g. Business incorporation consulting combo...",
+              style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
+              onFocus,
+              onBlur,
+            }),
+            comboErrors.comboName &&
+              React.createElement("div", { style: { color: C.danger, fontSize: 11.5, marginTop: 4 } }, comboErrors.comboName),
           ),
-          React.createElement("input", {
-            value: comboName,
-            onChange: (e) => {
-              setComboName(e.target.value);
-              setComboErrors((p) => ({ ...p, comboName: "" }));
-            },
-            placeholder: "E.g. Business incorporation consulting combo...",
-            style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
-            onFocus,
-            onBlur,
-          }),
-          comboErrors.comboName &&
-            React.createElement("div", { style: { color: C.danger, fontSize: 11.5, marginTop: 4 } }, comboErrors.comboName),
+          React.createElement(
+            "div",
+            { style: { minWidth: 0 } },
+            renderNewSvcFieldLabel("Combo Type", false, "optional"),
+            React.createElement("input", {
+              value: comboType,
+              onChange: (e) => setComboType(e.target.value),
+              placeholder: "E.g. Business, Education...",
+              style: inp(),
+              onFocus,
+              onBlur,
+            }),
+          ),
         ),
         React.createElement(
           "div",
@@ -5465,7 +5475,11 @@ const ServicePickerModal = ({
         (newSvc.taskTemplates || []).length > 0)
     )
       return true;
-    if (mode === "combo" && comboTab === "create" && (comboName.trim() || comboItems.length > 0))
+    if (
+      mode === "combo" &&
+      comboTab === "create" &&
+      (comboName.trim() || comboType.trim() || comboItems.length > 0)
+    )
       return true;
     return false;
   };
@@ -6807,7 +6821,7 @@ const ProjectServicesTable = ({
                   flexShrink: 0,
                 },
               },
-              "PACKAGE",
+              "COMBO",
             ),
             React.createElement(
               "span",
@@ -9717,6 +9731,7 @@ const ProjectCreateForm = () => {
       const items = payload?.items || [];
       if (!items.length) return;
       const comboName = String(payload?.comboName || "").trim();
+      const comboType = payload?.serviceComboType || null;
       const packageSubTotal = parseNum(payload?.packageSubTotal);
       const packageVatRate = parseNum(payload?.packageVatRate);
       const vndId = defaultCurrencyId;
@@ -9737,7 +9752,7 @@ const ProjectCreateForm = () => {
         comboId: null,
         comboName,
         comboCode: null,
-        serviceComboType: null,
+        serviceComboType: comboType,
         packageSubTotal,
         packageVatRate,
         currencyCode: comboCurrencyCode,
@@ -9833,6 +9848,7 @@ const ProjectCreateForm = () => {
           {
             instanceId: adhocComboId,
             comboName,
+            serviceComboType: comboType,
             packageSubTotal,
             packageVatRate,
             currencyId: comboCurrencyId,
@@ -9882,21 +9898,35 @@ const ProjectCreateForm = () => {
       if (nextMode === form.pricingMode) return;
       // Switching pricing mode resets the services list instead of trying to
       // convert/preserve rows across modes — prevents ending up with a mix
-      // of line-priced rows and combo/package rows in the same Case.
-      setRows([]);
-      setAppliedCombos([]);
-      setForm((p) => ({
-        ...p,
-        pricingMode: nextMode,
-        financialSourceType:
-          p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
-        packageSubTotal: 0,
-        packageVatRate: 0,
-        packageVatAmount: 0,
-        packageTotalAmount: 0,
-      }));
+      // of line-priced rows and combo/package rows in the same Case. Since
+      // this reset can't be undone by switching back, confirm first if
+      // there's anything on the list to lose (a stray click on the mode
+      // toggle used to wipe an in-progress case with no warning at all).
+      const applyModeChange = () => {
+        setRows([]);
+        setAppliedCombos([]);
+        setForm((p) => ({
+          ...p,
+          pricingMode: nextMode,
+          financialSourceType:
+            p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
+          packageSubTotal: 0,
+          packageVatRate: 0,
+          packageVatAmount: 0,
+          packageTotalAmount: 0,
+        }));
+      };
+      if (rows.length > 0) {
+        showDiscardConfirm(applyModeChange, {
+          title: "Switch pricing mode?",
+          content: `This will clear the ${rows.length} service${rows.length === 1 ? "" : "s"} already added on this case — they can't be recovered after switching.`,
+          okText: "Switch & clear",
+        });
+      } else {
+        applyModeChange();
+      }
     },
-    [form.pricingMode],
+    [form.pricingMode, rows.length],
   );
 
   const handleSubmit = async () => {
@@ -11452,6 +11482,7 @@ const ProjectCreateForm = () => {
               method: "POST",
               data: {
                 comboName: comboEntry.comboName,
+                serviceComboType: comboEntry.serviceComboType || null,
                 packageSubTotal: parseNum(comboEntry.packageSubTotal),
                 packageVatRate: parseNum(comboEntry.packageVatRate),
                 packageVatAmount: vatAmount,
