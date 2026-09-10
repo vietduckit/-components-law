@@ -11139,6 +11139,9 @@ const ProjectCreateForm = () => {
                   data: {
                     internalCompanyId: parseInt(form.internalCompanyId),
                     serviceId: newServiceId,
+                    serviceName: r.serviceName,
+                    serviceType: r.serviceType || null,
+                    description: r.description || null,
                     price: r.basePrice || 0,
                     basePrice: r.basePrice || 0,
                     vat: r.vat || 0,

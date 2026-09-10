@@ -3576,6 +3576,9 @@
                   data: {
                     internalCompanyId,
                     serviceId: newServiceId,
+                    serviceName: r._svcName,
+                    serviceType: r._serviceType || null,
+                    description: r._description || null,
                     price: r._basePrice || 0,
                     basePrice: r._basePrice || 0,
                     vat: r._vat || 0,
