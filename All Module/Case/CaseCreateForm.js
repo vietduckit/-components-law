@@ -4010,7 +4010,6 @@ const ServicePickerModal = ({
         description: "",
         quantity: 1,
         taskTemplates: [],
-        saveToCatalog: false,
       },
     ]);
     setComboErrors((p) => ({ ...p, items: "" }));
@@ -4196,8 +4195,11 @@ const ServicePickerModal = ({
           description: (it.description || "").trim(),
           quantity: it.quantity,
           taskTemplates: it.taskTemplates,
+          // Driven entirely by the combo-level checkbox now — checking
+          // "Also save this combo to the shared catalog" saves every
+          // custom item in it, no separate per-item opt-in.
           saveToCatalog:
-            !!it.saveToCatalog &&
+            comboSaveToCatalog &&
             !svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(it.serviceName)),
         })),
       });
@@ -4677,8 +4679,8 @@ const ServicePickerModal = ({
       React.createElement(
         "div",
         { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginBottom: 8 } },
-        item.saveToCatalog
-          ? "These tasks will be created for this service, and copied into the catalog too since \"Also save to the shared catalog\" is checked above."
+        comboSaveToCatalog && !svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(item.serviceName))
+          ? "These tasks will be created for this service, and copied into the catalog too since \"Also save this combo to the shared catalog\" is checked below."
           : "These tasks will be created for this service on this case only.",
       ),
       (item.taskTemplates || []).length === 0
@@ -4858,31 +4860,12 @@ const ServicePickerModal = ({
               onBlur,
             }),
           ),
-          React.createElement(
-            "label",
-            {
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 11.5,
-                color: isNameAlreadyInCatalog ? C.textSub : C.text,
-                marginBottom: 8,
-                cursor: isNameAlreadyInCatalog ? "default" : "pointer",
-              },
-            },
-            isNameAlreadyInCatalog
-              ? React.createElement("span", { style: { width: 13 } })
-              : React.createElement("input", {
-                type: "checkbox",
-                checked: !!item.saveToCatalog,
-                onChange: (e) => updateComboItem(item._id, "saveToCatalog", e.target.checked),
-                style: { cursor: "pointer" },
-              }),
-            isNameAlreadyInCatalog
-              ? "Already in the standardized catalog"
-              : "Also save to the shared catalog",
-          ),
+          isNameAlreadyInCatalog &&
+            React.createElement(
+              "div",
+              { style: { fontSize: 11.5, color: C.textSub, marginBottom: 8 } },
+              "Already in the standardized catalog",
+            ),
         )
         : React.createElement(
           "div",
@@ -5411,7 +5394,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             null,
-            "Also save this combo to the shared catalog (created only if you finish creating this case). Only services with a real catalog link are included — custom ones without \"Also save to the shared catalog\" checked are left out.",
+            "Also save this combo to the shared catalog (created only if you finish creating this case). All custom services in it are saved too — services already in the catalog are simply reused.",
           ),
         ),
       ),
@@ -11431,11 +11414,13 @@ const ProjectCreateForm = () => {
       // "Also save this combo to the shared catalog" was checked, create
       // serviceCombos + one serviceComboItems row per member service that
       // now has a real serviceId (either it was catalog-picked to begin
-      // with, or it's a custom item saved via newServiceIdByRowId above).
-      // A custom item that was NOT individually saved to the catalog has no
-      // serviceId to link — serviceComboItems.serviceId can't be null, so
-      // that item is left out of the combo definition (warned about below),
-      // not the whole combo skipped.
+      // with, or it's a custom item saved via newServiceIdByRowId above —
+      // every custom item auto-saves when the combo checkbox is checked).
+      // An item still ends up without a serviceId only if its name already
+      // matched an existing catalog entry (skipped to avoid a duplicate,
+      // see the dedup check above) or its own services:create call failed —
+      // that item alone is left out of the combo definition (warned about
+      // below), not the whole combo skipped.
       if (pendingComboCatalogSaves.length > 0) {
         for (const comboEntry of pendingComboCatalogSaves) {
           const comboRows = rows.filter((r) => r._comboInstanceId === comboEntry.instanceId);
@@ -11450,7 +11435,7 @@ const ProjectCreateForm = () => {
           if (!resolved.length) {
             console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
             message.warning(
-              `Combo "${comboEntry.comboName}" was not saved to the catalog — none of its services have a catalog link yet. Check "Also save to the shared catalog" on each custom service too.`,
+              `Combo "${comboEntry.comboName}" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).`,
             );
             continue;
           }
