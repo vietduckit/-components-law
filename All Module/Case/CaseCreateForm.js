@@ -5168,7 +5168,7 @@ const ServicePickerModal = ({
         React.createElement(
           "div",
           {
-            onClick: onClose,
+            onClick: requestClosePicker,
             style: {
               display: "inline-block",
               padding: "7px 20px",
@@ -5433,6 +5433,33 @@ const ServicePickerModal = ({
       ),
     );
 
+  // Guards every way this modal can close (backdrop click, X button, the
+  // tab-level Close/Cancel links) behind the same "Discard changes?"
+  // confirm the rest of this form already uses (showDiscardConfirm) —
+  // only when there's actually something typed that closing would lose.
+  // The post-success onClose() calls inside handleCreate/applyAdhocCombo
+  // etc. are untouched (nothing to discard once the action already saved).
+  const hasUnsavedPickerInput = () => {
+    if (
+      tab === "create" &&
+      (newSvc.name.trim() ||
+        newSvc.serviceType.trim() ||
+        newSvc.description.trim() ||
+        (newSvc.taskTemplates || []).length > 0)
+    )
+      return true;
+    if (mode === "combo" && comboTab === "create" && (comboName.trim() || comboItems.length > 0))
+      return true;
+    return false;
+  };
+  const requestClosePicker = () => {
+    if (hasUnsavedPickerInput()) {
+      showDiscardConfirm(() => onClose());
+    } else {
+      onClose();
+    }
+  };
+
   return React.createElement(
     "div",
     {
@@ -5445,7 +5472,7 @@ const ServicePickerModal = ({
         justifyContent: "center",
         zIndex: 10000,
       },
-      onClick: onClose,
+      onClick: requestClosePicker,
     },
     React.createElement(
       "div",
@@ -5495,7 +5522,7 @@ const ServicePickerModal = ({
         React.createElement(
           "button",
           {
-            onClick: onClose,
+            onClick: requestClosePicker,
             type: "button",
             title: "Close",
             style: {
@@ -5981,7 +6008,7 @@ const ServicePickerModal = ({
           React.createElement(
             "div",
             {
-              onClick: onClose,
+              onClick: requestClosePicker,
               style: {
                 display: "inline-block",
                 padding: "7px 20px",
