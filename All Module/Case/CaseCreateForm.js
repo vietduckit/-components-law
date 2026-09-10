@@ -4129,6 +4129,32 @@ const ServicePickerModal = ({
       },
     });
   };
+  // Custom (typed-name) combo items have no real serviceId yet, so their
+  // task list stays local-only — no projectTemplates:create/update/destroy
+  // here, unlike addComboItemTask/commitComboItemTaskEdit/removeComboItemTask
+  // above (catalog items only). Carried over to real projectTemplates rows
+  // later, only if "Also save to the shared catalog" is checked and the
+  // case is actually submitted (CaseCreateForm.js's own handleSubmit tail).
+  // updateComboItemTask (already defined above) is reused as-is for onChange
+  // since it was already local-state-only regardless of item source.
+  const addComboCustomItemTask = (itemId) => {
+    setComboItems((prev) =>
+      prev.map((it) =>
+        it._id === itemId
+          ? { ...it, taskTemplates: [...(it.taskTemplates || []), createCustomTaskDraft()] }
+          : it,
+      ),
+    );
+  };
+  const removeComboCustomItemTask = (itemId, taskId) => {
+    setComboItems((prev) =>
+      prev.map((it) =>
+        it._id !== itemId
+          ? it
+          : { ...it, taskTemplates: (it.taskTemplates || []).filter((t) => t._id !== taskId) },
+      ),
+    );
+  };
   const handleApplyAdhocCombo = async () => {
     const errs = {};
     if (!comboName.trim()) errs.comboName = "Please enter a combo name";
@@ -4601,6 +4627,137 @@ const ServicePickerModal = ({
         ),
     );
 
+  // Custom-item counterpart of renderComboItemTaskPanel above — same visual
+  // shape, but every action is local-only (addComboCustomItemTask/
+  // removeComboCustomItemTask, and updateComboItemTask reused as-is for
+  // onChange), since a custom item has no real serviceId to write
+  // projectTemplates against yet.
+  const renderComboCustomItemTaskEditor = (item) =>
+    React.createElement(
+      "div",
+      {
+        style: {
+          border: `1px solid ${C.border}`,
+          borderRadius: 6,
+          background: C.bgSection,
+          padding: 10,
+          marginTop: 8,
+        },
+      },
+      React.createElement(
+        "div",
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 } },
+        React.createElement(
+          "span",
+          { style: { fontSize: 12.5, fontWeight: 600, color: C.text, fontFamily: FONT } },
+          "Sample tasks",
+        ),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => addComboCustomItemTask(item._id),
+            style: {
+              border: `1px dashed ${C.primary}`,
+              background: "#fff",
+              color: C.primary,
+              borderRadius: 6,
+              padding: "4px 9px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: FONT,
+            },
+          },
+          "+ Add task",
+        ),
+      ),
+      React.createElement(
+        "div",
+        { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginBottom: 8 } },
+        item.saveToCatalog
+          ? "These tasks will be created for this service, and copied into the catalog too since \"Also save to the shared catalog\" is checked above."
+          : "These tasks will be created for this service on this case only.",
+      ),
+      (item.taskTemplates || []).length === 0
+        ? React.createElement(
+          "div",
+          {
+            style: {
+              padding: "10px 12px",
+              color: C.textSub,
+              fontSize: 12,
+              background: "#fff",
+              border: `1px dashed ${C.border}`,
+              borderRadius: 6,
+            },
+          },
+          "No tasks yet for this service.",
+        )
+        : React.createElement(
+          "div",
+          { style: { display: "grid", gap: 8 } },
+          (item.taskTemplates || []).map((task) =>
+            React.createElement(
+              "div",
+              {
+                key: task._id,
+                style: {
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 6,
+                  background: "#fff",
+                  padding: 8,
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) 30px",
+                  gap: 8,
+                  alignItems: "start",
+                },
+              },
+              React.createElement(
+                "div",
+                { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 6 } },
+                React.createElement("input", {
+                  value: task.title || "",
+                  onChange: (e) => updateComboItemTask(item._id, task._id, "title", e.target.value),
+                  placeholder: "Task name",
+                  style: inp({ fontSize: 12.5, padding: "5px 8px" }),
+                  onFocus,
+                  onBlur,
+                }),
+                React.createElement("input", {
+                  value: task.description || "",
+                  onChange: (e) => updateComboItemTask(item._id, task._id, "description", e.target.value),
+                  placeholder: "Description",
+                  style: inp({ fontSize: 12.5, padding: "5px 8px" }),
+                  onFocus,
+                  onBlur,
+                }),
+              ),
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => removeComboCustomItemTask(item._id, task._id),
+                  title: "Remove task",
+                  style: {
+                    width: 26,
+                    height: 26,
+                    borderRadius: 5,
+                    border: `1px solid ${C.border}`,
+                    background: "#fff",
+                    color: C.danger,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    lineHeight: 1,
+                  },
+                },
+                "x",
+              ),
+            ),
+          ),
+        ),
+    );
+
   const renderComboItemCard = (item, index) => {
     const isCustom = item.source === "custom";
     const isNameAlreadyInCatalog =
@@ -4749,28 +4906,27 @@ const ServicePickerModal = ({
             onBlur,
           }),
         ),
-        !isCustom &&
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              onClick: () => setComboExpandedTaskItemId(expanded ? null : item._id),
-              style: {
-                border: `1px solid ${taskCount ? C.primary : C.border}`,
-                background: taskCount ? "#eff6ff" : "#fff",
-                color: taskCount ? C.primary : C.textSub,
-                borderRadius: 6,
-                padding: "5px 10px",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: 600,
-                fontFamily: FONT,
-              },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            onClick: () => setComboExpandedTaskItemId(expanded ? null : item._id),
+            style: {
+              border: `1px solid ${taskCount ? C.primary : C.border}`,
+              background: taskCount ? "#eff6ff" : "#fff",
+              color: taskCount ? C.primary : C.textSub,
+              borderRadius: 6,
+              padding: "5px 10px",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: FONT,
             },
-            `${expanded ? "Hide" : "Manage"} tasks (${taskCount})`,
-          ),
+          },
+          `${expanded ? "Hide" : "Manage"} tasks (${taskCount})`,
+        ),
       ),
-      !isCustom && expanded && renderComboItemTaskPanel(item),
+      expanded && (isCustom ? renderComboCustomItemTaskEditor(item) : renderComboItemTaskPanel(item)),
     );
   };
 
