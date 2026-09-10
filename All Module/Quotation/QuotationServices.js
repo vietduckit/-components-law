@@ -1006,7 +1006,8 @@ const QuotationServicesBlock = () => {
     setComboSubTab('select');
     setComboSearch('');
     setAdhocComboName('');
-    setAdhocServiceIds([]);
+    setComboItems([]);
+    setComboItemPick(undefined);
     setShowComboModal(true);
   };
 
