@@ -910,7 +910,7 @@ const closeCurrentPopup = () => {
   return false;
 };
 
-const showDiscardConfirm = (onOk, options) => {
+const showDiscardConfirm = (onOk) => {
   if (showDiscardConfirm._open) return;
   const run = async () => {
     try {
@@ -925,9 +925,9 @@ const showDiscardConfirm = (onOk, options) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: options?.title || "Discard changes?",
-      content: options?.content || "Your unsaved input will be lost.",
-      okText: options?.okText || "Discard",
+      title: "Discard changes?",
+      content: "Your unsaved input will be lost.",
+      okText: "Discard",
       cancelText: "Continue editing",
       okButtonProps: { danger: true },
       maskClosable: false,
@@ -8662,6 +8662,10 @@ const ProjectCreateForm = () => {
   const initialRowsRef = useRef([]);
   const isDirtyRef = useRef(false);
   const submittingRef = useRef(false);
+  // Parked rows/appliedCombos/package totals for the pricing mode NOT
+  // currently active, keyed by PRICING_MODE_LINE / PRICING_MODE_PACKAGE —
+  // see handleServicePricingModeChange.
+  const modeStateParkRef = useRef({ [PRICING_MODE_LINE]: null, [PRICING_MODE_PACKAGE]: null });
   const setSubmittingState = useCallback((value) => {
     submittingRef.current = value;
     setSubmitting(value);
@@ -9896,37 +9900,34 @@ const ProjectCreateForm = () => {
     (mode) => {
       const nextMode = isPackagePricing(mode) ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE;
       if (nextMode === form.pricingMode) return;
-      // Switching pricing mode resets the services list instead of trying to
-      // convert/preserve rows across modes — prevents ending up with a mix
-      // of line-priced rows and combo/package rows in the same Case. Since
-      // this reset can't be undone by switching back, confirm first if
-      // there's anything on the list to lose (a stray click on the mode
-      // toggle used to wipe an in-progress case with no warning at all).
-      const applyModeChange = () => {
-        setRows([]);
-        setAppliedCombos([]);
-        setForm((p) => ({
-          ...p,
-          pricingMode: nextMode,
-          financialSourceType:
-            p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
-          packageSubTotal: 0,
-          packageVatRate: 0,
-          packageVatAmount: 0,
-          packageTotalAmount: 0,
-        }));
+      // Each mode keeps its own rows/appliedCombos/package totals, parked
+      // in this ref while the other mode is active — switching still keeps
+      // a Line-priced case from mixing with combo/package rows (each mode
+      // only ever sees its own list), but a round trip (Line -> Combo ->
+      // Line) now restores exactly what was there instead of losing it.
+      modeStateParkRef.current[form.pricingMode] = {
+        rows,
+        appliedCombos,
+        packageSubTotal: form.packageSubTotal,
+        packageVatRate: form.packageVatRate,
+        packageVatAmount: form.packageVatAmount,
+        packageTotalAmount: form.packageTotalAmount,
       };
-      if (rows.length > 0) {
-        showDiscardConfirm(applyModeChange, {
-          title: "Switch pricing mode?",
-          content: `This will clear the ${rows.length} service${rows.length === 1 ? "" : "s"} already added on this case — they can't be recovered after switching.`,
-          okText: "Switch & clear",
-        });
-      } else {
-        applyModeChange();
-      }
+      const restored = modeStateParkRef.current[nextMode];
+      setRows(restored?.rows || []);
+      setAppliedCombos(restored?.appliedCombos || []);
+      setForm((p) => ({
+        ...p,
+        pricingMode: nextMode,
+        financialSourceType:
+          p.financialSourceType === SOURCE_NONE ? SOURCE_MANUAL : p.financialSourceType,
+        packageSubTotal: restored?.packageSubTotal || 0,
+        packageVatRate: restored?.packageVatRate || 0,
+        packageVatAmount: restored?.packageVatAmount || 0,
+        packageTotalAmount: restored?.packageTotalAmount || 0,
+      }));
     },
-    [form.pricingMode, rows.length],
+    [form.pricingMode, form.packageSubTotal, form.packageVatRate, form.packageVatAmount, form.packageTotalAmount, rows, appliedCombos],
   );
 
   const handleSubmit = async () => {
