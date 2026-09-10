@@ -2795,8 +2795,8 @@ const QuotationServicesBlock = () => {
   }
 
   // Reference-only comparison against the combo's catalog definition — the
-  // same figures the "Apply Package" picker shows before applying, resurfaced
-  // here so they stay visible once the package is on the quotation. Doesn't
+  // same figures the "Apply Combo" picker shows before applying, resurfaced
+  // here so they stay visible once the combo is on the quotation. Doesn't
   // affect the quotation's own packageSubTotal actually charged.
   const getComboHeaderPriceComparison = (record) => {
     const comboIdVal = extractId(record?.comboId);

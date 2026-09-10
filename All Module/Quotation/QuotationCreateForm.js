@@ -4045,7 +4045,7 @@ const ServicePickerModal = ({
                         React.createElement(
                           "span",
                           { style: { fontWeight: 700, color: C.text, overflowWrap: "anywhere" } },
-                          c.comboName || `Package #${c.id}`,
+                          c.comboName || `Combo #${c.id}`,
                         ),
                         c.serviceComboType &&
                           React.createElement(
@@ -4277,7 +4277,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            `Services in package (${comboItems.length})`,
+            `Services in combo (${comboItems.length})`,
           ),
           React.createElement(
             "div",

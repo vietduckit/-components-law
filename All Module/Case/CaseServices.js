@@ -3168,7 +3168,7 @@
             }
           }
           if (!createdIds.length) {
-            message.error("Could not create any services for this package.");
+            message.error("Could not create any services for this combo.");
             return;
           }
 
@@ -4764,8 +4764,8 @@
       }
 
       // Reference-only comparison against the combo's catalog definition —
-      // the same figures the "Apply Package" picker shows before applying,
-      // resurfaced here so they stay visible once the package is on the
+      // the same figures the "Apply Combo" picker shows before applying,
+      // resurfaced here so they stay visible once the combo is on the
       // case. Doesn't affect the case-wide packageSubTotal actually charged.
       const getComboHeaderPriceComparison = (record) => {
         const comboIdVal = extractId(record?.comboId);
@@ -5267,7 +5267,7 @@
           servicePricingSummary.isPackageMode
             ? [
               React.createElement("div", { key: "subtotal", style: rowStyle(true) },
-                React.createElement(Text, { style: labelStyle }, "Package subtotal (excl. VAT):"),
+                React.createElement(Text, { style: labelStyle }, "Combo subtotal (excl. VAT):"),
                 React.createElement(InputNumber, { ...moneyInputProps, value: packageTotalsView.subTotal, onChange: (v) => updatePackageDraftField("packageSubTotal", v) })
               ),
               React.createElement("div", { key: "vatrate", style: rowStyle(true) },
@@ -5280,11 +5280,11 @@
                 })
               ),
               React.createElement("div", { key: "vatamount", style: rowStyle(true) },
-                React.createElement(Text, { style: labelStyle }, "Package VAT amount:"),
+                React.createElement(Text, { style: labelStyle }, "Combo VAT amount:"),
                 React.createElement(Text, { style: valueStyle(token.colorWarning || C.warningText) }, formatMoney(packageTotalsView.vatAmount, vndCurrency))
               ),
               React.createElement("div", { key: "total", style: rowStyle(false) },
-                React.createElement(Text, { style: totalLabelStyle }, "Package total:"),
+                React.createElement(Text, { style: totalLabelStyle }, "Combo total:"),
                 React.createElement(Text, { style: totalValueStyle(token.colorSuccess || C.successText) }, formatMoney(packageTotalsView.totalAmount, vndCurrency))
               ),
               // Always mounted (space reserved via `visibility`, never
