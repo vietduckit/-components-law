@@ -3578,6 +3578,7 @@
                     serviceId: newServiceId,
                     price: r._basePrice || 0,
                     basePrice: r._basePrice || 0,
+                    vat: r._vat || 0,
                     currencyId: extractCurrencyId(r._currencyId) || null,
                   },
                 });

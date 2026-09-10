@@ -11141,11 +11141,35 @@ const ProjectCreateForm = () => {
                     serviceId: newServiceId,
                     price: r.basePrice || 0,
                     basePrice: r.basePrice || 0,
+                    vat: r.vat || 0,
                     currencyId: r.currencyId || null,
                   },
                 });
               } catch (linkErr) {
                 console.warn("Could not link new service to company catalog:", linkErr);
+              }
+              // Carry this row's own sample tasks over as projectTemplates,
+              // so future cases that pick this now-standardized service get
+              // the same starting task list (mirrors what
+              // AutoCreateTaskFromTemplate.sql's trigger later clones from).
+              const carriedTasks = normalizeCustomTaskTemplates(r._customTaskTemplates);
+              if (carriedTasks.length) {
+                await Promise.all(
+                  carriedTasks.map((t, index) =>
+                    ctx.api.request({
+                      url: "projectTemplates:create",
+                      method: "POST",
+                      data: {
+                        templateName: t.title,
+                        description: t.description || null,
+                        sortOrder: index,
+                        serviceId: newServiceId,
+                      },
+                    }).catch((taskErr) =>
+                      console.warn("Could not create task template for new catalog service:", taskErr),
+                    ),
+                  ),
+                );
               }
             }
           } catch (err) {
