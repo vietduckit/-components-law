@@ -3287,42 +3287,57 @@
         }
       };
 
-      const renderComboItemCard = (item) => React.createElement("div", {
-        key: item._id,
-        style: { display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, marginBottom: 8, background: item.source === "custom" ? "#fffbe6" : "#fff" },
-      },
-        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-          item.source === "catalog"
-            ? React.createElement(React.Fragment, null,
-              React.createElement("div", { style: { fontWeight: 600, color: C.text, fontSize: 13 } }, item.serviceName),
-              item.serviceType && React.createElement(Tag, { color: "blue", style: { marginTop: 4 } }, item.serviceType),
-            )
-            : React.createElement(React.Fragment, null,
-              React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
-                React.createElement(Input, {
+      const comboTh = (extra = {}) => ({ padding: "8px 10px", fontSize: 11, fontWeight: 600, color: C.textSub, background: C.bgSection, borderBottom: `1px solid ${C.border}`, textAlign: "left", ...extra });
+      const comboTd = (extra = {}) => ({ padding: "6px 10px", fontSize: 13, color: C.text, borderBottom: `1px solid ${C.border}`, verticalAlign: "middle", ...extra });
+
+      const renderComboItemsTable = () => React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginBottom: 16, border: `1px solid ${C.border}`, borderRadius: DS.radius.sm } },
+        React.createElement("thead", null,
+          React.createElement("tr", null,
+            React.createElement("th", { style: comboTh({ width: 28, textAlign: "center" }) }, "#"),
+            React.createElement("th", { style: comboTh({ width: "42%" }) }, "Service name"),
+            React.createElement("th", { style: comboTh({ width: 130 }) }, "Type"),
+            React.createElement("th", { style: comboTh() }, "Description"),
+            React.createElement("th", { style: comboTh({ width: 36 }) }, ""),
+          ),
+        ),
+        React.createElement("tbody", null,
+          comboItems.map((item, idx) => React.createElement("tr", { key: item._id, style: { background: item.source === "custom" ? "#fffbe6" : "#fff" } },
+            React.createElement("td", { style: comboTd({ textAlign: "center", color: C.textSub, fontFamily: FONT_MONO, fontSize: 11.5 }) }, idx + 1),
+            React.createElement("td", { style: comboTd() },
+              item.source === "catalog"
+                ? React.createElement("span", { style: { fontWeight: 600, color: C.text } }, item.serviceName)
+                : React.createElement(Input, {
+                  size: "small",
                   value: item.serviceName,
                   onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
                   placeholder: "New service name...",
-                  style: { borderRadius: DS.radius.sm, flex: 1 },
                 }),
-                React.createElement(Input, {
+            ),
+            React.createElement("td", { style: comboTd() },
+              item.source === "catalog"
+                ? React.createElement("span", { style: { color: C.textSub, fontSize: 12.5 } }, item.serviceType || "—")
+                : React.createElement(Input, {
+                  size: "small",
                   value: item.serviceType,
                   onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
                   placeholder: "Type (optional)...",
-                  style: { borderRadius: DS.radius.sm, width: 160 },
                 }),
-              ),
-              React.createElement(Input, {
-                value: item.description,
-                onChange: (e) => updateComboItem(item._id, "description", e.target.value),
-                placeholder: "Description (optional)...",
-                style: { borderRadius: DS.radius.sm },
-              }),
             ),
+            React.createElement("td", { style: comboTd() },
+              item.source === "catalog"
+                ? React.createElement("span", { style: { color: C.textSub, fontSize: 12.5 } }, item.description || "—")
+                : React.createElement(Input, {
+                  size: "small",
+                  value: item.description,
+                  onChange: (e) => updateComboItem(item._id, "description", e.target.value),
+                  placeholder: "Description (optional)...",
+                }),
+            ),
+            React.createElement("td", { style: comboTd({ textAlign: "center" }) },
+              React.createElement(Button, { type: "text", danger: true, size: "small", onClick: () => removeComboItem(item._id) }, "×"),
+            ),
+          )),
         ),
-        React.createElement(Button, {
-          type: "text", danger: true, size: "small", onClick: () => removeComboItem(item._id),
-        }, "Remove"),
       );
 
       const renderAdhocComboTab = () => React.createElement(React.Fragment, null,
@@ -3356,8 +3371,7 @@
             React.createElement(Button, { onClick: addComboCustomItem }, "+ Add custom service"),
           ),
         ),
-        comboItems.length > 0 &&
-          React.createElement("div", { style: { marginBottom: 16 } }, comboItems.map(renderComboItemCard)),
+        comboItems.length > 0 && renderComboItemsTable(),
         React.createElement(Button, {
           type: "primary", loading: applyingCombo, onClick: applyAdhocCombo, style: DS.primaryButton,
         }, "Submit")
