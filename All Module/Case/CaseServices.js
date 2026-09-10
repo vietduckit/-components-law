@@ -923,17 +923,21 @@
       const [newSvcDescription, setNewSvcDescription] = useState("");
       const [newUnitPrice, setNewUnitPrice] = useState(0);
       const [newSvcCurrencyId, setNewSvcCurrencyId] = useState("");
-      // Apply Combo modal — entirely unchanged content (applyComboFromCatalog/
-      // applyAdhocCombo/renderAdhocComboTab below), just now its own modal
-      // with its own open/close state instead of a tab inside the old
-      // addModal. comboSubTab/comboSearch/adhocComboName/adhocServiceIds/
-      // applyingCombo are unchanged from today.
+      // Apply Combo modal — its own modal with its own open/close state
+      // (applyComboFromCatalog/applyAdhocCombo/renderAdhocComboTab below)
+      // instead of a tab inside the old addModal.
       const [comboModalOpen, setComboModalOpen] = useState(false);
       const [comboSubTab, setComboSubTab] = useState("select");
       const [comboSearch, setComboSearch] = useState("");
       const [applyingCombo, setApplyingCombo] = useState(false);
       const [adhocComboName, setAdhocComboName] = useState("");
-      const [adhocServiceIds, setAdhocServiceIds] = useState([]);
+      // Mixed catalog-picked + typed-custom items for the ad-hoc combo
+      // builder — {_id, source: "catalog"|"custom", serviceId, serviceName,
+      // serviceType, description}. Replaces the old adhocServiceIds
+      // (catalog-only multi-select) so a combo can bundle a brand-new
+      // service the same way the individual Add Service flow already can.
+      const [comboItems, setComboItems] = useState([]);
+      const [comboItemPick, setComboItemPick] = useState(undefined);
       // Local, unsaved edits to the case's package subtotal/VAT/total footer.
       // null = no pending edit (inputs show the live server values). Set by
       // typing in any of the 4 footer fields; only written to the server when
@@ -3171,45 +3175,110 @@
         }
       };
 
+      const addComboCatalogItem = (svc) => {
+        setComboItems((prev) => [
+          ...prev,
+          {
+            _id: Date.now() + Math.random(),
+            source: "catalog",
+            serviceId: svc.id,
+            serviceName: svc.serviceName || svc.name || "",
+            serviceType: svc.serviceType || "",
+            description: svc.description || "",
+          },
+        ]);
+        setComboItemPick(undefined);
+      };
+      const addComboCustomItem = () => {
+        setComboItems((prev) => [
+          ...prev,
+          {
+            _id: Date.now() + Math.random(),
+            source: "custom",
+            serviceId: null,
+            serviceName: "",
+            serviceType: "",
+            description: "",
+          },
+        ]);
+      };
+      const updateComboItem = (itemId, field, value) => {
+        setComboItems((prev) => prev.map((it) => (it._id === itemId ? { ...it, [field]: value } : it)));
+      };
+      const removeComboItem = (itemId) => {
+        setComboItems((prev) => prev.filter((it) => it._id !== itemId));
+      };
+
       // Ad-hoc combos never get a real comboId — they group post-reload via
       // getComboGroupKey's comboName fallback. They contribute 0 to the
       // package subtotal; the user adjusts it by hand afterward via the
       // totals panel, same as the existing single-add flow already expects.
+      // Each item is created the same way regardless of source — catalog
+      // items pass their real serviceId, custom items pass null and
+      // createOneCaseService creates a plain typed row from the name/type/
+      // description, exactly like the individual Add Service flow's own
+      // "Create New Service" tab.
       const applyAdhocCombo = async () => {
         const name = adhocComboName.trim();
         if (!name) {
           message.warning("Please enter a combo name.");
           return;
         }
-        if (!adhocServiceIds.length) {
-          message.warning("Please select at least one service.");
+        if (!comboItems.length) {
+          message.warning("Please add at least one service.");
+          return;
+        }
+        const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
+        if (emptyNameItem) {
+          message.warning("One or more services are missing a name.");
           return;
         }
         setApplyingCombo(true);
         try {
-          const createdIds = [];
-          for (const svcId of adhocServiceIds) {
-            const svc = serviceCatalog.find((s) => String(s.id) === String(svcId));
-            if (!svc) continue;
+          let createdCount = 0;
+          const createdCustomRows = [];
+          for (const item of comboItems) {
             const { id } = await createOneCaseService({
-              serviceId: svc.id,
-              serviceName: svc.serviceName || svc.name || "",
-              serviceType: svc.serviceType || "",
-              description: svc.description || "",
+              serviceId: item.serviceId || null,
+              serviceName: item.serviceName,
+              serviceType: item.serviceType || "",
+              description: item.description || "",
               basePrice: 0,
               vat: 0,
               currencyId: null,
               comboTarget: { comboId: null, comboName: name },
             }, { skipReload: true });
-            if (id) createdIds.push(id);
+            if (id) {
+              createdCount++;
+              if (!item.serviceId) {
+                createdCustomRows.push({
+                  id,
+                  _svcName: item.serviceName,
+                  _serviceType: item.serviceType || "",
+                  _description: item.description || "",
+                  _basePrice: 0,
+                  _vat: 0,
+                  _currencyId: "",
+                });
+              }
+            }
           }
-          if (!createdIds.length) {
-            message.error("Could not create any services for this package.");
+          if (!createdCount) {
+            message.error("Could not create any services for this combo.");
             return;
           }
           await loadData();
           message.success(`Created combo "${name}".`);
           setComboModalOpen(false);
+          setComboItems([]);
+          setAdhocComboName("");
+          // Same "Save to catalog?" opportunity the individual Add Service
+          // flow gives after Save — a combo's own custom items deserve the
+          // same chance to become reusable catalog entries.
+          const customRowsAwaitingCatalogDecision = createdCustomRows.filter((r) => r._svcName?.trim());
+          if (customRowsAwaitingCatalogDecision.length > 0) {
+            openCatalogPrompt(customRowsAwaitingCatalogDecision);
+          }
         } catch (err) {
           console.error(err);
           message.error("Error creating combo: " + (err.message || ""));
@@ -3217,6 +3286,44 @@
           setApplyingCombo(false);
         }
       };
+
+      const renderComboItemCard = (item) => React.createElement("div", {
+        key: item._id,
+        style: { display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, marginBottom: 8, background: item.source === "custom" ? "#fffbe6" : "#fff" },
+      },
+        React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+          item.source === "catalog"
+            ? React.createElement(React.Fragment, null,
+              React.createElement("div", { style: { fontWeight: 600, color: C.text, fontSize: 13 } }, item.serviceName),
+              item.serviceType && React.createElement(Tag, { color: "blue", style: { marginTop: 4 } }, item.serviceType),
+            )
+            : React.createElement(React.Fragment, null,
+              React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
+                React.createElement(Input, {
+                  value: item.serviceName,
+                  onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
+                  placeholder: "New service name...",
+                  style: { borderRadius: DS.radius.sm, flex: 1 },
+                }),
+                React.createElement(Input, {
+                  value: item.serviceType,
+                  onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
+                  placeholder: "Type (optional)...",
+                  style: { borderRadius: DS.radius.sm, width: 160 },
+                }),
+              ),
+              React.createElement(Input, {
+                value: item.description,
+                onChange: (e) => updateComboItem(item._id, "description", e.target.value),
+                placeholder: "Description (optional)...",
+                style: { borderRadius: DS.radius.sm },
+              }),
+            ),
+        ),
+        React.createElement(Button, {
+          type: "text", danger: true, size: "small", onClick: () => removeComboItem(item._id),
+        }, "Remove"),
+      );
 
       const renderAdhocComboTab = () => React.createElement(React.Fragment, null,
         React.createElement("div", { style: { marginBottom: 12 } },
@@ -3228,20 +3335,29 @@
             style: { borderRadius: DS.radius.sm },
           })
         ),
-        React.createElement("div", { style: { marginBottom: 16 } },
+        React.createElement("div", { style: { marginBottom: 12 } },
           React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, "Services in this combo"),
-          React.createElement(Select, {
-            mode: "multiple",
-            value: adhocServiceIds,
-            onChange: (v) => setAdhocServiceIds(v),
-            showSearch: true,
-            optionFilterProp: "children",
-            style: { width: "100%" },
-            placeholder: "Select services to bundle...",
-          }, serviceCatalog.map((s) => React.createElement(Select.Option, {
-            key: s.id, value: s.id,
-          }, s.serviceName || s.name || `Service #${s.id}`)))
+          React.createElement("div", { style: { display: "flex", gap: 8 } },
+            React.createElement(Select, {
+              value: comboItemPick,
+              onChange: (v) => {
+                const svc = serviceCatalog.find((s) => String(s.id) === String(v));
+                if (svc) addComboCatalogItem(svc);
+              },
+              showSearch: true,
+              optionFilterProp: "children",
+              style: { flex: 1 },
+              placeholder: "Add from catalog...",
+            }, serviceCatalog
+              .filter((s) => !comboItems.some((it) => it.source === "catalog" && String(it.serviceId) === String(s.id)))
+              .map((s) => React.createElement(Select.Option, {
+                key: s.id, value: s.id,
+              }, s.serviceName || s.name || `Service #${s.id}`))),
+            React.createElement(Button, { onClick: addComboCustomItem }, "+ Add custom service"),
+          ),
         ),
+        comboItems.length > 0 &&
+          React.createElement("div", { style: { marginBottom: 16 } }, comboItems.map(renderComboItemCard)),
         React.createElement(Button, {
           type: "primary", loading: applyingCombo, onClick: applyAdhocCombo, style: DS.primaryButton,
         }, "Submit")

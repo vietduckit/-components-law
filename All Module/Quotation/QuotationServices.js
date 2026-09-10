@@ -992,7 +992,13 @@ const QuotationServicesBlock = () => {
   const [comboSubTab, setComboSubTab] = useState('select');
   const [comboSearch, setComboSearch] = useState('');
   const [adhocComboName, setAdhocComboName] = useState('');
-  const [adhocServiceIds, setAdhocServiceIds] = useState([]);
+  // Mixed catalog-picked + typed-custom items for the ad-hoc combo builder -
+  // {_id, source: 'catalog'|'custom', serviceId, serviceName, serviceType,
+  // description}. Replaces the old adhocServiceIds (catalog-only multi-
+  // select) so a combo can bundle a brand-new service too, same as the
+  // individual Add Service flow's own Create New Service tab.
+  const [comboItems, setComboItems] = useState([]);
+  const [comboItemPick, setComboItemPick] = useState(undefined);
   const [applyingCombo, setApplyingCombo] = useState(false);
 
   const openComboModal = () => {
@@ -1078,20 +1084,49 @@ const QuotationServicesBlock = () => {
     }
   };
 
+  const addComboCatalogItem = (svc) => {
+    setComboItems((prev) => [
+      ...prev,
+      {
+        _id: Date.now() + Math.random(),
+        source: 'catalog',
+        serviceId: svc.id,
+        serviceName: svc.serviceName || svc.name || '',
+        serviceType: svc.serviceType || '',
+        description: svc.description || '',
+      },
+    ]);
+    setComboItemPick(undefined);
+  };
+  const addComboCustomItem = () => {
+    setComboItems((prev) => [
+      ...prev,
+      { _id: Date.now() + Math.random(), source: 'custom', serviceId: null, serviceName: '', serviceType: '', description: '' },
+    ]);
+  };
+  const updateComboItem = (itemId, field, value) => {
+    setComboItems((prev) => prev.map((it) => (it._id === itemId ? { ...it, [field]: value } : it)));
+  };
+  const removeComboItem = (itemId) => {
+    setComboItems((prev) => prev.filter((it) => it._id !== itemId));
+  };
+
   const applyAdhocCombo = () => {
     const name = adhocComboName.trim();
     if (!name) { message.warning('Please enter a combo name.'); return; }
-    if (!adhocServiceIds.length) { message.warning('Please select at least one service.'); return; }
-    const newRows = adhocServiceIds.map((svcId) => {
-      const svc = svcOpts.find((o) => String(o.id) === String(svcId));
+    if (!comboItems.length) { message.warning('Please add at least one service.'); return; }
+    const emptyNameItem = comboItems.find((it) => !String(it.serviceName || '').trim());
+    if (emptyNameItem) { message.warning('One or more services are missing a name.'); return; }
+    const newRows = comboItems.map((item) => {
+      const svc = item.serviceId ? svcOpts.find((o) => String(o.id) === String(item.serviceId)) : null;
       const nextCurrencyId = getRecordCurrencyId(svc || {}) || extractCurrencyId(quotationCurrency);
       return {
         id: Date.now() + Math.random(),
-        serviceId: svc?.id || null,
+        serviceId: item.serviceId || null,
         _basePrice: 0, _quantity: 1, _vat: 0,
-        _svcName: svc?.serviceName || svc?.name || '', _serviceType: svc?.serviceType || '', _description: svc?.description || '',
+        _svcName: item.serviceName, _serviceType: item.serviceType || '', _description: item.description || '',
         currencyId: nextCurrencyId || null, _currencyId: nextCurrencyId ? String(nextCurrencyId) : '',
-        _isNew: true, _deleted: false, _isCustom: !svc?.id,
+        _isNew: true, _deleted: false, _isCustom: !item.serviceId,
         comboId: null, serviceCombo: null, comboName: name,
       };
     });
@@ -1103,6 +1138,8 @@ const QuotationServicesBlock = () => {
     setDirty(true);
     message.success(`Created combo "${name}". Click "Save & Update quotation" to persist.`);
     setShowComboModal(false);
+    setComboItems([]);
+    setAdhocComboName('');
   };
   const [activeRowId, setActiveRowId] = useState(null);
   const [modalView, setModalView] = useState('select'); // 'select' | 'create'
@@ -3137,20 +3174,65 @@ const QuotationServicesBlock = () => {
               style: { borderRadius: DS.radius.sm },
             })
           ),
-          React.createElement('div', { style: { marginBottom: 16 } },
+          React.createElement('div', { style: { marginBottom: 12 } },
             React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this combo'),
-            React.createElement(Select, {
-              mode: 'multiple',
-              value: adhocServiceIds,
-              onChange: (v) => setAdhocServiceIds(v),
-              showSearch: true,
-              optionFilterProp: 'children',
-              style: { width: '100%' },
-              placeholder: 'Select services to bundle...',
-            }, svcOpts.map((s) => React.createElement(Select.Option, {
-              key: s.id, value: s.id,
-            }, s.serviceName || s.name || `Service #${s.id}`)))
+            React.createElement('div', { style: { display: 'flex', gap: 8 } },
+              React.createElement(Select, {
+                value: comboItemPick,
+                onChange: (v) => {
+                  const svc = svcOpts.find((o) => String(o.id) === String(v));
+                  if (svc) addComboCatalogItem(svc);
+                },
+                showSearch: true,
+                optionFilterProp: 'children',
+                style: { flex: 1 },
+                placeholder: 'Add from catalog...',
+              }, svcOpts
+                .filter((s) => !comboItems.some((it) => it.source === 'catalog' && String(it.serviceId) === String(s.id)))
+                .map((s) => React.createElement(Select.Option, {
+                  key: s.id, value: s.id,
+                }, s.serviceName || s.name || `Service #${s.id}`))),
+              React.createElement(Button, { onClick: addComboCustomItem }, '+ Add custom service'),
+            ),
           ),
+          comboItems.length > 0 &&
+            React.createElement('div', { style: { marginBottom: 16 } }, comboItems.map((item) =>
+              React.createElement('div', {
+                key: item._id,
+                style: { display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', border: `1px solid ${C.border}`, borderRadius: DS.radius.sm, marginBottom: 8, background: item.source === 'custom' ? '#fffbe6' : '#fff' },
+              },
+                React.createElement('div', { style: { flex: 1, minWidth: 0 } },
+                  item.source === 'catalog'
+                    ? React.createElement(React.Fragment, null,
+                      React.createElement('div', { style: { fontWeight: 600, color: C.text, fontSize: 13 } }, item.serviceName),
+                      item.serviceType && React.createElement(Tag, { color: 'blue', style: { marginTop: 4 } }, item.serviceType),
+                    )
+                    : React.createElement(React.Fragment, null,
+                      React.createElement('div', { style: { display: 'flex', gap: 8, marginBottom: 6 } },
+                        React.createElement(Input, {
+                          value: item.serviceName,
+                          onChange: (e) => updateComboItem(item._id, 'serviceName', e.target.value),
+                          placeholder: 'New service name...',
+                          style: { borderRadius: DS.radius.sm, flex: 1 },
+                        }),
+                        React.createElement(Input, {
+                          value: item.serviceType,
+                          onChange: (e) => updateComboItem(item._id, 'serviceType', e.target.value),
+                          placeholder: 'Type (optional)...',
+                          style: { borderRadius: DS.radius.sm, width: 160 },
+                        }),
+                      ),
+                      React.createElement(Input, {
+                        value: item.description,
+                        onChange: (e) => updateComboItem(item._id, 'description', e.target.value),
+                        placeholder: 'Description (optional)...',
+                        style: { borderRadius: DS.radius.sm },
+                      }),
+                    ),
+                ),
+                React.createElement(Button, { type: 'text', danger: true, size: 'small', onClick: () => removeComboItem(item._id) }, 'Remove'),
+              )
+            )),
           React.createElement(Button, {
             type: 'primary', onClick: applyAdhocCombo, style: DS.primaryButton,
           }, 'Submit')
