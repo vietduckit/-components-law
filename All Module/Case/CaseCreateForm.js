@@ -3886,6 +3886,7 @@ const ServicePickerModal = ({
   );
   const [comboVatRate, setComboVatRate] = useState(0);
   const [comboItems, setComboItems] = useState([]);
+  const [comboSaveToCatalog, setComboSaveToCatalog] = useState(false);
   const [comboItemPick, setComboItemPick] = useState(undefined);
   const [comboExpandedTaskItemId, setComboExpandedTaskItemId] = useState(null);
   const [comboErrors, setComboErrors] = useState({});
@@ -4187,6 +4188,7 @@ const ServicePickerModal = ({
         packageSubTotal: comboSubTotal,
         packageVatRate: comboVatRate,
         currencyId: extractCurrencyId(comboCurrencyId) || extractCurrencyId(currency),
+        saveComboToCatalog: comboSaveToCatalog,
         items: comboItems.map((it) => ({
           serviceId: it.serviceId,
           serviceName: it.serviceName.trim(),
@@ -5380,6 +5382,38 @@ const ServicePickerModal = ({
             "No services yet — add one from the list or create a new one.",
           )
           : comboItems.map((item, idx) => renderComboItemCard(item, idx)),
+      ),
+      React.createElement(
+        "div",
+        { style: { padding: "0 24px 14px" } },
+        React.createElement(
+          "label",
+          {
+            style: {
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
+              padding: "10px 12px",
+              borderRadius: 6,
+              background: "#e6f4ff",
+              border: "1px solid #91caff",
+              cursor: "pointer",
+              fontSize: 12.5,
+              color: C.text,
+            },
+          },
+          React.createElement("input", {
+            type: "checkbox",
+            checked: comboSaveToCatalog,
+            onChange: (e) => setComboSaveToCatalog(e.target.checked),
+            style: { marginTop: 2, cursor: "pointer" },
+          }),
+          React.createElement(
+            "span",
+            null,
+            "Also save this combo to the shared catalog (created only if you finish creating this case). Only services with a real catalog link are included — custom ones without \"Also save to the shared catalog\" checked are left out.",
+          ),
+        ),
       ),
       React.createElement(
         "div",
@@ -8585,6 +8619,11 @@ const ProjectCreateForm = () => {
   const [internalCompanies, setInternalCompanies] = useState([]);
   const [combos, setCombos] = useState([]);
   const [appliedCombos, setAppliedCombos] = useState([]);
+  // Ad-hoc combos whose "Also save this combo to the shared catalog"
+  // checkbox was checked — the actual serviceCombos/serviceComboItems
+  // writes are deferred to handleSubmit's tail, same reasoning as the
+  // per-row _saveToCatalog flag.
+  const [pendingComboCatalogSaves, setPendingComboCatalogSaves] = useState([]);
 
   useEffect(() => {
     ctx.api
@@ -9801,6 +9840,22 @@ const ProjectCreateForm = () => {
           wasConverted: comboWasConverted,
         },
       ]);
+      // Deferred, same as the per-service "save to catalog" checkbox: the
+      // actual serviceCombos/serviceComboItems writes only happen once the
+      // case is confirmed created (handleSubmit's tail), using whichever
+      // rows from this combo instance still have a real serviceId then.
+      if (payload?.saveComboToCatalog) {
+        setPendingComboCatalogSaves((prev) => [
+          ...prev,
+          {
+            instanceId: adhocComboId,
+            comboName,
+            packageSubTotal,
+            packageVatRate,
+            currencyId: comboCurrencyId,
+          },
+        ]);
+      }
       message.success(`Applied combo "${comboName}".`);
     },
     [
@@ -11286,6 +11341,10 @@ const ProjectCreateForm = () => {
       const rowsToSaveToCatalog = rows.filter(
         (r) => !r.serviceId && r.serviceName?.trim() && r._saveToCatalog,
       );
+      // Tracks row._id -> the services.id created for it below, so the
+      // combo-catalog-save pass further down can resolve a real serviceId
+      // for a custom combo item too, not just already-catalog ones.
+      const newServiceIdByRowId = new Map();
       if (rowsToSaveToCatalog.length > 0) {
         setSubmitStep("Saving to catalog...");
         let savedCount = 0;
@@ -11311,6 +11370,7 @@ const ProjectCreateForm = () => {
             const newServiceId = svcRes?.data?.data?.id;
             if (newServiceId) {
               savedCount++;
+              newServiceIdByRowId.set(r._id, newServiceId);
               // BR-DATA-02: every service picker in this codebase (this
               // form's own included) reads companyServices, not services
               // directly — skipping this link would leave the new service
@@ -11364,6 +11424,82 @@ const ProjectCreateForm = () => {
         }
         if (savedCount > 0) {
           message.success(`${savedCount} service${savedCount === 1 ? "" : "s"} added to the catalog.`);
+        }
+      }
+
+      // Same deferred-write idea, one level up: for each ad-hoc combo whose
+      // "Also save this combo to the shared catalog" was checked, create
+      // serviceCombos + one serviceComboItems row per member service that
+      // now has a real serviceId (either it was catalog-picked to begin
+      // with, or it's a custom item saved via newServiceIdByRowId above).
+      // A custom item that was NOT individually saved to the catalog has no
+      // serviceId to link — serviceComboItems.serviceId can't be null, so
+      // that item is left out of the combo definition (warned about below),
+      // not the whole combo skipped.
+      if (pendingComboCatalogSaves.length > 0) {
+        for (const comboEntry of pendingComboCatalogSaves) {
+          const comboRows = rows.filter((r) => r._comboInstanceId === comboEntry.instanceId);
+          const resolved = comboRows
+            .map((r) => ({
+              serviceId: r.serviceId ? parseInt(r.serviceId) : newServiceIdByRowId.get(r._id) || null,
+              serviceName: r.serviceName,
+              serviceType: r.serviceType,
+            }))
+            .filter((it) => it.serviceId);
+          const skippedCount = comboRows.length - resolved.length;
+          if (!resolved.length) {
+            console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
+            continue;
+          }
+          const byServiceId = new Map();
+          for (const it of resolved) {
+            const key = String(it.serviceId);
+            if (!byServiceId.has(key)) byServiceId.set(key, { ...it, quantity: 1 });
+            else byServiceId.get(key).quantity += 1;
+          }
+          try {
+            const vatAmount = Math.round((parseNum(comboEntry.packageSubTotal) * parseNum(comboEntry.packageVatRate)) / 100);
+            const comboRes = await ctx.api.request({
+              url: "serviceCombos:create",
+              method: "POST",
+              data: {
+                comboName: comboEntry.comboName,
+                packageSubTotal: parseNum(comboEntry.packageSubTotal),
+                packageVatRate: parseNum(comboEntry.packageVatRate),
+                packageVatAmount: vatAmount,
+                totalAmount: parseNum(comboEntry.packageSubTotal) + vatAmount,
+                currencyId: comboEntry.currencyId || null,
+                isActive: true,
+              },
+            });
+            const newComboId = comboRes?.data?.data?.id;
+            if (newComboId) {
+              await Promise.all(
+                Array.from(byServiceId.values()).map((it) =>
+                  ctx.api.request({
+                    url: "serviceComboItems:create",
+                    method: "POST",
+                    data: {
+                      comboId: newComboId,
+                      serviceId: it.serviceId,
+                      serviceName: it.serviceName,
+                      serviceType: it.serviceType || null,
+                      quantity: it.quantity,
+                    },
+                  }).catch((itemErr) =>
+                    console.warn("Could not add service to new catalog combo:", itemErr),
+                  ),
+                ),
+              );
+              message.success(
+                skippedCount > 0
+                  ? `Combo "${comboEntry.comboName}" saved to the catalog — ${skippedCount} custom service(s) without a catalog link were left out.`
+                  : `Combo "${comboEntry.comboName}" saved to the catalog.`,
+              );
+            }
+          } catch (comboErr) {
+            console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
+          }
         }
       }
 
