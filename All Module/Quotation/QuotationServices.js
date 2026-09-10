@@ -992,6 +992,18 @@ const QuotationServicesBlock = () => {
   const [comboSubTab, setComboSubTab] = useState('select');
   const [comboSearch, setComboSearch] = useState('');
   const [adhocComboName, setAdhocComboName] = useState('');
+  const [adhocComboType, setAdhocComboType] = useState('');
+  // Checked -> this ad-hoc combo also becomes a serviceCombos catalog entry
+  // once resolved (see pendingComboCatalogSaves below). Independent of the
+  // existing per-row "Save to catalog?" prompt, which already offers every
+  // custom service in the combo the same as any other typed row.
+  const [comboSaveToCatalog, setComboSaveToCatalog] = useState(false);
+  // Combos awaiting a serviceCombos/serviceComboItems write once their
+  // member rows' real serviceIds are known - which only happens after the
+  // "Save to catalog?" prompt (for any custom items) resolves, since that's
+  // the only place a brand-new service actually gets a services.id. See
+  // resolvePendingComboCatalogSaves, called from finishSaveFlow.
+  const [pendingComboCatalogSaves, setPendingComboCatalogSaves] = useState([]);
   // Mixed catalog-picked + typed-custom items for the ad-hoc combo builder -
   // {_id, source: 'catalog'|'custom', serviceId, serviceName, serviceType,
   // description}. Replaces the old adhocServiceIds (catalog-only multi-
@@ -1006,6 +1018,8 @@ const QuotationServicesBlock = () => {
     setComboSubTab('select');
     setComboSearch('');
     setAdhocComboName('');
+    setAdhocComboType('');
+    setComboSaveToCatalog(false);
     setComboItems([]);
     setComboItemPick(undefined);
     setShowComboModal(true);
@@ -1137,10 +1151,32 @@ const QuotationServicesBlock = () => {
     });
     if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
     setDirty(true);
+    if (comboSaveToCatalog) {
+      setPendingComboCatalogSaves((prev) => [
+        ...prev,
+        {
+          comboName: name,
+          comboType: adhocComboType.trim() || null,
+          currencyId: extractCurrencyId(quotationCurrency) || null,
+          // Captured now, from comboItems directly, rather than re-derived
+          // later from rows/catalogPromptRows - avoids depending on those
+          // rows still existing/matching by the time this combo actually
+          // gets resolved (which happens after the separate "Save to
+          // catalog?" prompt, a whole user interaction later).
+          members: comboItems.map((it) => ({
+            serviceId: it.serviceId || null,
+            serviceName: it.serviceName,
+            serviceType: it.serviceType || '',
+          })),
+        },
+      ]);
+    }
     message.success(`Created combo "${name}". Click "Save & Update quotation" to persist.`);
     setShowComboModal(false);
     setComboItems([]);
     setAdhocComboName('');
+    setAdhocComboType('');
+    setComboSaveToCatalog(false);
   };
   const [activeRowId, setActiveRowId] = useState(null);
   const [modalView, setModalView] = useState('select'); // 'select' | 'create'
@@ -1732,9 +1768,80 @@ const QuotationServicesBlock = () => {
     setDirty(true);
   };
 
-  const finishSaveFlow = () => {
+  // Resolves pendingComboCatalogSaves against whichever services actually
+  // have a real serviceId by now: catalog-picked members already did
+  // (captured at apply-time in applyAdhocCombo); custom members resolve via
+  // savedServiceIdByName, built from whichever custom rows the "Save to
+  // catalog?" prompt just saved. A custom member that was neither picked
+  // from catalog nor just saved has no serviceId to link, so it's left out
+  // of the combo definition (warned about below), not the whole combo
+  // skipped.
+  const resolvePendingComboCatalogSaves = async (savedServiceIdByName) => {
+    if (!pendingComboCatalogSaves.length) return;
+    for (const comboEntry of pendingComboCatalogSaves) {
+      const resolved = comboEntry.members
+        .map((m) => ({
+          serviceId: m.serviceId || savedServiceIdByName.get(normalizeLookupText(m.serviceName)) || null,
+          serviceName: m.serviceName,
+          serviceType: m.serviceType,
+        }))
+        .filter((it) => it.serviceId);
+      const skippedCount = comboEntry.members.length - resolved.length;
+      if (!resolved.length) {
+        console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
+        message.warning(`Combo "${comboEntry.comboName}" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).`);
+        continue;
+      }
+      const byServiceId = new Map();
+      for (const it of resolved) {
+        const key = String(it.serviceId);
+        if (!byServiceId.has(key)) byServiceId.set(key, { ...it, quantity: 1 });
+        else byServiceId.get(key).quantity += 1;
+      }
+      try {
+        const comboRes = await ctx.api.request({
+          url: 'serviceCombos:create',
+          method: 'POST',
+          data: {
+            comboName: comboEntry.comboName,
+            serviceComboType: comboEntry.comboType || null,
+            packageSubTotal: 0,
+            packageVatRate: 0,
+            packageVatAmount: 0,
+            totalAmount: 0,
+            currencyId: comboEntry.currencyId || null,
+            isActive: true,
+          },
+        });
+        const newComboId = comboRes?.data?.data?.id;
+        if (newComboId) {
+          await Promise.all(
+            Array.from(byServiceId.values()).map((it) =>
+              ctx.api.request({
+                url: 'serviceComboItems:create',
+                method: 'POST',
+                data: { comboId: newComboId, serviceId: it.serviceId, serviceName: it.serviceName, serviceType: it.serviceType || null, quantity: it.quantity },
+              }).catch((itemErr) => console.warn('Could not add service to new catalog combo:', itemErr)),
+            ),
+          );
+          message.success(
+            skippedCount > 0
+              ? `Combo "${comboEntry.comboName}" saved to the catalog — ${skippedCount} custom service(s) without a catalog link were left out.`
+              : `Combo "${comboEntry.comboName}" saved to the catalog.`,
+          );
+        }
+      } catch (comboErr) {
+        console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
+        message.warning(`Could not save combo "${comboEntry.comboName}" to the catalog.`);
+      }
+    }
+    setPendingComboCatalogSaves([]);
+  };
+
+  const finishSaveFlow = async (savedServiceIdByName) => {
     message.success('✅ Đã lưu và đồng bộ báo giá → dịch vụ hồ sơ → hợp đồng');
     setDirty(false);
+    await resolvePendingComboCatalogSaves(savedServiceIdByName || new Map());
     reload();
   };
 
@@ -1764,6 +1871,7 @@ const QuotationServicesBlock = () => {
   const handleSaveSelectedToCatalog = async () => {
     const rowsToSave = catalogPromptRows.filter((r) => catalogPromptChecked[r.id]);
     const internalCompanyId = extractId(quotation?.internalCompanyId);
+    const savedServiceIdByName = new Map();
     setCatalogSaving(true);
     for (const r of rowsToSave) {
       try {
@@ -1780,6 +1888,7 @@ const QuotationServicesBlock = () => {
           },
         });
         const newServiceId = svcRes?.data?.data?.id;
+        if (newServiceId) savedServiceIdByName.set(normalizeLookupText(r._svcName), newServiceId);
         if (newServiceId && internalCompanyId) {
           try {
             await ctx.api.request({
@@ -1809,7 +1918,7 @@ const QuotationServicesBlock = () => {
     }
     setCatalogSaving(false);
     setShowCatalogPrompt(false);
-    finishSaveFlow();
+    finishSaveFlow(savedServiceIdByName);
   };
 
   const handleSkipCatalogPrompt = () => {
@@ -3166,14 +3275,25 @@ const QuotationServicesBlock = () => {
           )
         )
         : React.createElement(React.Fragment, null,
-          React.createElement('div', { style: { marginBottom: 12 } },
-            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo Name'),
-            React.createElement(Input, {
-              value: adhocComboName,
-              onChange: (e) => setAdhocComboName(e.target.value),
-              placeholder: 'E.g. Business incorporation consulting combo...',
-              style: { borderRadius: DS.radius.sm },
-            })
+          React.createElement('div', { style: { display: 'flex', gap: 12, marginBottom: 12 } },
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo Name'),
+              React.createElement(Input, {
+                value: adhocComboName,
+                onChange: (e) => setAdhocComboName(e.target.value),
+                placeholder: 'E.g. Business incorporation consulting combo...',
+                style: { borderRadius: DS.radius.sm },
+              })
+            ),
+            React.createElement('div', { style: { width: 200 } },
+              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo Type (optional)'),
+              React.createElement(Input, {
+                value: adhocComboType,
+                onChange: (e) => setAdhocComboType(e.target.value),
+                placeholder: 'E.g. Business, Education...',
+                style: { borderRadius: DS.radius.sm },
+              })
+            ),
           ),
           React.createElement('div', { style: { marginBottom: 12 } },
             React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this combo'),
@@ -3248,6 +3368,27 @@ const QuotationServicesBlock = () => {
                 )
               ),
             ),
+          React.createElement(
+            'label',
+            {
+              style: {
+                display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+                borderRadius: DS.radius.sm, background: '#e6f4ff', border: '1px solid #91caff',
+                cursor: 'pointer', fontSize: 12.5, color: C.text, marginBottom: 12,
+              },
+            },
+            React.createElement('input', {
+              type: 'checkbox',
+              checked: comboSaveToCatalog,
+              onChange: (e) => setComboSaveToCatalog(e.target.checked),
+              style: { marginTop: 2, cursor: 'pointer' },
+            }),
+            React.createElement(
+              'span',
+              null,
+              'Also save this combo to the shared catalog (created only after you finish saving this quotation). Custom services in it already get their own "Save to catalog?" chance after Save — this just adds the combo itself as a reusable catalog entry.',
+            ),
+          ),
           React.createElement(Button, {
             type: 'primary', onClick: applyAdhocCombo, style: DS.primaryButton,
           }, 'Submit')
