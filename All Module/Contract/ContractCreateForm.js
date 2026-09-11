@@ -11598,8 +11598,6 @@
           feeModel: form.feeModel || null,
           billingCycle: form.billingCycle || null,
           contractCode: finalContractCode,
-          contractNumber: finalContractCode,
-          code: finalContractCode,
           contractName: name,
           customerId: parseInt(form.customerId, 10),
           internalCompanyId: parseInt(form.internalCompanyId, 10),
