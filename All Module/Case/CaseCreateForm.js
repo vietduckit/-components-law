@@ -11365,7 +11365,6 @@ const ProjectCreateForm = () => {
                 description: r.description || null,
                 basePrice: r.basePrice || 0,
                 currencyId: r.currencyId || null,
-                internalCompanyId: parseInt(form.internalCompanyId),
               },
             });
             const newServiceId = svcRes?.data?.data?.id;
@@ -11387,7 +11386,6 @@ const ProjectCreateForm = () => {
                     serviceType: r.serviceType || null,
                     description: r.description || null,
                     price: r.basePrice || 0,
-                    basePrice: r.basePrice || 0,
                     vat: r.vat || 0,
                     currencyId: r.currencyId || null,
                   },

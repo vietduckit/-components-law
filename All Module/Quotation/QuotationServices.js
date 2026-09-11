@@ -1884,7 +1884,6 @@ const QuotationServicesBlock = () => {
             description: r._description || null,
             basePrice: r._basePrice || 0,
             currencyId: extractCurrencyId(r._currencyId) || null,
-            internalCompanyId: internalCompanyId || null,
           },
         });
         const newServiceId = svcRes?.data?.data?.id;
@@ -1901,7 +1900,6 @@ const QuotationServicesBlock = () => {
                 serviceType: r._serviceType || null,
                 description: r._description || null,
                 price: r._basePrice || 0,
-                basePrice: r._basePrice || 0,
                 vat: r._vat || 0,
                 currencyId: extractCurrencyId(r._currencyId) || null,
               },

@@ -11886,7 +11886,6 @@
                   description: r.description || null,
                   basePrice: parseNum(r.basePrice) || 0,
                   currencyId: r.currencyId || null,
-                  internalCompanyId: parseInt(form.internalCompanyId),
                 },
               });
               const newServiceId = svcRes?.data?.data?.id;
@@ -11908,7 +11907,6 @@
                       serviceType: r.serviceType || null,
                       description: r.description || null,
                       price: parseNum(r.basePrice) || 0,
-                      basePrice: parseNum(r.basePrice) || 0,
                       vat: parseNum(r.vat) || 0,
                       currencyId: r.currencyId || null,
                     },
