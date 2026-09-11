@@ -6033,7 +6033,7 @@
                 flexShrink: 0,
               },
             },
-            "PACKAGE",
+            "COMBO",
           ),
           React.createElement(
             "span",
