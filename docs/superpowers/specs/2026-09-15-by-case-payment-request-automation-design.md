@@ -151,5 +151,10 @@ Everything here is additive (4 new fields, 2 new enum options, 4 Workflows). To 
 
 1. ~~Field registration~~ — not needed; §4 confirms every field already exists on the live system.
 2. Confirm `paymentRequests.triggerType`'s live select options actually include `on_signed`/`on_task_done`/`on_case_done` (Admin UI field editor); add any missing option there directly if not — a small manual edit, not a script.
-3. Edit `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskManagement.js`/`TaskDetailView.js` (linked-request selector) directly — normal JS Block edits, no special deploy step.
-4. Build WF1–WF4 by hand through the Admin UI on each environment this ships to (§3 — this is the accepted cost of the Workflow-based approach).
+3. `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskDetailView.js` (linked-request selector) — done, plain JS Block edits.
+4. WF1–WF4 are scripted (not hand-built through the UI as originally planned in §1/§3 — still subject to that section's accepted trade-offs), living in `JsField/Workflow/`:
+   - `CreateByCaseScheduledPaymentRequestsWorkflow.js` (WF1)
+   - `CreateTaskDoneActivatesPaymentRequestWorkflow.js` (WF2)
+   - `CreateCaseDoneActivatesPaymentRequestWorkflow.js` (WF3)
+   - `CreatePaymentRequestDueDateActivationWorkflow.js` (WF4)
+   Run each once (browser console or a temporary Action block), then in Admin → Workflow toggle each one Disabled → Enabled once (cache refresh — see §1's cache gotcha). Every other Workflow-creation script this project has already shipped (`CreateContractBillingPlansWorkflow.js`, `CreatePaymentRequestNotificationWorkflow.js`, etc.) now lives alongside these 4 in the same `JsField/Workflow/` folder, for one place to find every workflow-defining script in this project.
