@@ -590,6 +590,66 @@ const listPaymentsByContract = async (contractId) => {
   }
 };
 
+const listPaymentRequestsByContract = async (contractId) => {
+  if (!contractId) return [];
+  try {
+    const res = await apiRequestAny(PAYMENT_REQUEST_RESOURCES, "list", {
+      params: {
+        pageSize: 1000,
+        filter: JSON.stringify({ contractId: { $eq: contractId } }),
+      },
+    });
+    return unwrapApiList(res);
+  } catch (error) {
+    console.warn("[ContractPaymentScheduleDetailBlock] fetch payment requests failed", error);
+    return [];
+  }
+};
+
+// Auto-created by the By Case automation (pgsql/by_case_payment_request_automation.sql)
+// — surfaces the pipeline status of each installment's Payment Request,
+// distinct from the payment-derived "Trạng thái" column (which reflects
+// actual money received, not the request's own approval/processing state).
+const PR_STATUS_META = {
+  draft: { label: "Draft", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
+  pending: { label: "Pending", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
+  submitted: { label: "Submitted", bg: "#e6f4ff", color: "#1677ff" },
+  active: { label: "Ready", bg: "#e6f4ff", color: "#1677ff" },
+  checking: { label: "Checking", bg: "#fffbe6", color: "#d48806" },
+  approved: { label: "Approved", bg: "#e6fffb", color: "#08979c" },
+  converted: { label: "Converted", bg: "#f6ffed", color: "#389e0d" },
+  rejected: { label: "Rejected", bg: "#fff2f0", color: "#cf1322" },
+  cancelled: { label: "Cancelled", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
+};
+
+// "Requested" = any Payment Request that has moved past "pending" (still
+// waiting on its trigger condition/due date) — i.e. it's actually in
+// accounting's pipeline, not just scheduled.
+const REQUESTED_PR_STATUSES = ["submitted", "active", "checking", "approved", "converted"];
+
+const PRStatusBadge = ({ status }) => {
+  if (!status) return null;
+  const meta = PR_STATUS_META[status] || { label: status, bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" };
+  return React.createElement(
+    "span",
+    {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        minHeight: 22,
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: meta.bg,
+        color: meta.color,
+        fontSize: 11,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      },
+    },
+    meta.label,
+  );
+};
+
 const summarizePaymentsByInstallment = (payments = []) => {
   const map = new Map();
   payments.forEach((payment) => {
@@ -604,9 +664,31 @@ const summarizePaymentsByInstallment = (payments = []) => {
   return map;
 };
 
-const applyPaymentSummary = (schedule, payments = []) => {
+// Auto-created Payment Requests are matched to a schedule row by
+// installmentNo (what the By Case automation writes on both sides), not
+// scheduleItemId — a Payment Request has no scheduleItemId of its own,
+// only its paymentRequestItems rows do.
+const summarizePaymentRequestsByInstallment = (paymentRequests = []) => {
+  const map = new Map();
+  paymentRequests.forEach((pr) => {
+    const key = String(pr?.installmentNo ?? "");
+    if (!key || key === "null" || key === "undefined") return;
+    // An installment could in principle have more than one PR over its
+    // lifetime (e.g. a rejected one re-created by hand) — keep the most
+    // recently created, so the badge reflects the live one, not a stale
+    // rejected/cancelled leftover.
+    const current = map.get(key);
+    if (!current || new Date(pr?.createdAt) >= new Date(current?.createdAt)) {
+      map.set(key, pr);
+    }
+  });
+  return map;
+};
+
+const applyPaymentSummary = (schedule, payments = [], paymentRequests = []) => {
   if (!schedule) return schedule;
   const summary = summarizePaymentsByInstallment(payments);
+  const prSummary = summarizePaymentRequestsByInstallment(paymentRequests);
   return {
     ...schedule,
     installments: schedule.installments.map((row) => {
@@ -619,12 +701,14 @@ const applyPaymentSummary = (schedule, payments = []) => {
           : remainingAmount <= MONEY_TOLERANCE
             ? "received"
             : "partial";
+      const linkedPaymentRequest = prSummary.get(String(row.installmentNo ?? "")) || null;
       return {
         ...row,
         paidAmount,
         remainingAmount,
         paymentRecords: itemSummary?.records || [],
         status: computedStatus,
+        linkedPaymentRequest,
       };
     }),
   };
@@ -924,6 +1008,15 @@ const PaymentScheduleTable = ({ schedule }) => {
         width: 130,
         render: (value) => React.createElement(StatusBadge, { status: value }),
       },
+      {
+        title: "Auto PR",
+        dataIndex: "linkedPaymentRequest",
+        width: 120,
+        render: (pr) =>
+          pr
+            ? React.createElement(PRStatusBadge, { status: pr.status })
+            : React.createElement("span", { style: { color: C.muted, fontSize: 12 } }, "—"),
+      },
     ];
 
     return React.createElement(AntTable, {
@@ -932,11 +1025,11 @@ const PaymentScheduleTable = ({ schedule }) => {
       pagination: false,
       columns: columnsConfig,
       dataSource: schedule.installments,
-      scroll: { x: 1240 },
+      scroll: { x: 1360 },
     });
   }
 
-  const columns = "minmax(110px, 0.75fr) minmax(220px, 1.5fr) minmax(100px, 0.55fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(120px, 0.7fr)";
+  const columns = "minmax(110px, 0.75fr) minmax(220px, 1.5fr) minmax(100px, 0.55fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(110px, 0.6fr) minmax(120px, 0.7fr)";
   const headerStyle = {
     padding: "11px 12px",
     background: "#fbfcfd",
@@ -961,7 +1054,7 @@ const PaymentScheduleTable = ({ schedule }) => {
     { style: { overflowX: "auto" } },
     React.createElement(
       "div",
-      { style: { minWidth: 1240 } },
+      { style: { minWidth: 1360 } },
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: columns } },
@@ -973,6 +1066,7 @@ const PaymentScheduleTable = ({ schedule }) => {
         React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Received"),
         React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Remaining"),
         React.createElement("div", { style: headerStyle }, "Status"),
+        React.createElement("div", { style: headerStyle }, "Auto PR"),
       ),
       schedule.installments.map((row) =>
         React.createElement(
@@ -1019,6 +1113,13 @@ const PaymentScheduleTable = ({ schedule }) => {
             formatMoney(row.remainingAmount),
           ),
           React.createElement("div", { style: cellStyle }, React.createElement(StatusBadge, { status: row.status })),
+          React.createElement(
+            "div",
+            { style: cellStyle },
+            row.linkedPaymentRequest
+              ? React.createElement(PRStatusBadge, { status: row.linkedPaymentRequest.status })
+              : React.createElement("span", { style: { color: C.muted, fontSize: 12 } }, "—"),
+          ),
         ),
       ),
     ),
@@ -1066,6 +1167,7 @@ const RetainerRule = ({ plan }) => {
 const PaymentScheduleDetailBlock = () => {
   const [record, setRecord] = useState(contextRecord);
   const [payments, setPayments] = useState([]);
+  const [paymentRequests, setPaymentRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lawyers, setLawyers] = useState([]);
@@ -1092,6 +1194,7 @@ const PaymentScheduleDetailBlock = () => {
     const localSchedule = normalizeSchedule(contextRecord || {});
     setRecord(contextRecord);
     setPayments([]);
+    setPaymentRequests([]);
     setError("");
 
     if (!recordId) {
@@ -1115,11 +1218,16 @@ const PaymentScheduleDetailBlock = () => {
         if (mounted) setError("Could not load actual payment data.");
         return [];
       }),
+      listPaymentRequestsByContract(recordId).catch((err) => {
+        console.error("[ContractPaymentScheduleDetailBlock] fetch payment requests failed", err);
+        return [];
+      }),
     ])
-      .then(([fresh, paymentRows]) => {
+      .then(([fresh, paymentRows, paymentRequestRows]) => {
         if (!mounted) return;
         setRecord(fresh || contextRecord);
         setPayments(paymentRows || []);
+        setPaymentRequests(paymentRequestRows || []);
       })
       .catch((err) => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch contract failed", err);
@@ -1138,8 +1246,8 @@ const PaymentScheduleDetailBlock = () => {
   }, [recordId]);
 
   const schedule = useMemo(
-    () => applyPaymentSummary(normalizeSchedule(record || {}), payments),
-    [record, payments],
+    () => applyPaymentSummary(normalizeSchedule(record || {}), payments, paymentRequests),
+    [record, payments, paymentRequests],
   );
   const requestableItems = useMemo(
     () => buildRequestableItems(record || {}, schedule, payments),
@@ -1312,6 +1420,12 @@ const PaymentScheduleDetailBlock = () => {
   const totalRemaining = schedule.installments.length
     ? schedule.installments.reduce((sum, row) => sum + parseNum(row.remainingAmount), 0)
     : Math.max(parseNum(schedule.totalAmount) - paidContractTotal(payments), 0);
+  // "Requested" = sum of every auto-created Payment Request that has moved
+  // past "pending" (i.e. actually in accounting's pipeline, not just
+  // scheduled/waiting) — distinct from "Received", which is real money.
+  const totalRequested = paymentRequests
+    .filter((pr) => REQUESTED_PR_STATUSES.includes(String(pr?.status || "")))
+    .reduce((sum, pr) => sum + parseNum(pr?.requestedAmount), 0);
   const selectedRequestItems = requestableItems.filter((item) => (requestForm.selectedItemKeys || []).includes(item.key));
   const requestTotal = selectedRequestItems.reduce((sum, item) => sum + parseNum(item.requestedAmount), 0);
   const lawyerOptions = lawyers.map((lawyer) => ({
@@ -1581,6 +1695,7 @@ const PaymentScheduleDetailBlock = () => {
           compact([countText, modeLabel(schedule.mode)]).join(" · "),
         ),
         React.createElement(SummaryPill, { label: "First payment date", value: formatDate(schedule.firstPaymentDate) }),
+        React.createElement(SummaryPill, { label: "Requested", value: formatMoney(totalRequested) }),
         React.createElement(SummaryPill, { label: "Received", value: formatMoney(totalPaid) }),
         React.createElement(SummaryPill, { label: "Remaining", value: formatMoney(totalRemaining) }),
       ),
