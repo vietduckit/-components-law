@@ -40,6 +40,16 @@
 // running this file's content.
 // ============================================================
 
+// Needed at true top-level scope for the final `ctx.render(...)` call at
+// the bottom of this file — each of the 3 IIFEs below also destructures
+// its own LOCAL `React` from `ctx` (kept as-is, unchanged from each
+// source file), but that binding is scoped to its own IIFE and does not
+// reach this outer scope. Without this line the final ctx.render() line
+// throws "Cannot read properties of undefined (reading 'createElement')"
+// (confirmed by hitting exactly this error against a real running
+// instance before adding this line).
+const { React } = ctx;
+
 const BasicInfoModule = (() => {
 // ============================================================
 // ContractDetailView.js — unified "Basic Info" card for the Contract
