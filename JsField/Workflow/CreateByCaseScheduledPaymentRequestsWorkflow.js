@@ -8,49 +8,61 @@
 // status "pending" — active immediately only if the installment's
 // triggerType is "on_signed" AND it already has a paymentDate.
 //
-// SIMPLIFICATION vs the design spec: fires on CREATE only, not also on
-// UPDATE OF paymentSchedule. The spec's UPDATE case exists to also cover a
-// schedule added/edited after initial contract creation, but doing that
-// safely needs an "does a Payment Request already exist for this exact
-// installment" check inside the loop — an object-vs-null comparison this
-// project has no proven working example of in a math.js expression, so it
-// isn't safe to ship blind. Ship this CREATE-only version first, verify it
-// end-to-end, then add the UPDATE case as a deliberate follow-up once that
-// comparison is confirmed to behave as expected.
+// !!! BUG FOUND AND FIXED THIS REVISION (confirmed against a live
+// execution, execution id 386803035602944, job log: `Error: Cannot
+// convert "on_signed" to a number` on a "conditionMetCalc" calculation
+// node) !!!
+// The original version of this file used a `calculation`-type node with
+// `engine: "math.js"` to test `{{...}} == "on_signed"`. This project's
+// other workflow scripts (CreateContractBillingPlansWorkflow.js etc.) only
+// ever use math.js for NUMERIC/date comparisons — this file was the first
+// to try a STRING equality check with it, and it turns out mathjs's `==`/
+// `equal()` in the version bundled here always attempts to coerce both
+// operands to numbers, regardless of syntax, and throws for any
+// non-numeric string. Confirmed directly against the real installed
+// `mathjs` package (not just inferred from source):
+//   math.evaluate('$$0 == "on_signed"', { $$0: "on_signed" })
+//   => Error: Cannot convert "on_signed" to a number
+// (`{{...}} != null` checks, used elsewhere in this file and in WF3, are
+// NOT affected — confirmed separately that `!= null` works fine for both
+// null and string scope values.)
+//
+// Fix: string equality now goes through a `condition`-type node's
+// `calculation` config (`{calculator: 'equal', operands: [a, b]}`,
+// evaluated by logicCalculate.ts's plain `a == b`, NOT mathjs) instead of
+// a `calculation`-type node's `engine: "math.js"` expression. This also
+// meant restructuring away the standalone "conditionMetCalc" boolean value
+// entirely — a `calculation` node can only run `engine`+`expression`
+// (mathjs/formula.js/string), never the `calculation`/logicCalculate
+// format, so there was no way to produce a reusable boolean via
+// logicCalculate for later reference. Instead, the loop body now branches
+// on "is this triggerType on_signed" FIRST, and each branch creates the
+// Payment Request with a literal (not computed) `conditionMet` value.
 //
 // Node graph (Loop body, once per installment):
-//   1. Calculation "conditionMetCalc" — true only when triggerType ==
-//      "on_signed" (the only trigger already satisfied the instant the
-//      contract exists; on_task_done/on_case_done wait for WF2/WF3).
-//   2. Create "createPR" (paymentRequests) — always starts "pending".
-//   3. Create "createPRItem" (paymentRequestItems) — mirrors the shape the
-//      existing manual "Create payment request" flow already produces
-//      (ContractPaymentScheduleDetailBlock.js), so these rows render
-//      identically wherever paymentRequestItems is already displayed.
-//   4. Condition "activateNow" — conditionMetCalc AND a due date is
-//      already set on this installment.
-//      -> true (branchIndex 1): Update "activatePR" — flips the
-//         just-created request straight to "active".
-//      -> false: nothing — stays "pending" until WF2 (task done) or WF4
-//         (due date added later) activates it.
-//
-// All boolean logic uses math.js (`engine: "math.js"`), following this
-// project's own established pattern (see CreateContractBillingPlansWorkflow.js),
-// not the alternative logicCalculate `{calculator, operands}` format this
-// project has never actually shipped. Confirmed directly against
-// @nocobase/evaluators' substitution mechanism
-// (packages/core/evaluators/src/utils/index.ts): every `{{path}}` token is
-// replaced with a scope-bound variable holding the REAL typed value (not
-// string-interpolated text), so string equality
-// (`{{...}} == "on_signed"`) evaluates correctly in math.js.
+//   1. Condition "isOnSigned" (loop body's entry — see the branchIndex
+//      note below) — `{{triggerType}} == "on_signed"` via the
+//      calculation/logicCalculate format (safe for strings).
+//      -> true (branchIndex 1): Create "createPR_onSigned"
+//         (conditionMet: true literal) -> Create "createPRItem_onSigned"
+//         -> Condition "hasDueDate_onSigned" (`!= null`, math.js is fine
+//         here — only null-checking, not string equality) -> true
+//         (branchIndex 1): Update "activatePR_onSigned" (status: active).
+//      -> false (branchIndex 0): Create "createPR_other"
+//         (conditionMet: false literal) -> Create "createPRItem_other".
+//         No due-date/activation check needed on this side — conditionMet
+//         is false, so activation can never happen at creation time
+//         regardless of the due date; WF2/WF3/WF4 handle it later.
 //
 // IMPORTANT node-graph detail, confirmed by reading Processor.ts directly
-// (not assumed from the two existing example scripts, which never use a
-// Loop node): a Loop's own body only runs at all if its first child node
+// (not assumed from the two pre-existing example scripts, which never use
+// a Loop node): a Loop's own body only runs at all if its first child node
 // has a NON-NULL branchIndex (Processor.getBranches filters out
 // branchIndex === null, and LoopInstruction takes the first result) — so
-// the loop body's entry node below uses branchIndex: 0, unlike every other
-// purely-sequential node in this file which keeps branchIndex: null.
+// "isOnSigned" below uses branchIndex: 0 for THAT reason (its role as the
+// loop's single body entry), which is unrelated to and does not conflict
+// with the branchIndex 0/1 ITS OWN downstream children use (branchIndex is
+// always relative to a node's own immediate parent).
 //
 // How to run: paste into a temporary Nocobase Action block's onClick, or
 // the browser dev console on any admin page (ctx is in scope there).
@@ -91,24 +103,27 @@ const loopNodePayload = () => ({
   },
 });
 
-const conditionMetCalcNodePayload = (loopId) => ({
-  type: "calculation",
-  key: "conditionMetCalc",
-  title: "Is this installment's trigger already satisfied? (on_signed only)",
+const isOnSignedConditionNodePayload = (loopId) => ({
+  type: "condition",
+  key: "isOnSigned",
+  title: "Is this installment's triggerType on_signed?",
   upstreamId: loopId,
   branchIndex: 0, // loop body's single entry point — must be non-null, see header comment
   config: {
-    engine: "math.js",
-    expression: '{{$scopes.installmentsLoop.item.triggerType}} == "on_signed"',
+    calculation: {
+      calculator: "equal",
+      operands: ["{{$scopes.installmentsLoop.item.triggerType}}", "on_signed"],
+    },
+    rejectOnFalse: false, // false = the "other" branch below, not an error
   },
 });
 
-const createPRNodePayload = (upstreamId) => ({
+const createPRPayload = (key, upstreamId, branchIndex, conditionMetLiteral) => ({
   type: "create",
-  key: "createPR",
-  title: "Create Payment Request (pending)",
+  key,
+  title: `Create Payment Request (pending, conditionMet=${conditionMetLiteral})`,
   upstreamId,
-  branchIndex: null,
+  branchIndex,
   config: {
     collection: "paymentRequests",
     params: {
@@ -117,7 +132,7 @@ const createPRNodePayload = (upstreamId) => ({
           "Đợt {{$scopes.installmentsLoop.item.installmentNo}} - {{$context.data.contractCode}} - {{$context.data.contractName}}",
         status: "pending",
         triggerType: "{{$scopes.installmentsLoop.item.triggerType}}",
-        conditionMet: "{{$jobsMapByNodeKey.conditionMetCalc}}",
+        conditionMet: conditionMetLiteral,
         installmentNo: "{{$scopes.installmentsLoop.item.installmentNo}}",
         contractId: "{{$context.data.id}}",
         customerId: "{{$context.data.customerId}}",
@@ -131,9 +146,9 @@ const createPRNodePayload = (upstreamId) => ({
   },
 });
 
-const createPRItemNodePayload = (upstreamId) => ({
+const createPRItemPayload = (key, upstreamId, createPRNodeKey) => ({
   type: "create",
-  key: "createPRItem",
+  key,
   title: "Create Payment Request Item",
   upstreamId,
   branchIndex: null,
@@ -141,7 +156,7 @@ const createPRItemNodePayload = (upstreamId) => ({
     collection: "paymentRequestItems",
     params: {
       values: {
-        paymentRequestId: "{{$jobsMapByNodeKey.createPR.id}}",
+        paymentRequestId: `{{$jobsMapByNodeKey.${createPRNodeKey}.id}}`,
         contractId: "{{$context.data.id}}",
         lineType: "schedule_installment",
         lineStatus: "pending",
@@ -156,30 +171,29 @@ const createPRItemNodePayload = (upstreamId) => ({
   },
 });
 
-const activateNowConditionNodePayload = (upstreamId) => ({
+const hasDueDateConditionNodePayload = (upstreamId) => ({
   type: "condition",
-  key: "activateNow",
-  title: "Condition already met AND due date already set?",
+  key: "hasDueDate_onSigned",
+  title: "Does it already have a due date?",
   upstreamId,
   branchIndex: null,
   config: {
-    engine: "math.js",
-    expression:
-      '{{$jobsMapByNodeKey.conditionMetCalc}} == true and {{$scopes.installmentsLoop.item.paymentDate}} != null',
-    rejectOnFalse: false, // false = leave pending, not an error — never reject a normal "not yet" outcome
+    engine: "math.js", // safe here — this is a null-check, not string equality
+    expression: "{{$scopes.installmentsLoop.item.paymentDate}} != null",
+    rejectOnFalse: false,
   },
 });
 
-const activatePRNodePayload = (upstreamId) => ({
+const activatePRNodePayload = (upstreamId, createPRNodeKey) => ({
   type: "update",
-  key: "activatePR",
+  key: "activatePR_onSigned",
   title: "Activate Payment Request immediately",
   upstreamId,
   branchIndex: 1, // ON_TRUE
   config: {
     collection: "paymentRequests",
     params: {
-      filterByTk: "{{$jobsMapByNodeKey.createPR.id}}",
+      filterByTk: `{{$jobsMapByNodeKey.${createPRNodeKey}.id}}`,
       values: { status: "active" },
     },
   },
@@ -211,11 +225,19 @@ const activatePRNodePayload = (upstreamId) => ({
   };
 
   const nLoop = await createNode(loopNodePayload());
-  const nCalc = await createNode(conditionMetCalcNodePayload(nLoop.id));
-  const nCreatePR = await createNode(createPRNodePayload(nCalc.id));
-  const nCreateItem = await createNode(createPRItemNodePayload(nCreatePR.id));
-  const nActivateCond = await createNode(activateNowConditionNodePayload(nCreateItem.id));
-  await createNode(activatePRNodePayload(nActivateCond.id));
+  const nIsOnSigned = await createNode(isOnSignedConditionNodePayload(nLoop.id));
+
+  // TRUE branch (on_signed)
+  const nCreatePRSigned = await createNode(createPRPayload("createPR_onSigned", nIsOnSigned.id, 1, true));
+  const nCreateItemSigned = await createNode(
+    createPRItemPayload("createPRItem_onSigned", nCreatePRSigned.id, "createPR_onSigned"),
+  );
+  const nHasDueDate = await createNode(hasDueDateConditionNodePayload(nCreateItemSigned.id));
+  await createNode(activatePRNodePayload(nHasDueDate.id, "createPR_onSigned"));
+
+  // FALSE branch (on_task_done / on_case_done)
+  const nCreatePROther = await createNode(createPRPayload("createPR_other", nIsOnSigned.id, 0, false));
+  await createNode(createPRItemPayload("createPRItem_other", nCreatePROther.id, "createPR_other"));
 
   console.log("Done. Next steps:");
   console.log("1. Admin -> Workflow -> open this workflow -> toggle Disabled then Enabled once (cache refresh).");

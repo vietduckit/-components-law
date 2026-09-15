@@ -77,8 +77,19 @@ const isPendingConditionNodePayload = (upstreamId) => ({
   upstreamId,
   branchIndex: null,
   config: {
-    engine: "math.js",
-    expression: '{{$jobsMapByNodeKey.linkedPR.status}} == "pending"',
+    // NOT math.js — confirmed (against the real installed mathjs package,
+    // and against a live failed execution of
+    // CreateByCaseScheduledPaymentRequestsWorkflow.js, error "Cannot
+    // convert \"pending\" to a number") that mathjs's == / equal() in this
+    // project's bundled version always tries to coerce both operands to
+    // numbers and throws for any non-numeric string. `calculation` here
+    // uses logicCalculate.ts's plain `a == b` instead, which handles
+    // strings correctly. See CreateByCaseScheduledPaymentRequestsWorkflow.js's
+    // header comment for the full writeup.
+    calculation: {
+      calculator: "equal",
+      operands: ["{{$jobsMapByNodeKey.linkedPR.status}}", "pending"],
+    },
     rejectOnFalse: false, // already active/converted/etc — nothing to do, not an error
   },
 });
