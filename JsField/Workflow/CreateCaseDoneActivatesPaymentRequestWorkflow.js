@@ -1,4 +1,11 @@
 // ============================================================
+// SUPERSEDED (2026-09-15) — kept for history, do not run.
+// Replaced by pgsql/by_case_payment_request_automation.sql
+// (by_case_case_done_activates_payment_request trigger) — see
+// CreateByCaseScheduledPaymentRequestsWorkflow.js's header for the full
+// rationale. Disable/delete this workflow before applying that SQL file.
+// ============================================================
+//
 // ONE-TIME SETUP SCRIPT — NOT a reusable field/action block.
 //
 // WF3 of docs/superpowers/specs/2026-09-15-by-case-payment-request-automation-design.md §5.

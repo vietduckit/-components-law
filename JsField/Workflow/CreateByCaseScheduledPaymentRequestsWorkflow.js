@@ -1,4 +1,14 @@
 // ============================================================
+// SUPERSEDED (2026-09-15) — kept for history, do not run.
+// Replaced by pgsql/by_case_payment_request_automation.sql
+// (by_case_create_scheduled_payment_requests trigger) — user's explicit
+// decision to switch from Workflow to a plain SQL trigger file for easier
+// deployment/maintenance (git-tracked, idempotent, survives a DB restore,
+// no per-environment Admin UI rebuild). If this workflow is still enabled
+// on any environment, disable/delete it before applying that SQL file, or
+// Payment Requests will be created twice per contract.
+// ============================================================
+//
 // ONE-TIME SETUP SCRIPT — NOT a reusable field/action block.
 //
 // WF1 of docs/superpowers/specs/2026-09-15-by-case-payment-request-automation-design.md §5.

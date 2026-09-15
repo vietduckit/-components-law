@@ -1,7 +1,9 @@
 # By Case — Task-Triggered Payment Request Automation — Design Spec
 
 Date: 2026-09-15
-Status: Draft — pending user review
+Status: Implemented and verified (mechanism: SQL triggers, not Workflow — see §5 revision below)
+
+**Revision note (same day):** §1/§3/§5 originally chose NocoBase Workflow over SQL triggers per the user's explicit request ("dễ follow/maintenance qua UI"). After building and testing WF1-WF4, a real bug surfaced (see §5's per-workflow as-built notes) and the user reversed that decision, asking to switch to a plain SQL trigger file instead — same mechanism as the two prior specs (2026-09-05, 2026-09-07). The 4 Workflow scripts in `JsField/Workflow/` are kept, each now marked SUPERSEDED in its own header comment, pointing at `pgsql/by_case_payment_request_automation.sql` as the current implementation. §5 below is left as the original Workflow-based design for history; the SQL file is the actual, verified, current mechanism.
 
 ## 1. Overview
 
@@ -150,11 +152,11 @@ Everything here is additive (4 new fields, 2 new enum options, 4 Workflows). To 
 ## 9. Deployment
 
 1. ~~Field registration~~ — not needed; §4 confirms every field already exists on the live system.
-2. Confirm `paymentRequests.triggerType`'s live select options actually include `on_signed`/`on_task_done`/`on_case_done` (Admin UI field editor); add any missing option there directly if not — a small manual edit, not a script.
-3. `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskDetailView.js` (linked-request selector) — done, plain JS Block edits.
-4. WF1–WF4 are scripted (not hand-built through the UI as originally planned in §1/§3 — still subject to that section's accepted trade-offs), living in `JsField/Workflow/`:
-   - `CreateByCaseScheduledPaymentRequestsWorkflow.js` (WF1)
-   - `CreateTaskDoneActivatesPaymentRequestWorkflow.js` (WF2)
-   - `CreateCaseDoneActivatesPaymentRequestWorkflow.js` (WF3)
-   - `CreatePaymentRequestDueDateActivationWorkflow.js` (WF4)
-   Run each once (browser console or a temporary Action block), then in Admin → Workflow toggle each one Disabled → Enabled once (cache refresh — see §1's cache gotcha). Every other Workflow-creation script this project has already shipped (`CreateContractBillingPlansWorkflow.js`, `CreatePaymentRequestNotificationWorkflow.js`, etc.) now lives alongside these 4 in the same `JsField/Workflow/` folder, for one place to find every workflow-defining script in this project.
+2. `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskDetailView.js` (linked-request selector) — done, plain JS Block edits.
+3. **Superseded by the revision note above**: ~~WF1–WF4 scripted in `JsField/Workflow/`~~. Those 4 scripts are kept (each marked SUPERSEDED in its own header), but the actual deployed mechanism is now `pgsql/by_case_payment_request_automation.sql` — one idempotent file, 4 triggers, matching the exact convention of `contract_payment_status_workflow.sql`/`retainer_billing_automation.sql`:
+   - `by_case_create_scheduled_payment_requests` (`contracts` AFTER INSERT) — WF1's replacement.
+   - `by_case_task_done_activates_payment_request` (`tasks` AFTER UPDATE OF status) — WF2's replacement. Uses the raw column `tasks."paymentRequestId"`, not the Admin-UI-displayed association name `linkedPaymentRequestId` — confirmed via this database's own `fields` metadata table before writing the trigger, since a `belongsTo` association's API name and its `foreignKey` column name differ here.
+   - `by_case_case_done_activates_payment_request` (`projects` AFTER UPDATE OF status) — WF3's replacement.
+   - `by_case_due_date_activates_payment_request` (`paymentRequests` AFTER UPDATE OF "dueDate") — WF4's replacement.
+   **If any of WF1–WF4 were ever enabled on an environment, disable/delete them there before running this SQL file** — running both would create every Payment Request twice and double-process every task/case-done event.
+4. Verified end-to-end against a real restored copy of the dev database (not just "applies without a SQL error"): inserted a real test `contracts` row with 3 installments (one of each `triggerType`, no due dates), confirmed 3 `paymentRequests` + 3 `paymentRequestItems` rows with the exact expected `status`/`conditionMet` combinations; then walked all 3 through to `active` via the due-date-first and condition-first orderings (both directions); confirmed the pre-existing lump-sum `auto_create_payment_request_on_case_done` trigger still fires independently and does not conflict. All test rows deleted afterward.
