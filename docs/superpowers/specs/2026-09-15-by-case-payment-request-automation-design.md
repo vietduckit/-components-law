@@ -40,22 +40,24 @@ This spec automates that flow end-to-end for **By Case** contracts specifically 
 
 ## 4. Schema changes
 
-All additive. Field registration follows this project's existing scripted convention (`JsField/Register*.js`, idempotent — checks for existing field before creating).
+**Verified against the live system on 2026-09-15 (Admin UI screenshots + a `collections/{name}/fields:list` diagnostic query, both run by the user) — every field this spec needs already exists. No field creation, no enum-option edit, no migration script. This section is now a confirmation record, not a to-do list.**
 
-### `paymentRequests` (4 new fields, 2 new enum values on an existing field)
+### `paymentRequests` — already has everything needed
 
-| Field | Type | Notes |
+| Field | Type (confirmed live) | Notes |
 |---|---|---|
-| `triggerType` | `string` (select) | `on_signed` \| `on_task_done` \| `on_case_done`. `NULL` for any pre-existing/manually-created Payment Request that predates this feature — this field is only ever set by the automation in §6. |
-| `conditionMet` | `boolean`, default `false` | Set `true` the moment the request's trigger event actually occurs (immediately, at creation, for `on_signed`). |
-| `installmentNo` | `integer`, nullable | Copied from the source installment at creation time — lets Workflow/UI logic reference "which installment" without re-parsing the contract's `paymentSchedule` JSON on every check. |
-| `status` (existing field) | — | **Add** two new enum options: `pending` (gold/warning) and `active` (blue) alongside the existing `submitted` option. Before writing the registration script, read the field's current live definition (`collections/paymentRequests/fields:list`) to confirm the complete existing option set — only `submitted` was confirmed by this session's code research (client code never writes any other value), but the field may already define others in its `uiSchema.enum` that no JS Block happens to use. Don't overwrite unconfirmed existing options. |
+| `triggerType` | `string`, single select | Already registered. This spec is the first code to actually write/read it — confirm its live option list matches `on_signed` / `on_task_done` / `on_case_done` before wiring up WF1; add any missing option via the Admin UI's field editor (a UI edit to an existing field's enum, not a new field) if it doesn't. |
+| `conditionMet` | `boolean` (checkbox) | Already registered, default presumably `false` — confirm the default in the Admin UI field editor. |
+| `installmentNo` | `bigInt` (integer) | Already registered. |
+| `status` | `string`, single select | Confirmed live enum (richer than this spec assumed): `draft`, `pending`, `submitted`, `active`, `checking`, `approved`, `converted`, `rejected`, `cancelled`. **`pending` and `active` already exist** — no enum edit needed. Every value besides `submitted` is currently unwritten by any existing JS Block (confirmed by this session's earlier code research) — this feature is the first to actually drive `pending`/`active` through real transitions. `draft`/`checking`/`approved`/`converted`/`rejected`/`cancelled` are out of scope for this spec's automation (§3) — likely provisioned for the existing manual review flow or a future extension, not touched here. |
 
-### `tasks` (1 new field)
+### `tasks` — already has everything needed
 
-| Field | Type | Notes |
+| Field | Type (confirmed live) | Notes |
 |---|---|---|
-| `linkedPaymentRequestId` | `belongsTo` → `paymentRequests`, nullable | The lawyer's explicit choice of which pending `on_task_done` Payment Request this Task's completion should activate. `NULL` means this Task doesn't drive any Payment Request. |
+| `linkedPaymentRequestId` | `belongsTo` → Payment Requests | Already registered. This spec is the first code to read/write it. |
+
+Also confirmed live but not otherwise documented in this session's earlier code research: `tasks` already has `contractService`/`caseService`/`quotationService`/`companyService`/`taskTemplate` (all `belongsTo`) — not used by this spec, but directly relevant to the upcoming By Service spec (a Task can already point straight at its `contractService` line, no need to derive it via `serviceId` + `projectId` → `contractId` join).
 
 ### `paymentSchedule.installments[]` (JSON key, no DB migration)
 
@@ -147,6 +149,7 @@ Everything here is additive (4 new fields, 2 new enum options, 4 Workflows). To 
 
 ## 9. Deployment
 
-1. Run the field-registration script (new `JsField/RegisterByCasePaymentAutomationFields.js`, following the existing idempotent pattern) to add `paymentRequests.triggerType`, `paymentRequests.conditionMet`, `paymentRequests.installmentNo`, `tasks.linkedPaymentRequestId`, and the 2 new `paymentRequests.status` enum options.
-2. Edit `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskManagement.js`/`TaskDetailView.js` (linked-request selector) directly — normal JS Block edits, no special deploy step.
-3. Build WF1–WF4 by hand through the Admin UI on each environment this ships to (§3 — this is the accepted cost of the Workflow-based approach).
+1. ~~Field registration~~ — not needed; §4 confirms every field already exists on the live system.
+2. Confirm `paymentRequests.triggerType`'s live select options actually include `on_signed`/`on_task_done`/`on_case_done` (Admin UI field editor); add any missing option there directly if not — a small manual edit, not a script.
+3. Edit `ContractCreateForm.js` (validation removal + trigger-type selector) and `TaskManagement.js`/`TaskDetailView.js` (linked-request selector) directly — normal JS Block edits, no special deploy step.
+4. Build WF1–WF4 by hand through the Admin UI on each environment this ships to (§3 — this is the accepted cost of the Workflow-based approach).
