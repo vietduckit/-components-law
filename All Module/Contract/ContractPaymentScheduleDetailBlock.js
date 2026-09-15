@@ -1,3 +1,15 @@
+// ============================================================
+// SUPERSEDED as a standalone page block (2026-09-15) — this file's own
+// content is unchanged and still the single source of truth for Payment
+// Schedule logic, but it is no longer placed on the page directly. It is
+// now wrapped verbatim (byte-identical, not rewritten) inside
+// ContractDetailView.js's `PaymentScheduleModule` IIFE, which merges it
+// with Basic Info and Contract Services into one unified Details-tab
+// render. Keep editing THIS file for any Payment Schedule change — the
+// merged file's copy is a mechanical wrap, not a fork, so a fix here only
+// needs re-running the same head/cat wrap (see ContractDetailView.js's
+// header comment) to reach the merged page, not a second edit.
+// ============================================================
 const { React } = ctx;
 const { useEffect, useMemo, useState } = React;
 const {
