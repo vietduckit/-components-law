@@ -941,33 +941,39 @@ const StatusBadge = ({ status }) => {
 
 const PaymentScheduleTable = ({ schedule }) => {
   if (AntTable) {
+    // Column widths deliberately compressed (from the original 130/120/150/
+    // 160×3/130/120 ≈ 1360px total, which is exactly why scroll:{x:1360}
+    // used to be needed) and money/label cells switched from a fixed-width/
+    // nowrap assumption to wordBreak:'break-word' so the FULL value still
+    // renders (wrapping to 2 lines if genuinely needed) instead of being
+    // truncated or forcing horizontal scroll — no scroll.x on the Table
+    // below on purpose.
     const columnsConfig = [
       {
         title: "Installment",
         dataIndex: "label",
-        width: 130,
+        width: 90,
         render: (value, row) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, color: C.text } },
+            { style: { fontWeight: 600, color: C.text, wordBreak: "break-word" } },
             value || `Installment ${row.installmentNo}`,
           ),
       },
       {
         title: "Content",
         dataIndex: "content",
-        ellipsis: true,
         render: (value) =>
           React.createElement(
             "span",
-            { style: { color: value ? C.text : C.muted } },
+            { style: { color: value ? C.text : C.muted, wordBreak: "break-word" } },
             value || "—",
           ),
       },
       {
         title: "Payment %",
         dataIndex: "percentage",
-        width: 120,
+        width: 70,
         align: "right",
         render: (value) =>
           value !== null && value !== undefined && value !== "" ? `${parseNum(value)}%` : "—",
@@ -975,55 +981,55 @@ const PaymentScheduleTable = ({ schedule }) => {
       {
         title: "Payment date",
         dataIndex: "paymentDate",
-        width: 150,
+        width: 100,
         render: formatDate,
       },
       {
         title: "Planned",
         dataIndex: "amount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Received",
         dataIndex: "paidAmount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Remaining",
         dataIndex: "remainingAmount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Status",
         dataIndex: "status",
-        width: 130,
+        width: 90,
         render: (value) => React.createElement(StatusBadge, { status: value }),
       },
       {
         title: "Auto PR",
         dataIndex: "linkedPaymentRequest",
-        width: 120,
+        width: 90,
         render: (pr) =>
           pr
             ? React.createElement(PRStatusBadge, { status: pr.status })
@@ -1037,11 +1043,10 @@ const PaymentScheduleTable = ({ schedule }) => {
       pagination: false,
       columns: columnsConfig,
       dataSource: schedule.installments,
-      scroll: { x: 1360 },
     });
   }
 
-  const columns = "minmax(110px, 0.75fr) minmax(220px, 1.5fr) minmax(100px, 0.55fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(110px, 0.6fr) minmax(120px, 0.7fr)";
+  const columns = "minmax(80px, 0.8fr) minmax(120px, 1.6fr) minmax(60px, 0.5fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(80px, 0.7fr) minmax(80px, 0.7fr)";
   const headerStyle = {
     padding: "11px 12px",
     background: "#fbfcfd",
@@ -1059,14 +1064,16 @@ const PaymentScheduleTable = ({ schedule }) => {
     lineHeight: 1.45,
     display: "flex",
     alignItems: "center",
+    wordBreak: "break-word",
   };
 
+  // No overflowX:auto / minWidth:1360 wrapper here anymore — the reduced
+  // minmax() minimums above (and cellStyle's wordBreak, letting long values
+  // wrap to 2 lines) let this grid actually fit typical viewports instead
+  // of forcing horizontal scroll, matching the AntTable branch above.
   return React.createElement(
-    "div",
-    { style: { overflowX: "auto" } },
-    React.createElement(
-      "div",
-      { style: { minWidth: 1360 } },
+      React.Fragment,
+      null,
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: columns } },
@@ -1134,7 +1141,6 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
         ),
       ),
-    ),
   );
 };
 

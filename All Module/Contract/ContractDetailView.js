@@ -206,6 +206,96 @@ const CONTRACT_TYPE_LABELS = {
   // switch is the only place that needs to change.
 };
 
+// Every option list below is copied verbatim from this database's own
+// field metadata (`fields.options->'uiSchema'->'enum'`), not guessed —
+// queried directly before writing this, since these are select fields
+// whose exact value strings matter for a correct save.
+const CONTRACT_TYPE_OPTIONS = [
+  { value: "byCase", label: "By Case" },
+  { value: "retainer", label: "Retainer" },
+];
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "negotiation", label: "Negotiation" },
+  { value: "pending", label: "Pending" },
+  { value: "approval", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "execution", label: "Execution" },
+  { value: "closed", label: "Closed" },
+  { value: "expired", label: "Expired" },
+];
+const LANGUAGE_OPTIONS = [
+  { value: "vi", label: "Vietnamese" },
+  { value: "en", label: "English" },
+];
+const FEE_MODEL_OPTIONS = [
+  { value: "fixed", label: "Fixed" },
+  { value: "hourly", label: "Hourly" },
+  { value: "successFee", label: "Success Fee" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "monthlyRetainer", label: "Monthly Retainer" },
+];
+// NOTE (flagging, not fixing here — out of scope for "make every field
+// editable"): the live enum's 6th option is genuinely spelled
+// "mutiple_payments" (typo, missing the first "l"), yet
+// ContractCreateForm.js's own by-case schedule logic — and the By Case
+// payment-request automation's trigger condition — both check for the
+// correctly-spelled "multiple_payments". A contract whose billingCycle is
+// set to this option via the picker below will NOT match either of those
+// checks. Exposed here exactly as it exists in the live enum since this
+// field is being made editable, not redefined — worth a separate fix
+// later (correct the enum's value string, or the code, whichever is the
+// intended one) but is a pre-existing system inconsistency, not something
+// this change introduces.
+const BILLING_CYCLE_OPTIONS = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "milestone", label: "Milestone" },
+  { value: "manual", label: "Manual" },
+  { value: "one_time", label: "One Time" },
+  { value: "mutiple_payments", label: "Mutiple Payment" },
+];
+const PAYMENT_STATUS_OPTIONS = [
+  { value: "unpaid", label: "Unpaid" },
+  { value: "partial", label: "Partial" },
+  { value: "paid", label: "Paid" },
+];
+const PLAN_TYPE_OPTIONS = [
+  { value: "retainer", label: "Retainer" },
+  { value: "milestone", label: "Milestone" },
+  { value: "fixed_onetime", label: "Fixed one-time" },
+];
+const PLAN_STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
+const RETAINER_UNIT_OPTIONS = [
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+  { value: "quarter", label: "Quarter" },
+  { value: "year", label: "Year" },
+];
+
+const SelectField = ({ value, onChange, options, allowClear = true }) =>
+  React.createElement(Select, {
+    allowClear,
+    style: { width: "100%" },
+    value: value === "" || value === null || value === undefined ? undefined : value,
+    onChange: (v) => onChange(v ?? null),
+    options,
+  });
+
+const NumberField = ({ value, onChange, placeholder = "0" }) =>
+  React.createElement(Input, {
+    type: "number",
+    value: value ?? "",
+    placeholder,
+    onChange: (e) => onChange(e.target.value === "" ? "" : Number(e.target.value)),
+    style: { textAlign: "right" },
+  });
+
 const fetchContract = async (id) => {
   const res = await ctx.api.request({
     url: "contracts:get",
@@ -327,8 +417,11 @@ const ContractDetailView = () => {
   const canEdit = useMemo(() => resolveCanEdit(contract, currentUser), [contract, currentUser]);
 
   const startEditing = async () => {
+    const plan = (contract?.billingPlans || []).find((p) => p.status === "active") || (contract?.billingPlans || [])[0] || null;
     setForm({
       contractName: contract?.contractName || "",
+      contractType: contract?.contractType || null,
+      status: contract?.status || null,
       lawyerId: extractId(contract?.lawyers) || null,
       templateId: extractId(contract?.template) || null,
       customerId: extractId(contract?.customers) || null,
@@ -340,6 +433,33 @@ const ContractDetailView = () => {
       description: contract?.description || "",
       scopeNote: contract?.scopeNote || "",
       language: contract?.language || "",
+      // By Case fields — see the save handler's own comment on why editing
+      // totalAmount/subTotal/vatAmount here is a real footgun (Contract
+      // Services silently recomputes and overwrites them on its own next
+      // save), kept editable anyway per this change's explicit ask.
+      billingCycle: contract?.billingCycle || null,
+      feeModel: contract?.feeModel || null,
+      totalAmount: contract?.totalAmount ?? "",
+      subTotal: contract?.subTotal ?? "",
+      vatAmount: contract?.vatAmount ?? "",
+      paymentDate: toDateInputValue(contract?.paymentDate),
+      endDate: toDateInputValue(contract?.endDate),
+      // Automation-derived — see the save handler's own comment: the next
+      // real payment or billing-cycle event silently overwrites these.
+      paymentStatus: contract?.paymentStatus || null,
+      outStandingAmount: contract?.outStandingAmount ?? "",
+      // Retainer Billing Plan — a SEPARATE collection (contractBillingPlans),
+      // saved via its own contractBillingPlans:update call, not contracts:update.
+      planId: plan?.id || null,
+      planType: plan?.planType || null,
+      planStatus: plan?.status || null,
+      planTotalAmount: plan?.totalAmount ?? "",
+      retainerUnit: plan?.retainerUnit || null,
+      retainerTotalCycles: plan?.retainerTotalCycles ?? "",
+      retainerCyclesBilled: plan?.retainerCyclesBilled ?? "",
+      nextBillingDate: toDateInputValue(plan?.nextBillingDate),
+      planStartDate: toDateInputValue(plan?.startDate),
+      planEndDate: toDateInputValue(plan?.endDate),
     });
     setEditing(true);
     const [lawyers, templates, customers, companies, currencies] = await Promise.all([
@@ -369,6 +489,8 @@ const ContractDetailView = () => {
     try {
       const payload = {
         contractName: form.contractName.trim(),
+        contractType: form.contractType || null,
+        status: form.status || null,
         lawyerId: form.lawyerId || null,
         templateId: form.templateId || null,
         customerId: form.customerId || null,
@@ -380,8 +502,52 @@ const ContractDetailView = () => {
         description: form.description || null,
         scopeNote: form.scopeNote || null,
         language: form.language || null,
+        // By Case fields. NOTE — a real conflict, not a hypothetical: any
+        // Contract Services save (ContractServicesModule's own
+        // handleSave/syncContractHeaderFromServices) unconditionally
+        // recomputes and overwrites subTotal/vatAmount/totalAmount from
+        // the service line items — a value typed here will be silently
+        // replaced the next time someone saves that section. Included
+        // anyway per this change's explicit "edit everything" ask.
+        billingCycle: form.billingCycle || null,
+        feeModel: form.feeModel || null,
+        totalAmount: form.totalAmount === "" ? null : Number(form.totalAmount),
+        subTotal: form.subTotal === "" ? null : Number(form.subTotal),
+        vatAmount: form.vatAmount === "" ? null : Number(form.vatAmount),
+        paymentDate: form.paymentDate || null,
+        endDate: form.endDate || null,
+        // Automation-derived fields. NOTE — another real conflict: the
+        // by_case_payment_request_automation.sql / contract_payment_status_workflow.sql
+        // triggers recompute paymentStatus/outStandingAmount from real
+        // `payments` rows on every payment event — a value typed here
+        // survives only until the next such event.
+        paymentStatus: form.paymentStatus || null,
+        outStandingAmount: form.outStandingAmount === "" ? null : Number(form.outStandingAmount),
       };
       await ctx.api.request({ url: `contracts:update?filterByTk=${recordId}`, method: "POST", data: payload });
+
+      // Retainer Billing Plan lives on a separate collection — only write
+      // it if this contract actually has one (planId set by startEditing
+      // from contract.billingPlans); a By Case contract has no plan row to
+      // update at all.
+      if (form.planId) {
+        await ctx.api.request({
+          url: `contractBillingPlans:update?filterByTk=${form.planId}`,
+          method: "POST",
+          data: {
+            planType: form.planType || null,
+            status: form.planStatus || null,
+            totalAmount: form.planTotalAmount === "" ? null : Number(form.planTotalAmount),
+            retainerUnit: form.retainerUnit || null,
+            retainerTotalCycles: form.retainerTotalCycles === "" ? null : Number(form.retainerTotalCycles),
+            retainerCyclesBilled: form.retainerCyclesBilled === "" ? null : Number(form.retainerCyclesBilled),
+            nextBillingDate: form.nextBillingDate || null,
+            startDate: form.planStartDate || null,
+            endDate: form.planEndDate || null,
+          },
+        });
+      }
+
       const fresh = await fetchContract(recordId);
       setContract(fresh);
       setEditing(false);
@@ -484,6 +650,16 @@ const ContractDetailView = () => {
             ),
             React.createElement(
               FieldRow,
+              { label: "Type" },
+              React.createElement(SelectField, { value: form.contractType, onChange: (v) => setField("contractType", v), options: CONTRACT_TYPE_OPTIONS, allowClear: false }),
+            ),
+            React.createElement(
+              FieldRow,
+              { label: "Status" },
+              React.createElement(SelectField, { value: form.status, onChange: (v) => setField("status", v), options: STATUS_OPTIONS, allowClear: false }),
+            ),
+            React.createElement(
+              FieldRow,
               { label: "Person Responsible" },
               React.createElement(Select, { allowClear: true, showSearch: true, optionFilterProp: "label", style: { width: "100%" }, value: form.lawyerId || undefined, onChange: (v) => setField("lawyerId", v || null), options: lawyerSelectOptions }),
             ),
@@ -525,7 +701,7 @@ const ContractDetailView = () => {
             React.createElement(
               FieldRow,
               { label: "Language" },
-              React.createElement(Input, { value: form.language, onChange: (e) => setField("language", e.target.value) }),
+              React.createElement(SelectField, { value: form.language, onChange: (v) => setField("language", v), options: LANGUAGE_OPTIONS }),
             ),
             React.createElement(
               "div",
@@ -577,30 +753,70 @@ const ContractDetailView = () => {
                 )
               : null,
           ),
-      // Financial/structural fields — always read-only regardless of
-      // canEdit/editing (see header comment). Grouped per contractType so
-      // a By Case contract never shows retainer plan fields and vice
-      // versa; a future byService entry only needs a new branch here.
+      // Financial/structural fields — grouped per contractType so a By Case
+      // contract never shows retainer plan fields and vice versa; a future
+      // byService entry only needs a new branch here. Editable in both
+      // modes now (see startEditing/saveEditing's own comments on the 2
+      // real automation-overwrite conflicts this creates for
+      // totalAmount/subTotal/vatAmount and paymentStatus/outStandingAmount).
       isByCase
         ? React.createElement(
             React.Fragment,
             null,
             React.createElement(SectionTitle, null, "Billing (By Case)"),
-            React.createElement(
-              "div",
-              { style: GRID_STYLE },
-              React.createElement(ReadField, { label: "Billing Cycle", value: contract.billingCycle }),
-              React.createElement(ReadField, { label: "Fee Model", value: contract.feeModel }),
-              React.createElement(ReadField, { label: "Total Amount", value: formatMoney(contract.totalAmount, currencyCode) }),
-              React.createElement(ReadField, { label: "Sub Total", value: formatMoney(contract.subTotal, currencyCode) }),
-              React.createElement(ReadField, { label: "VAT Amount", value: formatMoney(contract.vatAmount, currencyCode) }),
-              React.createElement(ReadField, { label: "End Date", value: formatDate(contract.endDate) }),
-              React.createElement(ReadField, { label: "Payment Status", value: contract.paymentStatus }),
-              React.createElement(ReadField, { label: "Outstanding Amount", value: formatMoney(contract.outStandingAmount, currencyCode) }),
-            ),
+            editing
+              ? React.createElement(
+                  "div",
+                  { style: GRID_STYLE },
+                  React.createElement(FieldRow, { label: "Billing Cycle" }, React.createElement(SelectField, { value: form.billingCycle, onChange: (v) => setField("billingCycle", v), options: BILLING_CYCLE_OPTIONS })),
+                  React.createElement(FieldRow, { label: "Fee Model" }, React.createElement(SelectField, { value: form.feeModel, onChange: (v) => setField("feeModel", v), options: FEE_MODEL_OPTIONS })),
+                  React.createElement(FieldRow, { label: "Total Amount" }, React.createElement(NumberField, { value: form.totalAmount, onChange: (v) => setField("totalAmount", v) })),
+                  React.createElement(FieldRow, { label: "Sub Total" }, React.createElement(NumberField, { value: form.subTotal, onChange: (v) => setField("subTotal", v) })),
+                  React.createElement(FieldRow, { label: "VAT Amount" }, React.createElement(NumberField, { value: form.vatAmount, onChange: (v) => setField("vatAmount", v) })),
+                  React.createElement(FieldRow, { label: "Payment Date" }, React.createElement(Input, { type: "date", value: form.paymentDate, onChange: (e) => setField("paymentDate", e.target.value) })),
+                  React.createElement(FieldRow, { label: "End Date" }, React.createElement(Input, { type: "date", value: form.endDate, onChange: (e) => setField("endDate", e.target.value) })),
+                  React.createElement(FieldRow, { label: "Payment Status" }, React.createElement(SelectField, { value: form.paymentStatus, onChange: (v) => setField("paymentStatus", v), options: PAYMENT_STATUS_OPTIONS })),
+                  React.createElement(FieldRow, { label: "Outstanding Amount" }, React.createElement(NumberField, { value: form.outStandingAmount, onChange: (v) => setField("outStandingAmount", v) })),
+                )
+              : React.createElement(
+                  "div",
+                  { style: GRID_STYLE },
+                  React.createElement(ReadField, { label: "Billing Cycle", value: contract.billingCycle }),
+                  React.createElement(ReadField, { label: "Fee Model", value: contract.feeModel }),
+                  React.createElement(ReadField, { label: "Total Amount", value: formatMoney(contract.totalAmount, currencyCode) }),
+                  React.createElement(ReadField, { label: "Sub Total", value: formatMoney(contract.subTotal, currencyCode) }),
+                  React.createElement(ReadField, { label: "VAT Amount", value: formatMoney(contract.vatAmount, currencyCode) }),
+                  React.createElement(ReadField, { label: "Payment Date", value: formatDate(contract.paymentDate) }),
+                  React.createElement(ReadField, { label: "End Date", value: formatDate(contract.endDate) }),
+                  React.createElement(ReadField, { label: "Payment Status", value: contract.paymentStatus }),
+                  React.createElement(ReadField, { label: "Outstanding Amount", value: formatMoney(contract.outStandingAmount, currencyCode) }),
+                ),
           )
         : null,
-      isRetainer ? React.createElement(RetainerPlanSection, { plan: activePlan }) : null,
+      isRetainer
+        ? React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(SectionTitle, null, "Retainer Billing Plan"),
+            !activePlan
+              ? React.createElement(Alert, { type: "info", showIcon: true, message: "Contract has no active billing plan yet." })
+              : editing
+                ? React.createElement(
+                    "div",
+                    { style: GRID_STYLE },
+                    React.createElement(FieldRow, { label: "Plan Type" }, React.createElement(SelectField, { value: form.planType, onChange: (v) => setField("planType", v), options: PLAN_TYPE_OPTIONS })),
+                    React.createElement(FieldRow, { label: "Status" }, React.createElement(SelectField, { value: form.planStatus, onChange: (v) => setField("planStatus", v), options: PLAN_STATUS_OPTIONS })),
+                    React.createElement(FieldRow, { label: "Total Amount" }, React.createElement(NumberField, { value: form.planTotalAmount, onChange: (v) => setField("planTotalAmount", v) })),
+                    React.createElement(FieldRow, { label: "Retainer Unit" }, React.createElement(SelectField, { value: form.retainerUnit, onChange: (v) => setField("retainerUnit", v), options: RETAINER_UNIT_OPTIONS })),
+                    React.createElement(FieldRow, { label: "Total Cycles" }, React.createElement(NumberField, { value: form.retainerTotalCycles, onChange: (v) => setField("retainerTotalCycles", v) })),
+                    React.createElement(FieldRow, { label: "Cycles Billed" }, React.createElement(NumberField, { value: form.retainerCyclesBilled, onChange: (v) => setField("retainerCyclesBilled", v) })),
+                    React.createElement(FieldRow, { label: "Next Billing Date" }, React.createElement(Input, { type: "date", value: form.nextBillingDate, onChange: (e) => setField("nextBillingDate", e.target.value) })),
+                    React.createElement(FieldRow, { label: "Start Date" }, React.createElement(Input, { type: "date", value: form.planStartDate, onChange: (e) => setField("planStartDate", e.target.value) })),
+                    React.createElement(FieldRow, { label: "End Date" }, React.createElement(Input, { type: "date", value: form.planEndDate, onChange: (e) => setField("planEndDate", e.target.value) })),
+                  )
+                : React.createElement(RetainerPlanSection, { plan: activePlan }),
+          )
+        : null,
     ),
   );
 };
@@ -3424,14 +3640,14 @@ const ContractServicesBlock = () => {
     {
       title: '#',
       key: 'index',
-      width: 56,
+      width: 36,
       align: 'center',
       render: (_, r) => r._displayIndex,
     },
     {
       title: 'Service & Type',
       key: 'service',
-      width: 300,
+      width: 190,
       render: (_, r) => React.createElement(Button, {
         block: true,
         type: 'dashed',
@@ -3451,7 +3667,7 @@ const ContractServicesBlock = () => {
       title: 'Description',
       dataIndex: '_description',
       key: 'description',
-      width: 300,
+      width: 180,
       render: (_, r) => React.createElement(EditableCell, {
         value: r._description,
         onSave: val => updateRow(r.id, '_description', val),
@@ -3463,7 +3679,7 @@ const ContractServicesBlock = () => {
     {
       title: 'Price',
       key: 'basePrice',
-      width: 220,
+      width: 180,
       align: 'right',
       render: (_, r) => {
         if (isPackageMode) {
@@ -3517,7 +3733,7 @@ const ContractServicesBlock = () => {
     {
       title: 'VAT (%)',
       key: 'vat',
-      width: 90,
+      width: 60,
       align: 'right',
       render: (_, r) => {
         if (isPackageMode) {
@@ -3535,28 +3751,28 @@ const ContractServicesBlock = () => {
     {
       title: 'VAT amount',
       key: 'vatAmount',
-      width: 150,
+      width: 110,
       align: 'right',
       render: (_, r) => {
         if (isPackageMode) {
           const individual = getComboLineIndividualPrice(r);
           if (!individual) return React.createElement(Text, { type: 'secondary' }, '—');
           const vatAmount = Math.round((parseNum(individual.price) * parseNum(individual.vat)) / 100);
-          return React.createElement(Text, { type: 'secondary', style: { whiteSpace: 'nowrap' } },
+          return React.createElement(Text, { type: 'secondary', style: { wordBreak: 'break-word' } },
             formatMoney(vatAmount, individual.currency));
         }
         const pricing = buildServicePricingPayload({
           pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
           currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
         });
-        return React.createElement(Text, { style: { color: token.colorWarning, whiteSpace: 'nowrap' } },
+        return React.createElement(Text, { style: { color: token.colorWarning, wordBreak: 'break-word' } },
           pricing._convertible ? formatMoney(pricing.vatAmount, vndCurrency) : '—');
       },
     },
     {
       title: 'Total amount',
       key: 'total',
-      width: 160,
+      width: 120,
       align: 'right',
       render: (_, r) => {
         if (isPackageMode) {
@@ -3564,32 +3780,34 @@ const ContractServicesBlock = () => {
           if (!individual) return React.createElement(Text, { type: 'secondary' }, '—');
           const vatAmount = Math.round((parseNum(individual.price) * parseNum(individual.vat)) / 100);
           const total = parseNum(individual.price) + vatAmount;
-          return React.createElement(Text, { strong: true, style: { color: token.colorTextSecondary, whiteSpace: 'nowrap' } },
+          return React.createElement(Text, { strong: true, style: { color: token.colorTextSecondary, wordBreak: 'break-word' } },
             formatMoney(total, individual.currency));
         }
         const pricing = buildServicePricingPayload({
           pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
           currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
         });
-        return React.createElement(Text, { strong: true, style: { color: token.colorInfo, whiteSpace: 'nowrap' } },
+        return React.createElement(Text, { strong: true, style: { color: token.colorInfo, wordBreak: 'break-word' } },
           pricing._convertible ? formatMoney(pricing.totalAmount, vndCurrency) : '—');
       },
     },
     {
       title: 'Action',
       key: 'action',
-      width: 140,
+      width: 90,
       align: 'center',
-      render: (_, r) => React.createElement(Space, { size: 4 },
+      render: (_, r) => React.createElement(Space, { direction: 'vertical', size: 0, style: { lineHeight: 1 } },
         React.createElement(Button, {
           size: 'small',
           type: 'link',
+          style: { padding: 0, height: 20 },
           onClick: () => setCompareModal({ open: true, data: r }),
         }, 'Review'),
         !isLocked && React.createElement(Button, {
           size: 'small',
           type: 'link',
           danger: true,
+          style: { padding: 0, height: 20 },
           onClick: () => deleteRow(r.id),
         }, 'Delete')
       ),
@@ -3853,7 +4071,12 @@ const ContractServicesBlock = () => {
       pagination: false,
       size: 'small',
       bordered: true,
-      scroll: { x: 'max-content' },
+      // No scroll.x on purpose — column `width`s above were deliberately
+      // shrunk (and money cells switched from whiteSpace:nowrap to
+      // wordBreak:'break-word') so the table's native table-layout:auto
+      // wraps content instead of forcing horizontal scroll, per this
+      // change's explicit ask ("compress columns, no horizontal scroll,
+      // full value still visible via wrapping instead of truncation").
       locale: {
         emptyText: isLocked ? 'No services' : 'No services - click New service',
       },
@@ -5334,33 +5557,39 @@ const StatusBadge = ({ status }) => {
 
 const PaymentScheduleTable = ({ schedule }) => {
   if (AntTable) {
+    // Column widths deliberately compressed (from the original 130/120/150/
+    // 160×3/130/120 ≈ 1360px total, which is exactly why scroll:{x:1360}
+    // used to be needed) and money/label cells switched from a fixed-width/
+    // nowrap assumption to wordBreak:'break-word' so the FULL value still
+    // renders (wrapping to 2 lines if genuinely needed) instead of being
+    // truncated or forcing horizontal scroll — no scroll.x on the Table
+    // below on purpose.
     const columnsConfig = [
       {
         title: "Installment",
         dataIndex: "label",
-        width: 130,
+        width: 90,
         render: (value, row) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, color: C.text } },
+            { style: { fontWeight: 600, color: C.text, wordBreak: "break-word" } },
             value || `Installment ${row.installmentNo}`,
           ),
       },
       {
         title: "Content",
         dataIndex: "content",
-        ellipsis: true,
         render: (value) =>
           React.createElement(
             "span",
-            { style: { color: value ? C.text : C.muted } },
+            { style: { color: value ? C.text : C.muted, wordBreak: "break-word" } },
             value || "—",
           ),
       },
       {
         title: "Payment %",
         dataIndex: "percentage",
-        width: 120,
+        width: 70,
         align: "right",
         render: (value) =>
           value !== null && value !== undefined && value !== "" ? `${parseNum(value)}%` : "—",
@@ -5368,55 +5597,55 @@ const PaymentScheduleTable = ({ schedule }) => {
       {
         title: "Payment date",
         dataIndex: "paymentDate",
-        width: 150,
+        width: 100,
         render: formatDate,
       },
       {
         title: "Planned",
         dataIndex: "amount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Received",
         dataIndex: "paidAmount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Remaining",
         dataIndex: "remainingAmount",
-        width: 160,
+        width: 100,
         align: "right",
         render: (value) =>
           React.createElement(
             "span",
-            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+            { style: { fontWeight: 600, fontVariantNumeric: "tabular-nums", wordBreak: "break-word" } },
             formatMoney(value),
           ),
       },
       {
         title: "Status",
         dataIndex: "status",
-        width: 130,
+        width: 90,
         render: (value) => React.createElement(StatusBadge, { status: value }),
       },
       {
         title: "Auto PR",
         dataIndex: "linkedPaymentRequest",
-        width: 120,
+        width: 90,
         render: (pr) =>
           pr
             ? React.createElement(PRStatusBadge, { status: pr.status })
@@ -5430,11 +5659,10 @@ const PaymentScheduleTable = ({ schedule }) => {
       pagination: false,
       columns: columnsConfig,
       dataSource: schedule.installments,
-      scroll: { x: 1360 },
     });
   }
 
-  const columns = "minmax(110px, 0.75fr) minmax(220px, 1.5fr) minmax(100px, 0.55fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(140px, 0.85fr) minmax(110px, 0.6fr) minmax(120px, 0.7fr)";
+  const columns = "minmax(80px, 0.8fr) minmax(120px, 1.6fr) minmax(60px, 0.5fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(90px, 0.8fr) minmax(80px, 0.7fr) minmax(80px, 0.7fr)";
   const headerStyle = {
     padding: "11px 12px",
     background: "#fbfcfd",
@@ -5452,14 +5680,16 @@ const PaymentScheduleTable = ({ schedule }) => {
     lineHeight: 1.45,
     display: "flex",
     alignItems: "center",
+    wordBreak: "break-word",
   };
 
+  // No overflowX:auto / minWidth:1360 wrapper here anymore — the reduced
+  // minmax() minimums above (and cellStyle's wordBreak, letting long values
+  // wrap to 2 lines) let this grid actually fit typical viewports instead
+  // of forcing horizontal scroll, matching the AntTable branch above.
   return React.createElement(
-    "div",
-    { style: { overflowX: "auto" } },
-    React.createElement(
-      "div",
-      { style: { minWidth: 1360 } },
+      React.Fragment,
+      null,
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: columns } },
@@ -5527,7 +5757,6 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
         ),
       ),
-    ),
   );
 };
 
