@@ -1457,6 +1457,7 @@ const PaymentScheduleDetailBlock = () => {
           cancelText: "Cancel",
           confirmLoading: requestSaving,
           width: 760,
+          style: { maxWidth: "calc(100vw - 24px)" },
           destroyOnClose: true,
         },
         React.createElement(

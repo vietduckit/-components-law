@@ -3888,7 +3888,8 @@ const ContractServicesBlock = () => {
         }, "Đóng")
       ),
       width: compareModal.data ? 900 : 1000,
-      bodyStyle: { paddingTop: 16 }
+      style: { maxWidth: 'calc(100vw - 24px)' },
+      bodyStyle: { paddingTop: 16, maxWidth: '100%', overflowX: 'auto' }
     }, compareModal.open && (
       compareModal.data ? renderCompareDetail(compareModal.data) : renderCompareList()
     )),
@@ -5849,6 +5850,7 @@ const PaymentScheduleDetailBlock = () => {
           cancelText: "Cancel",
           confirmLoading: requestSaving,
           width: 760,
+          style: { maxWidth: "calc(100vw - 24px)" },
           destroyOnClose: true,
         },
         React.createElement(
