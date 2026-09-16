@@ -6161,12 +6161,23 @@ const PaymentScheduleDetailBlock = () => {
 // ==================== COMBINED PAGE ====================
 const ContractDetailPage = () => {
   const { React } = ctx;
+  // minWidth: 0 on each grid item is required here — a CSS grid item's
+  // default min-width is "auto" (its content's intrinsic min-content
+  // size), not 0. Without this, the Payment Schedule table's internal
+  // minWidth:1360/scroll:{x:1360} (meant to scroll WITHIN its own card)
+  // instead forces this whole grid track — and with it the entire page,
+  // sidebar included — to widen to fit it, which is exactly the
+  // full-page horizontal overflow seen in the reported screenshot.
+  // min-width: 0 makes each section respect the grid column's actual
+  // width and let its own overflow-x:auto/scroll:x handle wide content
+  // internally, the way each section already intended.
+  const gridItemStyle = { minWidth: 0 };
   return React.createElement(
     "div",
-    { style: { display: "grid", gap: 16 } },
-    React.createElement(BasicInfoModule),
-    React.createElement(ContractServicesModule),
-    React.createElement(PaymentScheduleModule),
+    { style: { display: "grid", gap: 16, minWidth: 0, maxWidth: "100%" } },
+    React.createElement("div", { style: gridItemStyle }, React.createElement(BasicInfoModule)),
+    React.createElement("div", { style: gridItemStyle }, React.createElement(ContractServicesModule)),
+    React.createElement("div", { style: gridItemStyle }, React.createElement(PaymentScheduleModule)),
   );
 };
 
