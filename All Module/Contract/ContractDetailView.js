@@ -1,4 +1,17 @@
 // ============================================================
+// SET ASIDE 2026-09-18 — was built as a UI/UX review prototype only, never
+// finalized/deployed as the actual Details tab. The user's decided
+// direction going forward is the OPPOSITE of this file's approach: 3
+// separate blocks (a native NocoBase Form block for Basic Info, using
+// native Linkage Rules for per-contractType field visibility, instead of
+// hand-written isByCase/isRetainer branches; ContractServices.js and
+// ContractPaymentScheduleDetailBlock.js kept exactly as their own
+// standalone JS Blocks, unchanged) arranged via the Admin UI Page
+// Designer — not one merged JS Block. Kept in the repo for reference only;
+// not wired into any page. Do not extend this file further — extend the 2
+// standalone JS Blocks instead, and configure Basic Info natively.
+// ============================================================
+//
 // ContractDetailView.js — the ENTIRE Contract "Details" tab in one JS
 // Block: Basic Info + Contract Services + Payment Schedule (incl. auto
 // PR status), replacing 3 separate page sections (1 native NocoBase form
@@ -198,12 +211,15 @@ const formatMoney = (value, currencyCode) => {
 const CONTRACT_TYPE_LABELS = {
   byCase: "By Case",
   retainer: "Retainer",
-  // byService intentionally not added yet — that contract type does not
-  // exist in the live `contractType` enum as of this file's writing (see
-  // docs/superpowers/specs/2026-09-15-by-case-payment-request-automation-design.md's
-  // "By Service" follow-up, not yet built). Add a labeled entry here (and
-  // a matching case in FIELD_GROUPS_BY_TYPE below) once that ships — this
-  // switch is the only place that needs to change.
+  // Added to the live enum 2026-09-18. Label-only fix so a contract saved
+  // with this type (e.g. via the native Admin UI form, ahead of a
+  // dedicated By Service create/detail UI existing here) shows "By
+  // Service" instead of falling through to the raw enum value. The
+  // type-specific field sections below (Fee Model/Billing Cycle/Payment
+  // Schedule etc.) still only branch on isByCase/isRetainer — By Service
+  // renders none of them until its own UI section is designed and built
+  // (see docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md).
+  byService: "By Service",
 };
 
 // Every option list below is copied verbatim from this database's own
