@@ -93,17 +93,21 @@ New function `by_service_task_group_done_creates_payment_request()`:
 
 This mirrors the By Case pattern closely enough that the *activation half* (due-date trigger) is shared code — only the *creation half* differs (upfront-at-signing for By Case vs. task-group-completion for By Service).
 
-## 6. Open items to resolve before writing the SQL file
+## 6. Schema confirmed (via `JsField/DiagnoseUnifiedPaymentSchemaFields.js`, run 2026-09-17)
 
-1. Confirm `contractPaymentSchedule`'s real table name (§4).
-2. Confirm `tasks`' `caseService` raw FK column name (§4).
-3. Confirm `contractPaymentSchedule.triggerType`'s option list matches `paymentRequests.triggerType` exactly (§4).
-4. Confirm `sourceSnapshot`'s intended shape/purpose with the user (§4) — this spec proposes a minimal shape (§5) but the field was added by the user directly, not from this spec's own earlier proposal, so its intended full shape should be confirmed rather than assumed.
-5. Confirm the join path from `projectServices` to `contracts` (via `projects.contractId` or a more direct FK) for the By Service trigger's `INSERT`.
+1. **Table name**: `contractPaymentSchedules` (plural, tableName same as collection name).
+2. **`tasks` raw FK columns**: `caseService` → `projectServiceId`; `contractService` → `contractServiceId`; `linkedPaymentRequestId` → `paymentRequestId` (already known); `isPaymentTrigger` confirmed present, no FK.
+3. **`contractPaymentSchedules.triggerType`** option list confirmed identical to `paymentRequests.triggerType`: `on_signed` / `on_task_done` / `on_case_done`.
+4. **`sourceSnapshot`** (json, on `paymentRequests`) has no description set in the field metadata — its intended shape is not otherwise documented. This spec proceeds with a minimal proposed shape (§5: `{label/serviceName, percentage, amount/totalAmount}` depending on contract type) as a reasonable audit-trail default; adjust later if the user had something more specific in mind.
+5. **Join path `projectServices` → `contracts`**: `projectServices` has no direct `contractId` column. Path is `projectServices.projectId → projects.id → projects.contractId → contracts.id`. Its originating `contractServices` row (nullable — an ad-hoc case service added directly on the case has none) is found via the reverse link `contractServices.projectServiceId = projectServices.id`.
 
-## 7. Deployment (once §6 is resolved)
+Full field dumps for `contractPaymentSchedules`, `paymentRequests`, `tasks`, `projectServices`, `contractServices` are preserved in this session's diagnostic output — see `JsField/DiagnoseUnifiedPaymentSchemaFields.js` for the script that produced them.
 
-1. New SQL file `pgsql/unified_contract_payment_schedule.sql` — idempotent (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS`/`CREATE TRIGGER`), replacing `by_case_create_scheduled_payment_requests()` and adding `by_service_task_group_done_creates_payment_request()`. `by_case_task_done_activates_payment_request()`, `by_case_case_done_activates_payment_request()`, `by_case_due_date_activates_payment_request()` carry over unchanged from `by_case_payment_request_automation.sql` (either kept in that file or moved into the new one for a single source of truth — recommend consolidating into the new file and marking the old one superseded, matching this project's existing supersession convention).
+**Behavior change surfaced by this confirmation**: `contractPaymentSchedules` has no `dueDate` column (dueDate/conditionMet live only on the generated `paymentRequests` row, per this spec's own §4 design). This means a newly created request always starts `pending` with no due date — even an `on_signed` installment filled in at contract signing no longer becomes `active` immediately the way the old JSON-based flow could (a pre-filled `paymentDate` on the installment used to allow that). A due date must now always be set as a separate step directly on the Payment Request. Not fixed here since the schema (no `dueDate` column on the schedule collection) was the user's own design — flagged for awareness.
+
+## 7. Deployment
+
+1. **Done**: `pgsql/unified_contract_payment_schedule.sql` — idempotent (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS`/`CREATE TRIGGER`). Drops the superseded `trg_by_case_create_scheduled_payment_requests` trigger on `contracts` (function left in place for history), adds `by_case_schedule_row_creates_payment_request()` (`AFTER INSERT ON "contractPaymentSchedules"`) and `by_service_task_group_done_creates_payment_request()` (`AFTER UPDATE OF status ON tasks`). `by_case_task_done_activates_payment_request()`, `by_case_case_done_activates_payment_request()`, `by_case_due_date_activates_payment_request()` stay defined in `by_case_payment_request_automation.sql`, unchanged — both files must remain installed together.
 2. `ContractCreateForm.js`, `ContractDetailView.js`, `ContractPaymentScheduleDetailBlock.js` — switch from `paymentSchedule` JSON to `contractPaymentSchedule` collection calls.
 3. `TaskManagement.js` / `TaskDetailView.js` — add the `isPaymentTrigger` checkbox to the task form (By Service cases only — hide/disable for By Case and Retainer cases, where the existing `linkedPaymentRequestId` selector already covers the same role).
 4. **Separate follow-up, not part of this deployment**: a one-time migration script for existing contracts' `paymentSchedule` JSON → `contractPaymentSchedule` rows, plus backfilling `paymentRequests.contractPaymentScheduleId` on already-existing PRs (§3).
