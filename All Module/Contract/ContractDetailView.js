@@ -5033,15 +5033,29 @@ const normalizeInstallment = (row, index, runningTotal, baseAmount) => {
       row?.name ||
       `Installment ${index + 1}`,
     content: row?.content || row?.description || row?.note || row?.timingNote || "",
+    // A real contractPaymentSchedules row only has "dueDate" (no
+    // "paymentDate" column) — already covered by this fallback chain, no
+    // separate branch needed for the row-based vs legacy-JSON shape.
     paymentDate: row?.paymentDate || row?.dueDate || row?.date || row?.timing || "",
     amount,
     cumulativeTotal,
     percentage,
+    triggerType: row?.triggerType || "on_signed",
     status: row?.status || "planned",
   };
 };
 
-const normalizeSchedule = (record) => {
+const normalizeSchedule = (record, scheduleRows = null) => {
+  // Real "contractPaymentSchedules" rows (see
+  // docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md)
+  // take priority when present — this is now the source of truth for any
+  // By Case contract created after that migration. `schedule` stays {} in
+  // this path (no mode/currency/firstPaymentDate sub-fields exist on real
+  // rows), so the return statement below falls through to record-level
+  // fields for those, same as it already did for a legacy JSON schedule
+  // missing those keys.
+  const hasRealRows = Array.isArray(scheduleRows) && scheduleRows.length > 0;
+
   // By-case contracts (billingCycle "one_time"/"multiple_payments" with no
   // manually-entered schedule) legitimately have paymentSchedule = null —
   // that used to make this function bail out to null entirely, which hid
@@ -5051,7 +5065,7 @@ const normalizeSchedule = (record) => {
   // single full-amount request line from the contract's own totalAmount/
   // fixedAmount instead, the same way it already does for retainer
   // contracts with no explicit schedule.
-  const raw = safeJsonParse(record?.paymentSchedule) || {};
+  const raw = hasRealRows ? {} : safeJsonParse(record?.paymentSchedule) || {};
 
   const schedule = Array.isArray(raw)
     ? {
@@ -5065,11 +5079,13 @@ const normalizeSchedule = (record) => {
       }
     : raw;
 
-  const sourceRows = Array.isArray(schedule?.installments)
-    ? schedule.installments
-    : Array.isArray(schedule?.rows)
-      ? schedule.rows
-      : [];
+  const sourceRows = hasRealRows
+    ? scheduleRows
+    : Array.isArray(schedule?.installments)
+      ? schedule.installments
+      : Array.isArray(schedule?.rows)
+        ? schedule.rows
+        : [];
   const baseAmount = parseNum(
     schedule?.baseAmount ?? schedule?.totalAmount ?? record?.totalAmount ?? record?.fixedAmount,
   );
@@ -5215,6 +5231,24 @@ const listPaymentsByContract = async (contractId) => {
       },
     });
     return unwrapApiList(res);
+  }
+};
+
+const listContractPaymentSchedulesByContract = async (contractId) => {
+  if (!contractId) return [];
+  try {
+    const res = await ctx.api.request({
+      url: "contractPaymentSchedules:list",
+      params: {
+        pageSize: 1000,
+        sort: "installmentNo",
+        filter: JSON.stringify({ contractId: { $eq: contractId } }),
+      },
+    });
+    return unwrapApiList(res);
+  } catch (error) {
+    console.warn("[ContractDetailView] fetch contractPaymentSchedules failed", error);
+    return [];
   }
 };
 
@@ -5802,6 +5836,7 @@ const PaymentScheduleDetailBlock = () => {
   const [record, setRecord] = useState(contextRecord);
   const [payments, setPayments] = useState([]);
   const [paymentRequests, setPaymentRequests] = useState([]);
+  const [scheduleRows, setScheduleRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [lawyers, setLawyers] = useState([]);
@@ -5829,6 +5864,7 @@ const PaymentScheduleDetailBlock = () => {
     setRecord(contextRecord);
     setPayments([]);
     setPaymentRequests([]);
+    setScheduleRows([]);
     setError("");
 
     if (!recordId) {
@@ -5856,12 +5892,17 @@ const PaymentScheduleDetailBlock = () => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch payment requests failed", err);
         return [];
       }),
+      listContractPaymentSchedulesByContract(recordId).catch((err) => {
+        console.error("[ContractPaymentScheduleDetailBlock] fetch contractPaymentSchedules failed", err);
+        return [];
+      }),
     ])
-      .then(([fresh, paymentRows, paymentRequestRows]) => {
+      .then(([fresh, paymentRows, paymentRequestRows, scheduleRowsResult]) => {
         if (!mounted) return;
         setRecord(fresh || contextRecord);
         setPayments(paymentRows || []);
         setPaymentRequests(paymentRequestRows || []);
+        setScheduleRows(scheduleRowsResult || []);
       })
       .catch((err) => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch contract failed", err);
@@ -5880,8 +5921,8 @@ const PaymentScheduleDetailBlock = () => {
   }, [recordId]);
 
   const schedule = useMemo(
-    () => applyPaymentSummary(normalizeSchedule(record || {}), payments, paymentRequests),
-    [record, payments, paymentRequests],
+    () => applyPaymentSummary(normalizeSchedule(record || {}, scheduleRows), payments, paymentRequests),
+    [record, payments, paymentRequests, scheduleRows],
   );
   const requestableItems = useMemo(
     () => buildRequestableItems(record || {}, schedule, payments),
