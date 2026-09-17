@@ -100,11 +100,15 @@ BEGIN
 END;
 $function$;
 
+-- SUPERSEDED 2026-09-17 by pgsql/unified_contract_payment_schedule.sql —
+-- a By Case contract's schedule now lives as real
+-- "contractPaymentSchedules" rows, not contracts.paymentSchedule JSON, so
+-- nothing should fire off a bare contract insert anymore. The function
+-- above is kept for history/rollback reference only. The trigger itself
+-- is intentionally NOT recreated here (only dropped, idempotently) so
+-- re-running this file can never resurrect it regardless of run order
+-- relative to unified_contract_payment_schedule.sql.
 DROP TRIGGER IF EXISTS trg_by_case_create_scheduled_payment_requests ON contracts;
-CREATE TRIGGER trg_by_case_create_scheduled_payment_requests
-  AFTER INSERT ON contracts
-  FOR EACH ROW
-  EXECUTE FUNCTION public.by_case_create_scheduled_payment_requests();
 
 -- ---- Trigger: tasks AFTER UPDATE OF status — a linked Task's completion
 -- ---- marks its Payment Request's trigger condition met -----------------
