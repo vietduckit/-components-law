@@ -41,6 +41,7 @@ Together with the existing `contractBillingPlans` collection (Retainer, shipped 
 | Percentage | `percentage` | double | nullable in practice — a fixed-amount installment has no percentage |
 | Amount | `amount` | float | resolved amount in contract currency |
 | Trigger Type | `triggerType` | string, single select | should carry the same 3 options as `paymentRequests.triggerType` — **confirm the option list matches `on_signed`/`on_task_done`/`on_case_done` exactly** before wiring the trigger (same caveat the 2026-09-15 spec raised for `paymentRequests.triggerType`) |
+| Due Date | `dueDate` | date/datetime | Added after this spec's first draft (see §6 revision) — a **one-way seed value** copied onto the generated `paymentRequests.dueDate` at creation time only, not a synced field |
 | Payment Requests | `paymentRequests` | hasMany → paymentRequests | reverse of the new belongsTo below |
 | Created at/by, Updated at/by | `createdAt`/`createdBy`/`updatedAt`/`updatedBy` | standard | unchanged NocoBase system fields |
 
@@ -103,7 +104,7 @@ This mirrors the By Case pattern closely enough that the *activation half* (due-
 
 Full field dumps for `contractPaymentSchedules`, `paymentRequests`, `tasks`, `projectServices`, `contractServices` are preserved in this session's diagnostic output — see `JsField/DiagnoseUnifiedPaymentSchemaFields.js` for the script that produced them.
 
-**Behavior change surfaced by this confirmation**: `contractPaymentSchedules` has no `dueDate` column (dueDate/conditionMet live only on the generated `paymentRequests` row, per this spec's own §4 design). This means a newly created request always starts `pending` with no due date — even an `on_signed` installment filled in at contract signing no longer becomes `active` immediately the way the old JSON-based flow could (a pre-filled `paymentDate` on the installment used to allow that). A due date must now always be set as a separate step directly on the Payment Request. Not fixed here since the schema (no `dueDate` column on the schedule collection) was the user's own design — flagged for awareness.
+**Revision (same day)**: `contractPaymentSchedules` initially had no `dueDate` column, which would have meant every new request always starting `pending` with no due date — even an `on_signed` installment filled in at signing. The user added a `dueDate` column to `contractPaymentSchedules` to restore the old immediate-activation behavior. To avoid the two-places-to-update risk §4 originally warned about, this is treated as a **one-way seed value, not a synced field**: `by_case_schedule_row_creates_payment_request()` copies `NEW."dueDate"` onto the new `paymentRequests` row at creation time only (also into `sourceSnapshot` and `paymentRequestItems.plannedPaymentDate`, mirroring the old JSON-based flow). After that INSERT, only `paymentRequests.dueDate` matters — editing it later never writes back to the schedule row, and editing the schedule row's `dueDate` after its request already exists has no effect (the trigger only fires on `INSERT`).
 
 ## 7. Deployment
 

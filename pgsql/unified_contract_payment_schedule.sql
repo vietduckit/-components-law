@@ -50,6 +50,7 @@ DECLARE
   v_pr_id BIGINT;
   v_item_id BIGINT;
   v_condition_met BOOLEAN;
+  v_initial_status TEXT;
 BEGIN
   SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId"
   INTO v_contract
@@ -64,32 +65,33 @@ BEGIN
   -- installment with no triggerType yet behaves like 'on_signed'.
   v_condition_met := (COALESCE(NEW."triggerType", 'on_signed') = 'on_signed');
 
+  -- contractPaymentSchedules.dueDate (added after this trigger's first
+  -- version) is a one-way seed value only — copied onto the new
+  -- paymentRequests row at creation so an 'on_signed' installment filled
+  -- in at signing can still activate immediately, same as the old
+  -- JSON-based flow. After this INSERT, only paymentRequests.dueDate
+  -- matters; editing it later never writes back to the schedule row, and
+  -- editing the schedule row's dueDate after its request already exists
+  -- has no effect (the trigger only fires on INSERT).
+  v_initial_status := CASE WHEN v_condition_met AND NEW."dueDate" IS NOT NULL THEN 'active' ELSE 'pending' END;
+
   v_pr_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
 
-  -- contractPaymentSchedules carries no dueDate column (by design — a
-  -- schedule row is a static definition; dueDate/conditionMet live only on
-  -- the paymentRequests row it produces, see the design spec §4). Every
-  -- newly created request therefore starts 'pending' with no due date,
-  -- even an 'on_signed' installment filled in at signing — a due date must
-  -- always be set afterward on the request itself, unlike the old
-  -- JSON-based flow where a pre-filled paymentDate could make it 'active'
-  -- immediately. Flagged to the user as a real behavior change, not fixed
-  -- here since the schema (no dueDate column) was the user's own design.
   INSERT INTO "paymentRequests" (
     id, title, status, "triggerType", "conditionMet", "installmentNo",
     "contractPaymentScheduleId", "contractId", "customerId", "internalCompanyId",
-    "requestedAmount", currency, "requestType", "sourceSnapshot",
+    "requestedAmount", "dueDate", currency, "requestType", "sourceSnapshot",
     "createdAt", "updatedAt"
   ) VALUES (
     v_pr_id,
     'Đợt ' || COALESCE(NEW."installmentNo"::text, '') || ' - ' || COALESCE(v_contract."contractCode", '') || ' - ' || COALESCE(v_contract."contractName", ''),
-    'pending',
+    v_initial_status,
     COALESCE(NEW."triggerType", 'on_signed'),
     v_condition_met,
     NEW."installmentNo",
     NEW.id, v_contract.id, v_contract."customerId", v_contract."internalCompanyId",
-    NEW.amount, 'VND', 'create_payment',
-    jsonb_build_object('label', NEW.label, 'percentage', NEW.percentage, 'amount', NEW.amount),
+    NEW.amount, NEW."dueDate", 'VND', 'create_payment',
+    jsonb_build_object('label', NEW.label, 'percentage', NEW.percentage, 'amount', NEW.amount, 'dueDate', NEW."dueDate"),
     now(), now()
   );
 
@@ -98,11 +100,11 @@ BEGIN
   INSERT INTO "paymentRequestItems" (
     id, "paymentRequestId", "contractId", "lineType", "lineStatus",
     "scheduleItemId", "installmentNo", "lineLabel",
-    "requestedAmount", "createdAt", "updatedAt"
+    "plannedPaymentDate", "requestedAmount", "createdAt", "updatedAt"
   ) VALUES (
     v_item_id, v_pr_id, v_contract.id, 'schedule_installment', 'pending',
     NEW.id::text, NEW."installmentNo", NEW.label,
-    NEW.amount, now(), now()
+    NEW."dueDate", NEW.amount, now(), now()
   );
 
   RETURN NEW;
