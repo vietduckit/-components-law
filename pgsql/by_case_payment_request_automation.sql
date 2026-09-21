@@ -110,30 +110,28 @@ $function$;
 -- relative to unified_contract_payment_schedule.sql.
 DROP TRIGGER IF EXISTS trg_by_case_create_scheduled_payment_requests ON contracts;
 
--- ---- Trigger: tasks AFTER UPDATE OF status — a linked Task's completion
--- ---- marks its Payment Request's trigger condition met -----------------
--- Raw column is "paymentRequestId" (the tasks.linkedPaymentRequestId
--- belongsTo association's own foreignKey) — confirmed directly against
--- this database's `fields` metadata table before writing this, since the
--- Admin UI's field editor shows the association name
--- ("linkedPaymentRequestId"), not the underlying SQL column.
-CREATE OR REPLACE FUNCTION public.by_case_task_done_activates_payment_request()
-RETURNS trigger
+-- ---- Shared logic: activate a By Case Payment Request if it's still
+-- ---- 'pending' — extracted so both orderings of (task done, task linked
+-- ---- to a PR) can share one implementation. Raw column is
+-- ---- "paymentRequestId" (the tasks.linkedPaymentRequestId belongsTo
+-- ---- association's own foreignKey) — confirmed directly against this
+-- ---- database's `fields` metadata table, since the Admin UI's field
+-- ---- editor shows the association name ("linkedPaymentRequestId"), not
+-- ---- the underlying SQL column.
+CREATE OR REPLACE FUNCTION public.by_case_activate_payment_request_if_ready(p_payment_request_id BIGINT)
+RETURNS void
 LANGUAGE plpgsql
 AS $function$
 DECLARE
   v_pr RECORD;
 BEGIN
-  IF NEW.status <> 'done'
-     OR OLD.status IS NOT DISTINCT FROM 'done'
-     OR NEW."paymentRequestId" IS NULL
-  THEN
-    RETURN NEW;
+  IF p_payment_request_id IS NULL THEN
+    RETURN;
   END IF;
 
-  SELECT id, status, "dueDate" INTO v_pr FROM "paymentRequests" WHERE id = NEW."paymentRequestId";
+  SELECT id, status, "dueDate" INTO v_pr FROM "paymentRequests" WHERE id = p_payment_request_id;
   IF v_pr.id IS NULL OR v_pr.status <> 'pending' THEN
-    RETURN NEW;
+    RETURN;
   END IF;
 
   UPDATE "paymentRequests"
@@ -141,6 +139,23 @@ BEGIN
       status = CASE WHEN v_pr."dueDate" IS NOT NULL THEN 'active' ELSE 'pending' END,
       "updatedAt" = now()
   WHERE id = v_pr.id;
+END;
+$function$;
+
+-- ---- Trigger: tasks AFTER UPDATE OF status — a linked Task's completion
+-- ---- marks its Payment Request's trigger condition met. Now a thin guard
+-- ---- wrapper around the shared function above.
+CREATE OR REPLACE FUNCTION public.by_case_task_done_activates_payment_request()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.status = 'done'
+     AND OLD.status IS DISTINCT FROM 'done'
+     AND NEW."paymentRequestId" IS NOT NULL
+  THEN
+    PERFORM public.by_case_activate_payment_request_if_ready(NEW."paymentRequestId");
+  END IF;
 
   RETURN NEW;
 END;
@@ -151,6 +166,39 @@ CREATE TRIGGER trg_by_case_task_done_activates_payment_request
   AFTER UPDATE OF status ON tasks
   FOR EACH ROW
   EXECUTE FUNCTION public.by_case_task_done_activates_payment_request();
+
+-- ---- Trigger: tasks AFTER UPDATE OF "paymentRequestId" — 2026-09-21 fix
+-- ---- for the opposite ordering: a task is already 'done' BEFORE it gets
+-- ---- linked to an installment's Payment Request. This is a real sequence
+-- ---- in practice — a case can exist and have work completed before its
+-- ---- By Case contract (and hence its installments) is linked at all, so
+-- ---- the "Đợt thanh toán sẽ kích hoạt khi Done" selector has nothing to
+-- ---- offer yet. Without this, linking the task to its PR afterward (a
+-- ---- change to "paymentRequestId", not to "status") never fired the
+-- ---- status-based trigger above, silently leaving that installment stuck
+-- ---- unactivated forever. See
+-- ---- docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
+CREATE OR REPLACE FUNCTION public.by_case_task_linked_activates_payment_request()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW."paymentRequestId" IS NOT NULL
+     AND OLD."paymentRequestId" IS DISTINCT FROM NEW."paymentRequestId"
+     AND NEW.status = 'done'
+  THEN
+    PERFORM public.by_case_activate_payment_request_if_ready(NEW."paymentRequestId");
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_by_case_task_linked_activates_payment_request ON tasks;
+CREATE TRIGGER trg_by_case_task_linked_activates_payment_request
+  AFTER UPDATE OF "paymentRequestId" ON tasks
+  FOR EACH ROW
+  EXECUTE FUNCTION public.by_case_task_linked_activates_payment_request();
 
 -- ---- Trigger: projects AFTER UPDATE OF status — a Case becoming done
 -- ---- marks its on_case_done Payment Request's trigger condition met ----

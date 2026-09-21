@@ -2,7 +2,7 @@
 
 Date: 2026-09-21
 
-Covers the full contract-to-payment pipeline plus the unified contract payment data model automation (`docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md`) after all fixes/revisions through 2026-09-21: catch-up trigger for tasks done before a contract exists, priority/due-date/note defaults on PR creation, removal of the `contractType` gate on the `isPaymentTrigger` checkbox, and the `ListView`/`ServiceSection` prop-threading bug fix in `TaskManagement.js`.
+Covers the full contract-to-payment pipeline plus the unified contract payment data model automation (`docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md`) after all fixes/revisions through 2026-09-21: catch-up trigger for By Service tasks done before a contract exists, the mirror fix for By Case (a task already done before being linked to an installment), priority/due-date/note defaults on PR creation, removal of the `contractType` gate on the `isPaymentTrigger` checkbox, and the `ListView`/`ServiceSection` prop-threading bug fix in `TaskManagement.js`. Retainer was checked and confirmed to have no equivalent gap.
 
 **Phần A** below is the real end-to-end pipeline (Contract → Case → tasks → Payment Request → Payment/Invoice) — start here. **Phần B** is the detailed, component-level automation checks already covered earlier this session — use it if Phần A surfaces something that needs narrowing down.
 
@@ -54,9 +54,26 @@ Cơ chế gắn Contract vào Case đã có sẵn: khi tạo Contract MỚI, fie
 - [ ] Với service còn lại (chưa Done task trigger lúc này) → tiếp tục đánh dấu Done sau khi đã có hợp đồng → xác nhận PR tạo bình thường qua trigger tasks-status (không cần catch-up nữa vì hợp đồng đã có sẵn).
 - [ ] Từ đây tiếp tục như A2: Create Payment cho từng PR, đối chiếu tổng tiền.
 
-## A4 — Edge case: PR bị từ chối (rejected)
+## A4 — Full pipeline: Case tạo trước, Contract tạo sau (By Case) — vá lỗ hổng 2026-09-21
+
+Trước bản vá này, task đã Done rồi mới được gán vào 1 đợt thanh toán (vì lúc Done chưa có hợp đồng để chọn) sẽ **không bao giờ** tự activate được, do trigger cũ chỉ bắt sự kiện đổi `status`, không bắt sự kiện gán `paymentRequestId`. Đã thêm trigger `by_case_task_linked_activates_payment_request` để vá — test case này xác nhận bản vá hoạt động đúng.
+
+- [ ] **Tạo Case** — không chọn hợp đồng nào. Thêm task vào case (không cần dịch vụ đặc biệt gì, vì By Case không cần `projectServiceId`).
+- [ ] Đánh dấu 1 task **Done** ngay khi case chưa có hợp đồng — xác nhận `tasks.paymentRequestId` vẫn `null` (vì chưa có gì để chọn), không có PR nào liên quan.
+- [ ] **Tạo Contract mới** type By Case, đủ 2-3 đợt, ít nhất 1 đợt `triggerType='on_task_done'` **có sẵn dueDate** → ở field "Case" chọn đúng Case vừa tạo ở trên → lưu hợp đồng.
+- [ ] Xác nhận `contractPaymentSchedules` + `paymentRequests` được tạo đủ như A1 (PR của đợt `on_task_done` đang `status='pending'`, `conditionMet=false`).
+- [ ] Quay lại **task đã Done từ trước đó** → mở Task Detail → chọn đúng PR/đợt vừa tạo ở field "Đợt thanh toán sẽ kích hoạt khi Done" (giờ đã có option để chọn vì hợp đồng đã tồn tại).
+- [ ] Ngay sau khi chọn (chỉ đổi `paymentRequestId`, task **không** đổi `status` vì đã Done từ trước) → xác nhận PR đó **tự động chuyển `conditionMet=true`**, và vì đã có sẵn dueDate → `status='active'` ngay (nhờ trigger mới `by_case_task_linked_activates_payment_request`).
+- [ ] Biến thể: lặp lại nhưng đợt đó **chưa** có dueDate lúc tạo hợp đồng → sau khi chọn liên kết, PR chuyển `conditionMet=true` nhưng vẫn `pending` → set dueDate sau → xác nhận chuyển `active` (qua trigger due-date có sẵn, không đổi).
+- [ ] Từ đây tiếp tục Create Payment như A1.
+
+## A5 — Edge case: PR bị từ chối (rejected)
 
 - [ ] Với 1 PR đang `active`, thử chuyển trạng thái sang `rejected` (nếu có action này trên UI) → xác nhận không tạo Payment/Invoice nào, và không có tác dụng phụ nào khác lên task/service liên quan.
+
+## Retainer — đã xác nhận không cần test case-first riêng
+
+Đã đọc lại code (`JsField/Workflow/CreateContractBillingPlansWorkflow.js`) xác nhận billing Retainer chạy hoàn toàn theo lịch (`contractBillingPlans.nextBillingDate`), không tham chiếu `projects`/`tasks` ở đâu cả — thứ tự tạo Case trước/sau Contract không ảnh hưởng. Không cần test case-first riêng cho Retainer.
 
 ---
 
