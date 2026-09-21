@@ -109,9 +109,17 @@ Trước bản vá này, task đã Done rồi mới được gán vào 1 đợt 
 
 ## Nhóm 5 — Checkbox hiển thị mọi nơi, mọi loại hợp đồng
 
-- [ ] Case By Case: checkbox `isPaymentTrigger` **vẫn hiện** (không còn ẩn) ở cả 3 nơi (CaseCreateForm, TaskDetailView, TaskManagement); field "Đợt thanh toán sẽ kích hoạt khi Done" (By Case) **vẫn hiện đúng** riêng cho loại này.
-- [ ] Case Retainer: checkbox `isPaymentTrigger` vẫn hiện (không ẩn); field "Đợt thanh toán..." **không** hiện (đúng, vì gate riêng cho field đó vẫn giữ nguyên theo `byCase`).
-- [ ] Case không có hợp đồng: checkbox vẫn hiện bình thường.
+- [ ] `CaseCreateForm.js` / `TaskManagement.js`: checkbox `isPaymentTrigger` hiện cho mọi loại hợp đồng, kể cả chưa có hợp đồng.
+- [ ] `TaskDetailView.js` (đã hợp nhất 2026-09-21): chỉ còn **1 checkbox** "Task này là điều kiện thanh toán" cho mọi loại hợp đồng — không còn hiện 2 control tách rời như trước.
+  - [ ] Case **By Case**: tick checkbox → **không** ghi `isPaymentTrigger`, chỉ hiện thêm Select "Chọn đợt thanh toán..." bên dưới. Chọn 1 đợt → ghi đúng `linkedPaymentRequestId`. Bỏ tick 1 task **đã có** đợt liên kết → xoá ngay `linkedPaymentRequestId` (set null), ẩn Select.
+  - [ ] Case **By Service**: tick/bỏ tick ghi thẳng `isPaymentTrigger` như cũ, không hiện Select.
+  - [ ] Case **Retainer/không hợp đồng**: tick vẫn ghi `isPaymentTrigger` (không có tác dụng gì ở backend, đúng như thiết kế) — không hiện Select.
+  - [ ] Mở lại 1 task **đã có sẵn** `linkedPaymentRequestId` từ trước → checkbox tự tick sẵn, Select tự hiện với đúng giá trị đã chọn (không cần bấm gì thêm).
+  - [ ] Đóng modal, mở sang task khác → trạng thái "đang hiện Select" không bị dính từ task trước (mỗi task load đúng trạng thái riêng của nó).
+
+## Nhóm 5b — Fix hiển thị label Select (không còn hiện raw ID)
+
+- [ ] Task đã liên kết với 1 PR **đã chuyển `active`** (không còn `pending`) → mở Task Detail → Select vẫn hiện đúng label "Đợt N - ..." thay vì hiện số ID thô.
 
 ## Nhóm 6 — By Case (priority/note/due date mới)
 
