@@ -106,6 +106,16 @@ Full field dumps for `contractPaymentSchedules`, `paymentRequests`, `tasks`, `pr
 
 **Revision (same day)**: `contractPaymentSchedules` initially had no `dueDate` column, which would have meant every new request always starting `pending` with no due date — even an `on_signed` installment filled in at signing. The user added a `dueDate` column to `contractPaymentSchedules` to restore the old immediate-activation behavior. To avoid the two-places-to-update risk §4 originally warned about, this is treated as a **one-way seed value, not a synced field**: `by_case_schedule_row_creates_payment_request()` copies `NEW."dueDate"` onto the new `paymentRequests` row at creation time only (also into `sourceSnapshot` and `paymentRequestItems.plannedPaymentDate`, mirroring the old JSON-based flow). After that INSERT, only `paymentRequests.dueDate` matters — editing it later never writes back to the schedule row, and editing the schedule row's `dueDate` after its request already exists has no effect (the trigger only fires on `INSERT`).
 
+## 6b. Revision (2026-09-21) — catch-up for tasks done before a contract exists
+
+A real sequence in practice: a case starts work before its contract is signed/linked, so a task can already be marked `done` (with `isPaymentTrigger = true`) while `projects.contractId` is still null. The tasks-status trigger's guard (`v_project."contractId" IS NULL THEN RETURN`) correctly no-ops in that moment — but nothing ever re-checked that task once a contract was linked afterward, since the tasks trigger only runs at the instant a task's own status changes.
+
+Fixed by extracting the "is this service's task group fully done, and does it not already have a Payment Request" check out of `by_service_task_group_done_creates_payment_request()` into a shared function, `by_service_check_and_create_payment_request(p_project_service_id)`, callable from two triggers:
+- `trg_by_service_task_group_done_creates_payment_request` (tasks AFTER UPDATE OF status) — unchanged trigger point, now a thin guard that calls the shared function.
+- `trg_by_service_contract_linked_catches_up_done_tasks` (**new**, projects AFTER UPDATE OF `"contractId"`) — fires whenever a case's contract link is set/changed, loops every distinct `projectServiceId` among that case's `isPaymentTrigger` tasks, and re-runs the same check for each. Safe to call for a service that isn't actually ready — the shared function re-verifies the group and idempotency itself.
+
+No schema change — this is SQL-only, in `pgsql/unified_contract_payment_schedule.sql`.
+
 ## 7. Deployment
 
 1. **Done**: `pgsql/unified_contract_payment_schedule.sql` — idempotent (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS`/`CREATE TRIGGER`). Drops the superseded `trg_by_case_create_scheduled_payment_requests` trigger on `contracts` (function left in place for history), adds `by_case_schedule_row_creates_payment_request()` (`AFTER INSERT ON "contractPaymentSchedules"`) and `by_service_task_group_done_creates_payment_request()` (`AFTER UPDATE OF status ON tasks`). `by_case_task_done_activates_payment_request()`, `by_case_case_done_activates_payment_request()`, `by_case_due_date_activates_payment_request()` stay defined in `by_case_payment_request_automation.sql`, unchanged — both files must remain installed together.

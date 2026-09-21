@@ -117,14 +117,21 @@ CREATE TRIGGER trg_by_case_schedule_row_creates_payment_request
   FOR EACH ROW
   EXECUTE FUNCTION public.by_case_schedule_row_creates_payment_request();
 
--- ---- Trigger: tasks AFTER UPDATE OF status — By Service: once every task
--- ---- flagged isPaymentTrigger for a case-service line is done, create
--- ---- (not merely activate) that service's Payment Request -------------
--- Raw column for the "caseService" association is "projectServiceId" —
--- confirmed via JsField/DiagnoseUnifiedPaymentSchemaFields.js, not
--- "caseServiceId" as the association's display name might suggest.
-CREATE OR REPLACE FUNCTION public.by_service_task_group_done_creates_payment_request()
-RETURNS trigger
+-- ---- Shared logic: given one projectServices row, check whether every task
+-- ---- tagged isPaymentTrigger for it is done, and if so create that
+-- ---- service's Payment Request (idempotent — never creates a second one).
+-- Extracted out of the tasks-status trigger below so the SAME check can
+-- also run from the projects.contractId catch-up trigger further down —
+-- covers a task already being marked done BEFORE the case had a contract
+-- linked yet (a real sequence in practice: work starts, contract signed
+-- later), which the tasks-status trigger alone could never catch since it
+-- only fires at the moment a task's status changes, not later when the
+-- contract shows up. Raw column for the "caseService" association is
+-- "projectServiceId" — confirmed via
+-- JsField/DiagnoseUnifiedPaymentSchemaFields.js, not "caseServiceId" as the
+-- association's display name might suggest.
+CREATE OR REPLACE FUNCTION public.by_service_check_and_create_payment_request(p_project_service_id BIGINT)
+RETURNS void
 LANGUAGE plpgsql
 AS $function$
 DECLARE
@@ -135,39 +142,46 @@ DECLARE
   v_pr_id BIGINT;
   v_item_id BIGINT;
 BEGIN
-  IF NEW.status <> 'done'
-     OR OLD.status IS NOT DISTINCT FROM 'done'
-     OR NEW."isPaymentTrigger" IS NOT TRUE
-     OR NEW."projectServiceId" IS NULL
-  THEN
-    RETURN NEW;
+  IF p_project_service_id IS NULL THEN
+    RETURN;
   END IF;
 
   -- AND logic: every task tagged isPaymentTrigger for this service must be
-  -- done, not just this one. AFTER UPDATE already sees NEW's own committed
-  -- status, so this correctly counts NEW itself as done too.
+  -- done. The tasks-status trigger's caller already sees its own row's
+  -- committed status by the time it calls in here (AFTER UPDATE), so no
+  -- special-casing is needed for the row that just changed.
   IF EXISTS (
     SELECT 1 FROM tasks
-    WHERE "projectServiceId" = NEW."projectServiceId"
+    WHERE "projectServiceId" = p_project_service_id
       AND "isPaymentTrigger" = true
       AND status <> 'done'
   ) THEN
-    RETURN NEW;
+    RETURN;
+  END IF;
+
+  -- Nothing to do if this service has no isPaymentTrigger tasks at all
+  -- (the EXISTS above passes vacuously for an empty set).
+  IF NOT EXISTS (
+    SELECT 1 FROM tasks
+    WHERE "projectServiceId" = p_project_service_id AND "isPaymentTrigger" = true
+  ) THEN
+    RETURN;
   END IF;
 
   -- Idempotency: a service's task group can only ever produce one Payment
-  -- Request — a task re-opened and re-done later must not create a second.
-  IF EXISTS (SELECT 1 FROM "paymentRequests" WHERE "projectServiceId" = NEW."projectServiceId") THEN
-    RETURN NEW;
+  -- Request — a task re-opened and re-done later, or a second catch-up
+  -- pass, must not create a second one.
+  IF EXISTS (SELECT 1 FROM "paymentRequests" WHERE "projectServiceId" = p_project_service_id) THEN
+    RETURN;
   END IF;
 
   SELECT id, "projectId", "serviceName", "totalAmount"
   INTO v_service
   FROM "projectServices"
-  WHERE id = NEW."projectServiceId";
+  WHERE id = p_project_service_id;
 
   IF v_service.id IS NULL THEN
-    RETURN NEW;
+    RETURN;
   END IF;
 
   SELECT id, "contractId", "customerId"
@@ -176,7 +190,7 @@ BEGIN
   WHERE id = v_service."projectId";
 
   IF v_project.id IS NULL OR v_project."contractId" IS NULL THEN
-    RETURN NEW;
+    RETURN;
   END IF;
 
   SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId"
@@ -185,7 +199,7 @@ BEGIN
   WHERE id = v_project."contractId";
 
   IF v_contract.id IS NULL THEN
-    RETURN NEW;
+    RETURN;
   END IF;
 
   -- Nullable — an ad-hoc case service added directly on the case (never
@@ -225,6 +239,26 @@ BEGIN
     v_item_id, v_pr_id, v_contract.id, 'service_completion', 'pending',
     v_service."serviceName", v_service."totalAmount", now(), now()
   );
+END;
+$function$;
+
+-- ---- Trigger: tasks AFTER UPDATE OF status — By Service: once every task
+-- ---- flagged isPaymentTrigger for a case-service line is done, create
+-- ---- (not merely activate) that service's Payment Request. Now a thin
+-- ---- guard wrapper — the actual check-and-create logic is shared with the
+-- ---- catch-up trigger below via by_service_check_and_create_payment_request.
+CREATE OR REPLACE FUNCTION public.by_service_task_group_done_creates_payment_request()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF NEW.status = 'done'
+     AND OLD.status IS DISTINCT FROM 'done'
+     AND NEW."isPaymentTrigger" IS TRUE
+     AND NEW."projectServiceId" IS NOT NULL
+  THEN
+    PERFORM public.by_service_check_and_create_payment_request(NEW."projectServiceId");
+  END IF;
 
   RETURN NEW;
 END;
@@ -235,6 +269,47 @@ CREATE TRIGGER trg_by_service_task_group_done_creates_payment_request
   AFTER UPDATE OF status ON tasks
   FOR EACH ROW
   EXECUTE FUNCTION public.by_service_task_group_done_creates_payment_request();
+
+-- ---- Trigger: projects AFTER UPDATE OF "contractId" — catch-up pass for
+-- ---- tasks that were already marked done BEFORE this case had a contract
+-- ---- linked (a real sequence in practice: work starts on a case, the
+-- ---- contract is signed/linked afterward). Without this, those
+-- ---- already-done tasks would never get re-evaluated, since the tasks
+-- ---- trigger above only runs at the moment a task's own status changes.
+CREATE OR REPLACE FUNCTION public.by_service_contract_linked_catches_up_done_tasks()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_service_id BIGINT;
+BEGIN
+  IF NEW."contractId" IS NULL OR OLD."contractId" IS NOT DISTINCT FROM NEW."contractId" THEN
+    RETURN NEW;
+  END IF;
+
+  -- One pass per distinct service that has at least one isPaymentTrigger
+  -- task in this case — by_service_check_and_create_payment_request itself
+  -- re-verifies the whole group is done and no Payment Request exists yet,
+  -- so this is safe to call even for services that aren't actually ready.
+  FOR v_service_id IN
+    SELECT DISTINCT "projectServiceId"
+    FROM tasks
+    WHERE "projectId" = NEW.id
+      AND "isPaymentTrigger" = true
+      AND "projectServiceId" IS NOT NULL
+  LOOP
+    PERFORM public.by_service_check_and_create_payment_request(v_service_id);
+  END LOOP;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_by_service_contract_linked_catches_up_done_tasks ON projects;
+CREATE TRIGGER trg_by_service_contract_linked_catches_up_done_tasks
+  AFTER UPDATE OF "contractId" ON projects
+  FOR EACH ROW
+  EXECUTE FUNCTION public.by_service_contract_linked_catches_up_done_tasks();
 
 -- ---- Reused unchanged from by_case_payment_request_automation.sql, kept
 -- ---- installed there — NOT redefined here:
