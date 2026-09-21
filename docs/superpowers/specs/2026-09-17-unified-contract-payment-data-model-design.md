@@ -125,6 +125,12 @@ Both PR-creation triggers (`by_case_schedule_row_creates_payment_request`, `by_s
 
 Applied to both triggers identically (by user's explicit choice) so the two mechanisms don't diverge in behavior for a lawyer reviewing requests from either source.
 
+## 6d. Revision (2026-09-21) — isPaymentTrigger checkbox no longer gated by contractType
+
+Removed the `contractType === "byService"` gate on the `isPaymentTrigger` checkbox in all 3 places (`CaseCreateForm.js`'s Sample Tasks table, `TaskDetailView.js`, `TaskManagement.js`) — at the user's explicit request, it's now visible/configurable on every task regardless of the case's contract type, or whether the case has a contract linked at all. Reasoning: the SQL side already no-ops safely without a By Service contract (the `contractId IS NULL` guard in `by_service_check_and_create_payment_request`), so hiding the UI added friction (a lawyer configuring a case ahead of its contract being signed had nowhere to mark trigger tasks) without adding real safety. `TaskManagement.js`'s now-unused `contractType` fetch/state/prop-threading was removed entirely as dead code.
+
+The By Case "Đợt thanh toán sẽ kích hoạt khi Done" selector in `TaskDetailView.js` keeps its own `contractType === "byCase"` gate unchanged — that mechanism genuinely requires a By Case contract's installment list to exist, so ungating it wouldn't make sense the same way.
+
 ## 7. Deployment
 
 1. **Done**: `pgsql/unified_contract_payment_schedule.sql` — idempotent (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS`/`CREATE TRIGGER`). Drops the superseded `trg_by_case_create_scheduled_payment_requests` trigger on `contracts` (function left in place for history), adds `by_case_schedule_row_creates_payment_request()` (`AFTER INSERT ON "contractPaymentSchedules"`) and `by_service_task_group_done_creates_payment_request()` (`AFTER UPDATE OF status ON tasks`). `by_case_task_done_activates_payment_request()`, `by_case_case_done_activates_payment_request()`, `by_case_due_date_activates_payment_request()` stay defined in `by_case_payment_request_automation.sql`, unchanged — both files must remain installed together.
