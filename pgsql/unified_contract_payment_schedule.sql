@@ -51,6 +51,8 @@ DECLARE
   v_item_id BIGINT;
   v_condition_met BOOLEAN;
   v_initial_status TEXT;
+  v_due_date TIMESTAMPTZ;
+  v_request_note TEXT;
 BEGIN
   SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId"
   INTO v_contract
@@ -65,22 +67,22 @@ BEGIN
   -- installment with no triggerType yet behaves like 'on_signed'.
   v_condition_met := (COALESCE(NEW."triggerType", 'on_signed') = 'on_signed');
 
-  -- contractPaymentSchedules.dueDate (added after this trigger's first
-  -- version) is a one-way seed value only — copied onto the new
-  -- paymentRequests row at creation so an 'on_signed' installment filled
-  -- in at signing can still activate immediately, same as the old
-  -- JSON-based flow. After this INSERT, only paymentRequests.dueDate
-  -- matters; editing it later never writes back to the schedule row, and
-  -- editing the schedule row's dueDate after its request already exists
-  -- has no effect (the trigger only fires on INSERT).
-  v_initial_status := CASE WHEN v_condition_met AND NEW."dueDate" IS NOT NULL THEN 'active' ELSE 'pending' END;
+  -- contractPaymentSchedules.dueDate is a one-way seed value — the lawyer's
+  -- own explicit due date, when they set one while authoring the schedule,
+  -- always wins; only defaults to +7 days when they didn't set one (2026-09-21
+  -- revision — every new request should have SOME due date rather than
+  -- sitting with none until someone remembers to set it).
+  v_due_date := COALESCE(NEW."dueDate", now() + INTERVAL '7 days');
+  v_initial_status := CASE WHEN v_condition_met AND v_due_date IS NOT NULL THEN 'active' ELSE 'pending' END;
+  v_request_note := 'Yêu cầu thanh toán tự động của đợt "' || COALESCE(NEW.label, '') ||
+    '" từ ngày tạo ' || to_char(now(), 'DD/MM/YYYY');
 
   v_pr_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
 
   INSERT INTO "paymentRequests" (
     id, title, status, "triggerType", "conditionMet", "installmentNo",
     "contractPaymentScheduleId", "contractId", "customerId", "internalCompanyId",
-    "requestedAmount", "dueDate", currency, "requestType", "sourceSnapshot",
+    "requestedAmount", "dueDate", currency, "requestType", priority, "requestNote", "sourceSnapshot",
     "createdAt", "updatedAt"
   ) VALUES (
     v_pr_id,
@@ -90,8 +92,8 @@ BEGIN
     v_condition_met,
     NEW."installmentNo",
     NEW.id, v_contract.id, v_contract."customerId", v_contract."internalCompanyId",
-    NEW.amount, NEW."dueDate", 'VND', 'create_payment',
-    jsonb_build_object('label', NEW.label, 'percentage', NEW.percentage, 'amount', NEW.amount, 'dueDate', NEW."dueDate"),
+    NEW.amount, v_due_date, 'VND', 'create_payment', 'high', v_request_note,
+    jsonb_build_object('label', NEW.label, 'percentage', NEW.percentage, 'amount', NEW.amount, 'dueDate', v_due_date),
     now(), now()
   );
 
@@ -104,7 +106,7 @@ BEGIN
   ) VALUES (
     v_item_id, v_pr_id, v_contract.id, 'schedule_installment', 'pending',
     NEW.id::text, NEW."installmentNo", NEW.label,
-    NEW."dueDate", NEW.amount, now(), now()
+    v_due_date, NEW.amount, now(), now()
   );
 
   RETURN NEW;
@@ -141,6 +143,9 @@ DECLARE
   v_contract_service_id BIGINT;
   v_pr_id BIGINT;
   v_item_id BIGINT;
+  v_task_titles TEXT;
+  v_request_note TEXT;
+  v_due_date TIMESTAMPTZ;
 BEGIN
   IF p_project_service_id IS NULL THEN
     RETURN;
@@ -209,24 +214,38 @@ BEGIN
   WHERE "projectServiceId" = v_service.id
   LIMIT 1;
 
+  -- 2026-09-21 revision: priority/dueDate/requestNote set at creation
+  -- instead of left blank — conditionMet is already guaranteed true by the
+  -- guards above (the whole trigger-task group is done), and dueDate is
+  -- now always set too, so this request goes straight to 'active' rather
+  -- than sitting in 'pending' waiting for someone to set a due date.
+  SELECT string_agg(title, ', ' ORDER BY title)
+  INTO v_task_titles
+  FROM tasks
+  WHERE "projectServiceId" = p_project_service_id AND "isPaymentTrigger" = true;
+
+  v_due_date := now() + INTERVAL '7 days';
+  v_request_note := 'Yêu cầu thanh toán tự động của các task: ' || COALESCE(v_task_titles, '') ||
+    ' từ ngày tạo ' || to_char(now(), 'DD/MM/YYYY');
+
   v_pr_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
 
   INSERT INTO "paymentRequests" (
     id, title, status, "triggerType", "conditionMet",
     "projectServiceId", "contractServiceId", "contractId",
     "customerId", "internalCompanyId",
-    "requestedAmount", currency, "requestType", "sourceSnapshot",
+    "requestedAmount", "dueDate", currency, "requestType", priority, "requestNote", "sourceSnapshot",
     "createdAt", "updatedAt"
   ) VALUES (
     v_pr_id,
     'Dịch vụ ' || COALESCE(v_service."serviceName", '') || ' - ' || COALESCE(v_contract."contractCode", '') || ' - ' || COALESCE(v_contract."contractName", ''),
-    'pending',
+    'active',
     'on_task_done',
     true,
     v_service.id, v_contract_service_id, v_contract.id,
     COALESCE(v_contract."customerId", v_project."customerId"), v_contract."internalCompanyId",
-    v_service."totalAmount", 'VND', 'create_payment',
-    jsonb_build_object('serviceName', v_service."serviceName", 'totalAmount', v_service."totalAmount"),
+    v_service."totalAmount", v_due_date, 'VND', 'create_payment', 'high', v_request_note,
+    jsonb_build_object('serviceName', v_service."serviceName", 'totalAmount', v_service."totalAmount", 'dueDate', v_due_date),
     now(), now()
   );
 
@@ -234,10 +253,10 @@ BEGIN
 
   INSERT INTO "paymentRequestItems" (
     id, "paymentRequestId", "contractId", "lineType", "lineStatus",
-    "lineLabel", "requestedAmount", "createdAt", "updatedAt"
+    "lineLabel", "plannedPaymentDate", "requestedAmount", "createdAt", "updatedAt"
   ) VALUES (
     v_item_id, v_pr_id, v_contract.id, 'service_completion', 'pending',
-    v_service."serviceName", v_service."totalAmount", now(), now()
+    v_service."serviceName", v_due_date, v_service."totalAmount", now(), now()
   );
 END;
 $function$;

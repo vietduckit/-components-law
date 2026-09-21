@@ -116,6 +116,15 @@ Fixed by extracting the "is this service's task group fully done, and does it no
 
 No schema change — this is SQL-only, in `pgsql/unified_contract_payment_schedule.sql`.
 
+## 6c. Revision (2026-09-21) — priority, default due date, auto-generated request note
+
+Both PR-creation triggers (`by_case_schedule_row_creates_payment_request`, `by_service_check_and_create_payment_request`) now also set:
+- `priority = 'high'` (confirmed live enum: `low`/`normal`/`high`/`urgent`).
+- `dueDate`: By Case respects an explicit due date set on the schedule row (`contractPaymentSchedules.dueDate`) if the lawyer set one; otherwise defaults to `now() + 7 days`. By Service has no input due date at all (it's purely computed), so it's always `now() + 7 days`. Since a due date is now always present, By Service's request starts directly at `status = 'active'` (conditionMet is already guaranteed true by its own guards) instead of `'pending'`.
+- `requestNote`: auto-generated — By Case: `Yêu cầu thanh toán tự động của đợt "{label}" từ ngày tạo {date}`; By Service: `Yêu cầu thanh toán tự động của các task: {comma-separated trigger task titles} từ ngày tạo {date}`.
+
+Applied to both triggers identically (by user's explicit choice) so the two mechanisms don't diverge in behavior for a lawyer reviewing requests from either source.
+
 ## 7. Deployment
 
 1. **Done**: `pgsql/unified_contract_payment_schedule.sql` — idempotent (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS`/`CREATE TRIGGER`). Drops the superseded `trg_by_case_create_scheduled_payment_requests` trigger on `contracts` (function left in place for history), adds `by_case_schedule_row_creates_payment_request()` (`AFTER INSERT ON "contractPaymentSchedules"`) and `by_service_task_group_done_creates_payment_request()` (`AFTER UPDATE OF status ON tasks`). `by_case_task_done_activates_payment_request()`, `by_case_case_done_activates_payment_request()`, `by_case_due_date_activates_payment_request()` stay defined in `by_case_payment_request_automation.sql`, unchanged — both files must remain installed together.
