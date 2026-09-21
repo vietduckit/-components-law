@@ -42,7 +42,19 @@ Test toàn bộ vòng đời thật, không chỉ riêng phần trigger tự đ�
 - [ ] Nếu có Invoice: tạo Invoice cho 1 trong 2 PR, xác nhận liên kết đúng, không ảnh hưởng PR còn lại.
 - [ ] Tổng kiểm: cộng dồn số tiền các Payment đã tạo từ case này, đối chiếu đúng tổng giá trị 2 service trong Contract.
 
-## A3 — Edge case: PR bị từ chối (rejected)
+## A3 — Full pipeline: Case tạo trước, Contract tạo sau (By Service)
+
+Cơ chế gắn Contract vào Case đã có sẵn: khi tạo Contract MỚI, field "Case" trên `ContractCreateForm.js` cho chọn 1 Case có sẵn — thao tác này set `projects.contractId`, đúng sự kiện `trg_by_service_contract_linked_catches_up_done_tasks` đang lắng nghe.
+
+- [ ] **Tạo Case** — **không chọn hợp đồng nào** (bỏ trống Contract lúc tạo). Thêm 1-2 service trực tiếp vào case (ad-hoc hoặc từ catalog).
+- [ ] Trong Task Detail/Task Management, tick `isPaymentTrigger` cho task của 1 service.
+- [ ] Đánh dấu Done đủ task trigger đó → xác nhận **chưa có PR nào** (vì `projects.contractId` còn null — kiểm tra qua `DiagnoseCaseByServiceTrigger.js`).
+- [ ] **Tạo Contract mới** type By Service → ở field "Case", chọn đúng Case vừa tạo ở trên → lưu hợp đồng.
+- [ ] Ngay sau khi lưu, xác nhận `projects.contractId` đã được set, và **PR tự động được tạo** cho service đã đủ điều kiện từ trước (nhờ catch-up trigger) — đủ `priority/dueDate/requestNote` như A2.
+- [ ] Với service còn lại (chưa Done task trigger lúc này) → tiếp tục đánh dấu Done sau khi đã có hợp đồng → xác nhận PR tạo bình thường qua trigger tasks-status (không cần catch-up nữa vì hợp đồng đã có sẵn).
+- [ ] Từ đây tiếp tục như A2: Create Payment cho từng PR, đối chiếu tổng tiền.
+
+## A4 — Edge case: PR bị từ chối (rejected)
 
 - [ ] Với 1 PR đang `active`, thử chuyển trạng thái sang `rejected` (nếu có action này trên UI) → xác nhận không tạo Payment/Invoice nào, và không có tác dụng phụ nào khác lên task/service liên quan.
 
