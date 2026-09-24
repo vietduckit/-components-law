@@ -12,7 +12,6 @@ DECLARE
     tmpl             RECORD;
     new_task_id      BIGINT;
     new_doc_id       BIGINT;
-    new_attach_id    BIGINT;
     proj             RECORD;
     v_due_date       TIMESTAMP WITH TIME ZONE;
     v_attachment     RECORD;
@@ -77,9 +76,21 @@ BEGIN
             -- ------------------------------------------------
             -- Insert task
             -- ------------------------------------------------
+            -- "projectServiceId" = NEW.id (this trigger fires on
+            -- projectServices — NEW."serviceId"/NEW."projectId" above are
+            -- read straight off that same row) — was missing entirely
+            -- before this edit, meaning by_service_task_group_done_creates_
+            -- payment_request (pgsql/unified_contract_payment_schedule.sql)
+            -- could never fire for any auto-created task, since its guard
+            -- requires tasks."projectServiceId" IS NOT NULL. "isPaymentTrigger"
+            -- seeds from the task template's own default (added to
+            -- projectTemplates so a lawyer can mark "this template is
+            -- normally a payment trigger" once, instead of re-ticking it on
+            -- every case's task by hand) — see
+            -- docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
             INSERT INTO tasks (
                 id, title, description, priority, status,
-                "serviceId", "projectId",
+                "serviceId", "projectId", "projectServiceId", "isPaymentTrigger",
                 "createdById", "updatedById",
                 "createdAt", "updatedAt",
                 "startDate", "estimatedDuration", "dueDate"
@@ -92,6 +103,8 @@ BEGIN
                 'toDo',
                 NEW."serviceId",
                 NEW."projectId",
+                NEW.id,
+                COALESCE(tmpl."isPaymentTrigger", false),
                 proj."createdById",
                 proj."updatedById",
                 timezone('Asia/Ho_Chi_Minh', now()), timezone('Asia/Ho_Chi_Minh', now()), timezone('Asia/Ho_Chi_Minh', now()),
@@ -100,122 +113,103 @@ BEGIN
             );
 
             -- ================================================
-            -- DUPLICATE FILE MẪU từ templateFile
+            -- DUPLICATE FILE MẪU từ projectTemplates.fileAttachment
             --
-            -- Cấu trúc:
-            --   projectTemplates.templateFileId
-            --       → t_10fx1ociynz (junction table)
-            --         f_qygfed3jkrn = templateFile.id  (sourceKey)
-            --         f_hxut6c1l6sn = attachments.id   (targetKey)
+            -- Cấu trúc (field belongsToMany "fileAttachment" trên
+            -- projectTemplates — field thực sự lưu file mẫu, quản lý bởi
+            -- UI "File:" trên form Task Template):
+            --   projectTemplates.id
+            --       → t_688a4j68kaz (junction table)
+            --         f_fpo4hw1cvbm = projectTemplates.id (sourceKey)
+            --         f_78rm80jeu4h = attachments.id       (targetKey)
             --       → attachments
+            --
+            -- LƯU Ý: KHÔNG dùng field "templateFileId" — đây là field cũ,
+            -- không còn được UI dùng để lưu file mẫu (giá trị cố định,
+            -- không phản ánh file thực tế đang gắn trên Task Template).
             -- ================================================
-            IF tmpl."templateFileId" IS NOT NULL THEN
 
-                -- Lấy attachment mới nhất từ templateFile
-                SELECT a.*
-                INTO v_attachment
-                FROM t_10fx1ociynz j
-                JOIN attachments a ON a.id = j.f_hxut6c1l6sn
-                WHERE j.f_qygfed3jkrn = tmpl."templateFileId"
-                ORDER BY a."createdAt" DESC
-                LIMIT 1;
+            -- Lấy attachment mới nhất gắn với Task Template qua fileAttachment
+            SELECT a.*
+            INTO v_attachment
+            FROM t_688a4j68kaz j
+            JOIN attachments a ON a.id = j.f_78rm80jeu4h
+            WHERE j.f_fpo4hw1cvbm = tmpl.id
+            ORDER BY a."createdAt" DESC
+            LIMIT 1;
 
-                IF FOUND THEN
+            IF FOUND THEN
 
-                    -- Tạo attachment record mới
-                    -- (copy metadata, dùng chung file vật lý)
-                    new_attach_id := (
-                        EXTRACT(EPOCH FROM clock_timestamp()) * 1000
-                    )::BIGINT * 1000 + (random() * 999)::INT;
+                -- KHÔNG tạo attachment record mới ở đây.
+                -- Nocobase resolve file vật lý dựa theo filename (không
+                -- dùng id) — nhiều document có thể trỏ chung 1 attachment
+                -- vật lý, cùng pattern với cloneLibraryFile() trong
+                -- TaskDetailView.js.
 
-                    INSERT INTO attachments (
-                        id, title, filename, extname, size,
-                        mimetype, path, url, meta,
-                        "storageId", "createdById", "updatedById",
-                        "createdAt", "updatedAt"
-                    )
-                    VALUES (
-                        new_attach_id,
-                        v_attachment.title,
-                        v_attachment.filename,
-                        v_attachment.extname,
-                        v_attachment.size,
-                        v_attachment.mimetype,
-                        v_attachment.path,
-                        v_attachment.url,
-                        v_attachment.meta,
-                        v_attachment."storageId",
-                        proj."createdById",
-                        proj."updatedById",
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours'
-                    );
+                -- Tạo document record gắn vào task
+                new_doc_id := (
+                    EXTRACT(EPOCH FROM clock_timestamp()) * 1000
+                )::BIGINT * 1000 + (random() * 999)::INT;
 
-                    -- Tạo document record gắn vào task
-                    new_doc_id := (
-                        EXTRACT(EPOCH FROM clock_timestamp()) * 1000
-                    )::BIGINT * 1000 + (random() * 999)::INT;
+                INSERT INTO documents (
+                    id,
+                    title,
+                    "documentType",
+                    "taskId",
+                    "collectionName",
+                    "sourceCollectionName",
+                    "sourceTaskId",
+                    "recordId",
+                    "sourceRecordId",
+                    "folderId",
+                    "customerId",
+                    "moduleScope",
+                    "storageType",
+                    "sourceProjectTemplateId",
+                    "variableConfigMode",
+                    "createdById",
+                    "updatedById",
+                    "createdAt",
+                    "updatedAt"
+                )
+                VALUES (
+                    new_doc_id,
+                    v_attachment.title,
+                    'File mẫu',
+                    new_task_id,
+                    'Task',
+                    'Task',
+                    new_task_id,
+                    new_task_id,
+                    new_task_id,
+                    v_root_folder_id,
+                    proj."customerId",
+                    'case_document',
+                    'tasks',
+                    tmpl.id,
+                    'inherited',
+                    proj."createdById",
+                    proj."updatedById",
+                    timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
+                    timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours'
+                );
 
-                    INSERT INTO documents (
-                        id,
-                        title,
-                        "documentType",
-                        "taskId",
-                        "collectionName",
-                        "sourceCollectionName",
-                        "sourceTaskId",
-                        "recordId",
-                        "sourceRecordId",
-                        "folderId",
-                        "customerId",
-                        "moduleScope",
-                        "storageType",
-                        "sourceProjectTemplateId",
-                        "variableConfigMode",
-                        "createdById",
-                        "updatedById",
-                        "createdAt",
-                        "updatedAt"
-                    )
-                    VALUES (
-                        new_doc_id,
-                        v_attachment.title,
-                        'File mẫu',
-                        new_task_id,
-                        'Task',
-                        'Task',
-                        new_task_id,
-                        new_task_id,
-                        new_task_id,
-                        v_root_folder_id,
-                        proj."customerId",
-                        'case_document',
-                        'tasks',
-                        tmpl.id,
-                        'inherited',
-                        proj."createdById",
-                        proj."updatedById",
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours'
-                    );
+                -- Link document <-> attachment gốc qua junction table
+                -- t_0scpzpnn80i: f_59h52fqfdtb = document.id
+                --                f_mkp5fpxvxdb = attachment.id
+                INSERT INTO t_0scpzpnn80i (
+                    "createdAt",
+                    "updatedAt",
+                    f_59h52fqfdtb,
+                    f_mkp5fpxvxdb
+                )
+                VALUES (
+                    timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
+                    timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
+                    new_doc_id,
+                    v_attachment.id
+                );
 
-                    -- Link document <-> attachment qua junction table
-                    -- t_0scpzpnn80i: f_59h52fqfdtb = document.id
-                    --                f_mkp5fpxvxdb = attachment.id
-                    INSERT INTO t_0scpzpnn80i (
-                        "createdAt",
-                        "updatedAt",
-                        f_59h52fqfdtb,
-                        f_mkp5fpxvxdb
-                    )
-                    VALUES (
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
-                        timezone('Asia/Ho_Chi_Minh', now()) + INTERVAL '2 hours',
-                        new_doc_id,
-                        new_attach_id
-                    );
-
-                END IF;
             END IF;
             -- ================================================
 

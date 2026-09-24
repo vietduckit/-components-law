@@ -30,6 +30,22 @@
 --
 -- Idempotent: every statement in this file is safe to run again on a
 -- database that already has some or all of it applied.
+--
+-- 2026-09-21 revision (§6h) — By Case installment/service tagging: uses 2
+-- new junction collections (created via Admin UI, matching this codebase's
+-- existing serviceCombos/serviceComboItems pattern instead of a JSON array
+-- or NocoBase's opaque auto-generated M2M through table):
+--   - "contractPaymentScheduleServices" (contractPaymentScheduleId,
+--     contractServiceId) — written by ContractCreateForm.js's Payment
+--     Schedule row editor (multi-select "Service" column, optional).
+--   - "paymentRequestServices" (paymentRequestId, contractServiceId) —
+--     populated below, by copying each matching
+--     contractPaymentScheduleServices row onto the newly created Payment
+--     Request. TaskDetailView.js/TaskManagement.js read THIS table (not
+--     contractPaymentScheduleServices) to narrow a task's installment
+--     picker to its own service. No rows tagged for an installment/PR
+--     means "no particular service" — visible to every task, same as
+--     before this feature existed.
 -- ============================================================
 
 -- ---- Drop the superseded contracts-insert trigger from
@@ -53,6 +69,9 @@ DECLARE
   v_initial_status TEXT;
   v_due_date TIMESTAMPTZ;
   v_request_note TEXT;
+  v_service_row RECORD;
+  v_pr_service_id BIGINT;
+  v_service_seq INT := 0;
 BEGIN
   SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId"
   INTO v_contract
@@ -96,6 +115,25 @@ BEGIN
     jsonb_build_object('label', NEW.label, 'percentage', NEW.percentage, 'amount', NEW.amount, 'dueDate', v_due_date),
     now(), now()
   );
+
+  -- Copy each service tag from the schedule row onto the newly created
+  -- Payment Request, via "paymentRequestServices" — see docs/superpowers/
+  -- specs/2026-09-17-unified-contract-payment-data-model-design.md §6h.
+  -- No rows here (untagged installment) means the PR is now hidden from
+  -- every task's installment picker (§6m, 2026-09-21) — Service is required
+  -- at authoring time, so this only happens for pre-§6m data.
+  FOR v_service_row IN
+    SELECT "contractServiceId" FROM "contractPaymentScheduleServices"
+    WHERE "contractPaymentScheduleId" = NEW.id
+  LOOP
+    v_service_seq := v_service_seq + 1;
+    v_pr_service_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT + v_service_seq;
+    INSERT INTO "paymentRequestServices" (
+      id, "paymentRequestId", "contractServiceId", "createdAt", "updatedAt"
+    ) VALUES (
+      v_pr_service_id, v_pr_id, v_service_row."contractServiceId", now(), now()
+    );
+  END LOOP;
 
   v_item_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
 

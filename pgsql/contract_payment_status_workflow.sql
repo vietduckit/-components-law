@@ -21,6 +21,21 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS "paymentStatus" character varying(
 -- to the table (contract_resolved_total(id), a plain lookup) and for a
 -- BEFORE INSERT trigger's NEW record, which is not yet visible to a SELECT
 -- against the table (contract_resolved_total_from_row(NEW)).
+--
+-- 2026-09-22 fix: the 4th fallback (`monthlyFee * retainerDuration`) broke
+-- `CREATE FUNCTION` outright on a freshly-restored DB — "missing FROM-clause
+-- entry for table c" — because contracts.monthlyFee/retainerDuration were
+-- already DROPPED by pgsql/contracts_drop_dead_columns.sql (2026-09-08,
+-- superseded by the contractBillingPlans architecture) on that DB, and this
+-- is a plain LANGUAGE sql function — Postgres validates every column
+-- reference in its body at CREATE time, not lazily like plpgsql, so an
+-- unreachable branch still fails to even compile once its columns are gone.
+-- Removed rather than repointed at contractBillingPlans: ContractCreateForm.js
+-- already keeps contracts.totalAmount in sync for every contract type,
+-- Retainer included (deriveForm sets it via calcTotalByFeeModel on every
+-- relevant field change), so the 1st fallback (`totalAmount`) already
+-- resolves before this branch would ever be reached — confirmed dead code,
+-- not a behavior change.
 CREATE OR REPLACE FUNCTION public.contract_resolved_total_from_row(c contracts)
 RETURNS NUMERIC
 LANGUAGE sql
@@ -30,7 +45,6 @@ AS $function$
     NULLIF(c."totalAmount", 0),
     NULLIF(c."fixedAmount", 0),
     NULLIF(c."subTotal", 0) + COALESCE(c."vatAmount", 0),
-    NULLIF(c."monthlyFee", 0) * NULLIF(c."retainerDuration", 0),
     0
   );
 $function$;
@@ -80,13 +94,21 @@ BEGIN
 
   v_total := contract_resolved_total(v_contract_id);
 
+  -- 2026-09-22 fix: was `= 'received'` only — PaymentCreateBlock.js's own
+  -- ACTUAL_PAYMENT_STATUSES already treats 'partial' as real money received
+  -- (a customer paying part of an installment is still real cash in hand,
+  -- just not enough to fully settle that one request), so this contract-
+  -- level rollup was silently under-counting whenever a payment was
+  -- recorded as 'Partial' — outStandingAmount stayed at the full total
+  -- until/unless that same payment row later got bumped to exactly
+  -- 'received'. Matches ACTUAL_PAYMENT_STATUSES exactly now.
   SELECT COALESCE(SUM(p.amount), 0) INTO v_received
   FROM payments p
   WHERE p."contractId" = v_contract_id
-    AND LOWER(p."paymentStatus") = 'received';
+    AND LOWER(p."paymentStatus") IN ('received', 'paid', 'completed', 'partial');
 
   UPDATE contracts
-  SET "outStandingAmount" = v_total - v_received,
+  SET "outStandingAmount" = GREATEST(v_total - v_received, 0),
       "paymentStatus" = CASE
         WHEN (v_total - v_received) <= 0 THEN 'paid'
         WHEN v_received > 0 THEN 'partial'
@@ -238,14 +260,16 @@ CREATE TRIGGER trg_case_auto_complete_when_tasks_done
 -- ran — their outStandingAmount/paymentStatus are still at the column
 -- default (0/'unpaid') because ADD COLUMN ... DEFAULT doesn't fire an
 -- INSERT trigger. Safe to run repeatedly — recompute, not increment.
+-- Re-run again after the 2026-09-22 'partial' fix above — this backfill
+-- has its own copy of the same filter and needs to match.
 WITH received AS (
   SELECT "contractId", COALESCE(SUM(amount), 0) AS total_received
   FROM payments
-  WHERE "contractId" IS NOT NULL AND LOWER("paymentStatus") = 'received'
+  WHERE "contractId" IS NOT NULL AND LOWER("paymentStatus") IN ('received', 'paid', 'completed', 'partial')
   GROUP BY "contractId"
 )
 UPDATE contracts c
-SET "outStandingAmount" = contract_resolved_total(c.id) - COALESCE(r.total_received, 0),
+SET "outStandingAmount" = GREATEST(contract_resolved_total(c.id) - COALESCE(r.total_received, 0), 0),
     "paymentStatus" = CASE
       WHEN (contract_resolved_total(c.id) - COALESCE(r.total_received, 0)) <= 0 THEN 'paid'
       WHEN COALESCE(r.total_received, 0) > 0 THEN 'partial'
