@@ -338,9 +338,9 @@
     <div class="toc-meta">
       <span>SRS — Hệ thống Liên kết</span>
       <span>|</span>
-      <span>v1.0.0 · 12/06/2026</span>
+      <span>v1.1.0 · 11/08/2026</span>
       <span>|</span>
-      <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js</span>
+      <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js · CaseDocument.js</span>
     </div>
   </div>
   <ol>
@@ -353,6 +353,8 @@
     <li><a href="#s7">Cơ sở dữ liệu — Relations & Fields</a></li>
     <li><a href="#s8">Luồng dữ liệu đầy đủ</a></li>
     <li><a href="#s9">Bộ Test Case</a></li>
+    <li><a href="#s10">CaseDocument.js — Modal "Link" & Case's Ref Sidebar</a></li>
+    <li><a href="#s11">Bộ Test Case — CaseDocument.js Link</a></li>
   </ol>
 </div>
 
@@ -429,6 +431,11 @@
       <td><code>All Module/Document/Library.js</code></td>
       <td>Space "Legal Study" trong Library module</td>
       <td>Hiển thị tài liệu theo Legal Study; ghi activity log khi link/unlink</td>
+    </tr>
+    <tr>
+      <td><code>All Module/Document/CaseDocument.js</code></td>
+      <td>Nút "Link" trong toolbar workspace tài liệu của 1 Case (chỉ hiện ở <code>activeSpace === "cases"</code>) + mục "Case's Ref" trong sidebar</td>
+      <td>Tạo mới link Case↔Case, Case↔Reference (whole-entity), Case↔folder/document cụ thể — ghi trực tiếp vào <code>caseReferences</code>/<code>legalStudy</code>/<code>caseLegalStudyLinks</code>. Xem chi tiết ở §10.</td>
     </tr>
   </tbody>
 </table>
@@ -1173,10 +1180,175 @@ Refresh visibleDocs → document xuất hiện trong Legal Study space</pre>
   </tbody>
 </table>
 
+<!-- ══════════════════════════════════════════════════
+     §10 CASEDOCUMENT.JS LINK
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s10"><span class="num">10</span> CaseDocument.js — Modal "Link" &amp; Case's Ref Sidebar</h2>
+
+<p><code>CaseDocument.js</code> (workspace tài liệu của riêng 1 Case) trước đây chỉ đọc 3 nguồn quan hệ liên kết (<code>caseReferences</code>, <code>legalStudy</code>, <code>caseLegalStudyLinks</code>) do <code>LegalReferenceWorkspace.js</code> ghi — không có UI để tự tạo link. Nút <strong>"Link"</strong> mới trong toolbar (chỉ hiện khi <code>activeSpace === "cases"</code>, tức đang đứng ở cây tài liệu gốc của Case) lấp khoảng trống này, ghi trực tiếp vào đúng 3 nguồn dữ liệu đã có — không thêm collection mới. Đây là tính năng tách biệt hoàn toàn với modal "Link Reference Case" cũ (<code>isLinkCaseOpen</code>) vốn chỉ gắn Case vào field <code>.cases</code> của 1 record <code>legalReference</code>.</p>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-12</span>
+    <span class="feature-name">Tab "Case" — Link toàn bộ Case hoặc folder/document cụ thể</span>
+  </div>
+  <div class="feature-body">
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label ui">UI</div>
+        <div class="layer-content"><ul>
+          <li>Chọn 1 Case đích (loại trừ chính Case đang mở, và các Case đã link — <code>linkedCaseIdSet</code>)</li>
+          <li>Không chọn folder/document nào → link cả Case (<code>caseReferences:add</code>) + cấp quyền <code>folderMembers</code> lên root folder của Case đích</li>
+          <li>Chọn 1+ folder cấp-2 hoặc document ở root Case đích (<code>LinkTargetPicker</code>) → mỗi item tạo 1 dòng <code>caseLegalStudyLinks</code> riêng, cấp quyền scoped đúng item đó</li>
+          <li>Người được cấp quyền chỉ lấy từ team hiện có của Case đang mở (<code>linkCaseGrantableTeam</code>) — không phải toàn bộ danh bạ luật sư công ty</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API</div>
+        <div class="layer-content"><ul>
+          <li><code>POST projects/{caseId}/caseReferences:add</code> — link cả Case</li>
+          <li><code>POST caseLegalStudyLinks:create</code> — <code>{ caseId, targetFolderId | targetDocumentId, folderName, caseName }</code></li>
+          <li><code>POST folderMembers:create</code> — cấp quyền folder (role: viewer)</li>
+          <li><code>POST documentShares:create</code> — cấp quyền document theo Nocobase <code>userId</code> (không phải <code>lawyerId</code>)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-13</span>
+    <span class="feature-name">Tab "Reference" — luôn link whole-entity, folder chỉ là shortcut</span>
+  </div>
+  <div class="feature-body">
+    <p>Khác với tab "Case", việc chọn folder ở tab này <strong>không</strong> thu hẹp phạm vi quyền truy cập — quyền của mọi folder thuộc 1 Reference (<code>legalStudy</code>) chỉ được resolve qua Manager/Members của chính entity đó (<code>resolveLegalEntityFolderPerms</code>), không qua <code>folderManagers</code>/<code>folderMembers</code> theo từng folder.</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Luồng submit (<code>handleLinkReferenceTabSubmit</code>)</div>
+        <div class="layer-content"><ul>
+          <li>Luôn gọi <code>projects/{caseId}/legalStudy:add</code> trước — đây mới là quan hệ cấp quyền thật</li>
+          <li>Mỗi folder cấp-2 được chọn thêm (tùy chọn) tạo 1 dòng <code>caseLegalStudyLinks</code> — chỉ để làm shortcut điều hướng nhanh trong sidebar, không cấp thêm quyền gì</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API</div>
+        <div class="layer-content"><ul>
+          <li><code>POST projects/{caseId}/legalStudy:add</code> — <code>{ tk: referenceId }</code></li>
+          <li><code>POST caseLegalStudyLinks:create</code> — mỗi folder chọn thêm 1 dòng</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-14</span>
+    <span class="feature-name">Sidebar "Case's Ref" hợp nhất — 1 danh sách phẳng thay vì 3 mục riêng</span>
+  </div>
+  <div class="feature-body">
+    <p>Trước đây sidebar có 3 mục riêng biệt (Linked Cases / Case Study / Legal Study Links) — nay gộp thành 1 danh sách phẳng duy nhất "Case's Ref", vì cả 3 loại link đều cùng bản chất "1 folder gốc để nhảy vào xem".</p>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Suppress trùng lặp</div>
+        <div class="layer-content"><ul>
+          <li><code>legalStudyIdsWithFolderShortcut</code> — tập <code>legalStudyId</code> đã có ít nhất 1 shortcut folder cụ thể</li>
+          <li>Dòng whole-Reference bị ẩn khỏi danh sách nếu <code>legalStudyId</code> nằm trong tập này — tránh hiện 2 dòng (shortcut + whole-Reference) cho cùng 1 hành động link</li>
+          <li>Quan hệ <code>legalStudy:add</code> vẫn luôn được tạo (§ FEAT-13) — chỉ ẩn dòng hiển thị, không ẩn quyền truy cập</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label logic">Title luôn LIVE, không dùng snapshot cũ</div>
+        <div class="layer-content"><ul>
+          <li><code>link.caseName</code> là snapshot tên lưu tại thời điểm tạo link — sẽ lệch nếu Reference bị đổi tên sau đó</li>
+          <li>Sub-label của mỗi shortcut nay resolve qua <code>legalStudyById.get(studyId)?.title</code> (join sống), chỉ fallback về snapshot khi record không có <code>legalStudyId</code> (link case-bound, không thuộc Reference)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="feature-block">
+  <div class="feature-header">
+    <span class="feature-id">FEAT-15</span>
+    <span class="feature-name">Remove Link — tự dọn quan hệ root mồ côi (fix 11/08/2026)</span>
+  </div>
+  <div class="feature-body">
+    <div class="box box-warn">
+      <strong>Lỗi tiềm ẩn đã fix:</strong> "Remove Link" trên 1 shortcut folder trước đây chỉ xoá đúng dòng <code>caseLegalStudyLinks</code> đó, để nguyên quan hệ <code>legalStudy</code> (whole-Reference) đã tạo kèm theo ở FEAT-13. Nếu đó là shortcut cuối cùng trỏ vào Reference đó, quan hệ root trở thành mồ côi — không còn shortcut nào tham chiếu tới, nhưng vẫn đang linked, khiến Reference <strong>tự "hiện lại"</strong> thành 1 dòng whole-Reference riêng trong sidebar (trước đó đang bị ẩn bởi FEAT-14) — người dùng phải nhận ra và remove thêm lần thứ 2.
+    </div>
+    <div class="layer-grid">
+      <div class="layer-card">
+        <div class="layer-label logic">Luồng xử lý (<code>handleRemoveLegalStudyLink</code>)</div>
+        <div class="layer-content"><ul>
+          <li>Đọc <code>studyId</code> của link (qua <code>.folders.legalStudyId</code> hoặc <code>.documents.legalStudyId</code>) <strong>trước khi</strong> xoá</li>
+          <li>Xoá dòng <code>caseLegalStudyLinks</code> như cũ</li>
+          <li>Kiểm tra còn dòng <code>caseLegalStudyLinks</code> nào khác cùng <code>studyId</code> không (trường hợp Reference có nhiều shortcut folder)</li>
+          <li>Nếu <strong>không còn</strong> shortcut nào khác → gọi thêm <code>legalStudy:remove</code> để xoá luôn quan hệ root — nếu còn shortcut khác thì giữ nguyên (tránh cắt quyền của shortcut còn lại, vì quyền Reference chỉ resolve qua Manager/Members của entity, không theo từng shortcut)</li>
+        </ul></div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-label api">API</div>
+        <div class="layer-content"><ul>
+          <li><code>POST caseLegalStudyLinks:destroy?filterByTk={linkId}</code></li>
+          <li><code>POST projects/{caseId}/legalStudy:remove</code> — <code>{ tk: studyId }</code> (chỉ khi không còn shortcut nào khác)</li>
+        </ul></div>
+      </div>
+    </div>
+    <pre>
+<span class="c">// handleRemoveLegalStudyLink — rút gọn</span>
+<span class="k">const</span> studyId = extractId(linkRecord?.folders?.legalStudyId)
+  || extractId(linkRecord?.documents?.legalStudyId);
+
+<span class="k">await</span> destroy(<span class="s">`caseLegalStudyLinks:destroy?filterByTk=${linkId}`</span>);
+
+<span class="k">if</span> (studyId) {
+  <span class="k">const</span> stillHasOtherShortcut = caseLegalStudyLinks.some(l =&gt;
+    l.id !== linkId &amp;&amp; sameStudyId(l, studyId)
+  );
+  <span class="k">if</span> (!stillHasOtherShortcut) {
+    <span class="k">await</span> post(<span class="s">`projects/${caseId}/legalStudy:remove`</span>, { tk: studyId });
+  }
+}</pre>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     §11 TEST CASE — CASEDOCUMENT LINK
+════════════════════════════════════════════════════ -->
+<h2 class="section-title" id="s11"><span class="num">11</span> Bộ Test Case — CaseDocument.js Link</h2>
+
+<div class="box box-warn">
+  Tất cả test thực hiện bằng tay (Manual). Kết quả Pass/Fail lưu tại: <em>[Link Google Sheet sẽ điền sau khi test]</em>
+</div>
+
+<h3 class="sub-title">TC-07: Tạo link từ tab "Case" / "Reference"</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-07-01</td><td>Link toàn bộ Case (không chọn folder)</td><td>Nút Link → tab Case → chọn Case đích → không tick folder nào → Link</td><td>Dòng Case mới xuất hiện trong "Case's Ref"; quyền cấp cho team đã chọn trên root folder Case đích</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-07-02</td><td>Link 1 folder cấp-2 cụ thể của Case khác</td><td>Tab Case → chọn Case đích → tick 1 folder → Link</td><td>1 shortcut folder xuất hiện; chỉ folder đó accessible, không phải cả cây</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-07-03</td><td>Link Reference kèm chọn 1 folder gốc của nó</td><td>Tab Reference → chọn Reference → tick 1 folder → Link</td><td>Chỉ 1 dòng shortcut hiện trong sidebar (dòng whole-Reference bị ẩn theo FEAT-14), không phải 2 dòng</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-07-04</td><td>Link Reference không chọn folder nào</td><td>Tab Reference → chọn Reference → không tick gì → Link</td><td>Dòng whole-Reference hiện trong sidebar, tên đúng theo <code>title</code> hiện tại của Reference</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
+<h3 class="sub-title">TC-08: Remove Link — dọn quan hệ root mồ côi</h3>
+<table>
+  <thead><tr><th>TC ID</th><th>Scenario</th><th>Steps</th><th>Expected</th><th>Kết quả</th></tr></thead>
+  <tbody>
+    <tr><td>TC-08-01</td><td>Remove shortcut folder duy nhất của 1 Reference</td><td>Link Reference kèm 1 folder (chỉ 1 shortcut) → right-click shortcut → Remove Link</td><td>Shortcut biến mất; dòng whole-Reference <strong>không</strong> tự xuất hiện lại (đã bị xoá cùng lúc, không phải "mồ côi")</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-08-02</td><td>Remove 1 trong nhiều shortcut cùng Reference</td><td>Link Reference kèm 2 folder khác nhau → remove 1 shortcut</td><td>Shortcut còn lại vẫn truy cập bình thường; whole-Reference relation vẫn còn (không bị xoá vì còn shortcut khác dùng)</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-08-03</td><td>Remove shortcut Case-bound (không thuộc Reference)</td><td>Link 1 folder từ tab Case (không phải Reference) → Remove Link</td><td>Chỉ dòng <code>caseLegalStudyLinks</code> bị xoá; không có lệnh <code>legalStudy:remove</code> nào được gọi (folder không có <code>legalStudyId</code>)</td><td class="test-manual">Manual</td></tr>
+    <tr><td>TC-08-04</td><td>Rename Reference sau khi đã link folder</td><td>Link Reference kèm folder → đổi tên Reference qua rename folder gốc (Library.js) → quay lại sidebar Case</td><td>Sub-label của shortcut cập nhật theo tên mới ngay (đọc live qua <code>legalStudyById</code>), không kẹt theo snapshot cũ</td><td class="test-manual">Manual</td></tr>
+  </tbody>
+</table>
+
 <!-- Footer -->
 <div style="margin-top: 64px; padding-top: 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; display: flex; justify-content: space-between;">
-  <span>SRS — Hệ thống Liên kết Case Reference · Legal Study · Case · v1.0.0 · 12/06/2026</span>
-  <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js</span>
+  <span>SRS — Hệ thống Liên kết Case Reference · Legal Study · Case · v1.1.0 · 11/08/2026</span>
+  <span>JsLegalReferenceLinks.js · JsLegalStudyLinks.js · Library.js · CaseDocument.js</span>
 </div>
 
 </body>

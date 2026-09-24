@@ -34,7 +34,7 @@
 
 This task is pure data plumbing: it changes what data reaches `ServiceSection`, but adds no new visible UI. Existing behavior must be pixel-identical after this task.
 
-- [ ] **Step 1: Add shared helpers next to `getProjectServiceTaskKey`**
+- [x] **Step 1: Add shared helpers next to `getProjectServiceTaskKey`**
 
 Find (around line 360):
 
@@ -75,7 +75,7 @@ const sortTasksByDisplayOrder = (list) =>
   });
 ```
 
-- [ ] **Step 2: Add `serviceCatalog` state to `ProjectTasksTab`**
+- [x] **Step 2: Add `serviceCatalog` state to `ProjectTasksTab`**
 
 Find:
 
@@ -92,7 +92,7 @@ Replace with:
   const [loading, setLoading] = useState(true);
 ```
 
-- [ ] **Step 3: Fetch the catalog in `reload()`**
+- [x] **Step 3: Fetch the catalog in `reload()`**
 
 Find:
 
@@ -133,7 +133,7 @@ Replace with:
         ]);
 ```
 
-- [ ] **Step 4: Store the fetched catalog**
+- [x] **Step 4: Store the fetched catalog**
 
 Find:
 
@@ -154,7 +154,7 @@ Replace with:
       setCurrentUser(user);
 ```
 
-- [ ] **Step 5: Thread `serviceCatalog` + build `psByKeyMap` in `ListView`**
+- [x] **Step 5: Thread `serviceCatalog` + build `psByKeyMap` in `ListView`**
 
 Find:
 
@@ -257,7 +257,7 @@ Replace with:
       });
 ```
 
-- [ ] **Step 6: Accept the new props on `ServiceSection` (unused for now)**
+- [x] **Step 6: Accept the new props on `ServiceSection` (unused for now)**
 
 Find:
 
@@ -317,7 +317,7 @@ const ServiceSection = ({
 }) => {
 ```
 
-- [ ] **Step 7: Thread `serviceCatalog` through the `ProjectTasksTab` → `ListView` call site**
+- [x] **Step 7: Thread `serviceCatalog` through the `ProjectTasksTab` → `ListView` call site**
 
 Find:
 
@@ -364,7 +364,7 @@ git commit -m "feat(task-management): thread service catalog + case-service data
 
 After this task, clicking "Save as template" is a complete, working flow. Clicking "Override existing template" sets state but nothing visibly happens yet (Task 3 adds the modal that reads it) — this is expected and resolved by the end of Task 3.
 
-- [ ] **Step 1: Add the action-menu state and disabled/tooltip logic to `ServiceSection`**
+- [x] **Step 1: Add the action-menu state and disabled/tooltip logic to `ServiceSection`**
 
 Find:
 
@@ -398,7 +398,7 @@ Replace with:
       : "";
 ```
 
-- [ ] **Step 2: Accept `onOpenTemplateAction` on `ServiceSection`**
+- [x] **Step 2: Accept `onOpenTemplateAction` on `ServiceSection`**
 
 Find (this is the result of Task 1's Step 6 edit):
 
@@ -417,7 +417,7 @@ Replace with:
 }) => {
 ```
 
-- [ ] **Step 3: Render the "⋮" action menu in the header**
+- [x] **Step 3: Render the "⋮" action menu in the header**
 
 Find:
 
@@ -587,7 +587,7 @@ Replace with:
     ),
 ```
 
-- [ ] **Step 4: Thread `onOpenTemplateAction` through `ListView`**
+- [x] **Step 4: Thread `onOpenTemplateAction` through `ListView`**
 
 Find (result of Task 1's Step 5 edit):
 
@@ -661,7 +661,7 @@ Replace with:
       });
 ```
 
-- [ ] **Step 5: Add `templateAction` state to `ProjectTasksTab` and thread the callback down**
+- [x] **Step 5: Add `templateAction` state to `ProjectTasksTab` and thread the callback down**
 
 Find (result of Task 1's Step 2 edit):
 
@@ -733,7 +733,7 @@ Replace with:
             }),
 ```
 
-- [ ] **Step 6: Define `SaveAsTemplateModal`**
+- [x] **Step 6: Define `SaveAsTemplateModal`**
 
 Find:
 
@@ -861,7 +861,7 @@ const SaveAsTemplateModal = ({
 const ProjectTasksTab = () => {
 ```
 
-- [ ] **Step 7: Render `SaveAsTemplateModal` from `ProjectTasksTab`**
+- [x] **Step 7: Render `SaveAsTemplateModal` from `ProjectTasksTab`**
 
 Find:
 
@@ -953,7 +953,7 @@ git commit -m "feat(task-management): add per-service action menu and Save as te
 - Consumes: `sortTasksByDisplayOrder` (Task 1), `fetchAll`/`apiReq` (pre-existing file helpers), `templateAction`/`setTemplateAction`/`serviceCatalog` (Task 2).
 - Produces: `OverrideTemplateModal` component, wired into `ProjectTasksTab`'s render for `templateAction?.mode === "override"`.
 
-- [ ] **Step 1: Define `OverrideTemplateModal`**
+- [x] **Step 1: Define `OverrideTemplateModal`**
 
 Find (this is the result of Task 2's Step 6 edit — the `SaveAsTemplateModal` component's closing brace, right before the `§10 MAIN` section comment):
 
@@ -1183,7 +1183,7 @@ const OverrideTemplateModal = ({
 const ProjectTasksTab = () => {
 ```
 
-- [ ] **Step 2: Render `OverrideTemplateModal` from `ProjectTasksTab`**
+- [x] **Step 2: Render `OverrideTemplateModal` from `ProjectTasksTab`**
 
 Find (this is the result of Task 2's Step 7 edit):
 

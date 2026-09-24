@@ -10,6 +10,8 @@ Hệ thống quản lý công ty luật xây dựng trên nền tảng **Nocobas
 - [nocobase-docs/document-system.md](nocobase-docs/document-system.md) — Document system
 - [nocobase-docs/document-inline-edit-upload-grouping-pattern.md](nocobase-docs/document-inline-edit-upload-grouping-pattern.md) — Pattern chuẩn cho inline-edit metadata (Table view) + gom nhóm multi-file upload thành folder; đọc trước khi thêm/sửa 2 tính năng này ở bất kỳ file document nào (Library.js, CaseDocument.js, CustomerDocument.js, ...)
 - [nocobase-docs/library-js-architecture-reference.md](nocobase-docs/library-js-architecture-reference.md) — Tổng kết toàn bộ kiến trúc/business logic/UI-UX của Library.js (permission model, navigation, CRUD flows, components) — dùng làm chuẩn khi tối ưu/đồng bộ CaseDocument.js hoặc file document khác
+- [shared-lib/README.md](shared-lib/README.md) — Thư viện hàm dùng chung (`parseNum`, `fmtVND`, `fmtDate`, `extractId`, `initials`, `avatarBg`, date-range helpers...) load qua `ctx.importAsync()`; đọc trước khi thêm 1 hàm format/parse mới có khả năng dùng lại ở block khác, hoặc khi refactor 1 file JS Block cũ sang dùng thư viện này
+- **NocoBase source** (`c:\Users\Viet\Desktop\nocobase`, nếu có sẵn trên máy) — xem [nocobase's own CLAUDE.md](../nocobase/CLAUDE.md) làm bản đồ tra cứu; chỉ đào khi cần hiểu sâu hành vi `ctx`/engine hoặc cân nhắc viết plugin thật, không đọc toàn bộ mỗi lần
 
 ---
 
@@ -18,6 +20,7 @@ Hệ thống quản lý công ty luật xây dựng trên nền tảng **Nocobas
 ```
 All Module/          # Business modules (Case, Contract, Quotation, Task, Document, Note)
 JsField/             # Custom JS Field/Action blocks tái sử dụng
+shared-lib/          # Thư viện hàm thuần (pure function) dùng chung qua ctx.importAsync
 pgsql/               # PostgreSQL trigger functions (activity log, auto-set, protect fields)
 nocobase-docs/       # Tài liệu Nocobase đã distill (đọc khi cần, không load tự động)
 ```
@@ -225,17 +228,8 @@ $$ LANGUAGE plpgsql;
 
 ## Patterns phổ biến
 
-```javascript
-// Avatar từ tên
-const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0,2).join("").toUpperCase();
-const avatarBg = name => { const cs=["#2563eb","#7c3aed","#059669",...]; let h=0; for(let c of name) h=(h*31+name.charCodeAt(0))%cs.length; return cs[h]; };
-
-// Format ngày
-const fmtDate = d => { if(!d) return "—"; const dt=new Date(d); return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")}/${dt.getFullYear()}`; };
-
-// Safe parse
-const safeNum = v => parseFloat(String(v).replace(/[^\d.-]/g,"")) || 0;
-```
+`initials`/`avatarBg`/`fmtDate`/`parseNum` và các helper tương tự nằm ở
+[shared-lib/law-shared.js](shared-lib/law-shared.js) — xem rule #8, đừng định nghĩa lại inline.
 
 ---
 
@@ -254,3 +248,12 @@ View UIDs là chuỗi 8–12 ký tự alphanumeric được hardcode (ví dụ `
 5. Mọi số tiền hiển thị theo định dạng VND
 6. Status label + màu lấy từ `STATUS_CFG` object, không hardcode inline
 7. Dùng `ctx.sql()` chỉ khi cần query phức tạp không làm được qua API (complex JOIN, aggregation)
+8. Trước khi viết `parseNum`/`fmtVND`/`fmtDate`/`extractId`/`initials`/`avatarBg`/date-range helper mới, kiểm tra `shared-lib/law-shared.js` xem đã có chưa — load qua `ctx.importAsync(SHARED_LIB_URL)`, không copy-paste định nghĩa cũ sang file mới (xem [shared-lib/README.md](shared-lib/README.md))
+
+---
+
+## Kiểm tra trước khi bàn giao
+
+Không có test runner cho JS Block — verify 2 bước:
+1. **Cú pháp**: `node -e '...@babel/parser parse(code, { sourceType: "module", allowAwaitOutsideFunction: true, plugins: ["jsx"] })...'` — bắt buộc `allowAwaitOutsideFunction: true` nếu file dùng top-level `await` (ví dụ pattern `shared-lib`), nếu không sẽ báo lỗi giả.
+2. **Hành vi**: dán vào NocoBase **dev/staging** (có sẵn) để test trước khi đưa lên production.
