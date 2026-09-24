@@ -37,7 +37,9 @@ PATTERNS=(
 )
 
 # Placeholders / test fixtures that match the generic rules but are fine.
-ALLOW='secret-scan:allow|secret123|process\.env|<[a-z-]*(password|token|secret)[a-z-]*>|["'"'"']x{3,}["'"'"']|your[_-]?(password|token|secret)'
+# ***REMOVED*** is what the 2026-09-24 history purge left where leaked
+# passwords used to be.
+ALLOW='secret-scan:allow|\*\*\*REMOVED\*\*\*|secret123|process\.env|<[a-z-]*(password|token|secret)[a-z-]*>|["'"'"']x{3,}["'"'"']|your[_-]?(password|token|secret)'
 
 [ -n "$DENY" ] && PATTERNS+=("$DENY")
 joined=$(IFS='|'; echo "${PATTERNS[*]}")
