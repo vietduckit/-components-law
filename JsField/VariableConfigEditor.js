@@ -9,12 +9,12 @@ const { Input, Select, Button, Space, Empty } = ctx.antd;
 // both copies must be kept in sync by hand if this catalog changes.
 const VARIABLE_CATALOG = {
   case: {
-    label: "Hồ sơ",
+    label: "Vụ việc",
     fields: [
-      { key: "case.caseCode", label: "Số hồ sơ", format: "text" },
-      { key: "case.projectName", label: "Tên hồ sơ", format: "text" },
-      { key: "case.date", label: "Ngày mở hồ sơ", format: "date" },
-      { key: "case.deadline", label: "Hạn hồ sơ", format: "date" },
+      { key: "case.caseCode", label: "Số vụ việc", format: "text" },
+      { key: "case.projectName", label: "Tên vụ việc", format: "text" },
+      { key: "case.date", label: "Ngày mở vụ việc", format: "date" },
+      { key: "case.deadline", label: "Hạn vụ việc", format: "date" },
     ],
   },
   customer: {
@@ -26,6 +26,8 @@ const VARIABLE_CATALOG = {
       { key: "customer.phone", label: "Số điện thoại", format: "text" },
       { key: "customer.taxCode", label: "Mã số thuế", format: "text" },
       { key: "customer.identityNumber", label: "Số CCCD/CMND", format: "text" },
+      { key: "customer.identityIssuedDate", label: "Ngày cấp CCCD/CMND", format: "date" },
+      { key: "customer.identityIssuedPlace", label: "Nơi cấp CCCD/CMND", format: "text" },
       { key: "customer.corporateRepresentative", label: "Người đại diện pháp luật", format: "text" },
     ],
   },
@@ -38,6 +40,10 @@ const VARIABLE_CATALOG = {
       { key: "quotation.subTotal", label: "Tổng trước VAT", format: "currency" },
       { key: "quotation.vatAmount", label: "Tổng VAT", format: "currency" },
       { key: "quotation.totalAmount", label: "Tổng sau VAT", format: "currency" },
+      // Computed by fetchGenerateContext (TaskDetailView.js) as vatAmount > 0 —
+      // this JsField editor only builds the config list, it never resolves
+      // values itself, so no matching computation needed here.
+      { key: "quotation.isTaxed", label: "Có tính VAT", format: "boolean" },
     ],
   },
   contract: {
