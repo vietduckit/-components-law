@@ -317,6 +317,11 @@ const QUILL_SIZE_LABEL_CSS = QUILL_FONT_SIZES.map(
     .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="${size}"]::before { content: "${size}"; }
   `,
 ).join("");
+// Ported from Task/TaskDetailView.js — the real inline "@" mention chip
+// style, matching the markup getCommentText()'s mention-stripping regex
+// above already expects (mention-tag class + data-id attr).
+const MENTION_TAG_STYLE_CSS =
+    "color: #096dd9; background: #e6f4ff; border-radius: 4px; padding: 0 4px; font-weight: 600; font-size: 13px; border: 1px solid #91caff; margin: 0 2px; display: inline-block;";
 const loadQuillAsync = () => {
     if (_quillLoadPromise) return _quillLoadPromise;
     _quillLoadPromise = ctx
@@ -340,6 +345,35 @@ const loadQuillAsync = () => {
                 const SizeStyle = Q.import("attributors/style/size");
                 SizeStyle.whitelist = QUILL_FONT_SIZES;
                 Q.register(SizeStyle, true);
+            } catch { }
+            try {
+                // Ported from Task/TaskDetailView.js — custom inline "mention"
+                // embed inserted when picking a lawyer from the in-editor "@"
+                // trigger dropdown (see QuillEditor below). Registered under a
+                // unique, real-HTML-incompatible tag name ("law-mention", not
+                // "span") so Quill's clipboard converter never mis-treats an
+                // ordinary pasted <span> as a mention embed.
+                const Embed = Q.import("blots/embed");
+                class MentionBlot extends Embed {
+                    static create(data) {
+                        const node = super.create();
+                        node.setAttribute("data-id", data.id);
+                        node.setAttribute("contenteditable", "false");
+                        node.classList.add("mention-tag");
+                        node.style.cssText = MENTION_TAG_STYLE_CSS;
+                        node.textContent = `@${data.name}`;
+                        return node;
+                    }
+                    static value(node) {
+                        return {
+                            id: node.getAttribute("data-id"),
+                            name: (node.textContent || "").replace(/^@/, ""),
+                        };
+                    }
+                }
+                MentionBlot.blotName = "mention";
+                MentionBlot.tagName = "law-mention";
+                Q.register(MentionBlot, true);
             } catch { }
             return Q;
         });
@@ -371,20 +405,115 @@ const QuillEditor = ({
     placeholder,
     onSubmit,
     onUploadClick,
+    lawyers = [],
+    assignedIds = [],
+    onAssignMultiple,
 }) => {
     const containerRef = useRef(null);
+    // Anchor for the mention dropdown's position math below (ported from
+    // Task/TaskDetailView.js) — a rect delta against this wrapper stays
+    // correct regardless of scroll/zoom on shared ancestors.
+    const wrapperRef = useRef(null);
     const quillRef = useRef(null);
     const [ready, setReady] = useState(false);
     const [error, setError] = useState(null);
+    const onChangeRef = useRef(onChange);
     const onUploadClickRef = useRef(onUploadClick);
     const onSubmitRef = useRef(onSubmit);
+    const lawyersRef = useRef(lawyers);
+    const assignedIdsRef = useRef(assignedIds);
+    const onAssignMultipleRef = useRef(onAssignMultiple);
+    const seenMentionIdsRef = useRef(new Set());
+    const pasteInProgressRef = useRef(false);
+    const pasteFallbackResetTimerRef = useRef(null);
 
+    // ── "@" mention dropdown — ported from Task/TaskDetailView.js. Typing
+    // "@" directly in the editor opens a lawyer picker at the caret and
+    // inserts a real Quill "mention" embed (registered in loadQuillAsync)
+    // instead of only relying on the separate MentionPicker button below.
+    const [mentionOpen, setMentionOpen] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState("");
+    const [mentionActiveIdx, setMentionActiveIdx] = useState(0);
+    const [mentionPos, setMentionPos] = useState({ top: 0, left: 0, maxHeight: 360 });
+    const mentionMatchRef = useRef(null);
+    const mentionOpenRef = useRef(false);
+    const mentionActiveIdxRef = useRef(0);
+    const selectMentionLawyerRef = useRef(null);
+    const mentionItemElsRef = useRef({});
+
+    useEffect(() => {
+        onChangeRef.current = onChange;
+    }, [onChange]);
     useEffect(() => {
         onUploadClickRef.current = onUploadClick;
     }, [onUploadClick]);
     useEffect(() => {
         onSubmitRef.current = onSubmit;
     }, [onSubmit]);
+    useEffect(() => {
+        lawyersRef.current = lawyers;
+    }, [lawyers]);
+    useEffect(() => {
+        assignedIdsRef.current = assignedIds;
+    }, [assignedIds]);
+    useEffect(() => {
+        onAssignMultipleRef.current = onAssignMultiple;
+    }, [onAssignMultiple]);
+    useEffect(() => {
+        mentionOpenRef.current = mentionOpen;
+    }, [mentionOpen]);
+    useEffect(() => {
+        mentionActiveIdxRef.current = mentionActiveIdx;
+    }, [mentionActiveIdx]);
+    useEffect(() => {
+        if (!mentionOpen) return;
+        mentionItemElsRef.current[mentionActiveIdx]?.scrollIntoView({
+            block: "nearest",
+        });
+    }, [mentionActiveIdx, mentionOpen]);
+
+    const mentionFiltered = useMemo(() => {
+        const q = mentionQuery.toLowerCase();
+        const list = q
+            ? lawyers.filter((l) => l.lawyerName.toLowerCase().includes(q))
+            : lawyers;
+        return list.slice(0, 8);
+    }, [lawyers, mentionQuery]);
+    const mentionFilteredRef = useRef(mentionFiltered);
+    useEffect(() => {
+        mentionFilteredRef.current = mentionFiltered;
+    }, [mentionFiltered]);
+
+    const closeMentionDropdown = () => {
+        setMentionOpen(false);
+        setMentionQuery("");
+        mentionMatchRef.current = null;
+    };
+
+    // Capture-phase paste listener — see pasteInProgressRef's role in the
+    // "@" trigger detection below (Task's own comment explains why this
+    // can't just be reset by a fixed-delay timer).
+    useEffect(() => {
+        const wrapper = wrapperRef.current;
+        if (!wrapper) return;
+        const handlePasteCapture = () => {
+            pasteInProgressRef.current = true;
+            if (pasteFallbackResetTimerRef.current) {
+                clearTimeout(pasteFallbackResetTimerRef.current);
+            }
+            pasteFallbackResetTimerRef.current = setTimeout(() => {
+                pasteInProgressRef.current = false;
+                pasteFallbackResetTimerRef.current = null;
+            }, 500);
+        };
+        wrapper.addEventListener("paste", handlePasteCapture, true);
+        return () => {
+            wrapper.removeEventListener("paste", handlePasteCapture, true);
+            if (pasteFallbackResetTimerRef.current) {
+                clearTimeout(pasteFallbackResetTimerRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         let destroyed = false;
@@ -451,15 +580,162 @@ const QuillEditor = ({
                     q.setSelection(q.getLength(), 0);
                 }
 
-                q.on("text-change", () => {
+                const selectMentionLawyer = (lawyer) => {
+                    const match = mentionMatchRef.current;
+                    if (!match) return;
+                    q.deleteText(match.start, match.length, "user");
+                    q.insertEmbed(
+                        match.start,
+                        "mention",
+                        { id: lawyer.id, name: lawyer.lawyerName },
+                        "user",
+                    );
+                    q.insertText(match.start + 1, " ", "user");
+                    q.setSelection(match.start + 2, 0, "user");
+
+                    seenMentionIdsRef.current.add(String(lawyer.id));
+                    const current = assignedIdsRef.current || [];
+                    if (!current.includes(lawyer.id) && onAssignMultipleRef.current) {
+                        onAssignMultipleRef.current([...current, lawyer.id]);
+                    }
+                    closeMentionDropdown();
+                };
+                selectMentionLawyerRef.current = selectMentionLawyer;
+
+                q.on("text-change", (delta) => {
                     const editorEl =
                         containerRef.current &&
                         containerRef.current.querySelector(".ql-editor");
                     if (!editorEl) return;
                     const html = editorEl.innerHTML;
                     const empty = html === "<p><br></p>" || html === "";
-                    onChange(empty ? "" : html);
+                    onChangeRef.current(empty ? "" : html);
+
+                    // Mark any mention chip currently in the html as "seen",
+                    // then drop assignedIds that were seen before but no
+                    // longer appear (the user deleted that chip) — ids that
+                    // never had a chip in this editor (old-style assignees on
+                    // an edited comment) are left untouched.
+                    (lawyersRef.current || []).forEach((l) => {
+                        if (html.includes(`data-id="${l.id}"`)) {
+                            seenMentionIdsRef.current.add(String(l.id));
+                        }
+                    });
+                    const currentAssignedIds = assignedIdsRef.current || [];
+                    if (onAssignMultipleRef.current && currentAssignedIds.length > 0) {
+                        const keep = currentAssignedIds.filter(
+                            (id) =>
+                                !seenMentionIdsRef.current.has(String(id)) ||
+                                html.includes(`data-id="${id}"`),
+                        );
+                        if (keep.length !== currentAssignedIds.length) {
+                            onAssignMultipleRef.current(keep);
+                        }
+                    }
+
+                    // "@" trigger detection — skipped for pasted/bulk-inserted
+                    // text so an "@" that's just part of pasted content
+                    // (email address, quoted text) doesn't get misread as a
+                    // fresh mention trigger.
+                    const wasPasting = pasteInProgressRef.current;
+                    if (wasPasting) {
+                        pasteInProgressRef.current = false;
+                        if (pasteFallbackResetTimerRef.current) {
+                            clearTimeout(pasteFallbackResetTimerRef.current);
+                            pasteFallbackResetTimerRef.current = null;
+                        }
+                    }
+                    const insertOps = (delta?.ops || []).filter(
+                        (op) => typeof op.insert === "string",
+                    );
+                    const isBulkInsert =
+                        wasPasting || insertOps.some((op) => op.insert.length > 1);
+                    if (isBulkInsert) {
+                        closeMentionDropdown();
+                        return;
+                    }
+                    const hasNewInsert = insertOps.length > 0;
+                    if (!hasNewInsert && !mentionOpenRef.current) {
+                        closeMentionDropdown();
+                        return;
+                    }
+                    const sel = q.getSelection();
+                    if (!sel) {
+                        closeMentionDropdown();
+                        return;
+                    }
+                    const textBeforeCaret = q.getText(0, sel.index);
+                    const match = textBeforeCaret.match(/@([^\s@]{0,30})$/);
+                    if (!match) {
+                        closeMentionDropdown();
+                        return;
+                    }
+                    mentionMatchRef.current = {
+                        start: sel.index - match[0].length,
+                        length: match[0].length,
+                    };
+                    setMentionQuery(match[1]);
+                    setMentionActiveIdx(0);
+                    setMentionOpen(true);
+
+                    const bounds = q.getBounds(sel.index);
+                    const editorRect = q.root.getBoundingClientRect();
+                    const wrapperRect = wrapperRef.current.getBoundingClientRect();
+                    const editorOffsetTop = editorRect.top - wrapperRect.top;
+                    const editorOffsetLeft = editorRect.left - wrapperRect.left;
+                    const viewportCaretTop = editorRect.top + bounds.top;
+                    const viewportCaretBottom = editorRect.top + bounds.bottom;
+                    const GAP = 10;
+                    const MARGIN = 12;
+                    const MIN_HEIGHT = 120;
+                    const MAX_HEIGHT = 360;
+                    const spaceBelow = window.innerHeight - viewportCaretBottom - GAP - MARGIN;
+                    const spaceAbove = viewportCaretTop - GAP - MARGIN;
+                    const openUp = spaceBelow < MIN_HEIGHT && spaceAbove > spaceBelow;
+                    const available = openUp ? spaceAbove : spaceBelow;
+                    const dropdownHeight = Math.max(
+                        MIN_HEIGHT,
+                        Math.min(MAX_HEIGHT, available),
+                    );
+                    setMentionPos({
+                        top: openUp
+                            ? editorOffsetTop + bounds.top - dropdownHeight - GAP
+                            : editorOffsetTop + bounds.bottom + GAP,
+                        left: editorOffsetLeft + bounds.left,
+                        maxHeight: dropdownHeight,
+                    });
                 });
+
+                const handleMentionKeydown = (e) => {
+                    if (!mentionOpenRef.current) return;
+                    const list = mentionFilteredRef.current;
+                    if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setMentionActiveIdx((i) =>
+                            Math.min(i + 1, Math.max(list.length - 1, 0)),
+                        );
+                        return;
+                    }
+                    if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setMentionActiveIdx((i) => Math.max(i - 1, 0));
+                        return;
+                    }
+                    if (e.key === "Enter" || e.key === "Tab") {
+                        if (list[mentionActiveIdxRef.current]) {
+                            e.preventDefault();
+                            selectMentionLawyer(list[mentionActiveIdxRef.current]);
+                        }
+                        return;
+                    }
+                    if (e.key === "Escape") {
+                        closeMentionDropdown();
+                    }
+                };
+                q.root.addEventListener("keydown", handleMentionKeydown, true);
+                cleanupFns.push(() =>
+                    q.root.removeEventListener("keydown", handleMentionKeydown, true),
+                );
 
                 const handleSubmitShortcut = (e) => {
                     if (!((e.ctrlKey || e.metaKey) && e.key === "Enter")) return;
@@ -499,11 +775,13 @@ const QuillEditor = ({
     return React.createElement(
         "div",
         {
+            ref: wrapperRef,
             style: {
                 border: "1px solid #d9d9d9",
                 borderRadius: 8,
                 background: "#fff",
                 boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
+                position: "relative",
             },
         },
         React.createElement("style", null, QUILL_CUSTOM_CSS),
@@ -535,6 +813,81 @@ const QuillEditor = ({
                 )
                 : null,
         React.createElement("div", { ref: containerRef }),
+        mentionOpen &&
+            mentionFiltered.length > 0 &&
+            React.createElement(
+                React.Fragment,
+                null,
+                React.createElement("div", {
+                    style: { position: "fixed", inset: 0, zIndex: 99998 },
+                    onClick: closeMentionDropdown,
+                }),
+                React.createElement(
+                    "div",
+                    {
+                        style: {
+                            position: "absolute",
+                            top: mentionPos.top,
+                            left: mentionPos.left,
+                            zIndex: 99999,
+                            background: "#fff",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: 10,
+                            boxShadow: "0 8px 28px rgba(0,0,0,0.14)",
+                            minWidth: 230,
+                            maxHeight: mentionPos.maxHeight || 360,
+                            overflowY: "auto",
+                            padding: "4px 0",
+                        },
+                        onClick: (e) => e.stopPropagation(),
+                    },
+                    ...mentionFiltered.map((l, idx) =>
+                        React.createElement(
+                            "div",
+                            {
+                                key: l.id,
+                                ref: (el) => {
+                                    mentionItemElsRef.current[idx] = el;
+                                },
+                                onMouseDown: (e) => {
+                                    e.preventDefault();
+                                    selectMentionLawyerRef.current?.(l);
+                                },
+                                onMouseEnter: () => setMentionActiveIdx(idx),
+                                style: {
+                                    padding: "8px 12px",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    background: idx === mentionActiveIdx ? "#e6f4ff" : "transparent",
+                                    borderLeft:
+                                        idx === mentionActiveIdx
+                                            ? "3px solid #1890ff"
+                                            : "3px solid transparent",
+                                },
+                            },
+                            React.createElement(Av, { name: l.lawyerName, size: 26 }),
+                            React.createElement(
+                                "div",
+                                null,
+                                React.createElement(
+                                    "div",
+                                    {
+                                        style: {
+                                            fontSize: 13,
+                                            fontWeight: idx === mentionActiveIdx ? 700 : 500,
+                                            color: idx === mentionActiveIdx ? "#096dd9" : "#262626",
+                                            fontFamily: FONT,
+                                        },
+                                    },
+                                    l.lawyerName,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
     );
 };
 
@@ -811,7 +1164,14 @@ const CommentComposer = ({
             placeholder,
             onSubmit,
             onUploadClick,
+            lawyers,
+            assignedIds,
+            onAssignMultiple,
         }),
+        // Manual fallback — typing "@" in the editor above now inserts a
+        // real mention chip directly, but this stays for picking someone
+        // without typing (e.g. silently looping them in) and for reviewing/
+        // removing who's currently tagged.
         React.createElement(MentionPicker, {
             lawyers,
             assignedIds,
@@ -1006,7 +1366,7 @@ const FileUploadModal = ({
     const [activeTab, setActiveTab] = useState("local");
     const [treeData, setTreeData] = useState([]);
     const [libraryLoading, setLibraryLoading] = useState(false);
-    const [selectedLibDoc, setSelectedLibDoc] = useState(null);
+    const [selectedLibDocs, setSelectedLibDocs] = useState([]);
     const { TreeSelect } = ctx.antd;
 
     useEffect(() => {
@@ -1036,7 +1396,7 @@ const FileUploadModal = ({
             form.resetFields();
             setFileList([]);
             setActiveTab("local");
-            setSelectedLibDoc(null);
+            setSelectedLibDocs([]);
         }
     }, [open, editDoc]);
 
@@ -1168,51 +1528,67 @@ const FileUploadModal = ({
         return null;
     };
 
-    const handleTreeSelect = (val) => {
-        if (!val) {
-            setSelectedLibDoc(null);
-            return;
-        }
-        const found = findTreeDoc(treeData, val);
-        if (found && found.docData) {
-            setSelectedLibDoc(found);
+    const handleTreeSelect = (values) => {
+        const vals = values || [];
+        const found = vals
+            .map((val) => findTreeDoc(treeData, val))
+            .filter((node) => node && node.docData);
+        setSelectedLibDocs(found);
+        if (found.length === 1) {
             const currentTitle = form.getFieldValue("title");
             if (!currentTitle) {
                 form.setFieldsValue({
-                    title: found.docData.title || found.docData.name || found.attData.filename,
+                    title:
+                        found[0].docData.title ||
+                        found[0].docData.name ||
+                        found[0].attData.filename,
                 });
             }
-        } else {
-            setSelectedLibDoc(null);
         }
     };
 
     const handleClose = () => {
         form.resetFields();
         setFileList([]);
-        setSelectedLibDoc(null);
+        setSelectedLibDocs([]);
         setTreeData([]);
         onClose();
     };
 
+    // Uploads every file currently in fileList (not just the first) so a
+    // fresh attach can carry several files at once under one document row.
     const uploadFile = async () => {
-        const file = fileList[0].originFileObj;
-        const formData = new window.FormData();
-        formData.append("file", file, file.name);
-        const uploadRes = await ctx.api.request({
-            url: "attachments:create",
-            method: "POST",
-            params: { attachmentField: "documents.fileAttachment" },
-            data: formData,
-        });
-        const att = uploadRes?.data?.data;
-        if (!att?.id) throw new Error("Upload thất bại");
-        return [{ id: att.id }];
+        const results = [];
+        for (const item of fileList) {
+            const file = item.originFileObj;
+            const formData = new window.FormData();
+            formData.append("file", file, file.name);
+            const uploadRes = await ctx.api.request({
+                url: "attachments:create",
+                method: "POST",
+                params: { attachmentField: "documents.fileAttachment" },
+                data: formData,
+            });
+            const att = uploadRes?.data?.data;
+            if (!att?.id) throw new Error(`Upload thất bại: ${file.name}`);
+            results.push({ id: att.id });
+        }
+        return results;
     };
 
     const cloneLibraryFile = async (attData) => {
         if (!attData?.id) throw new Error("Không tìm thấy attachment gốc");
         return [{ id: attData.id }];
+    };
+
+    // Clones every selected library doc's attachment into one combined list.
+    const cloneLibraryFiles = async (docs) => {
+        const results = [];
+        for (const doc of docs) {
+            const cloned = await cloneLibraryFile(doc.attData);
+            results.push(...cloned);
+        }
+        return results;
     };
 
     const toISO = (val) => {
@@ -1229,7 +1605,7 @@ const FileUploadModal = ({
         }
         const values = form.getFieldsValue();
         const hasLocalFile = fileList.length > 0;
-        const hasLibFile = !!selectedLibDoc;
+        const hasLibFile = selectedLibDocs.length > 0;
         const hasFile = activeTab === "local" ? hasLocalFile : hasLibFile;
         const hasDrive = !!values.googleDriveUrl?.trim();
 
@@ -1245,18 +1621,25 @@ const FileUploadModal = ({
                 let fileName = "Google Drive Link";
                 if (activeTab === "local" && hasLocalFile) {
                     attIds = await uploadFile();
-                    fileName = fileList[0].name;
+                    fileName =
+                        fileList.length > 1
+                            ? `${fileList.length} tệp đính kèm`
+                            : fileList[0].name;
                 } else if (activeTab === "library" && hasLibFile) {
-                    attIds = await cloneLibraryFile(selectedLibDoc.attData);
-                    const attData = selectedLibDoc.attData;
-                    const ext = attData.extname
-                        ? attData.extname.startsWith(".")
-                            ? attData.extname
-                            : `.${attData.extname}`
-                        : "";
-                    fileName = attData.filename || `cloned_file${ext}`;
-                    if (ext && !fileName.toLowerCase().endsWith(ext.toLowerCase()))
-                        fileName += ext;
+                    attIds = await cloneLibraryFiles(selectedLibDocs);
+                    if (selectedLibDocs.length > 1) {
+                        fileName = `${selectedLibDocs.length} tệp đính kèm`;
+                    } else {
+                        const attData = selectedLibDocs[0].attData;
+                        const ext = attData.extname
+                            ? attData.extname.startsWith(".")
+                                ? attData.extname
+                                : `.${attData.extname}`
+                            : "";
+                        fileName = attData.filename || `cloned_file${ext}`;
+                        if (ext && !fileName.toLowerCase().endsWith(ext.toLowerCase()))
+                            fileName += ext;
+                    }
                 }
                 onAddPending({ attIds, fileName, metadata: values });
                 handleClose();
@@ -1483,16 +1866,23 @@ const FileUploadModal = ({
                         children: React.createElement(
                             Form.Item,
                             {
-                                label: isEdit ? "Thay file mới (tuỳ chọn)" : "Chọn file",
+                                label: isEdit
+                                    ? "Thay file mới (tuỳ chọn)"
+                                    : "Chọn file (có thể chọn nhiều)",
                                 style: { marginBottom: 0 },
                             },
                             React.createElement(
                                 Dragger,
                                 {
                                     fileList,
+                                    multiple: !isEdit,
                                     beforeUpload: () => false,
-                                    onChange: ({ fileList: fl }) => setFileList(fl.slice(-1)),
-                                    maxCount: 1,
+                                    // Editing a doc still replaces with a single file; a
+                                    // fresh attach can carry several — send-time loops
+                                    // over the whole list (see uploadFile()).
+                                    onChange: ({ fileList: fl }) =>
+                                        setFileList(isEdit ? fl.slice(-1) : fl),
+                                    maxCount: isEdit ? 1 : undefined,
                                     style: { padding: "6px 0" },
                                 },
                                 React.createElement(
@@ -1545,13 +1935,16 @@ const FileUploadModal = ({
                                     React.createElement(TreeSelect, {
                                         style: { width: "100%" },
                                         treeData,
-                                        placeholder: "Tìm kiếm và chọn file từ thư viện...",
+                                        placeholder: "Tìm kiếm và chọn file từ thư viện (có thể chọn nhiều)...",
                                         treeDefaultExpandAll: true,
                                         allowClear: true,
                                         showSearch: true,
+                                        multiple: true,
+                                        treeCheckable: true,
+                                        showCheckedStrategy: TreeSelect.SHOW_CHILD,
                                         treeNodeFilterProp: "title",
                                         onChange: handleTreeSelect,
-                                        value: selectedLibDoc ? selectedLibDoc.value : undefined,
+                                        value: selectedLibDocs.map((d) => d.value),
                                         dropdownStyle: { maxHeight: 400, overflow: "auto" },
                                     }),
                                 ),
@@ -1603,6 +1996,19 @@ const UnifiedNoteThread = ({
         return found?.id || null;
     }, [currentUser, lawyers]);
     const [feed, setFeed] = useState([]);
+    const [viewMode, setViewMode] = useState("tree");
+    const [activityLogByNoteId, setActivityLogByNoteId] = useState({});
+    const [expandedHistory, setExpandedHistory] = useState({});
+    // "Move to Library" (Legal Study only) — ported from Task/
+    // TaskDetailView.js's getLibraryMoveCategories(false), the Case-context
+    // category list, which for a real Case is Legal Study alone (Reference/
+    // Customer/Knowledge are Internal-Work-only categories not offered
+    // here). moduleScope/storageType/relationField below are copied
+    // verbatim from Task's own LIBRARY_DESTINATION_CONFIG, not re-guessed.
+    const [moveToLibraryTarget, setMoveToLibraryTarget] = useState(null);
+    const [legalStudyOptions, setLegalStudyOptions] = useState([]);
+    const [legalStudyLoading, setLegalStudyLoading] = useState(false);
+    const [selectedLegalStudyId, setSelectedLegalStudyId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [body, setBody] = useState("");
     const [assignedIds, setAssignedIds] = useState([]);
@@ -1619,7 +2025,353 @@ const UnifiedNoteThread = ({
     const [editingFileId, setEditingFileId] = useState(null);
     const [editFileTitle, setEditFileTitle] = useState("");
     const [expandedPreviews, setExpandedPreviews] = useState({});
+    // "Replace file" — ported from Task/TaskDetailView.js's file action menu.
+    // One shared hidden <input type="file"> triggered per-row; the target
+    // record rides in this ref since the input's onChange fires after the
+    // triggering click's own render pass.
+    const [replacingFileId, setReplacingFileId] = useState(null);
+    const replaceFileInputRef = useRef(null);
+    const replaceFileTargetRef = useRef(null);
     const INITIAL_COUNT = 15;
+
+    const handleReplaceFile = async (targetFile, file) => {
+        if (!targetFile || !file) return;
+        setReplacingFileId(targetFile.id);
+        try {
+            const formData = new window.FormData();
+            formData.append("file", file, file.name);
+            const uploadRes = await ctx.api.request({
+                url: "attachments:create",
+                method: "POST",
+                params: { attachmentField: "documents.fileAttachment" },
+                data: formData,
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            const att = uploadRes?.data?.data;
+            if (!att?.id) throw new Error("Upload thất bại");
+            const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            await apiReq(`documents:update?filterByTk=${targetFile.id}`, "POST", {
+                fileAttachment: [{ id: att.id }],
+                batchId: actionBatchId,
+                updatedById: extractId(currentUser?.id) || null,
+                updatedAt: new Date().toISOString(),
+            });
+            setFeed((prev) =>
+                prev.map((item) => ({
+                    ...item,
+                    files: item.files.map((file2) =>
+                        extractId(file2.id) === extractId(targetFile.id)
+                            ? { ...file2, fileAttachment: [att] }
+                            : file2,
+                    ),
+                })),
+            );
+            message.success("Đã thay thế tệp");
+        } catch (e) {
+            message.error(`Lỗi thay thế tệp: ${e.message}`);
+        }
+        setReplacingFileId(null);
+    };
+
+    const triggerReplaceFile = (f) => {
+        replaceFileTargetRef.current = f;
+        replaceFileInputRef.current?.click();
+    };
+
+    const LEGAL_STUDY_RESOURCES = ["legalStudy", "legalStudies", "LegalStudy"];
+
+    const openMoveToLibrary = async (f) => {
+        setMoveToLibraryTarget(f);
+        setSelectedLegalStudyId(null);
+        if (legalStudyOptions.length) return;
+        setLegalStudyLoading(true);
+        for (const resource of LEGAL_STUDY_RESOURCES) {
+            try {
+                const res = await ctx.api.request({
+                    url: `${resource}:list`,
+                    params: { pageSize: 200, sort: ["-createdAt"], fields: "id,title" },
+                });
+                const rows = res?.data?.data || [];
+                setLegalStudyOptions(rows);
+                break;
+            } catch {
+                continue;
+            }
+        }
+        setLegalStudyLoading(false);
+    };
+
+    const handleConfirmMoveToLibrary = async () => {
+        const f = moveToLibraryTarget;
+        if (!f || !selectedLegalStudyId) return;
+        try {
+            const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            await apiReq(`documents:update?filterByTk=${f.id}`, "POST", {
+                moduleScope: "legal_study",
+                storageType: "legal_study",
+                legalStudyId: selectedLegalStudyId,
+                legalStudy: selectedLegalStudyId,
+                folderId: null,
+                projectInternalId: null,
+                batchId: actionBatchId,
+                updatedById: extractId(currentUser?.id) || null,
+                updatedAt: new Date().toISOString(),
+            });
+            setFeed((prev) =>
+                prev.map((item) => ({
+                    ...item,
+                    files: item.files.filter((file) => extractId(file.id) !== extractId(f.id)),
+                })),
+            );
+            message.success("Đã chuyển tệp sang Library (Reference)");
+            setMoveToLibraryTarget(null);
+        } catch (e) {
+            message.error(`Lỗi chuyển tệp: ${e.message}`);
+        }
+    };
+
+    // "Move to Case's Document" — ported from Task/TaskDetailView.js's
+    // move_to_document action. Verified against Document/CaseDocument.js's
+    // own DASHBOARD_CONFIG (not guessed): storageType is already "cases" on
+    // both sides; moduleScope flips from "project_internal" to
+    // "case_document" and the relation switches from projectInternalId to
+    // caseId/cases (scalar FK + association, dual-write per this session's
+    // established convention). Lands at the Case's Document root
+    // (folderId: null) — no folder-picker, keeping this a single, safe
+    // destination rather than porting LibraryMoveModal's full picker.
+    const handleMoveToCaseDocument = async (f) => {
+        try {
+            const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            await apiReq(`documents:update?filterByTk=${f.id}`, "POST", {
+                moduleScope: "case_document",
+                storageType: "cases",
+                caseId: parseInt(recordId),
+                cases: parseInt(recordId),
+                folderId: null,
+                projectInternalId: null,
+                batchId: actionBatchId,
+                updatedById: extractId(currentUser?.id) || null,
+                updatedAt: new Date().toISOString(),
+            });
+            // The moved row no longer matches this thread's own
+            // moduleScope filter — drop it from the feed now instead of
+            // waiting for the next reload to silently make it disappear.
+            setFeed((prev) =>
+                prev.map((item) => ({
+                    ...item,
+                    files: item.files.filter((file) => extractId(file.id) !== extractId(f.id)),
+                })),
+            );
+            message.success("Đã chuyển tệp sang Documents của Case (thư mục gốc)");
+        } catch (e) {
+            message.error(`Lỗi chuyển tệp: ${e.message}`);
+        }
+    };
+
+    // Bulk-select — ported from Task/TaskDetailView.js. Scoped per rendered
+    // comment item (itemKey = renderTaskLikeItem's own `key` arg) so two
+    // different comments' file lists never share a selection.
+    const [bulkSelectState, setBulkSelectState] = useState({});
+
+    const toggleBulkSelectMode = (itemKey) => {
+        setBulkSelectState((prev) => {
+            const current = prev[itemKey];
+            if (current?.active) {
+                const next = { ...prev };
+                delete next[itemKey];
+                return next;
+            }
+            return { ...prev, [itemKey]: { active: true, ids: new Set() } };
+        });
+    };
+
+    const toggleBulkSelectId = (itemKey, fileId) => {
+        setBulkSelectState((prev) => {
+            const current = prev[itemKey] || { active: true, ids: new Set() };
+            const ids = new Set(current.ids);
+            if (ids.has(fileId)) ids.delete(fileId);
+            else ids.add(fileId);
+            return { ...prev, [itemKey]: { ...current, ids } };
+        });
+    };
+
+    const downloadSingleFile = (item) => {
+        const a = document.createElement("a");
+        a.href = item.url;
+        if (item.filename) a.download = item.filename;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.click();
+    };
+
+    // Bundles multiple attachments into one zip — ported from Task's
+    // downloadFilesAsZip. A single-item selection just downloads directly;
+    // pizzip is loaded on demand (no fetch/global in this sandbox, so bytes
+    // come through ctx.api.request with baseURL:"/" against each
+    // attachment's own relative url).
+    const downloadFilesAsZip = async (items, zipName = "files.zip") => {
+        const list = (items || [])
+            .map((item) => (typeof item === "string" ? { url: item } : item))
+            .filter((item) => item?.url);
+        if (list.length === 0) return;
+        if (list.length === 1) {
+            downloadSingleFile(list[0]);
+            return;
+        }
+        const hideLoading = message.loading(`Đang chuẩn bị ${list.length} tệp...`, 0);
+        try {
+            const PizZipModule = await ctx.importAsync("https://esm.sh/pizzip@3.1.4");
+            const PizZip = PizZipModule.default || PizZipModule;
+            const zip = new PizZip();
+            const usedNames = new Set();
+            let fetched = 0;
+            for (let i = 0; i < list.length; i++) {
+                const item = list[i];
+                let buf;
+                try {
+                    const res = await ctx.api.request({
+                        url: item.rawUrl || item.url,
+                        method: "GET",
+                        responseType: "arraybuffer",
+                        baseURL: "/",
+                    });
+                    buf = res.data;
+                } catch (fetchErr) {
+                    console.error("[downloadFilesAsZip] fetch failed for", item.rawUrl || item.url, fetchErr);
+                    continue;
+                }
+                const rawName = item.filename || `file-${i + 1}`;
+                let finalName = rawName;
+                let n = 2;
+                while (usedNames.has(finalName)) {
+                    const dot = rawName.lastIndexOf(".");
+                    finalName = dot > 0
+                        ? `${rawName.slice(0, dot)} (${n})${rawName.slice(dot)}`
+                        : `${rawName} (${n})`;
+                    n++;
+                }
+                usedNames.add(finalName);
+                zip.file(finalName, buf);
+                fetched++;
+            }
+            if (fetched === 0) {
+                message.error("Không tải được tệp nào — xem console để biết chi tiết.");
+                return;
+            }
+            const blob = zip.generate({ type: "blob", compression: "DEFLATE" });
+            const formData = new window.FormData();
+            formData.append("file", blob, zipName);
+            const uploadRes = await ctx.api.request({
+                url: "attachments:create",
+                method: "POST",
+                params: { attachmentField: "documents.fileAttachment" },
+                data: formData,
+            });
+            const uploaded = uploadRes?.data?.data;
+            if (!uploaded?.id) throw new Error("Upload zip thất bại");
+            downloadSingleFile({ url: getFullUrl(uploaded.url), filename: zipName });
+            if (fetched < list.length) {
+                message.warning(`${zipName}: ${fetched}/${list.length} tệp — số còn lại không tải được (xem console).`);
+            }
+        } catch (e) {
+            console.error("[downloadFilesAsZip] failed", e);
+            message.error("Không tạo được file zip — xem console để biết chi tiết.");
+        } finally {
+            hideLoading();
+        }
+    };
+
+    const renderBulkSelectBar = (itemKey, files) => {
+        if (!canEdit || files.length === 0) return null;
+        const state = bulkSelectState[itemKey];
+        const active = !!state?.active;
+        const selectedCount = state?.ids?.size || 0;
+        if (!active) {
+            return React.createElement(
+                "span",
+                {
+                    onClick: () => toggleBulkSelectMode(itemKey),
+                    style: {
+                        display: "inline-block",
+                        marginTop: 4,
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        color: "#1890ff",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        textUnderlineOffset: "2px",
+                    },
+                },
+                "Chọn nhiều tệp",
+            );
+        }
+        const selectedFiles = files.filter((f) => state.ids.has(f.id));
+        return React.createElement(
+            "div",
+            {
+                style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginTop: 4,
+                    padding: "6px 10px",
+                    background: "#f0f8ff",
+                    border: "1px dashed #91caff",
+                    borderRadius: 6,
+                },
+            },
+            React.createElement(
+                "span",
+                { style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 } },
+                `Đã chọn ${selectedCount}`,
+            ),
+            React.createElement(
+                "span",
+                {
+                    onClick: () => {
+                        if (!selectedCount) return;
+                        downloadFilesAsZip(
+                            selectedFiles.map((f) => {
+                                const att = Array.isArray(f.fileAttachment) ? f.fileAttachment[0] : f.fileAttachment;
+                                return {
+                                    url: getFullUrl(att?.url || att?.preview),
+                                    rawUrl: att?.url || att?.preview,
+                                    filename: att?.filename || f.title || f.name || att?.title,
+                                };
+                            }),
+                            "tep_dinh_kem.zip",
+                        );
+                    },
+                    style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        fontWeight: 600,
+                        padding: "3px 12px",
+                        borderRadius: 4,
+                        cursor: selectedCount ? "pointer" : "not-allowed",
+                        color: selectedCount ? "#fff" : "#bfbfbf",
+                        background: selectedCount ? "#1890ff" : "#f0f0f0",
+                    },
+                },
+                "Tải về (zip)",
+            ),
+            React.createElement(
+                "span",
+                {
+                    onClick: () => toggleBulkSelectMode(itemKey),
+                    style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        color: "#8c8c8c",
+                        cursor: "pointer",
+                        marginLeft: "auto",
+                    },
+                },
+                "Huỷ",
+            ),
+        );
+    };
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -1653,8 +2405,10 @@ const UnifiedNoteThread = ({
                             { isDeleted: { $ne: true } },
                         ],
                     }),
+                    // "name" removed — verified via collections/documents/fields:list
+                    // that no such column exists on this collection.
                     fields:
-                        "id,name,title,documentCode,documentType,batchId,collectionName,projectInternalId,googleDriveUrl,note,description,openingDate,signedAt,effectiveAt,senderName,recipientName,language,docFormat,folderId,fileAttachment,createdAt,updatedAt,createdById,isDeleted",
+                        "id,title,documentCode,documentType,batchId,collectionName,projectInternalId,googleDriveUrl,note,description,openingDate,signedAt,effectiveAt,senderName,recipientName,language,docFormat,folderId,fileAttachment,createdAt,updatedAt,createdById,isDeleted",
                     appends: ["fileAttachment", "createdBy", "updatedBy"],
                 },
             });
@@ -1682,6 +2436,104 @@ const UnifiedNoteThread = ({
                 };
             });
 
+            // Merge in Task comments belonging to this Case — read-only here
+            // (see renderTaskLikeItem's `!item._fromTask` guards), the row still
+            // lives only in "notes" scoped to collectionName="Task", editing
+            // stays in TaskDetailView.js. Scoped to collectionName ===
+            // COLLECTION_NAME so this never fires if UnifiedNoteThread is
+            // ever reused for a non-Case record.
+            let taskNoteItems = [];
+            if (collectionName === COLLECTION_NAME) {
+                try {
+                    const resTasks = await ctx.api.request({
+                        url: "tasks:list",
+                        params: {
+                            pageSize: 500,
+                            filter: JSON.stringify({ projectId: { $eq: parseInt(recordId) } }),
+                            fields: "id,title",
+                        },
+                    });
+                    const tasks = resTasks?.data?.data || [];
+                    const taskTitleById = new Map(
+                        tasks.map((t) => [String(extractId(t.id)), t.title || `Task #${extractId(t.id)}`]),
+                    );
+                    const taskIds = tasks.map((t) => extractId(t.id)).filter(Boolean);
+                    if (taskIds.length) {
+                        const resTaskNotes = await ctx.api.request({
+                            url: "notes:list",
+                            params: {
+                                pageSize: 200,
+                                sort: ["-createdAt"],
+                                filter: JSON.stringify({
+                                    $and: [
+                                        { collectionName: { $eq: "Task" } },
+                                        { recordId: { $in: taskIds } },
+                                        { isDeleted: { $ne: true } },
+                                    ],
+                                }),
+                                fields:
+                                    "id,title,body,batchId,linkedUrl,collectionName,recordId,createdAt,updatedAt,createdById,replyText,parentId,isDeleted,assignedLawyerId",
+                                appends: ["createdBy", "updatedBy", "assignees", "parent"],
+                            },
+                        });
+                        const taskNotes = resTaskNotes?.data?.data || [];
+                        taskNoteItems = taskNotes.map((n) => ({
+                            _kind: "item",
+                            _time: new Date(n.createdAt),
+                            note: n,
+                            files: [],
+                            _fromTask: taskTitleById.get(String(extractId(n.recordId))) || `Task #${extractId(n.recordId)}`,
+                        }));
+                    }
+                } catch (e) {
+                    console.error("[ProjectNote] load task comments failed", e);
+                }
+            }
+
+            // Edit-history diff — the actual "body" column change is logged
+            // by a DB-side trigger on the shared notes table (Task's own
+            // code explicitly stopped calling logActivity() for body edits
+            // in favor of that trigger, per its own comment), so this needs
+            // no write-side change: any body edit already lands in
+            // activity_log regardless of which JS Block issued the
+            // notes:update. Only the read+render side needs porting.
+            // collectionName tried both cased and lower-cased since the
+            // trigger's own casing convention here isn't independently
+            // verified — a harmless empty result either way if wrong.
+            const allNoteIds = [...notes, ...(taskNoteItems.map((t) => t.note))]
+                .map((n) => extractId(n.id))
+                .filter(Boolean);
+            let activityByNoteId = {};
+            if (allNoteIds.length) {
+                try {
+                    const resLog = await ctx.api.request({
+                        url: "activity_log:list",
+                        params: {
+                            pageSize: 500,
+                            sort: ["createdAt"],
+                            filter: JSON.stringify({
+                                $and: [
+                                    { collectionName: { $in: ["Note", "note", "notes"] } },
+                                    { recordId: { $in: allNoteIds } },
+                                    { fieldName: { $eq: "body" } },
+                                ],
+                            }),
+                            fields: "id,recordId,action,fieldName,oldValue,newValue,changedByName,changedAt,createdAt",
+                        },
+                    });
+                    const logs = resLog?.data?.data || [];
+                    activityByNoteId = logs.reduce((acc, log) => {
+                        const nid = extractId(log.recordId);
+                        if (!nid) return acc;
+                        (acc[nid] = acc[nid] || []).push(log);
+                        return acc;
+                    }, {});
+                } catch (e) {
+                    console.error("[ProjectNote] load edit history failed", e);
+                }
+            }
+            setActivityLogByNoteId(activityByNoteId);
+
             const remainingFiles = files.filter((f) => !usedFileIds.has(f.id));
             const fileOnlyItems = [];
             const processedIds = new Set();
@@ -1704,7 +2556,7 @@ const UnifiedNoteThread = ({
                 });
             });
             setFeed(
-                [...noteItems, ...fileOnlyItems].sort((a, b) => b._time - a._time),
+                [...noteItems, ...taskNoteItems, ...fileOnlyItems].sort((a, b) => b._time - a._time),
             );
         } catch (e) {
             console.error(e);
@@ -1830,7 +2682,6 @@ const UnifiedNoteThread = ({
                     }
                     const docTitle = pDoc.metadata.title?.trim() || pDoc.fileName;
                     const payload = {
-                        name: docTitle,
                         title: docTitle,
                         documentType: pDoc.metadata.documentType?.trim() || "",
                         documentCode: pDoc.metadata.documentCode?.trim() || "",
@@ -1987,7 +2838,7 @@ const UnifiedNoteThread = ({
         setEditFileTitle("");
     };
 
-    const renderFileRow = (f) => {
+    const renderFileRow = (f, bulkCtx = null) => {
         const att = Array.isArray(f.fileAttachment)
             ? f.fileAttachment[0]
             : f.fileAttachment;
@@ -2043,6 +2894,13 @@ const UnifiedNoteThread = ({
                         padding: "8px 12px",
                     },
                 },
+                bulkCtx?.active &&
+                React.createElement("input", {
+                    type: "checkbox",
+                    checked: bulkCtx.selected,
+                    onChange: () => toggleBulkSelectId(bulkCtx.itemKey, f.id),
+                    style: { flexShrink: 0, cursor: "pointer" },
+                }),
                 getFileIcon(ext),
                 isEditingThisFile
                     ? React.createElement("input", {
@@ -2197,6 +3055,61 @@ const UnifiedNoteThread = ({
                             },
                             "✏️",
                         ),
+                        canRenameFile &&
+                        React.createElement(
+                            "span",
+                            {
+                                onClick: () => triggerReplaceFile(f),
+                                title: "Thay thế tệp",
+                                style: {
+                                    fontSize: 12,
+                                    padding: "2px 8px",
+                                    cursor: replacingFileId === f.id ? "wait" : "pointer",
+                                    color: "#185FA5",
+                                    border: "1px solid #d9d9d9",
+                                    borderRadius: 4,
+                                    flexShrink: 0,
+                                    opacity: replacingFileId === f.id ? 0.5 : 1,
+                                },
+                            },
+                            replacingFileId === f.id ? "⏳" : "🔄",
+                        ),
+                        canEdit &&
+                        React.createElement(
+                            "span",
+                            {
+                                onClick: () => handleMoveToCaseDocument(f),
+                                title: "Chuyển sang Documents của Case",
+                                style: {
+                                    fontSize: 12,
+                                    padding: "2px 8px",
+                                    cursor: "pointer",
+                                    color: "#8c8c8c",
+                                    border: "1px solid #d9d9d9",
+                                    borderRadius: 4,
+                                    flexShrink: 0,
+                                },
+                            },
+                            "📁",
+                        ),
+                        canEdit &&
+                        React.createElement(
+                            "span",
+                            {
+                                onClick: () => openMoveToLibrary(f),
+                                title: "Chuyển sang Library (Reference)",
+                                style: {
+                                    fontSize: 12,
+                                    padding: "2px 8px",
+                                    cursor: "pointer",
+                                    color: "#722ed1",
+                                    border: "1px solid #d9d9d9",
+                                    borderRadius: 4,
+                                    flexShrink: 0,
+                                },
+                            },
+                            "📚",
+                        ),
                     ),
             ),
             (f.description || f.note) &&
@@ -2287,7 +3200,90 @@ const UnifiedNoteThread = ({
         );
     };
 
-    const renderItem = (item, key, isChild = false) => {
+    // ── List mode (flat chronological chat view) — simplified port of
+    // Task/TaskDetailView.js's List mode. Skips its folder-upload-group
+    // cards and its activity-log-inside-chat rendering (both Task-specific
+    // and already covered here via the separate "Xem lịch sử chỉnh sửa"
+    // expander), keeping the core Zalo-style behavior: flat time order,
+    // own-message alignment, date dividers, reply-by-quote-seeding.
+    const getDateDividerLabel = (date) => {
+        const d = new Date(date);
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const sameDay = (a, b) =>
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate();
+        if (sameDay(d, now)) return "Hôm nay";
+        if (sameDay(d, yesterday)) return "Hôm qua";
+        return fmt(date, "date");
+    };
+
+    const escapeHtmlText = (s) =>
+        String(s || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+    // Drops a leading <blockquote> (this function's own earlier output,
+    // saved as literal body content) before quoting again — without this,
+    // replying to a reply re-quotes its target's entire body including
+    // whatever IT had quoted, compounding without bound.
+    const stripLeadingQuoteHtml = (html) => {
+        if (!html || typeof document === "undefined") return html || "";
+        const el = document.createElement("div");
+        el.innerHTML = String(html);
+        const first = el.firstElementChild;
+        if (first && first.tagName === "BLOCKQUOTE") first.remove();
+        return el.innerHTML;
+    };
+
+    const findLawyerByUserId = (userId) => {
+        const uid = extractId(userId);
+        if (!uid) return null;
+        return (
+            (lawyers || []).find((l) => {
+                const lawyerUserId = extractId(l.userId) || extractId(l.user);
+                return lawyerUserId === uid;
+            }) || null
+        );
+    };
+
+    // Builds the HTML seeded into the composer when Reply is clicked in
+    // List mode — a quoted snippet plus a real @mention chip of the
+    // target's author, as literal editor content (Zalo-style) instead of
+    // Tree mode's floating "Đang trả lời X" banner.
+    const buildReplyQuoteHtml = (target) => {
+        const targetNote = target?.note;
+        const targetFile = target?.files?.[0];
+        const targetAuthorName = targetNote
+            ? authorName(targetNote)
+            : targetFile
+                ? userName(targetFile.createdBy) || targetFile.createdBy?.email || "Ai đó"
+                : "Ai đó";
+        const quotedSnippet = targetNote?.body
+            ? getCommentText(stripLeadingQuoteHtml(targetNote.body), false).trim().substring(0, 150)
+            : targetFile
+                ? `📎 ${targetFile.title || targetFile.name || "Tài liệu đính kèm"}`
+                : "";
+        const targetLawyer = targetNote ? findLawyerByUserId(targetNote.createdById) : null;
+        const mentionHtml = targetLawyer
+            ? `<law-mention data-id="${targetLawyer.id}" contenteditable="false" class="mention-tag" style="${MENTION_TAG_STYLE_CSS}">@${escapeHtmlText(targetLawyer.lawyerName)}</law-mention>`
+            : `<b>@${escapeHtmlText(targetAuthorName)}</b>`;
+        return (
+            `<blockquote style="margin:0 0 6px;padding:4px 10px;border-left:3px solid #bfbfbf;background:#f5f5f5;color:#595959;font-size:12px;">` +
+            `<b>${escapeHtmlText(targetAuthorName)}:</b> ${escapeHtmlText(quotedSnippet)}` +
+            `</blockquote><p>${mentionHtml}&nbsp;</p>`
+        );
+    };
+
+    const handleReplyClick = (item) => {
+        setReplyingTo(item);
+        if (viewMode === "list") setBody(buildReplyQuoteHtml(item));
+    };
+
+    const renderListItem = (item, key, dateLabel) => {
         const { note, files } = item;
         const firstFile = files[0];
         const creatorName = note
@@ -2298,300 +3294,126 @@ const UnifiedNoteThread = ({
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
-        const hasAssignees = hasAssigneeValue(note?.assignees);
         const isMyItem = note
-            ? currentUser &&
-            extractId(note.createdById) === extractId(currentUser.id)
-            : firstFile &&
-            currentUser &&
-            extractId(firstFile.createdById) === extractId(currentUser.id);
+            ? currentUser && extractId(note.createdById) === extractId(currentUser.id)
+            : firstFile && currentUser && extractId(firstFile.createdById) === extractId(currentUser.id);
         const isEditing = note && editingNoteId === note.id;
-        const replies =
-            note && replyMap[extractId(note.id)] ? replyMap[extractId(note.id)] : [];
-        const hasReplies = replies.length > 0;
-        const isExpanded = expandedThreads[note?.id];
-        const itemTargetId = extractId(note?.id) || extractId(files[0]?.id);
-        const replyingTargetId =
-            extractId(replyingTo?.note?.id) || extractId(replyingTo?.files?.[0]?.id);
-        const isReplyingToThis = !!(
-            replyingTo &&
-            replyingTargetId &&
-            itemTargetId === replyingTargetId
-        );
-
+        const noteId = extractId(note?.id);
         const layoutType = getCommentLayoutType({ body: note?.body, assignees: note?.assignees, files });
         const badge = getLayoutBadge(layoutType, files);
-        const isOnlyLayout = layoutType === "commentOnly" || layoutType === "fileOnly" || layoutType === "mentionOnly";
 
         return React.createElement(
             "div",
-            {
-                key,
-                style: {
-                    margin: isChild ? "8px 0 8px 36px" : "12px 0",
-                    position: "relative",
-                    zIndex: isReplyingToThis || isEditing ? 50 : 1,
-                    background: "#fff",
-                    borderRadius: isOnlyLayout ? 8 : 10,
-                    border: isChild
-                        ? "1px solid #d6e4ff"
-                        : layoutType === "fileOnly"
-                            ? "1px solid #d3adf7"
-                            : "1px solid #f0f0f0",
-                    boxShadow: "0 1px 6px rgba(0,0,0,0.04)",
-                    overflow: isReplyingToThis || isEditing ? "visible" : "hidden",
-                },
-            },
+            { key },
+            dateLabel &&
+            React.createElement(
+                "div",
+                { style: { textAlign: "center", margin: "16px 0 12px" } },
+                React.createElement(
+                    "span",
+                    {
+                        style: {
+                            display: "inline-block",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            fontFamily: FONT,
+                            color: "#8c8c8c",
+                            background: "#f0f0f0",
+                            borderRadius: 12,
+                            padding: "3px 12px",
+                        },
+                    },
+                    dateLabel,
+                ),
+            ),
             React.createElement(
                 "div",
                 {
                     style: {
                         display: "flex",
-                        alignItems: "center",
+                        flexDirection: isMyItem ? "row-reverse" : "row",
                         gap: 8,
-                        padding: "10px 14px",
-                        background: layoutType === "fileOnly" ? "#f9f0ff" : "#fafafa",
-                        borderBottom: layoutType === "fileOnly" ? "1px solid #d3adf7" : "1px solid #f0f0f0",
+                        padding: "4px 16px",
+                        alignItems: "flex-end",
                     },
                 },
-                React.createElement(Av, { name: creatorName, color: layoutType === "fileOnly" ? "#722ed1" : "#1890ff", size: 24 }),
+                React.createElement(Av, { name: creatorName, color: "#1890ff", size: 26 }),
                 React.createElement(
                     "div",
-                    { style: { display: "flex", flexDirection: "column", flex: 1 } },
+                    {
+                        style: {
+                            maxWidth: "72%",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: isMyItem ? "flex-end" : "flex-start",
+                            gap: 2,
+                        },
+                    },
                     React.createElement(
                         "div",
-                        { style: { display: "flex", alignItems: "center", gap: 6 } },
-                        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: "#262626", fontFamily: FONT } }, creatorName),
-                        React.createElement("span", { style: { fontSize: 12, color: "#8c8c8c", fontFamily: FONT } }, layoutType === "fileOnly" ? "đã tải lên tệp" : "đã bình luận"),
-                        badge && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#e6f4ff", color: "#096dd9", padding: "1px 6px", borderRadius: 4, border: "1px solid #91caff" } }, badge),
-                        isEditing && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, color: "#fa8c16", background: "#fff7e6", padding: "1px 6px", borderRadius: 4, border: "1px solid #ffd591" } }, "Đang sửa")
+                        { style: { display: "flex", alignItems: "center", gap: 6, flexDirection: isMyItem ? "row-reverse" : "row" } },
+                        React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#262626", fontFamily: FONT } }, creatorName),
+                        badge && React.createElement("span", { style: { fontSize: 10, fontFamily: FONT, background: "#e6f4ff", color: "#096dd9", padding: "0 5px", borderRadius: 4 } }, badge),
+                        item._fromTask && React.createElement("span", { style: { fontSize: 10, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "0 5px", borderRadius: 4 } }, "🔧 Task"),
+                        React.createElement("span", { style: { fontSize: 10, color: "#bfbfbf", fontFamily: FONT } }, timeAgo(time)),
                     ),
-                    React.createElement("div", { style: { fontSize: 11, color: "#bfbfbf", marginTop: 2, fontFamily: FONT } }, timeAgo(time))
+                    isEditing
+                        ? React.createElement(
+                            "div",
+                            { style: { width: "100%", marginTop: 4 } },
+                            React.createElement(CommentComposer, {
+                                value: editBody,
+                                onChange: setEditBody,
+                                onAssignMultiple: setEditAssignedIds,
+                                assignedIds: editAssignedIds,
+                                lawyers,
+                                onSubmit: () => handleSaveEdit(note.id),
+                            }),
+                            React.createElement(
+                                "div",
+                                { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 } },
+                                React.createElement("span", { onClick: () => { setEditingNoteId(null); setEditBody(""); setEditAssignedIds([]); }, style: { fontSize: 12, padding: "4px 12px", cursor: "pointer", color: "#595959", border: "1px solid #d9d9d9", borderRadius: 4, fontFamily: FONT } }, "Hủy"),
+                                React.createElement("span", { onClick: () => handleSaveEdit(note.id), style: { fontSize: 12, padding: "4px 16px", cursor: "pointer", color: "#fff", background: "#1890ff", borderRadius: 4, fontWeight: 600, fontFamily: FONT } }, "Lưu"),
+                            ),
+                        )
+                        : React.createElement(
+                            React.Fragment,
+                            null,
+                            hasBody &&
+                            React.createElement(
+                                "div",
+                                {
+                                    style: {
+                                        background: isMyItem ? "#e6f4ff" : "#f0f0f0",
+                                        borderRadius: 14,
+                                        padding: "8px 12px",
+                                        fontSize: 13,
+                                        fontFamily: FONT,
+                                        lineHeight: 1.6,
+                                        color: "#262626",
+                                    },
+                                },
+                                React.createElement("div", { style: { whiteSpace: "pre-wrap" } }, ...React.Children.toArray(renderRichText(note.body, lawyers))),
+                            ),
+                            hasFiles &&
+                            React.createElement(
+                                "div",
+                                { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: hasBody ? 4 : 0, width: "100%" } },
+                                ...files.map((f) => renderFileRow(f)),
+                            ),
+                            (note || files.length > 0) &&
+                            !item._fromTask &&
+                            (canEdit || isMyItem) &&
+                            React.createElement(
+                                "div",
+                                { style: { display: "flex", gap: 10, flexDirection: isMyItem ? "row-reverse" : "row" } },
+                                React.createElement("span", { onClick: () => handleReplyClick(item), style: { fontSize: 11, fontFamily: FONT, color: "#52c41a", cursor: "pointer" } }, "Trả lời"),
+                                isMyItem && note && React.createElement("span", { onClick: () => { setEditingNoteId(note.id); setEditBody(note.body || ""); setEditAssignedIds((note.assignees || []).map((a) => typeof a === "object" ? extractId(a.id) : extractId(a)).filter(Boolean)); }, style: { fontSize: 11, fontFamily: FONT, color: "#8c8c8c", cursor: "pointer" } }, "Sửa"),
+                                isMyItem && React.createElement("span", { onClick: () => handleDeleteNote(item), style: { fontSize: 11, fontFamily: FONT, color: "#ff4d4f", cursor: "pointer" } }, "Xóa"),
+                            ),
+                        ),
                 ),
             ),
-            isEditing ? React.createElement(
-                "div",
-                { style: { padding: "12px 14px" } },
-                React.createElement(CommentComposer, {
-                    value: editBody,
-                    onChange: setEditBody,
-                    onAssignMultiple: setEditAssignedIds,
-                    assignedIds: editAssignedIds,
-                    lawyers,
-                    onSubmit: () => handleSaveEdit(note.id),
-                }),
-                React.createElement(
-                    "div",
-                    { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 } },
-                    React.createElement("span", { onClick: () => { setEditingNoteId(null); setEditBody(""); setEditAssignedIds([]); }, style: { fontSize: 13, padding: "5px 14px", cursor: "pointer", color: "#595959", border: "1px solid #d9d9d9", borderRadius: 6 } }, "Hủy"),
-                    React.createElement("span", { onClick: () => handleSaveEdit(note.id), style: { fontSize: 13, padding: "5px 18px", cursor: "pointer", color: "#fff", background: "#1890ff", borderRadius: 6, fontWeight: 600 } }, "Lưu cập nhật")
-                )
-            ) : React.createElement(
-                "div",
-                { style: { padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 } },
-                !isChild && note?.replyText && React.createElement(
-                    "div",
-                    {
-                        style: {
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#595959",
-                            background: "#fff",
-                            border: "1px solid #e8e8e8",
-                            borderLeft: "3px solid #bfbfbf",
-                            borderRadius: 4,
-                            padding: "6px 10px",
-                            whiteSpace: "pre-wrap",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                        },
-                    },
-                    React.createElement(
-                        "b",
-                        { style: { color: "#8c8c8c", marginRight: 4 } },
-                        "Trích dẫn:",
-                    ),
-                    " ",
-                    note.replyText,
-                ),
-                hasBody && React.createElement(
-                    "div",
-                    {
-                        style: {
-                            background: isOnlyLayout ? "#fff" : "#e6fffb",
-                            border: isOnlyLayout ? "1px solid #e8e8e8" : "1px solid #87e8de",
-                            borderLeft: "3px solid #13c2c2",
-                            borderRadius: isOnlyLayout ? 6 : 8,
-                            padding: isOnlyLayout ? "9px 12px" : "10px 14px",
-                            fontSize: 13,
-                            fontFamily: FONT,
-                            lineHeight: 1.6,
-                        },
-                    },
-                    React.createElement(
-                        "div",
-                        { style: { whiteSpace: "pre-wrap" } },
-                        ...React.Children.toArray(renderRichText(note.body, lawyers)),
-                    )
-                ),
-                hasAssignees && React.createElement(
-                    "div",
-                    null,
-                    React.createElement(
-                        "div",
-                        { style: { fontSize: 12, fontWeight: 600, color: "#8c8c8c", marginBottom: 4, fontFamily: FONT } },
-                        "Đã nhắc đến ai:"
-                    ),
-                    React.createElement(
-                        "div",
-                        { style: { display: "flex", flexWrap: "wrap", alignItems: "center", background: "#fafafa", padding: "6px 10px", borderRadius: 8, border: "1px solid #f0f0f0", gap: 4 } },
-                        renderAssigneeTags(note?.assignees)
-                    )
-                ),
-                hasFiles &&
-                React.createElement(
-                    "div",
-                    { style: { display: "flex", flexDirection: "column", gap: 8 } },
-                    ...files.map(renderFileRow),
-                ),
-                (note || files.length > 0) &&
-                (canEdit || isMyItem) &&
-                !isEditing &&
-                React.createElement(
-                    "div",
-                    {
-                        style: {
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            marginTop: 2,
-                            paddingLeft: 4,
-                        },
-                    },
-                    React.createElement(
-                        "span",
-                        {
-                            onClick: () => setReplyingTo(item),
-                            style: {
-                                fontSize: 12,
-                                fontFamily: FONT,
-                                color: "#52c41a",
-                                cursor: "pointer",
-                                textDecoration: "underline",
-                                textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                                (e.currentTarget.style.color = "#389e0d"),
-                            onMouseLeave: (e) =>
-                                (e.currentTarget.style.color = "#52c41a"),
-                        },
-                        "Phản hồi",
-                    ),
-                    isMyItem &&
-                    note &&
-                    React.createElement(
-                        "span",
-                        {
-                            onClick: () => {
-                                setEditingNoteId(note.id);
-                                setEditBody(note.body || "");
-                                setEditAssignedIds(
-                                    (note.assignees || [])
-                                        .map((a) =>
-                                            typeof a === "object"
-                                                ? extractId(a.id)
-                                                : extractId(a),
-                                        )
-                                        .filter(Boolean),
-                                );
-                            },
-                            style: {
-                                fontSize: 12,
-                                fontFamily: FONT,
-                                color: "#595959",
-                                cursor: "pointer",
-                                textDecoration: "underline",
-                                textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                                (e.currentTarget.style.color = "#1890ff"),
-                            onMouseLeave: (e) =>
-                                (e.currentTarget.style.color = "#595959"),
-                        },
-                        "Chỉnh sửa",
-                    ),
-                    isMyItem &&
-                    React.createElement(
-                        "span",
-                        {
-                            onClick: () => handleDeleteNote(item),
-                            style: {
-                                fontSize: 12,
-                                fontFamily: FONT,
-                                color: "#ff4d4f",
-                                cursor: "pointer",
-                                textDecoration: "underline",
-                                textUnderlineOffset: "2px",
-                            },
-                            onMouseEnter: (e) =>
-                                (e.currentTarget.style.color = "#cf1322"),
-                            onMouseLeave: (e) =>
-                                (e.currentTarget.style.color = "#ff4d4f"),
-                        },
-                        "Xóa",
-                    ),
-                )
-            )
-            ,
-            isReplyingToThis ? renderComposerBlock(true) : null,
-            hasReplies &&
-            React.createElement(
-                "div",
-                {
-                    style: {
-                        marginLeft: 36,
-                        padding: "0 14px 12px 0",
-                        marginTop: -4,
-                    },
-                },
-                React.createElement(
-                    "div",
-                    {
-                        onClick: () =>
-                            setExpandedThreads((p) => ({
-                                ...p,
-                                [note.id]: !p[note.id],
-                            })),
-                        style: {
-                            fontSize: 12,
-                            color: "#1890ff",
-                            cursor: "pointer",
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "4px 12px",
-                            background: "#f0f8ff",
-                            borderRadius: 4,
-                            border: "1px dashed #91caff",
-                            userSelect: "none",
-                        },
-                    },
-                    isExpanded
-                        ? "▲ Thu gọn phản hồi"
-                        : `▼ Xem ${replies.length} phản hồi`,
-                ),
-                isExpanded &&
-                React.createElement(
-                    "div",
-                    { style: { marginTop: 8 } },
-                    ...replies.map((child, idx) =>
-                        renderItem(child, `${key}-child-${idx}`, true),
-                    ),
-                ),
-            )
         );
     };
 
@@ -2618,6 +3440,8 @@ const UnifiedNoteThread = ({
         const replies = noteId && replyMap[noteId] ? replyMap[noteId] : [];
         const hasReplies = replies.length > 0;
         const isExpanded = expandedThreads[noteId];
+        const layoutType = getCommentLayoutType({ body: note?.body, assignees: note?.assignees, files });
+        const badge = getLayoutBadge(layoutType, files);
         const itemTargetId = extractId(note?.id) || extractId(files[0]?.id);
         const replyingTargetId =
             extractId(replyingTo?.note?.id) || extractId(replyingTo?.files?.[0]?.id);
@@ -2675,6 +3499,8 @@ const UnifiedNoteThread = ({
                             },
                             creatorName,
                         ),
+                        badge && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#e6f4ff", color: "#096dd9", padding: "1px 6px", borderRadius: 4, border: "1px solid #91caff" } }, badge),
+                        item._fromTask && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "1px 6px", borderRadius: 4, border: "1px solid #ffd591" } }, `🔧 Từ Task: ${item._fromTask}`),
                         React.createElement(
                             "span",
                             {
@@ -2808,6 +3634,71 @@ const UnifiedNoteThread = ({
                                     },
                                     renderRichText(note.body, lawyers),
                                 ),
+                                (() => {
+                                    const history = noteId ? activityLogByNoteId[noteId] : null;
+                                    if (!history || !history.length) return null;
+                                    const isHistoryOpen = !!expandedHistory[noteId];
+                                    return React.createElement(
+                                        "div",
+                                        { style: { marginTop: 6 } },
+                                        React.createElement(
+                                            "span",
+                                            {
+                                                onClick: () =>
+                                                    setExpandedHistory((p) => ({ ...p, [noteId]: !p[noteId] })),
+                                                style: {
+                                                    fontSize: 11,
+                                                    fontFamily: FONT,
+                                                    color: "#8c8c8c",
+                                                    cursor: "pointer",
+                                                    textDecoration: "underline",
+                                                    textUnderlineOffset: "2px",
+                                                },
+                                            },
+                                            isHistoryOpen
+                                                ? "▲ Ẩn lịch sử chỉnh sửa"
+                                                : `▼ Xem lịch sử chỉnh sửa (${history.length})`,
+                                        ),
+                                        isHistoryOpen &&
+                                        React.createElement(
+                                            "div",
+                                            { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6 } },
+                                            ...history.map((log, idx) =>
+                                                React.createElement(
+                                                    "div",
+                                                    {
+                                                        key: log.id || idx,
+                                                        style: {
+                                                            fontSize: 12,
+                                                            fontFamily: FONT,
+                                                            background: "#fafafa",
+                                                            border: "1px solid #f0f0f0",
+                                                            borderRadius: 6,
+                                                            padding: "6px 10px",
+                                                        },
+                                                    },
+                                                    React.createElement(
+                                                        "div",
+                                                        { style: { fontSize: 11, color: "#bfbfbf", marginBottom: 4 } },
+                                                        `${log.changedByName || "Người dùng"} · ${timeAgo(log.changedAt || log.createdAt)}`,
+                                                    ),
+                                                    log.oldValue &&
+                                                    React.createElement(
+                                                        "div",
+                                                        { style: { color: "#ff4d4f", textDecoration: "line-through", marginBottom: 2 } },
+                                                        getCommentText(log.oldValue),
+                                                    ),
+                                                    log.newValue &&
+                                                    React.createElement(
+                                                        "div",
+                                                        { style: { color: "#262626" } },
+                                                        getCommentText(log.newValue),
+                                                    ),
+                                                ),
+                                            ),
+                                        ),
+                                    );
+                                })(),
                                 hasAssignees &&
                                 React.createElement(
                                     "div",
@@ -2834,9 +3725,17 @@ const UnifiedNoteThread = ({
                                     ),
                                     renderAssigneeTags(note?.assignees),
                                 ),
-                                ...files.map((f) => renderFileRow(f)),
+                                ...files.map((f) =>
+                                    renderFileRow(f, {
+                                        itemKey: key,
+                                        active: !!bulkSelectState[key]?.active,
+                                        selected: !!bulkSelectState[key]?.ids?.has(f.id),
+                                    }),
+                                ),
+                                files.length > 1 && renderBulkSelectBar(key, files),
                             ),
                             (note || files.length > 0) &&
+                            !item._fromTask &&
                             (canEdit || isMyItem) &&
                             !isEditing &&
                             React.createElement(
@@ -3110,7 +4009,31 @@ const UnifiedNoteThread = ({
                     background: "#fff",
                 },
             },
+            // List mode seeds the quote + @mention directly into the editor
+            // body (handleReplyClick/buildReplyQuoteHtml) instead of a
+            // floating "Đang trả lời" card — showing that card too would
+            // just duplicate what's already visible inside the input.
             replyingTo &&
+            viewMode === "list" &&
+            React.createElement(
+                "div",
+                {
+                    onClick: () => { setReplyingTo(null); setBody(""); },
+                    style: {
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        cursor: "pointer",
+                        color: "#8c8c8c",
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        marginBottom: 6,
+                    },
+                },
+                "✕ Huỷ trả lời",
+            ),
+            replyingTo &&
+            viewMode === "tree" &&
             React.createElement(
                 "div",
                 {
@@ -3177,6 +4100,17 @@ const UnifiedNoteThread = ({
                 ),
             ),
             React.createElement(CommentComposer, {
+                // List mode keeps this composer permanently mounted (never
+                // unmount/remount on replyingTo changes) so QuillEditor
+                // won't pick up a freshly-seeded quote body on its own
+                // (it only applies `value` once, at construction — see its
+                // "Sync initial value" effect). Keying on the reply target
+                // forces the remount that seeding relies on; Tree mode
+                // doesn't need this since its inline reply composer already
+                // mounts fresh per reply.
+                key: viewMode === "list"
+                    ? `composer-${replyingTo ? (extractId(replyingTo.note?.id) || extractId(replyingTo.files?.[0]?.id) || "seed") : "idle"}`
+                    : undefined,
                 value: body,
                 onChange: setBody,
                 onAssignMultiple: (ids) => setAssignedIds(ids),
@@ -3203,6 +4137,19 @@ const UnifiedNoteThread = ({
                     },
                 },
                 React.createElement(
+                    "span",
+                    {
+                        style: {
+                            fontSize: 11,
+                            color: "#bbb",
+                            fontFamily: FONT,
+                            whiteSpace: "nowrap",
+                            marginLeft: "auto",
+                        },
+                    },
+                    "Ctrl+Enter để gửi",
+                ),
+                React.createElement(
                     "div",
                     {
                         onClick: canSend
@@ -3211,7 +4158,6 @@ const UnifiedNoteThread = ({
                                 ? warnMentionOnly
                                 : undefined,
                         style: {
-                            marginLeft: "auto",
                             padding: isInline ? "6px 18px" : "8px 24px",
                             borderRadius: 6,
                             fontSize: isInline ? 13 : 14,
@@ -3239,7 +4185,82 @@ const UnifiedNoteThread = ({
                 background: "#fff",
             },
         },
-        !replyingTo && canEdit ? renderComposerBlock(false) : null,
+        React.createElement("input", {
+            ref: replaceFileInputRef,
+            type: "file",
+            style: { display: "none" },
+            onChange: (e) => {
+                const file = e.target.files?.[0];
+                const target = replaceFileTargetRef.current;
+                e.target.value = "";
+                if (file && target) handleReplaceFile(target, file);
+            },
+        }),
+        React.createElement(
+            Modal,
+            {
+                open: !!moveToLibraryTarget,
+                title: "Chuyển sang Library (Reference)",
+                onCancel: () => setMoveToLibraryTarget(null),
+                onOk: handleConfirmMoveToLibrary,
+                okButtonProps: { disabled: !selectedLegalStudyId },
+                okText: "Chuyển",
+                cancelText: "Huỷ",
+            },
+            React.createElement(
+                "div",
+                { style: { display: "flex", flexDirection: "column", gap: 8 } },
+                React.createElement(
+                    "div",
+                    { style: { fontSize: 13, color: "#595959" } },
+                    "Chọn Reference đích cho tệp:",
+                ),
+                React.createElement(ctx.antd.Select, {
+                    style: { width: "100%" },
+                    loading: legalStudyLoading,
+                    showSearch: true,
+                    optionFilterProp: "label",
+                    placeholder: "Chọn Reference...",
+                    value: selectedLegalStudyId || undefined,
+                    onChange: setSelectedLegalStudyId,
+                    options: legalStudyOptions.map((r) => ({
+                        value: extractId(r.id),
+                        label: r.title || `Reference #${r.id}`,
+                    })),
+                }),
+            ),
+        ),
+        React.createElement(
+            "div",
+            { style: { display: "flex", justifyContent: "flex-end", gap: 6, padding: "0 0 10px 0" } },
+            React.createElement(
+                "span",
+                {
+                    onClick: () => setViewMode("tree"),
+                    style: {
+                        fontSize: 12, fontFamily: FONT, cursor: "pointer", padding: "3px 12px", borderRadius: 14,
+                        background: viewMode === "tree" ? "#1890ff" : "#f0f0f0",
+                        color: viewMode === "tree" ? "#fff" : "#595959",
+                        fontWeight: 600,
+                    },
+                },
+                "Danh sách",
+            ),
+            React.createElement(
+                "span",
+                {
+                    onClick: () => setViewMode("list"),
+                    style: {
+                        fontSize: 12, fontFamily: FONT, cursor: "pointer", padding: "3px 12px", borderRadius: 14,
+                        background: viewMode === "list" ? "#1890ff" : "#f0f0f0",
+                        color: viewMode === "list" ? "#fff" : "#595959",
+                        fontWeight: 600,
+                    },
+                },
+                "Trò chuyện",
+            ),
+        ),
+        (viewMode === "list" || !replyingTo) && canEdit ? renderComposerBlock(false) : null,
         React.createElement(
             "div",
             { style: { paddingBottom: 24 } },
@@ -3262,6 +4283,22 @@ const UnifiedNoteThread = ({
                             },
                         },
                         "Vụ việc này chưa có bình luận hay tài liệu nội bộ nào.",
+                    )
+                    : viewMode === "list"
+                    ? React.createElement(
+                        "div",
+                        null,
+                        ...(() => {
+                            const chronological = [...visibleFeed].reverse();
+                            let lastDateKey = null;
+                            return chronological.map((item, i) => {
+                                const d = new Date(item._time);
+                                const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                                const dateLabel = dateKey !== lastDateKey ? getDateDividerLabel(item._time) : null;
+                                lastDateKey = dateKey;
+                                return renderListItem(item, `list-${i}`, dateLabel);
+                            });
+                        })(),
                     )
                     : React.createElement(
                         "div",

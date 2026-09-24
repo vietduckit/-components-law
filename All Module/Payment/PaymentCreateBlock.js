@@ -8,7 +8,6 @@
     Input,
     Modal,
     Select,
-    Segmented,
     Space,
     Spin,
     Table,
@@ -178,6 +177,14 @@
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // "YYYY-MM-DDTHH:mm" — matches <input type="datetime-local">'s value format.
+  const nowDateTimeInput = () => {
+    const date = new Date();
+    const hh = String(date.getHours()).padStart(2, "0");
+    const min = String(date.getMinutes()).padStart(2, "0");
+    return `${toDateInput(date)}T${hh}:${min}`;
   };
 
   const normalizeDateInput = (value) => {
@@ -363,6 +370,11 @@
 
   const contractDirectSourceKey = (contractId, reference) =>
     `contract:${contractId}:direct:${normalizeSourceKeyPart(reference) || Date.now()}`;
+
+  const basePaymentRequestSourceKey = (requestId) => `paymentRequest:${requestId}`;
+
+  const actualPaymentRequestSourceKey = (requestId, reference) =>
+    `${basePaymentRequestSourceKey(requestId)}:actual:${normalizeSourceKeyPart(reference) || Date.now()}`;
 
   const invoiceSourceKey = (invoiceId, reference) =>
     `invoice:${invoiceId}:payment:${normalizeSourceKeyPart(reference) || Date.now()}`;
@@ -634,69 +646,17 @@
     );
   };
 
-  const summarizePaymentsByInstallment = (payments = []) => {
-    const map = new Map();
-    payments.forEach((payment) => {
-      const key = String(payment?.scheduleItemId || "");
-      if (!key || isInactiveStatus(payment?.paymentStatus) || !isActualPaidStatus(payment?.paymentStatus)) return;
-      const current = map.get(key) || { paidAmount: 0, records: [] };
-      current.paidAmount += parseNum(payment?.amount);
-      current.records.push(payment);
-      map.set(key, current);
-    });
-    return map;
-  };
-
   const summarizeActualPayments = (payments = []) =>
     payments.reduce((sum, payment) => {
       if (isInactiveStatus(payment?.paymentStatus) || !isActualPaidStatus(payment?.paymentStatus)) return sum;
       return sum + parseNum(payment?.amount);
     }, 0);
 
-  const normalizeSchedule = (contract) => {
-    const raw = safeJsonParse(contract?.paymentSchedule);
-    if (!raw) return [];
-    const schedule = Array.isArray(raw) ? { installments: raw } : raw;
-    const baseAmount = parseNum(schedule.baseAmount ?? schedule.totalAmount ?? contract?.totalAmount);
-    return (Array.isArray(schedule.installments) ? schedule.installments : [])
-      .map((item, index) => {
-        const scheduleItemId = item.id || `payment-${index + 1}`;
-        const percentage = item.percentage ?? null;
-        const amount =
-          parseNum(item.amount ?? item.plannedAmount ?? item.totalAmount) ||
-          (percentage ? Math.round((baseAmount * parseNum(percentage)) / 100) : 0);
-        return {
-          ...item,
-          id: scheduleItemId,
-          scheduleItemId,
-          installmentNo: item.installmentNo || item.sortOrder || index + 1,
-          sortOrder: item.sortOrder || index + 1,
-          label: item.label || item.installmentLabel || item.installment || `Installment ${index + 1}`,
-          content: item.content || item.description || item.note || item.timingNote || "",
-          paymentDate: item.paymentDate || item.dueDate || item.date || "",
-          percentage,
-          amount,
-          cumulativeTotal: parseNum(item.cumulativeTotal),
-          status: item.status || "planned",
-        };
-      })
-      .filter((item) => item.label || item.paymentDate || item.amount > 0);
-  };
-
   const normalizeModeKey = (value) =>
     String(value || "")
       .trim()
       .toLowerCase()
       .replace(/[\s-]+/g, "_");
-
-  const contractScheduleMode = (contract) => {
-    const raw = safeJsonParse(contract?.paymentSchedule);
-    if (Array.isArray(raw) && raw.length) return "multiple_payments";
-    return normalizeModeKey(raw?.mode || contract?.billingCycle);
-  };
-
-  const isInstallmentPaymentContract = (contract, installments = []) =>
-    contractScheduleMode(contract) === "multiple_payments" && installments.length > 0;
 
   const contractTotalAmount = (contract) => {
     const directTotal = parseNum(firstPresent(contract, [
@@ -713,9 +673,9 @@
     const vatAmount = parseNum(firstPresent(contract, ["vatAmount", "packageVatAmount"]));
     if (subTotal > MONEY_TOLERANCE || vatAmount > MONEY_TOLERANCE) return subTotal + vatAmount;
 
-    const monthlyFee = parseNum(contract?.monthlyFee);
-    const duration = parseNum(contract?.retainerDuration);
-    if (monthlyFee > MONEY_TOLERANCE && duration > MONEY_TOLERANCE) return monthlyFee * duration;
+    const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || contract?.billingPlans?.[0] || null;
+    const planTotal = parseNum(activePlan?.totalAmount);
+    if (planTotal > MONEY_TOLERANCE) return planTotal;
 
     return 0;
   };
@@ -793,6 +753,15 @@
     return !!(parseNum(record.amount) > 0 && (record.paymentDate || record.paymentRefer || record.paymentMethod));
   };
 
+  const CONTRACT_PAYMENT_STATUS_META = {
+    unpaid: { color: "default", label: "Unpaid" },
+    partial: { color: "warning", label: "Partial" },
+    paid: { color: "success", label: "Paid" },
+  };
+
+  const contractPaymentStatusMeta = (status) =>
+    CONTRACT_PAYMENT_STATUS_META[String(status || "").toLowerCase()] || { color: "default", label: "Unknown" };
+
   const ContractSummaryItem = ({ label, value, strong }) =>
     React.createElement(
       "div",
@@ -816,8 +785,25 @@
     const [accountingUsers, setAccountingUsers] = useState([]);
     const [selectedContract, setSelectedContract] = useState(null);
     const [contractPayments, setContractPayments] = useState([]);
-    const [selectedInstallmentId, setSelectedInstallmentId] = useState("");
+    // Real paymentRequests rows for the picked contract (By Case's
+    // installments and By Service's per-service requests both live here —
+    // see docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md
+    // §6y). Replaces contract.paymentSchedule JSON as the "which
+    // installment/service" picker source entirely.
+    const [contractPaymentRequests, setContractPaymentRequests] = useState([]);
     const [requestContextLoaded, setRequestContextLoaded] = useState(false);
+    // §6h — names of the contractServices this specific Payment Request is
+    // tagged to (paymentRequestServices junction), so the person recording
+    // the payment can see which service(s)/installment it belongs to.
+    const [requestServiceNames, setRequestServiceNames] = useState([]);
+    // Set whenever this block is opened against one specific, already-known
+    // Payment Request (By Case/By Service/Retainer all create paymentRequests
+    // rows — this is the one thing every contract type has in common).
+    // Replaces matching against contract.paymentSchedule's JSON installment
+    // ids, which live in a completely different id space than the real
+    // contractPaymentSchedules/paymentRequestItems rows and can never match —
+    // see docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md §6x.
+    const [activePaymentRequest, setActivePaymentRequest] = useState(null);
     const isDirtyRef = useRef(false);
     const [form, setForm] = useState({
       invoiceId: "",
@@ -827,7 +813,7 @@
       accountingUserId: "",
       paymentMethod: "Cash",
       paymentStatus: "Received",
-      paymentDate: "",
+      paymentDate: nowDateTimeInput(),
       amount: null,
       paymentRefer: "",
       internalNote: "",
@@ -885,7 +871,7 @@
       lawyerId: "",
       paymentMethod: "",
       paymentStatus: "",
-      paymentDate: "",
+      paymentDate: nowDateTimeInput(),
       amount: null,
       paymentRefer: "",
       internalNote: "",
@@ -898,9 +884,11 @@
       setMode(value);
       setForm(emptyFormForMode());
       setAmountDraft("");
-      setSelectedInstallmentId("");
       setSelectedContract(null);
       setContractPayments([]);
+      setContractPaymentRequests([]);
+      setRequestServiceNames([]);
+      setActivePaymentRequest(null);
     };
 
     useEffect(() => {
@@ -943,64 +931,89 @@
       [companies, form.internalCompanyId],
     );
 
-    const contractInstallments = useMemo(
-      () => normalizeSchedule(selectedContract || {}),
-      [selectedContract],
-    );
+    // contractPaymentRequests (real paymentRequests rows, §6y) replaces
+    // contract.paymentSchedule JSON as the "which installment/service"
+    // picker source — see docs/superpowers/specs/2026-09-17-unified-
+    // contract-payment-data-model-design.md §6x for why the JSON blob's ids
+    // can never reliably match real payments.
+    const paymentRequestPaidAmount = (request, payments = contractPayments) =>
+      summarizeActualPayments(
+        (payments || []).filter((p) => extractId(p?.paymentRequestId) === extractId(request?.id)),
+      );
+    const paymentRequestRemainingAmount = (request, payments = contractPayments) =>
+      Math.max(parseNum(request?.requestedAmount) - paymentRequestPaidAmount(request, payments), 0);
+    const isPaymentRequestFullyPaid = (request, payments = contractPayments) =>
+      paymentRequestRemainingAmount(request, payments) <= MONEY_TOLERANCE;
 
-    const selectedInstallment = useMemo(
-      () => contractInstallments.find((item) => String(item.scheduleItemId) === String(selectedInstallmentId)) || null,
-      [contractInstallments, selectedInstallmentId],
-    );
-
-    const installmentPaymentSummary = useMemo(
-      () => summarizePaymentsByInstallment(contractPayments),
-      [contractPayments],
-    );
-
-    const selectedInstallmentSummary =
-      selectedInstallment && installmentPaymentSummary.get(String(selectedInstallment.scheduleItemId));
-
-    const selectedPlannedAmount = parseNum(selectedInstallment?.amount);
-    const selectedPaidAmount = parseNum(selectedInstallmentSummary?.paidAmount);
-    const selectedRemainingAmount = Math.max(selectedPlannedAmount - selectedPaidAmount, 0);
-    const isContractInstallmentPayment =
-      mode === SOURCE_TYPES.contract && isInstallmentPaymentContract(selectedContract || {}, contractInstallments);
+    const contractTypeKey = normalizeModeKey(selectedContract?.contractType);
+    // Only By Case (installments) and By Service (per-service requests)
+    // get a picker — Retainer's Payment Requests are periodic billing
+    // cycles, not a static list to choose from, and stay on the
+    // whole-contract grid below.
+    // Stays true even once a row is picked (activePaymentRequest set) — the
+    // table stays visible so ticking a different row is how you change the
+    // pick, no separate "Change" control needed. Naturally false for the
+    // direct-open-from-one-Payment-Request flow, which never populates
+    // contractPaymentRequests.
+    const showPaymentRequestPicker =
+      mode === SOURCE_TYPES.contract &&
+      (contractTypeKey === "bycase" || contractTypeKey === "byservice") &&
+      contractPaymentRequests.length > 0;
     const selectedContractTotalAmount = contractTotalAmount(selectedContract || {});
     const contractPaidAmount = summarizeActualPayments(contractPayments);
     const contractRemainingAmount = selectedContractTotalAmount > MONEY_TOLERANCE
       ? Math.max(selectedContractTotalAmount - contractPaidAmount, 0)
       : 0;
+    // When the contract has pickable Payment Requests and none is active
+    // yet, the sum of their own remaining amounts IS the ground truth for
+    // "contract outstanding" — it's exactly what the picker table below
+    // shows, computed from the real paymentRequestId every payment already
+    // carries (no JSON-blob id matching involved). contracts.outStandingAmount
+    // (DB) is used whenever there's no such breakdown (Retainer, or a
+    // legacy contract with zero paymentRequests); client recompute is the
+    // last-resort fallback for pre-trigger contracts.
+    const requestBasedOutstanding = showPaymentRequestPicker
+      ? contractPaymentRequests.reduce((sum, r) => sum + paymentRequestRemainingAmount(r), 0)
+      : null;
+    const dbOutstanding = selectedContract?.outStandingAmount;
+    const contractOutstandingAmount = requestBasedOutstanding !== null
+      ? requestBasedOutstanding
+      : dbOutstanding !== undefined && dbOutstanding !== null
+        ? parseNum(dbOutstanding)
+        : contractRemainingAmount;
     const isSelectedRetainerPayment = isRetainerPaymentContract(selectedContract || {});
     const selectedRetainerNextPaymentDate = resolveRetainerNextPaymentDate(selectedContract || {});
-    const installmentPaidAmount = (item, summary = installmentPaymentSummary) =>
-      parseNum(summary.get(String(item?.scheduleItemId))?.paidAmount);
-    const installmentRemainingAmount = (item, summary = installmentPaymentSummary) =>
-      Math.max(parseNum(item?.amount) - installmentPaidAmount(item, summary), 0);
-    const isInstallmentFullyPaid = (item, summary = installmentPaymentSummary) =>
-      installmentRemainingAmount(item, summary) <= MONEY_TOLERANCE;
 
     const loadContractContext = async (contractId) => {
       markDirty();
       const safeId = extractId(contractId);
       setF("contractId", safeId || "");
-      setSelectedInstallmentId("");
       setSelectedContract(null);
       setContractPayments([]);
+      setContractPaymentRequests([]);
+      setRequestServiceNames([]);
+      setActivePaymentRequest(null);
       if (!safeId) return;
       setLoading(true);
       try {
-        const [contract, payments] = await Promise.all([
+        const [contract, payments, paymentRequests] = await Promise.all([
           getAny(CONTRACT_RESOURCES, safeId, { appends: ["customers", "billingPlans"] }),
           listPaymentsByContract(safeId),
+          listAny(["paymentRequests"], {
+            pageSize: 500,
+            filter: JSON.stringify({ contractId: { $eq: safeId } }),
+            fields: ["id", "title", "requestedAmount", "status", "dueDate", "contractPaymentScheduleId"],
+          }).catch(() => []),
         ]);
         setSelectedContract(contract || null);
         setContractPayments(payments || []);
+        setContractPaymentRequests(paymentRequests || []);
         const customerId = resolveCustomerId(contract);
         const companyId = resolveCompanyId(contract);
         const lawyerId = extractId(contract?.lawyerId) || extractId(contract?.lawyer) || extractId(contract?.assignees);
-        const installments = normalizeSchedule(contract || {});
-        const isInstallmentPayment = isInstallmentPaymentContract(contract || {}, installments);
+        const contractTypeKey = normalizeModeKey(contract?.contractType);
+        const hasPickableRequests =
+          (contractTypeKey === "bycase" || contractTypeKey === "byservice") && (paymentRequests || []).length > 0;
         const isRetainerPayment = isRetainerPaymentContract(contract || {});
         const retainerNextPaymentDate = resolveRetainerNextPaymentDate(contract || {});
         const totalAmount = contractTotalAmount(contract || {});
@@ -1014,9 +1027,9 @@
           customerId: customerId || prev.customerId || "",
           internalCompanyId: companyId || prev.internalCompanyId || "",
           lawyerId: lawyerId || prev.lawyerId || "",
-          amount: !isInstallmentPayment && remainingAmount > MONEY_TOLERANCE ? remainingAmount : null,
-          paymentDate: prev.paymentDate || (!isInstallmentPayment && isRetainerPayment ? retainerNextPaymentDate : ""),
-          paymentStatus: !isInstallmentPayment
+          amount: !hasPickableRequests && remainingAmount > MONEY_TOLERANCE ? remainingAmount : null,
+          paymentDate: prev.paymentDate || (!hasPickableRequests && isRetainerPayment ? retainerNextPaymentDate : ""),
+          paymentStatus: !hasPickableRequests
             ? (remainingAmount > MONEY_TOLERANCE ? deriveActualPaymentStatus(remainingAmount, remainingAmount) : "Received")
             : "",
         }));
@@ -1026,6 +1039,113 @@
       } finally {
         setLoading(false);
       }
+    };
+
+    // §6h — shared by both entry points below and by the manual picker's
+    // row-select handler: looks up which contractServices a Payment Request
+    // is tagged to, by name.
+    const fetchAndSetRequestServiceNames = (requestId) => {
+      setRequestServiceNames([]);
+      if (!requestId) return;
+      listAny(["paymentRequestServices"], {
+        filter: JSON.stringify({ paymentRequestId: { $eq: requestId } }),
+        fields: ["id", "contractServiceId"],
+      })
+        .then((tagRows) => {
+          const csIds = compact((tagRows || []).map((row) => extractId(row.contractServiceId)));
+          if (!csIds.length) return;
+          return listAny(["contractServices"], {
+            filter: JSON.stringify({ id: { $in: csIds } }),
+            fields: ["id", "serviceName"],
+          }).then((serviceRows) => {
+            setRequestServiceNames((serviceRows || []).map((row) => row.serviceName || `Service #${extractId(row.id)}`));
+          });
+        })
+        .catch(() => setRequestServiceNames([]));
+    };
+
+    // Shared core for both entry points below. `request` (a paymentRequests
+    // row) is the one thing every contract type always has — By Case/By
+    // Service also get a matching paymentRequestItems row (`item`), Retainer
+    // never does (its Payment Requests are created by a Workflow that only
+    // inserts into paymentRequests). This specific request's own remaining
+    // balance is the authoritative "how much is left to pay", computed
+    // straight from payments already recorded against this paymentRequestId.
+    const finishLoadingPaymentRequest = async (request, item) => {
+      const requestId = extractId(request?.id);
+      const contractId =
+        resolveContractId(item || {}) ||
+        resolveContractId(request || {}) ||
+        extractId(request?.contractId);
+      if (!contractId) throw new Error("No contract linked to this payment request.");
+
+      const [contract, payments] = await Promise.all([
+        getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany", "billingPlans"] }),
+        listPaymentsByContract(contractId).catch(() => []),
+      ]);
+
+      const requestedAmount = parseNum(
+        firstPresent(item || {}, ["approvedAmount", "requestedAmount", "remainingAmountSnapshot"]) ||
+        firstPresent(request || {}, ["requestedAmount"]),
+      );
+      const requestPaidAmount = summarizeActualPayments(
+        (payments || []).filter((p) => requestId && extractId(p?.paymentRequestId) === requestId),
+      );
+      const requestRemainingAmount = Math.max(requestedAmount - requestPaidAmount, 0);
+      // paymentRequests.contractPaymentScheduleId is the REAL contractPaymentSchedules
+      // row id (By Case only) — unlike contract.paymentSchedule's JSON item
+      // ids, this is safe to write onto the payment's own scheduleItemId for
+      // downstream per-installment reporting.
+      const scheduleItemId = extractId(request?.contractPaymentScheduleId)
+        ? String(extractId(request.contractPaymentScheduleId))
+        : "";
+      const plannedDate = item?.plannedPaymentDate || item?.dueDate || request?.dueDate || "";
+      const customerId =
+        resolveCustomerId(item || {}) ||
+        resolveCustomerId(request || {}) ||
+        resolveCustomerId(contract || {});
+      const companyId =
+        resolveCompanyId(item || {}) ||
+        resolveCompanyId(request || {}) ||
+        resolveCompanyId(contract || {});
+      const lawyerId = extractId(contract?.lawyerId) || extractId(contract?.lawyer) || extractId(contract?.assignees);
+
+      fetchAndSetRequestServiceNames(requestId);
+
+      setMode(SOURCE_TYPES.contract);
+      setSelectedContract(contract || null);
+      setContractPayments(payments || []);
+      setContractPaymentRequests([]);
+      setActivePaymentRequest({
+        id: requestId,
+        title: firstPresent(request || {}, ["title"]) || (requestId ? `Payment request #${requestId}` : "Payment request"),
+        requestedAmount,
+        paidAmount: requestPaidAmount,
+        remainingAmount: requestRemainingAmount,
+        scheduleItemId,
+      });
+      setForm((prev) => ({
+        ...prev,
+        mode: SOURCE_TYPES.contract,
+        contractId,
+        customerId: customerId || prev.customerId || "",
+        internalCompanyId: companyId || prev.internalCompanyId || "",
+        lawyerId: lawyerId || prev.lawyerId || "",
+        amount: requestRemainingAmount > MONEY_TOLERANCE ? requestRemainingAmount : prev.amount,
+        paymentDate: plannedDate || prev.paymentDate || "",
+        paymentStatus: requestRemainingAmount > MONEY_TOLERANCE
+          ? deriveActualPaymentStatus(requestRemainingAmount, requestRemainingAmount)
+          : "Received",
+        paymentRequestId: requestId || prev.paymentRequestId || "",
+        paymentRequestItemId: extractId(item?.id) || prev.paymentRequestItemId || "",
+        internalNote:
+          prev.internalNote ||
+          compact([
+            requestId ? `Payment request #${requestId}` : "",
+            firstPresent(item || request || {}, ["lineLabel", "description", "title"]),
+          ]).join(" - "),
+      }));
+      setRequestContextLoaded(true);
     };
 
     const loadPaymentRequestContext = async (requestItemId) => {
@@ -1043,64 +1163,7 @@
         const request = requestId
           ? await getAny(PAYMENT_REQUEST_RESOURCES, requestId, { appends: ["contracts", "customers", "internalCompany"] }).catch(() => null)
           : null;
-        const contractId =
-          resolveContractId(item || {}) ||
-          resolveContractId(request || {}) ||
-          extractId(request?.contractId);
-        if (!contractId) throw new Error("No contract linked to this payment request item.");
-
-        const [contract, payments] = await Promise.all([
-          getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany", "billingPlans"] }),
-          listPaymentsByContract(contractId).catch(() => []),
-        ]);
-        const scheduleItemId = String(
-          item?.scheduleItemId ||
-          item?.paymentScheduleId ||
-          item?.installmentId ||
-          "",
-        );
-        const requestedAmount =
-          parseNum(item?.approvedAmount) ||
-          parseNum(item?.requestedAmount) ||
-          parseNum(item?.remainingAmountSnapshot);
-        const plannedDate =
-          item?.plannedPaymentDate ||
-          item?.dueDate ||
-          "";
-        const customerId =
-          resolveCustomerId(item || {}) ||
-          resolveCustomerId(request || {}) ||
-          resolveCustomerId(contract || {});
-        const companyId =
-          resolveCompanyId(item || {}) ||
-          resolveCompanyId(request || {}) ||
-          resolveCompanyId(contract || {});
-        const lawyerId = extractId(contract?.lawyerId) || extractId(contract?.lawyer) || extractId(contract?.assignees);
-
-        setMode(SOURCE_TYPES.contract);
-        setSelectedContract(contract || null);
-        setContractPayments(payments || []);
-        setSelectedInstallmentId(scheduleItemId);
-        setForm((prev) => ({
-          ...prev,
-          mode: SOURCE_TYPES.contract,
-          contractId,
-          customerId: customerId || prev.customerId || "",
-          internalCompanyId: companyId || prev.internalCompanyId || "",
-          lawyerId: lawyerId || prev.lawyerId || "",
-          amount: requestedAmount || prev.amount,
-          paymentDate: plannedDate || prev.paymentDate || "",
-          paymentStatus: requestedAmount ? deriveActualPaymentStatus(requestedAmount, requestedAmount) : prev.paymentStatus || "Received",
-          paymentRequestId: requestId || prev.paymentRequestId || "",
-          paymentRequestItemId: safeItemId,
-          internalNote:
-            prev.internalNote ||
-            compact([
-              requestId ? `Payment request #${requestId}` : "",
-              firstPresent(item, ["lineLabel", "description"]),
-            ]).join(" - "),
-        }));
-        setRequestContextLoaded(true);
+        await finishLoadingPaymentRequest(request, item);
       } catch (error) {
         console.error("[PaymentCreateBlock] load payment request context failed", error);
         message.error(error?.message || "Could not load payment request context.");
@@ -1110,9 +1173,38 @@
       }
     };
 
+    // Entry point for opening this block directly from a Payment Request's
+    // own detail page (no paymentRequestItemId available) — the only path
+    // that works for Retainer, whose Payment Requests never get a
+    // paymentRequestItems row.
+    const loadPaymentRequestContextByRequestId = async (requestId) => {
+      const safeRequestId = extractId(requestId);
+      if (!safeRequestId) return;
+      setLoading(true);
+      try {
+        const request = await getAny(PAYMENT_REQUEST_RESOURCES, safeRequestId, {
+          appends: ["contracts", "customers", "internalCompany"],
+        });
+        if (!request) throw new Error("Payment request not found.");
+        await finishLoadingPaymentRequest(request, null);
+      } catch (error) {
+        console.error("[PaymentCreateBlock] load payment request (by id) context failed", error);
+        message.error(error?.message || "Could not load payment request context.");
+        setRequestContextLoaded(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     useEffect(() => {
-      if (!seedPaymentRequestItemId || requestContextLoaded) return;
-      loadPaymentRequestContext(seedPaymentRequestItemId);
+      if (requestContextLoaded) return;
+      if (seedPaymentRequestItemId) {
+        loadPaymentRequestContext(seedPaymentRequestItemId);
+        return;
+      }
+      if (seedPaymentRequestId) {
+        loadPaymentRequestContextByRequestId(seedPaymentRequestId);
+      }
     }, [requestContextLoaded]);
 
     const handleInvoiceChange = (invoiceId) => {
@@ -1131,20 +1223,48 @@
       }));
     };
 
-    const handleInstallmentSelect = (item) => {
-      const remaining = installmentRemainingAmount(item);
+    // Manual "By contract" picker's row-select — reuses the exact same
+    // activePaymentRequest mechanism the direct-open-from-Payment-Request
+    // flow uses, so validation/submit/display all behave identically
+    // regardless of how the user got here.
+    const handleContractPaymentRequestSelect = (request) => {
+      const remaining = paymentRequestRemainingAmount(request);
       if (remaining <= MONEY_TOLERANCE) {
-        message.info("This installment has already been fully paid.");
+        message.info("This payment request has already been fully paid.");
         return;
       }
       markDirty();
-      setSelectedInstallmentId(item.scheduleItemId);
+      const requestId = extractId(request?.id);
+      const paid = paymentRequestPaidAmount(request);
+      fetchAndSetRequestServiceNames(requestId);
+      setActivePaymentRequest({
+        id: requestId,
+        title: firstPresent(request || {}, ["title"]) || (requestId ? `Payment request #${requestId}` : "Payment request"),
+        requestedAmount: parseNum(request?.requestedAmount),
+        paidAmount: paid,
+        remainingAmount: remaining,
+        scheduleItemId: extractId(request?.contractPaymentScheduleId)
+          ? String(extractId(request.contractPaymentScheduleId))
+          : "",
+      });
       setForm((prev) => ({
         ...prev,
         amount: remaining > MONEY_TOLERANCE ? remaining : null,
-        paymentDate: prev.paymentDate || "",
+        paymentDate: prev.paymentDate || request?.dueDate || "",
         paymentStatus: remaining > MONEY_TOLERANCE ? deriveActualPaymentStatus(remaining, remaining) : "Received",
+        paymentRequestId: requestId || prev.paymentRequestId || "",
+        internalNote: prev.internalNote || firstPresent(request || {}, ["title"]) || "",
       }));
+    };
+
+    // Unticking the active row's checkbox in the picker table — the table
+    // itself is the "change selection" control now, so this just clears
+    // back to "nothing picked yet" rather than needing a separate button.
+    const handleClearPaymentRequestSelection = () => {
+      markDirty();
+      setActivePaymentRequest(null);
+      setRequestServiceNames([]);
+      setForm((prev) => ({ ...prev, amount: null, paymentRequestId: "", paymentRequestItemId: "" }));
     };
 
     const handleAmountChange = (value) => {
@@ -1156,10 +1276,12 @@
         if (amount <= 0 && mode !== SOURCE_TYPES.manual) {
           paymentStatus = "";
         } else if (mode === SOURCE_TYPES.contract) {
-          if (isContractInstallmentPayment && selectedInstallment) {
-            paymentStatus = deriveActualPaymentStatus(amount, selectedRemainingAmount);
-          } else if (!isContractInstallmentPayment && contractRemainingAmount > MONEY_TOLERANCE) {
-            paymentStatus = deriveActualPaymentStatus(amount, contractRemainingAmount);
+          if (activePaymentRequest) {
+            paymentStatus = activePaymentRequest.remainingAmount > MONEY_TOLERANCE
+              ? deriveActualPaymentStatus(amount, activePaymentRequest.remainingAmount)
+              : "Received";
+          } else if (contractOutstandingAmount > MONEY_TOLERANCE) {
+            paymentStatus = deriveActualPaymentStatus(amount, contractOutstandingAmount);
           } else {
             paymentStatus = "Received";
           }
@@ -1176,8 +1298,8 @@
     const validate = () => {
       if (mode === SOURCE_TYPES.invoice && !form.invoiceId) return "Please select an invoice.";
       if (mode === SOURCE_TYPES.contract && !form.contractId) return "Please select a contract.";
-      if (mode === SOURCE_TYPES.contract && isContractInstallmentPayment && !selectedInstallment) {
-        return "Please select a payment installment.";
+      if (mode === SOURCE_TYPES.contract && showPaymentRequestPicker && !activePaymentRequest) {
+        return "Please select a payment request to pay.";
       }
       if (mode === SOURCE_TYPES.manual && !form.customerId) return "Please select a customer for manual payment.";
       if (!form.internalCompanyId) return "Please select internal company.";
@@ -1193,14 +1315,16 @@
         }
       }
       if (mode === SOURCE_TYPES.contract) {
-        if (isContractInstallmentPayment) {
-          if (selectedRemainingAmount <= MONEY_TOLERANCE) return "This installment has already been fully paid.";
-          if (amount > selectedRemainingAmount + MONEY_TOLERANCE) {
-            return "Received amount cannot exceed installment remaining amount.";
+        if (activePaymentRequest) {
+          if (activePaymentRequest.remainingAmount <= MONEY_TOLERANCE) {
+            return "This payment request has already been fully paid.";
+          }
+          if (amount > activePaymentRequest.remainingAmount + MONEY_TOLERANCE) {
+            return "Received amount cannot exceed the payment request's remaining amount.";
           }
         } else if (selectedContractTotalAmount > MONEY_TOLERANCE) {
-          if (contractRemainingAmount <= MONEY_TOLERANCE) return "This contract has already been fully paid.";
-          if (amount > contractRemainingAmount + MONEY_TOLERANCE) {
+          if (contractOutstandingAmount <= MONEY_TOLERANCE) return "This contract has already been fully paid.";
+          if (amount > contractOutstandingAmount + MONEY_TOLERANCE) {
             return "Received amount cannot exceed contract remaining amount.";
           }
         }
@@ -1255,86 +1379,78 @@
         lawyerId: extractId(contract.lawyerId) || extractId(contract.lawyer) || extractId(contract.assignees),
       };
 
-      if (!isInstallmentPaymentContract(contract, contractInstallments)) {
-        const totalAmount = contractTotalAmount(contract);
-        const paidAmount = summarizeActualPayments(latestPayments);
-        const remainingBefore = totalAmount > MONEY_TOLERANCE
-          ? Math.max(totalAmount - paidAmount, 0)
-          : 0;
-        if (totalAmount > MONEY_TOLERANCE) {
-          if (remainingBefore <= MONEY_TOLERANCE) {
-            throw new Error("This contract has already been fully paid.");
-          }
-          if (amount > remainingBefore + MONEY_TOLERANCE) {
-            throw new Error("Received amount cannot exceed contract remaining amount.");
-          }
+      if (activePaymentRequest?.id) {
+        const requestId = activePaymentRequest.id;
+        const latestRequestPaid = summarizeActualPayments(
+          latestPayments.filter((p) => extractId(p?.paymentRequestId) === requestId),
+        );
+        const remainingBefore = Math.max(activePaymentRequest.requestedAmount - latestRequestPaid, 0);
+        if (remainingBefore <= MONEY_TOLERANCE) {
+          throw new Error("This payment request has already been fully paid.");
         }
-        const paymentStatus = remainingBefore > MONEY_TOLERANCE
-          ? deriveActualPaymentStatus(amount, remainingBefore)
-          : form.paymentStatus || "Received";
-        const sourceKey = contractDirectSourceKey(contractId, form.paymentRefer);
-        const existingDirect = await findPaymentBySourceKey(sourceKey);
+        if (amount > remainingBefore + MONEY_TOLERANCE) {
+          throw new Error("Received amount cannot exceed the payment request's remaining amount.");
+        }
+        const paymentStatus = deriveActualPaymentStatus(amount, remainingBefore);
+        const baseKey = basePaymentRequestSourceKey(requestId);
+        const existingBase = await findPaymentBySourceKey(baseKey);
+        const hasBaseActual = existingBase && isActualPaymentFilled(existingBase);
+        const sourceKey = hasBaseActual
+          ? actualPaymentRequestSourceKey(requestId, form.paymentRefer)
+          : baseKey;
+        const existingActual = hasBaseActual ? await findPaymentBySourceKey(sourceKey) : null;
 
-        if (existingDirect) {
-          throw new Error("A payment with the same reference already exists for this contract.");
+        if (existingActual) {
+          throw new Error("A payment with the same reference already exists for this payment request.");
         }
 
         return {
           payload: {
             ...buildCommonPaymentPayload({ form: { ...form, mode: SOURCE_TYPES.contract, paymentStatus }, context }),
             sourceKey,
+            scheduleItemId: activePaymentRequest.scheduleItemId || null,
+            plannedAmount: activePaymentRequest.requestedAmount || null,
           },
-          updateExistingId: null,
+          updateExistingId: existingBase && !hasBaseActual && !isFinalStatus(existingBase.paymentStatus)
+            ? extractId(existingBase)
+            : null,
         };
       }
 
-      if (!selectedInstallment) {
-        throw new Error("Please select a payment installment.");
+      // Reached for Retainer, or a legacy By Case/By Service contract with
+      // no paymentRequests yet — everything else goes through the
+      // activePaymentRequest branch above (validate() blocks submission
+      // before this point whenever showPaymentRequestPicker is true and
+      // nothing has been picked).
+      const totalAmount = contractTotalAmount(contract);
+      const paidAmount = summarizeActualPayments(latestPayments);
+      const remainingBefore = totalAmount > MONEY_TOLERANCE
+        ? Math.max(totalAmount - paidAmount, 0)
+        : 0;
+      if (totalAmount > MONEY_TOLERANCE) {
+        if (remainingBefore <= MONEY_TOLERANCE) {
+          throw new Error("This contract has already been fully paid.");
+        }
+        if (amount > remainingBefore + MONEY_TOLERANCE) {
+          throw new Error("Received amount cannot exceed contract remaining amount.");
+        }
       }
+      const paymentStatus = remainingBefore > MONEY_TOLERANCE
+        ? deriveActualPaymentStatus(amount, remainingBefore)
+        : form.paymentStatus || "Received";
+      const sourceKey = contractDirectSourceKey(contractId, form.paymentRefer);
+      const existingDirect = await findPaymentBySourceKey(sourceKey);
 
-      const scheduleItemId = selectedInstallment.scheduleItemId;
-      const latestSummary = summarizePaymentsByInstallment(latestPayments);
-      const latestPaid = parseNum(latestSummary.get(String(scheduleItemId))?.paidAmount);
-      const remainingBefore = Math.max(parseNum(selectedInstallment.amount) - latestPaid, 0);
-      if (remainingBefore <= MONEY_TOLERANCE) {
-        throw new Error("This installment has already been fully paid.");
+      if (existingDirect) {
+        throw new Error("A payment with the same reference already exists for this contract.");
       }
-      if (amount > remainingBefore + MONEY_TOLERANCE) {
-        throw new Error("Received amount cannot exceed installment remaining amount.");
-      }
-      const paymentStatus = deriveActualPaymentStatus(amount, remainingBefore);
-      const baseKey = baseScheduleSourceKey(contractId, scheduleItemId);
-      const existingBase = await findPaymentBySourceKey(baseKey);
-      const hasBaseActual = existingBase && isActualPaymentFilled(existingBase);
-      const shouldCreateActualRecord = !!hasBaseActual;
-      const sourceKey = shouldCreateActualRecord
-        ? actualScheduleSourceKey(contractId, scheduleItemId, form.paymentRefer)
-        : baseKey;
-      const existingActual = shouldCreateActualRecord ? await findPaymentBySourceKey(sourceKey) : null;
-
-      if (existingActual) {
-        throw new Error("A payment with the same reference already exists for this installment.");
-      }
-
-      const payload = {
-        ...buildCommonPaymentPayload({ form: { ...form, mode: SOURCE_TYPES.contract, paymentStatus }, context }),
-        sourceKey,
-        scheduleItemId,
-        installmentNo: selectedInstallment.installmentNo,
-        sortOrder: selectedInstallment.sortOrder,
-        installmentLabel: selectedInstallment.label,
-        installmentContent: selectedInstallment.content,
-        plannedPaymentDate: toIsoDateTime(selectedInstallment.paymentDate),
-        plannedAmount: parseNum(selectedInstallment.amount),
-        plannedPercentage: selectedInstallment.percentage ? parseNum(selectedInstallment.percentage) : null,
-        cumulativePlanned: parseNum(selectedInstallment.cumulativeTotal),
-      };
 
       return {
-        payload,
-        updateExistingId: existingBase && !hasBaseActual && !isFinalStatus(existingBase.paymentStatus)
-          ? extractId(existingBase)
-          : null,
+        payload: {
+          ...buildCommonPaymentPayload({ form: { ...form, mode: SOURCE_TYPES.contract, paymentStatus }, context }),
+          sourceKey,
+        },
+        updateExistingId: null,
       };
     };
 
@@ -1360,14 +1476,8 @@
         if (mode === SOURCE_TYPES.contract && form.contractId) {
           const payments = await listPaymentsByContract(form.contractId);
           setContractPayments(payments || []);
-          if (selectedInstallmentId) {
-            const latestSummary = summarizePaymentsByInstallment(payments || []);
-            const currentInstallment = contractInstallments.find(
-              (item) => String(item.scheduleItemId) === String(selectedInstallmentId),
-            );
-            if (currentInstallment && isInstallmentFullyPaid(currentInstallment, latestSummary)) {
-              setSelectedInstallmentId("");
-            }
+          if (activePaymentRequest?.id && isPaymentRequestFullyPaid(activePaymentRequest, payments || [])) {
+            setActivePaymentRequest(null);
           }
         }
         setTimeout(closeCurrentModal, 250);
@@ -1387,6 +1497,37 @@
       );
     }
 
+    const activePaymentRequestSummary = activePaymentRequest
+      ? React.createElement(
+        "div",
+        {
+          style: {
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            columnGap: 24,
+            marginTop: showPaymentRequestPicker ? 16 : 0,
+          },
+        },
+        React.createElement(ContractSummaryItem, {
+          label: "This request",
+          value: activePaymentRequest.title,
+        }),
+        React.createElement(ContractSummaryItem, {
+          label: "Requested",
+          value: formatMoney(activePaymentRequest.requestedAmount),
+        }),
+        React.createElement(ContractSummaryItem, {
+          label: "Already received",
+          value: formatMoney(activePaymentRequest.paidAmount),
+        }),
+        React.createElement(ContractSummaryItem, {
+          label: "Remaining on this request",
+          value: formatMoney(activePaymentRequest.remainingAmount),
+          strong: true,
+        }),
+      )
+      : null;
+
     return React.createElement(
       "div",
       { style: { width: "100%" }, onChange: markDirty, onInput: markDirty },
@@ -1396,68 +1537,76 @@
         React.createElement(
           Space,
           { direction: "vertical", size: 16, style: { width: "100%" } },
-          React.createElement(Segmented, {
-            value: mode,
-            onChange: handleModeChange,
-            options: [
-              { label: "By invoice", value: SOURCE_TYPES.invoice },
-              { label: "By contract", value: SOURCE_TYPES.contract },
-              { label: "Manual", value: SOURCE_TYPES.manual },
-            ],
-          }),
           React.createElement(
             Form,
             { layout: "vertical" },
-            mode === SOURCE_TYPES.invoice &&
             React.createElement(
-              Form.Item,
-              { label: "Invoice", required: true },
-              React.createElement(Select, {
-                showSearch: true,
-                allowClear: true,
-                value: form.invoiceId || undefined,
-                placeholder: "Select invoice",
-                optionFilterProp: "label",
-                onChange: handleInvoiceChange,
-                options: invoices.map((item) => ({
-                  value: extractId(item),
-                  label: invoiceLabel(item),
-                })),
-              }),
-            ),
-            mode === SOURCE_TYPES.contract &&
-            React.createElement(
-              Form.Item,
-              { label: "Contract", required: true },
-              React.createElement(Select, {
-                showSearch: true,
-                allowClear: true,
-                value: form.contractId || undefined,
-                placeholder: "Select contract",
-                optionFilterProp: "label",
-                onChange: loadContractContext,
-                options: contracts.map((item) => ({
-                  value: extractId(item),
-                  label: contractLabel(item),
-                })),
-              }),
-            ),
-            mode === SOURCE_TYPES.manual &&
-            React.createElement(
-              Form.Item,
-              { label: "Customer", required: true },
-              React.createElement(Select, {
-                showSearch: true,
-                allowClear: true,
-                value: form.customerId || undefined,
-                placeholder: "Select customer",
-                optionFilterProp: "label",
-                onChange: (value) => setF("customerId", value || ""),
-                options: customers.map((item) => ({
-                  value: extractId(item),
-                  label: customerLabel(item),
-                })),
-              }),
+              "div",
+              { style: { display: "flex", flexWrap: "wrap", gap: 16 } },
+              React.createElement(
+                Form.Item,
+                { label: "Mode", required: true, style: { flex: "0 1 200px", minWidth: 160, marginBottom: 0 } },
+                React.createElement(Select, {
+                  value: mode,
+                  onChange: handleModeChange,
+                  options: [
+                    { label: "By invoice", value: SOURCE_TYPES.invoice },
+                    { label: "By contract", value: SOURCE_TYPES.contract },
+                    { label: "Manual", value: SOURCE_TYPES.manual },
+                  ],
+                }),
+              ),
+              mode === SOURCE_TYPES.invoice &&
+              React.createElement(
+                Form.Item,
+                { label: "Invoice", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                React.createElement(Select, {
+                  showSearch: true,
+                  allowClear: true,
+                  value: form.invoiceId || undefined,
+                  placeholder: "Select invoice",
+                  optionFilterProp: "label",
+                  onChange: handleInvoiceChange,
+                  options: invoices.map((item) => ({
+                    value: extractId(item),
+                    label: invoiceLabel(item),
+                  })),
+                }),
+              ),
+              mode === SOURCE_TYPES.contract &&
+              React.createElement(
+                Form.Item,
+                { label: "Contract", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                React.createElement(Select, {
+                  showSearch: true,
+                  allowClear: true,
+                  value: form.contractId || undefined,
+                  placeholder: "Select contract",
+                  optionFilterProp: "label",
+                  onChange: loadContractContext,
+                  options: contracts.map((item) => ({
+                    value: extractId(item),
+                    label: contractLabel(item),
+                  })),
+                }),
+              ),
+              mode === SOURCE_TYPES.manual &&
+              React.createElement(
+                Form.Item,
+                { label: "Customer", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                React.createElement(Select, {
+                  showSearch: true,
+                  allowClear: true,
+                  value: form.customerId || undefined,
+                  placeholder: "Select customer",
+                  optionFilterProp: "label",
+                  onChange: (value) => setF("customerId", value || ""),
+                  options: customers.map((item) => ({
+                    value: extractId(item),
+                    label: customerLabel(item),
+                  })),
+                }),
+              ),
             ),
             React.createElement(
               "div",
@@ -1466,6 +1615,7 @@
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
                   gap: 16,
+                  marginTop: 16,
                 },
               },
               mode !== SOURCE_TYPES.manual &&
@@ -1514,95 +1664,134 @@
             React.createElement(
               React.Fragment,
               null,
-              React.createElement(Divider, { orientation: "left" }, isContractInstallmentPayment ? "Payment installments" : "Contract payment"),
+              React.createElement(
+                Divider,
+                { orientation: "left" },
+                showPaymentRequestPicker ? "Payment requests" : activePaymentRequest ? "Payment request" : "Contract payment",
+              ),
               !form.contractId
                 ? React.createElement(
                   Typography.Text,
                   { type: "secondary" },
                   "Select a contract to load payment information.",
                 )
-                : isContractInstallmentPayment
-                  ? React.createElement(Table, {
-                  rowKey: "scheduleItemId",
+                : React.createElement(
+                  React.Fragment,
+                  null,
+                  React.createElement(
+                    "div",
+                    {
+                      style: {
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        gap: 12,
+                        marginBottom: 12,
+                      },
+                    },
+                    React.createElement(
+                      Tag,
+                      { color: contractPaymentStatusMeta(selectedContract?.paymentStatus).color },
+                      contractPaymentStatusMeta(selectedContract?.paymentStatus).label,
+                    ),
+                    showPaymentRequestPicker || activePaymentRequest
+                      ? React.createElement(
+                        Typography.Text,
+                        { type: "secondary" },
+                        `Contract outstanding: ${formatMoney(contractOutstandingAmount)}`,
+                      )
+                      : null,
+                    requestServiceNames.length
+                      ? React.createElement(
+                        Space,
+                        { size: 4, wrap: true },
+                        React.createElement(Typography.Text, { type: "secondary" }, "Service(s):"),
+                        requestServiceNames.map((name) => React.createElement(Tag, { key: name }, name)),
+                      )
+                      : null,
+                  ),
+                  showPaymentRequestPicker
+                  ? React.createElement(
+                    React.Fragment,
+                    null,
+                    React.createElement(Table, {
+                  rowKey: "id",
                   size: "small",
                   pagination: false,
-                  dataSource: contractInstallments,
-                  scroll: { x: 900 },
+                  dataSource: contractPaymentRequests,
+                  scroll: { x: 750 },
                   rowSelection: {
-                    type: "radio",
-                    selectedRowKeys: selectedInstallmentId ? [selectedInstallmentId] : [],
-                    onSelect: handleInstallmentSelect,
+                    type: "checkbox",
+                    selectedRowKeys: activePaymentRequest?.id ? [activePaymentRequest.id] : [],
+                    onChange: (selectedRowKeys, selectedRows) => {
+                      const currentId = activePaymentRequest?.id;
+                      const newId = selectedRowKeys.find((key) => String(key) !== String(currentId));
+                      if (newId === undefined) {
+                        handleClearPaymentRequestSelection();
+                        return;
+                      }
+                      const row = selectedRows.find((r) => String(extractId(r.id)) === String(newId));
+                      if (row) handleContractPaymentRequestSelect(row);
+                    },
                     getCheckboxProps: (row) => ({
-                      disabled: isInstallmentFullyPaid(row),
+                      disabled: isPaymentRequestFullyPaid(row),
                     }),
                   },
                   onRow: (row) => ({
-                    style: isInstallmentFullyPaid(row) ? { opacity: 0.58 } : {},
+                    style: isPaymentRequestFullyPaid(row) ? { opacity: 0.58 } : {},
+                    onClick: () => {
+                      if (!isPaymentRequestFullyPaid(row)) handleContractPaymentRequestSelect(row);
+                    },
                   }),
                   columns: [
                     {
-                      title: "Installment",
-                      dataIndex: "label",
-                      width: 160,
-                      render: (value, row) =>
-                        React.createElement(
-                          "div",
-                          null,
-                          React.createElement("strong", null, value),
-                          row.content
-                            ? React.createElement(
-                              "div",
-                              { style: { color: "rgba(0,0,0,0.45)", fontSize: 12 } },
-                              row.content,
-                            )
-                            : null,
-                        ),
+                      title: "Payment request",
+                      dataIndex: "title",
+                      width: 200,
+                      render: (value, row) => value || `Payment request #${extractId(row.id)}`,
                     },
                     {
                       title: "Due date",
-                      dataIndex: "paymentDate",
-                      width: 130,
+                      dataIndex: "dueDate",
+                      width: 100,
                       render: formatDate,
                     },
                     {
-                      title: "%",
-                      dataIndex: "percentage",
-                      width: 80,
-                      align: "right",
-                      render: (value) => (value ? `${parseNum(value)}%` : "-"),
-                    },
-                    {
-                      title: "Planned",
-                      dataIndex: "amount",
-                      width: 150,
+                      title: "Requested",
+                      dataIndex: "requestedAmount",
+                      width: 120,
                       align: "right",
                       render: formatMoney,
                     },
                     {
                     title: "Received",
-                    width: 150,
+                    width: 120,
                     align: "right",
-                    render: (_, row) => formatMoney(installmentPaidAmount(row)),
+                    render: (_, row) => formatMoney(paymentRequestPaidAmount(row)),
                   },
                   {
                     title: "Remaining",
-                    width: 150,
+                    width: 120,
                     align: "right",
-                    render: (_, row) => formatMoney(installmentRemainingAmount(row)),
+                    render: (_, row) => formatMoney(paymentRequestRemainingAmount(row)),
                   },
                   {
                     title: "Status",
-                    width: 110,
+                    width: 90,
                     render: (_, row) => {
-                      const paid = installmentPaidAmount(row);
-                      const remaining = installmentRemainingAmount(row);
+                      const paid = paymentRequestPaidAmount(row);
+                      const remaining = paymentRequestRemainingAmount(row);
                       const color = remaining <= 0 ? "success" : paid > 0 ? "warning" : "default";
                       const label = remaining <= 0 ? "Received" : paid > 0 ? "Partial" : "Planned";
                       return React.createElement(Tag, { color }, label);
                       },
                     },
                   ],
-                })
+                }),
+                    activePaymentRequestSummary,
+                  )
+                : activePaymentRequest
+                ? activePaymentRequestSummary
                 : React.createElement(
                   "div",
                   {
@@ -1622,7 +1811,7 @@
                   }),
                   React.createElement(ContractSummaryItem, {
                     label: "Remaining",
-                    value: selectedContractTotalAmount > MONEY_TOLERANCE ? formatMoney(contractRemainingAmount) : "-",
+                    value: selectedContractTotalAmount > MONEY_TOLERANCE ? formatMoney(contractOutstandingAmount) : "-",
                     strong: true,
                   }),
                   isSelectedRetainerPayment
@@ -1632,6 +1821,7 @@
                       })
                     : null,
                 ),
+              ),
             ),
             React.createElement(Divider, { orientation: "left" }, "Actual payment"),
             React.createElement(
@@ -1695,17 +1885,10 @@
             ),
             React.createElement(
               "div",
-              { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } },
-              // React.createElement(
-              //   Typography.Text,
-              //   { type: "secondary" },
-              //   mode === SOURCE_TYPES.contract
-              //     ? "Contract mode uses sourceKey to avoid duplicate installment payments."
-              //     : "Invoice and manual modes create actual payment records.",
-              // ),
+              { style: { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 12 } },
               React.createElement(
                 Space,
-                null,
+                { wrap: true },
                 React.createElement(Button, {
                   onClick: () => requestClose(),
                 }, "Cancel"),

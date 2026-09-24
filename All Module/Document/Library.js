@@ -27,6 +27,7 @@ const {
   Checkbox,
   DatePicker,
   Radio,
+  Pagination,
 } = ctx.antd;
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -122,15 +123,24 @@ const SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES = new Set([
   "legal dossiers",
   "report and result",
 ]);
-const isRenameLockedFolder = (record) =>
+// allFolders is only needed to resolve isCaseRootFolder's parent chain —
+// pass the full unscoped list (customerCaseFolders), not a filtered one,
+// or a genuine case root can be misjudged as non-root and left unlocked.
+const isRenameLockedFolderBase = (record, allFolders) =>
   record?._type === "folder" &&
-  Boolean(getFolderCaseProjectId(record)) &&
-  (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
-    SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
-      String(record?.name || "")
-        .trim()
-        .toLowerCase(),
-    ));
+  ((Boolean(getFolderCaseProjectId(record)) &&
+    (SYSTEM_LOCKED_RENAME_TEMPLATE_KEYS.has(record?.folderTemplateKey) ||
+      SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES.has(
+        String(record?.name || "")
+          .trim()
+          .toLowerCase(),
+      ))) ||
+    // Customer root / Case root folders are auto-created by
+    // CaseCreateForm.js (find-or-create) — deleting or renaming them
+    // orphans every document filed underneath, so they get the same
+    // absolute lock as the 5 named template folders above.
+    isCustomerRootFolder(record) ||
+    isCaseRootFolder(record, allFolders || []));
 // "New Case Study"/"New Legal Study" used to open CaseReferenceCreateBlock.js /
 // LegalStudyCreateBlock.js as separate ctx.openView popups and rely on this
 // window event to signal back. That cross-window signal proved unreliable
@@ -142,6 +152,61 @@ const isRenameLockedFolder = (record) =>
 const LIBRARY_DATA_CHANGED_EVENT = "law-library:data-changed";
 const MY_DOCUMENT_STORAGE_TYPE = "personal";
 const KNOWLEDGE_STORAGE_TYPE = "knowledge";
+// Canonical container folder for each library category — created manually
+// in the UI, tagged libraryCategoryKey: "category_<space>" (see
+// docs/superpowers root-folder discussion, 2026-08-19). New folders/files
+// created while "at root" of a mapped space are filed inside this real
+// folder instead of getting parentId/folderId: null, so the space's true
+// root stays a single tidy entry point. Permission checks are NOT routed
+// through this id — canCreate at "root" still resolves via the existing
+// space-level default in getFolderPermsById, unchanged from before this
+// map existed.
+//
+// Resolved at RUNTIME (see knowledgeRootFolderId/legalStudyRootFolderId in
+// the component below), NOT hardcoded by id — an id gets orphaned the
+// moment this folder record is ever deleted/recreated, which differs
+// between dev and prod whenever it was set up by hand in each environment
+// separately (exactly what caused the 2026-08-20 "My Documents"
+// orphan-folder incident: a stale hardcoded id no longer matched any real
+// folder, so every lookup keyed off it silently failed). Matched by EITHER
+// libraryCategoryKey OR folder name (see LIBRARY_CATEGORY_NAME_BY_SPACE
+// below) — same key-then-name fallback pattern already used by
+// isRenameLockedFolder/SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES in this file,
+// so an environment where libraryCategoryKey was never stamped (or was
+// mistyped) still resolves correctly off the folder's display name alone.
+const LIBRARY_CATEGORY_KEY_BY_SPACE = {
+  [KNOWLEDGE_STORAGE_TYPE]: "category_knowledge",
+  // Read directly by handleCreateLegalStudy ("New Reference") as the
+  // parentId for every new standalone (case-less) Reference/Legal Study
+  // folder. Also reachable via resolveCreateTargetParentId below, but that
+  // path is effectively dead for this space in practice — the Reference
+  // gallery's "root" screen (isEntityGallery) replaces the generic New
+  // Folder/Upload menu with "New Reference" only, so
+  // uploadFilesToTarget/handleCreateFolder never actually get called while
+  // browsing at Reference's gallery root.
+  [LEGAL_STUDY_STORAGE_TYPE]: "category_reference",
+};
+const LIBRARY_CATEGORY_NAME_BY_SPACE = {
+  [KNOWLEDGE_STORAGE_TYPE]: "Knowledge",
+  [LEGAL_STUDY_STORAGE_TYPE]: LEGAL_STUDY_LABEL,
+};
+// Customers has no per-file creation call site of its own to wire up here —
+// its root folder only ever receives new children via CaseCreateForm.js's
+// own customer-root lookup/create logic (a different file, per this repo's
+// no-shared-module constraint), not through anything in this file.
+// "My Documents" category root folder (libraryCategoryKey: category_mydocuments).
+// Deliberately NOT in LIBRARY_CATEGORY_KEY_BY_SPACE — every lawyer gets
+// their own personal child folder under it (provisioned via an external
+// workflow, see the myDocumentsFolder effect), and browsing always
+// auto-jumps into that child, never sits at this shared root, so
+// resolveCreateTargetParentId must never resolve "root" for this space to
+// the shared root the way Knowledge/Reference do (see
+// resolveMyDocumentsParentId's own fallback to myDocumentsFolder instead).
+// Its root id is still resolved the same libraryCategoryKey-first way as
+// Knowledge/Reference (see myDocumentsRootFolderId below) — `type` is kept
+// only as a legacy fallback for folders tagged before this field existed.
+const MY_DOCUMENTS_LIBRARY_CATEGORY_KEY = "category_mydocuments";
+const MY_DOCUMENTS_ROOT_FOLDER_TYPE = "my_documents";
 const FILE_TYPE_SVG = {
   // ── Documents ──────────────────────────────────────────
   pdf: (
@@ -1862,11 +1927,21 @@ const isFolderTreeRoot = (folder, allFolders) => {
 // permission identically (a linked folder reached via CaseDocument.js's
 // "Legal Study" link space is the SAME folder a user can also reach here
 // via Customer -> Case navigation).
-const resolvePermissionFolder = (folder, allFolders) => {
+// `folderByIdOverride`: an already-built id→folder Map, for callers that
+// invoke this once PER FOLDER in a loop (e.g. getVisibleFolderIds below) —
+// without it, this function used to rebuild a fresh O(n) Map on every
+// single call, turning an O(n) loop into O(n^2) (measured 2026-09-19:
+// switching to a space with a large folder set — e.g. Customer, which
+// spans every case — froze the page for several seconds with no loading
+// indicator, since the freeze happens synchronously inside a useMemo,
+// before React gets a chance to paint any spinner). Falls back to
+// building its own Map when not given, so every other call site keeps
+// working unchanged.
+const resolvePermissionFolder = (folder, allFolders, folderByIdOverride) => {
   if (!folder) return null;
-  const folderById = new Map(
-    (allFolders || []).map((f) => [String(extractId(f)), f]),
-  );
+  const folderById =
+    folderByIdOverride ||
+    new Map((allFolders || []).map((f) => [String(extractId(f)), f]));
   const root = resolveFolderTreeRootFromMap(folder, folderById) || folder;
   const rootId = String(extractId(root));
   if (String(extractId(folder)) === rootId) return root;
@@ -1922,12 +1997,43 @@ const isLegalStudyRootFolder = (folder) =>
   !getFolderCaseProjectId(folder) &&
   (!getFolderParentId(folder) || getFolderParentId(folder) === "root");
 
+// The category-root folders (Knowledge, Reference, My Documents) — same
+// key-then-name(-then-type) match as resolveLibraryCategoryRootId below,
+// duplicated here as a static predicate so it can gate delete without
+// needing the full `folders` list in scope. These had NO delete lock at
+// all before this (2026-09-04 audit) — only their exclusion from
+// visibleFolders kept them off-screen, which doesn't stop a direct
+// permanent-delete call.
+const isLibraryCategoryRootFolder = (record) =>
+  Boolean(record) &&
+  record?._type === "folder" &&
+  !getFolderParentId(record) &&
+  (Object.values(LIBRARY_CATEGORY_KEY_BY_SPACE).includes(
+    record?.libraryCategoryKey,
+  ) ||
+    record?.libraryCategoryKey === MY_DOCUMENTS_LIBRARY_CATEGORY_KEY ||
+    Object.values(LIBRARY_CATEGORY_NAME_BY_SPACE).includes(record?.name) ||
+    record?.type === MY_DOCUMENTS_ROOT_FOLDER_TYPE);
+
+// Single source of truth for "must never be deletable" in this file —
+// covers Customer/Case roots + the 5 rename-locked template folders (via
+// isRenameLockedFolder), standalone Legal Study roots, and the Knowledge/
+// Reference/My Documents category roots. Used by every delete entry point
+// (soft-delete + permanent delete, single + bulk) instead of each one
+// re-deriving its own subset.
+const isDeleteLockedFolderBase = (record, allFolders) =>
+  record?._type === "folder" &&
+  (isRenameLockedFolderBase(record, allFolders) ||
+    isLegalStudyRootFolder(record) ||
+    isLibraryCategoryRootFolder(record));
+
 const getFolderPermissions = (
   folder,
   user,
   allFolders,
   currentLawyerId,
   entityCtx,
+  folderByIdOverride,
 ) => {
   const lockDeleteIfLegalStudyRoot = (perms) =>
     isLegalStudyRootFolder(folder) ? { ...perms, canDelete: false } : perms;
@@ -1965,7 +2071,8 @@ const getFolderPermissions = (
     );
   }
 
-  const root = resolvePermissionFolder(folder, allFolders) || folder;
+  const root =
+    resolvePermissionFolder(folder, allFolders, folderByIdOverride) || folder;
 
   // Owner check (Nocobase user ID) — the ROOT folder's creator, not the
   // specific subfolder's — use String comparison to avoid number/string
@@ -2250,7 +2357,7 @@ const getVisibleFolderIds = (
   const resolveRoot = (folder) => {
     const key = String(extractId(folder.id));
     if (rootCache.has(key)) return rootCache.get(key);
-    const root = resolvePermissionFolder(folder, allFolders);
+    const root = resolvePermissionFolder(folder, allFolders, folderById);
     rootCache.set(key, root);
     return root;
   };
@@ -2566,6 +2673,82 @@ const getFolderCaseProjectId = (folder) =>
   extractId(folder?.caseId) ||
   extractRelationId(folder?.case) ||
   extractRelationId(folder?.cases);
+const getFolderCustomerId = (folder) =>
+  extractId(folder?.customerId) || extractRelationId(folder?.customers);
+
+// Which sidebar "danh mục" (Knowledge/Customer/Reference/My Documents) a
+// folder or document physically belongs to — used by the Activity History
+// table to let users filter/query behavior per category. Mirrors the exact
+// fields buildScopedPayload/applyFolderSpacePayload stamp on create, so
+// this reads back the same ground truth the app itself uses to scope new
+// records, rather than re-deriving membership from a case-specific subtree
+// walk (which would require knowing which case/reference is selected).
+// Note: the "Legal Study" folder that lives INSIDE a case's own tree
+// (reachable from both Customer and Reference in the UI) carries the same
+// projectId/caseId as any other folder in that case, so it's labeled
+// "Customer" here — its physical storage location — not "Reference".
+// "Reference" only covers standalone Legal Study entities (moduleScope:
+// "legal_study", case-less).
+const ACTIVITY_CATEGORY_LABELS = {
+  [KNOWLEDGE_STORAGE_TYPE]: "Knowledge",
+  [LEGAL_STUDY_STORAGE_TYPE]: "Reference",
+  customer: "Customer",
+  [MY_DOCUMENT_STORAGE_TYPE]: "My Documents",
+  other: "Khác",
+};
+const classifyActivityRecordSpace = (record, isFolder) => {
+  if (!record) return "other";
+  if (record.moduleScope === LEGAL_STUDY_STORAGE_TYPE && record.legalStudyId) {
+    return LEGAL_STUDY_STORAGE_TYPE;
+  }
+  if (
+    record.storageType === MY_DOCUMENT_STORAGE_TYPE ||
+    record.moduleScope === MY_DOCUMENT_STORAGE_TYPE
+  ) {
+    return MY_DOCUMENT_STORAGE_TYPE;
+  }
+  const hasCaseLink = isFolder
+    ? Boolean(getFolderCaseProjectId(record))
+    : Boolean(
+        extractId(record.caseId) ||
+          extractRelationId(record.cases) ||
+          extractRelationId(record.case),
+      );
+  if (hasCaseLink) return "customer";
+  if (
+    record.moduleScope === KNOWLEDGE_STORAGE_TYPE ||
+    record.storageType === KNOWLEDGE_STORAGE_TYPE
+  ) {
+    return KNOWLEDGE_STORAGE_TYPE;
+  }
+  return "other";
+};
+const getFolderLawyerId = (folder) =>
+  extractId(folder?.lawyerId) || extractRelationId(folder?.lawyers);
+// Set on folders auto-created while uploading a folder from a Task/SubTask's
+// comment thread (see TaskDetailView.js's createTaskUploadFoldersFromEntries,
+// 2026-08-22) — taskId is always the parent task's id (set even when the
+// upload came from one of its subtasks); subTaskId is only set when the
+// upload specifically came from a subtask. Folders created any other way
+// (New Folder, drag-and-drop upload here in Library.js, CaseCreateForm.js's
+// service folders, ...) never carry these, so a null return is the common
+// case, not a bug.
+const getFolderTaskOriginLabel = (folder) => {
+  const taskId = extractId(folder?.taskId) || extractRelationId(folder?.tasks);
+  const subTaskId =
+    extractId(folder?.subTaskId) || extractRelationId(folder?.subTasks);
+  if (!taskId) return null;
+  return subTaskId ? `Task #${taskId} / SubTask #${subTaskId}` : `Task #${taskId}`;
+};
+// A folder is a Customer root when it carries its own customerId but no
+// case/project id. Unlike isCaseRootFolder this needs no parent-chain
+// lookup: CaseCreateForm.js's find-or-create is the only writer of this
+// shape (see docs/superpowers root-folder discussion, 2026-08-19) —
+// Library.js's own folder/upload creation always stamps a projectId
+// alongside customerId once inside a customer's space (see
+// applyFolderSpacePayload), so no other folder can match this shape.
+const isCustomerRootFolder = (folder) =>
+  Boolean(getFolderCustomerId(folder)) && !getFolderCaseProjectId(folder);
 // A folder is the root of a Case when it carries its own projectId but
 // its parent doesn't — the parent is then the Customer root (or out of
 // scope), not another folder that already belongs to the same Case. Case
@@ -2577,21 +2760,38 @@ const getFolderCaseProjectId = (folder) =>
 // treated as root — it means the caller passed an out-of-scope folder list
 // and we simply don't know. Only a folder with no parentId at all, or one
 // whose located parent carries no case projectId, counts as a case root.
-const isCaseRootFolder = (folder, allFolders) => {
+// `folderByIdOverride`: an already-built id→folder Map, for callers that
+// invoke this once PER FOLDER in a loop (e.g. caseIdsWithFolder below) —
+// without it, `allFolders.find(...)` makes each call O(n), turning an
+// O(n) loop into O(n^2) (measured 2026-09-19: the same class of bug as
+// resolvePermissionFolder's redundant Map rebuild — with customerCaseFolders
+// at system-wide scale, this alone was enough to freeze the page for
+// several seconds when opening the Customer space). Falls back to the
+// original O(n) `.find()` when not given, so every other call site keeps
+// working unchanged.
+const isCaseRootFolder = (folder, allFolders, folderByIdOverride) => {
   const ownProjectId = getFolderCaseProjectId(folder);
   if (!ownProjectId) return false;
   const parentId = getFolderParentId(folder);
   // "root" is this file's no-parent sentinel (cf. normalizeParentId), so it
   // counts as "no parentId at all", not as an unresolvable parent.
   if (!parentId || parentId === "root") return true;
-  const parent = allFolders.find(
-    (f) => String(extractId(f)) === String(parentId),
-  );
+  const parent = folderByIdOverride
+    ? folderByIdOverride.get(String(parentId))
+    : allFolders.find((f) => String(extractId(f)) === String(parentId));
   if (!parent) return false;
   return !getFolderCaseProjectId(parent);
 };
 const normalizeParentId = (parentId) =>
   parentId === "root" || !parentId ? null : extractId(parentId);
+// Same as normalizeParentId, but a "root" result for a space listed in
+// categoryRootFolderId (the component's runtime-resolved
+// knowledgeRootFolderId/legalStudyRootFolderId, keyed by space — see
+// LIBRARY_CATEGORY_KEY_BY_SPACE) resolves to that space's real container
+// folder instead of null — used only where a NEW folder/document's
+// parentId/folderId payload is computed, never for permission checks.
+const resolveCreateTargetParentId = (rawParentId, targetSpace, categoryRootFolderId) =>
+  normalizeParentId(rawParentId) || categoryRootFolderId?.[targetSpace] || null;
 // Trả về tập id gồm rootId + toàn bộ folder con cháu của nó, dựa trên một
 // danh sách folder bất kỳ (không phụ thuộc case đang active) — dùng để
 // tính dung lượng/độ sâu của 1 folder Legal Study trong gallery flat.
@@ -2691,6 +2891,52 @@ const sortByCreatedAt = (a, b) => {
   );
 };
 
+// Returns `fileName` unchanged if it doesn't collide (case-insensitive)
+// with anything in `existingNames`; otherwise appends " (1)", " (2)", ...
+// before the extension — same convention Windows/macOS use for "a copy of
+// a file with the same name" — until a free name is found. `existingNames`
+// is treated as case-insensitive and NOT mutated; callers doing a batch
+// upload should add each returned name back into their own tracking set
+// before checking the next file, so within-batch collisions are caught too.
+const getUniqueFileName = (fileName, existingNames) => {
+  const raw = String(fileName || "").trim();
+  if (!raw) return raw;
+  const taken = new Set(
+    Array.from(existingNames || [], (n) => String(n || "").trim().toLowerCase()),
+  );
+  if (!taken.has(raw.toLowerCase())) return raw;
+  const dotIndex = raw.lastIndexOf(".");
+  const base = dotIndex > 0 ? raw.slice(0, dotIndex) : raw;
+  const ext = dotIndex > 0 ? raw.slice(dotIndex) : "";
+  let counter = 1;
+  let candidate = `${base} (${counter})${ext}`;
+  while (taken.has(candidate.toLowerCase())) {
+    counter += 1;
+    candidate = `${base} (${counter})${ext}`;
+  }
+  return candidate;
+};
+
+// Folder counterpart of getUniqueFileName — no extension handling, same
+// " (1)", " (2)", ... suffix convention. Used to stop 2 sibling folders
+// under the same parent from ever sharing an identical (case-insensitive)
+// name, instead of silently creating an indistinguishable duplicate.
+const getUniqueFolderName = (name, existingNames) => {
+  const raw = String(name || "").trim();
+  if (!raw) return raw;
+  const taken = new Set(
+    Array.from(existingNames || [], (n) => String(n || "").trim().toLowerCase()),
+  );
+  if (!taken.has(raw.toLowerCase())) return raw;
+  let counter = 1;
+  let candidate = `${raw} (${counter})`;
+  while (taken.has(candidate.toLowerCase())) {
+    counter += 1;
+    candidate = `${raw} (${counter})`;
+  }
+  return candidate;
+};
+
 const DELETE_TIMESTAMP_FIELDS = new Set([
   "deletedAt",
   "deleted_at",
@@ -2777,6 +3023,56 @@ const fetchAllList = async (url, params = {}) => {
     page++;
   }
   return all;
+};
+
+// Fetches a case's own folder tree plus every document that belongs to it —
+// both docs with `caseId` set directly AND docs that only carry a `folderId`
+// pointing somewhere inside that folder tree. Task-upload documents
+// (buildTaskUploadDocumentLink in TaskDetailView.js) deliberately never
+// stamp caseId — see that function's own comment — so a caseId-only filter
+// here silently dropped every task-uploaded file from a case's Library view
+// even though the file was correctly nested under one of the case's real
+// folders. CaseDocument.js's matchesCaseDocument already treats
+// folderId-in-tree as an equally valid match; this mirrors that.
+const fetchCaseFoldersAndDocs = async (caseId) => {
+  const flds = await fetchAllList("folders:list", {
+    filter: JSON.stringify({ projectId: { $eq: String(caseId) } }),
+    appends: [
+      "createdBy",
+      "folderManager",
+      "folderMember",
+      "folderManagers",
+      "folderMembers",
+    ],
+    sort: ["createdAt"],
+  }).catch(() => []);
+
+  const folderIds = flds.map((f) => extractId(f)).filter(Boolean);
+  const [docsByCaseId, docsByFolderId] = await Promise.all([
+    fetchAllList("documents:list", {
+      filter: JSON.stringify({ caseId: { $eq: String(caseId) } }),
+      appends: ["fileAttachment", "createdBy"],
+      sort: ["-createdAt"],
+    }).catch(() => []),
+    folderIds.length
+      ? fetchAllList("documents:list", {
+          filter: JSON.stringify({ folderId: { $in: folderIds } }),
+          appends: ["fileAttachment", "createdBy"],
+          sort: ["-createdAt"],
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+
+  const docMap = new Map();
+  [...docsByCaseId, ...docsByFolderId].forEach((doc) => {
+    const id = extractId(doc);
+    if (id) docMap.set(String(id), doc);
+  });
+
+  return {
+    folders: flds.filter((f) => !f.isDeleted),
+    docs: Array.from(docMap.values()).filter((d) => !d.isDeleted),
+  };
 };
 
 const getRecordLegalReferenceId = (record) =>
@@ -2947,12 +3243,19 @@ const uploadFilesToLegalStudy = async (files, context) => {
   let nextIndex = await getNextLegalStudyFileIndex(context);
   const userId = getCurrentUserId();
 
+  // context.folderId is a brand-new root folder created earlier in this
+  // same create-flow, so the only possible collision is between files
+  // within this very batch — no need to query existing documents.
+  const usedNames = new Set();
+
   for (const file of rows) {
-    const attachment = await uploadAttachment(file, file.name);
+    const uniqueName = getUniqueFileName(file.name, usedNames);
+    usedNames.add(uniqueName.toLowerCase());
+    const attachment = await uploadAttachment(file, uniqueName);
     const nowIso = new Date().toISOString();
     await createDocumentRecord({
-      name: file.name,
-      title: file.name,
+      name: uniqueName,
+      title: uniqueName,
       documentCode: "",
       fileIndex: nextIndex,
       fileAttachment: [{ id: attachment.id }],
@@ -3025,12 +3328,25 @@ const uploadFolderFilesToLegalStudy = async (files, context) => {
     return fileIndexCache[key];
   };
 
+  // All folders above are brand-new (just created from folderPaths), so
+  // the only possible collision is between files of this same batch that
+  // land in the same folder.
+  const usedNamesByFolder = {};
+  const getFolderUsedNames = (folderId) => {
+    const key = String(folderId || "root");
+    if (!usedNamesByFolder[key]) usedNamesByFolder[key] = new Set();
+    return usedNamesByFolder[key];
+  };
+
   for (const file of rows) {
     const relativePath = getUploadRelativePath(file);
     const parts = relativePath.split("/");
-    const fileName = parts.pop();
+    const rawFileName = parts.pop();
     const parentPath = parts.join("/");
     const folderId = folderIdMap[parentPath] || null;
+    const folderUsedNames = getFolderUsedNames(folderId);
+    const fileName = getUniqueFileName(rawFileName, folderUsedNames);
+    folderUsedNames.add(fileName.toLowerCase());
     const attachment = await uploadAttachment(file, fileName);
     const fileNowIso = new Date().toISOString();
     await createDocumentRecord({
@@ -3054,8 +3370,25 @@ const uploadFolderFilesToLegalStudy = async (files, context) => {
 };
 
 const fetchFoldersForInternalTemplates = async () => {
+  // Category/personal ROOT containers (My Documents, Knowledge, Reference
+  // — see MY_DOCUMENTS_ROOT_FOLDER_TYPE / LIBRARY_CATEGORY_KEY_BY_SPACE)
+  // are created by hand through the raw Admin grid, same as everything
+  // else moduleScope-tagging depends on being stamped manually — a root
+  // missing moduleScope (2026-08-21 incident: "My Documents" root created
+  // without it) silently drops out of this fetch entirely, which then
+  // makes myDocumentsRootFolderId/knowledgeRootFolderId/
+  // legalStudyRootFolderId resolve to null and breaks that WHOLE space
+  // for every non-admin user (admin's own listing for these spaces
+  // doesn't depend on the root being present, so the break was invisible
+  // to admin testing). Match these roots by their own identifying marker
+  // (type / libraryCategoryKey) as well, so a missing moduleScope on the
+  // root alone can't reproduce that failure again.
   const scopeFilter = JSON.stringify({
-    moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes },
+    $or: [
+      { moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes } },
+      { type: { $eq: MY_DOCUMENTS_ROOT_FOLDER_TYPE } },
+      { libraryCategoryKey: { $ne: null } },
+    ],
   });
   const primaryField = DASHBOARD_CONFIG.relationFieldCandidates[0];
   const params = {
@@ -3102,6 +3435,69 @@ const fetchCustomerCasePermissionFolders = async () => {
       sort: ["createdAt"],
       appends: ["createdBy"],
     }).catch(() => []);
+  }
+};
+
+// Same query/appends/fallback as fetchCustomerCasePermissionFolders above,
+// but calls onPage(rows, isLastPage) as each page lands instead of only
+// resolving once every page is in — this is the unfiltered folders:list
+// fetch measured at 9.3s for 1742 rows (2026-09-18), most of which the
+// Customer gallery's first paint never needed. Callers still get the full
+// merged array back from the returned promise for anything that must wait
+// for completion (e.g. gating customerCaseFoldersFullyLoaded).
+const fetchCustomerCasePermissionFoldersProgressive = async (onPage) => {
+  // Guards the fallback restart below: if the primary attempt already
+  // delivered page(s) via onPage before failing (a later page erroring,
+  // not the first), restarting with fallback params would re-deliver
+  // those same rows a second time and duplicate them in whatever state
+  // onPage is appending to. Only safe to restart from scratch when NO
+  // page was delivered yet — in practice a bad `appends` field fails on
+  // page 1 every time, so this is the common case anyway.
+  let deliveredAnyPage = false;
+  const runPages = async (params) => {
+    let all = [];
+    let page = 1;
+    const pageSize = 200;
+    while (true) {
+      const res = await ctx.api.request({
+        url: "folders:list",
+        params: { ...params, page, pageSize },
+      });
+      const data = res?.data?.data || [];
+      all = all.concat(data);
+      const meta = res?.data?.meta || {};
+      const isLastPage =
+        !meta.count || all.length >= meta.count || data.length < pageSize;
+      deliveredAnyPage = true;
+      if (onPage) onPage(data, isLastPage);
+      if (isLastPage) break;
+      page++;
+    }
+    return all;
+  };
+  const params = {
+    sort: ["createdAt"],
+    appends: [
+      "createdBy",
+      "folderManager",
+      "folderManagers",
+      "folderMember",
+      "folderMembers",
+    ],
+  };
+  try {
+    return await runPages(params);
+  } catch (e) {
+    if (deliveredAnyPage) {
+      if (onPage) onPage([], true);
+      return [];
+    }
+    return runPages({ sort: ["createdAt"], appends: ["createdBy"] }).catch(
+      () => {
+        if (onPage) onPage([], true);
+        return [];
+      },
+    );
   }
 };
 
@@ -4898,6 +5294,15 @@ const DocumentPickerField = ({
 
 const InternalTemplates = () => {
   const [loading, setLoading] = useState(true);
+  // Separate from `loading` (which only flips false once EVERY loadData
+  // fetch, including the ~9s unscoped customerCaseFolders one, is fully
+  // done) — the Refresh button's own spinner was bound to `loading`, so it
+  // kept spinning for the full duration even after the space you're
+  // actually looking at had already refreshed. Flips false once the
+  // Knowledge-critical fetches (companies/folders/documents — the same
+  // ones the initial full-page gate already waits on) land, matching how
+  // fast the visible content actually updates.
+  const [dataRefreshing, setDataRefreshing] = useState(true);
   const [companies, setCompanies] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -4909,6 +5314,60 @@ const InternalTemplates = () => {
   const [selectedExt, setSelectedExt] = useState(null);
   const [activeCompanyId, setActiveCompanyId] = useState(null);
   const [activeSpace, setActiveSpace] = useState(KNOWLEDGE_STORAGE_TYPE);
+  // True for one paint cycle right after clicking a sidebar category —
+  // switching activeSpace re-derives several useMemo chains (visibleFolders
+  // -> permissionScopedFolders -> treeData/tableData) synchronously, which
+  // used to block the main thread with no visual feedback at all (2026-09-19:
+  // confirmed via profiling that permissionScopedFolders' getVisibleFolderIds
+  // was O(n^2) on folder count — fixed separately, but even the now-O(n)
+  // pass can still take a perceptible moment on a large space like Customer).
+  // switchActiveSpace below defers the actual space change one frame so this
+  // flag's own render (the overlay spinner) gets to paint FIRST.
+  const [spaceSwitching, setSpaceSwitching] = useState(false);
+  // Shared by every sidebar category button (Knowledge/Customer/Reference/
+  // My Documents/Shared with me) instead of each one repeating the same
+  // setActiveSpace + reset-selection sequence. `resetSelection` defaults to
+  // the common case (clear customer/case/folder scoping + search); pass a
+  // custom one only where a category needs different reset behavior.
+  const switchActiveSpace = useCallback((nextSpace, resetSelection) => {
+    setSpaceSwitching(true);
+    // Safety net — guarantees the overlay can never stay stuck forever,
+    // whether the cause is an uncaught exception inside the state-update
+    // block below or the deferred callback simply never firing. Cleared
+    // normally once the transition completes; only fires if something
+    // went wrong.
+    const safetyTimer = setTimeout(() => {
+      console.warn("[Library] switchActiveSpace: safety timeout fired — the normal completion path never ran");
+      setSpaceSwitching(false);
+    }, 8000);
+    // requestAnimationFrame is NOT available in this JS Block's sandbox
+    // (confirmed 2026-09-19 via a live TypeError: "requestAnimationFrame
+    // is not a function" — that earlier version of this function threw
+    // immediately on click, so setActiveSpace never ran and the overlay
+    // only ever cleared via the safety timeout above). setTimeout(fn, 0)
+    // is the sandbox-safe equivalent: it still yields to the browser's
+    // paint before running the heavy activeSpace-driven re-render, just
+    // without requestAnimationFrame's precise vsync timing.
+    setTimeout(() => {
+      try {
+        setActiveSpace(nextSpace);
+        if (resetSelection) {
+          resetSelection();
+        } else {
+          setActiveCustomerId(null);
+          setActiveCaseId(null);
+          setSelectedFolderId("root");
+          setSidebarSearch("");
+        }
+      } catch (e) {
+        console.error("[Library] switchActiveSpace failed:", e);
+      }
+      setTimeout(() => {
+        clearTimeout(safetyTimer);
+        setSpaceSwitching(false);
+      }, 0);
+    }, 0);
+  }, []);
   const [projects, setProjects] = useState([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isBulkMoveOpen, setIsBulkMoveOpen] = useState(false);
@@ -4931,7 +5390,29 @@ const InternalTemplates = () => {
   );
 
   const [viewMode, setViewMode] = useState("table");
+  // Grid view rendered every card in tableData at once (no pagination,
+  // unlike the Table/list view's built-in pageSize: 20) — a folder with a
+  // few hundred documents froze the tab. Paginated the same way the list
+  // view already is; reset to page 1 whenever the folder/search/space
+  // changes so a stale page number doesn't strand the user on an empty page.
+  const [gridPage, setGridPage] = useState(1);
+  const GRID_PAGE_SIZE = 60;
+  // Table view's own page size — antd's pagination merges this PROP over
+  // its internal state on every render, so passing a hardcoded literal
+  // (`pageSize: 20`) here silently snapped the user's "50/page" selection
+  // back to 20 the next time the component re-rendered for any reason
+  // (e.g. a background fetch landing) — a known antd gotcha for
+  // uncontrolled pagination. Controlling it via this state (updated by the
+  // Table's own onChange/onShowSizeChange below) fixes that.
+  const [mainTablePageSize, setMainTablePageSize] = useState(20);
+  // Same fix, same reason, for the Customer gallery table and the shared
+  // EntityGalleryTable (Case-root/Legal-Study galleries) below.
+  const [customerGalleryPageSize, setCustomerGalleryPageSize] = useState(20);
+  const [entityGalleryPageSize, setEntityGalleryPageSize] = useState(20);
   const [sortMode, setSortMode] = useState("manual");
+  useEffect(() => {
+    setGridPage(1);
+  }, [selectedFolderId, activeSpace, query]);
   const [galleryViewMode, setGalleryViewMode] = useState("table");
   const [galleryCompanyFilter, setGalleryCompanyFilter] = useState([]);
   const [users, setUsers] = useState([]);
@@ -4974,6 +5455,7 @@ const InternalTemplates = () => {
   const [activityPage, setActivityPage] = useState(1);
   const [activitySearchQuery, setActivitySearchQuery] = useState("");
   const [activityActionFilter, setActivityActionFilter] = useState("all");
+  const [activityCategoryFilter, setActivityCategoryFilter] = useState("all");
   const [activityDateFilter, setActivityDateFilter] = useState(null);
   const [dragState, setDragState] = useState({
     sourceKey: null,
@@ -5006,11 +5488,56 @@ const InternalTemplates = () => {
 
   const [showCompanyList, setShowCompanyList] = useState(true);
   const [customers, setCustomers] = useState([]);
+  // Customers/projects/customerCaseFolders now load independently of the
+  // rest of loadData (2026-09-18 perf change) — the default Knowledge view
+  // no longer waits for them, but that means the Customer gallery can be
+  // opened before they've arrived. Without this flag it showed "No
+  // customers yet" (empty state) instead of a loading indicator while
+  // still fetching, which reads as "you have no data" rather than "still
+  // loading" — true while any of those three fetches is in flight.
+  const [customerSpaceLoading, setCustomerSpaceLoading] = useState(true);
+  // Same idea for the Reference (legalStudy) root gallery — legalStudyEntities
+  // depends on customerCaseFolders (progressive) + legalStudyRecords +
+  // legalMemberRows, none of which are part of the fast initial-paint gate.
+  // Without this, clicking "Reference" right as the page becomes interactive
+  // could show "No case has a Reference folder yet" for a moment even when
+  // data is on its way.
+  const [referenceSpaceLoading, setReferenceSpaceLoading] = useState(true);
+  // customerCaseFolders now streams in page-by-page (2026-09-18 progressive
+  // load) instead of waiting for all pages before the first row is usable —
+  // measured 9.3s for 1742 rows (9 pages), most of it spent on pages the
+  // Customer gallery's first paint never needed yet. BUT isRenameLockedFolder/
+  // isCaseRootFolder (Library.js:126-128) need the FULL folder set to
+  // reliably resolve a folder's parent chain — with only some pages loaded,
+  // a genuine Case root folder can look parent-less and get misjudged as
+  // safe to rename/delete (the exact "fail-closed" case that comment warns
+  // about, just triggered by partial data instead of a missing filter).
+  // This flag stays false until every page has arrived; rename/delete on
+  // Customer/Case-space folders (which read customerCaseFolders as
+  // allFolders) stays disabled until then rather than trusting a
+  // still-partial tree.
+  const [customerCaseFoldersFullyLoaded, setCustomerCaseFoldersFullyLoaded] =
+    useState(false);
   const [activeCustomerId, setActiveCustomerId] = useState(null);
   const [activeCaseId, setActiveCaseId] = useState(null);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [caseFolders, setCaseFolders] = useState([]);
   const [customerCaseFolders, setCustomerCaseFolders] = useState([]);
+  // Shadows the module-level isRenameLockedFolder/isDeleteLockedFolder for
+  // every call site below — all of them pass customerCaseFolders as
+  // allFolders (verified: no call site in this file uses a different
+  // array for either check). While customerCaseFolders is still streaming
+  // in page-by-page, isCaseRootFolder's parent-chain lookup can miss a
+  // folder's parent that hasn't arrived yet and misjudge a genuine Case
+  // root as unlocked (see customerCaseFoldersFullyLoaded's own comment
+  // above) — fail safe instead: treat every folder as locked until the
+  // full tree has landed, on top of whatever the base check itself finds.
+  const isRenameLockedFolder = (record, allFolders) =>
+    (record?._type === "folder" && !customerCaseFoldersFullyLoaded) ||
+    isRenameLockedFolderBase(record, allFolders);
+  const isDeleteLockedFolder = (record, allFolders) =>
+    (record?._type === "folder" && !customerCaseFoldersFullyLoaded) ||
+    isDeleteLockedFolderBase(record, allFolders);
   const [caseDocs, setCaseDocs] = useState([]);
   const [sharedWithMeDocs, setSharedWithMeDocs] = useState([]);
   const [caseFoldersLoading, setCaseFoldersLoading] = useState(false);
@@ -5064,6 +5591,10 @@ const InternalTemplates = () => {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setDataRefreshing(true);
+    setCustomerSpaceLoading(true);
+    setReferenceSpaceLoading(true);
+    setCustomerCaseFoldersFullyLoaded(false);
     try {
       // 1. Resolve current user (auth:check is most reliable)
       let resolvedUser = null;
@@ -5113,65 +5644,112 @@ const InternalTemplates = () => {
         }
       }
 
-      const [
-        fetchedCompanies,
-        fetchedFolders,
-        fetchedDocs,
-        fetchedProjects,
-        fetchedDocumentShares,
-        fetchedCustomers,
-        fetchedCustomerCaseFolders,
-        fetchedLegalStudyRecords,
-        fetchedLegalMemberRows,
-      ] = await Promise.all([
-        fetchAllList("internalCompany:list", { sort: ["createdAt"] }).catch(
-          () => [],
-        ),
-        fetchFoldersForInternalTemplates(),
-        fetchDocumentsForInternalTemplates(),
-        fetchAllList("projects:list", {
-          fields: [
-            "id",
-            "caseCode",
-            "projectName",
-            "description",
-            "customerId",
-            "customer",
-          ],
-          sort: ["-createdAt"],
-        }).catch(() => []),
-        fetchDocumentShareRows(),
-        fetchAllList("customers:list", {
-          sort: ["customerName"],
-          appends: ["internalCompany", "createdBy"],
-        }).catch(() => []),
-        fetchCustomerCasePermissionFolders(),
-        fetchLegalStudyRecords(),
-        fetchAllLegalMemberRows(),
-      ]);
+      // Set current user & lawyer as soon as they're resolved — nothing
+      // below depends on the 9 fetches kicked off next.
+      if (resolvedUser) {
+        setCurrentLawyerId(resolvedLawyerId);
+        currentUserRef.current = resolvedUser;
+        currentUserCache = resolvedUser;
+        setCurrentUserState(resolvedUser);
+      }
 
-      setCompanies(fetchedCompanies);
-      // Legal Study's own gallery is already folder-driven (excludes
-      // isDeleted folders), so this mainly guards legalStudyRecordById
-      // lookups used elsewhere from resolving a soft-deleted record.
-      setLegalStudyRecords(
-        fetchedLegalStudyRecords.filter((s) => !s?.isDeleted),
-      );
-      setLegalMemberRows(fetchedLegalMemberRows);
       const isAllowedScope = (record) => {
         const scope = normalizeKey(record?.moduleScope);
         return !scope || DASHBOARD_CONFIG.moduleScopes.includes(scope);
       };
-      setFolders(fetchedFolders.filter(isAllowedScope));
-      setDocuments(
-        mergeDocumentShareRows(
-          fetchedDocs.filter(isAllowedScope),
-          fetchedDocumentShares,
-        ),
+
+      // Kick off every fetch immediately, then let each one (or small
+      // coupled group) apply its own state as soon as IT resolves, instead
+      // of gathering all 9 into one Promise.all and gating every setState
+      // behind whichever is slowest. Measured 2026-09-18:
+      // fetchCustomerCasePermissionFolders() alone (unfiltered folders:list
+      // with 4 relation appends, needed only by the Customer/Legal Study
+      // galleries) regularly takes 2+s and paginates in 3 sequential
+      // round-trips — before this change, the default Knowledge-space view
+      // (gated below by `loading && companies.length === 0 &&
+      // documents.length === 0`) had to wait for that unrelated fetch to
+      // finish before showing anything at all. This doesn't change any
+      // query, filter, or append — only WHEN each result gets applied.
+      const companiesPromise = fetchAllList("internalCompany:list", {
+        sort: ["createdAt"],
+      }).catch(() => []);
+      const foldersPromise = fetchFoldersForInternalTemplates();
+      const docsPromise = fetchDocumentsForInternalTemplates();
+      Promise.all([companiesPromise, foldersPromise, docsPromise]).then(() =>
+        setDataRefreshing(false),
+      );
+      const projectsPromise = fetchAllList("projects:list", {
+        fields: [
+          "id",
+          "caseCode",
+          "projectName",
+          "description",
+          "customerId",
+          "customer",
+        ],
+        sort: ["-createdAt"],
+      }).catch(() => []);
+      const documentSharesPromise = fetchDocumentShareRows();
+      const customersPromise = fetchAllList("customers:list", {
+        sort: ["customerName"],
+        appends: ["internalCompany", "createdBy"],
+      }).catch(() => []);
+      // Progressive: page 1 (of the ~9 it took at 1742 rows, 9.3s total)
+      // replaces customerCaseFolders immediately so the Customer gallery's
+      // first paint doesn't wait for the whole unscoped fetch; later pages
+      // append as they land. customerCaseFoldersFullyLoaded only flips once
+      // every page is in — see its declaration for why rename/delete stay
+      // gated on it rather than trusting a still-partial tree.
+      let customerCaseFoldersPageIndex = 0;
+      let resolveFirstCustomerCaseFolderPage;
+      const firstCustomerCaseFolderPagePromise = new Promise((resolve) => {
+        resolveFirstCustomerCaseFolderPage = resolve;
+      });
+      const customerCaseFoldersPromise =
+        fetchCustomerCasePermissionFoldersProgressive((pageRows, isLastPage) => {
+          customerCaseFoldersPageIndex += 1;
+          const cleaned = pageRows.filter((folder) => !folder?.isDeleted);
+          setCustomerCaseFolders((prev) =>
+            customerCaseFoldersPageIndex === 1 ? cleaned : [...prev, ...cleaned],
+          );
+          if (customerCaseFoldersPageIndex === 1) {
+            resolveFirstCustomerCaseFolderPage();
+          }
+          if (isLastPage) setCustomerCaseFoldersFullyLoaded(true);
+        });
+      const legalStudyRecordsPromise = fetchLegalStudyRecords();
+      const legalMemberRowsPromise = fetchAllLegalMemberRows();
+
+      companiesPromise.then((fetchedCompanies) => {
+        setCompanies(fetchedCompanies);
+        setActiveCompanyId(
+          (prev) =>
+            prev ||
+            (fetchedCompanies[0]
+              ? String(extractId(fetchedCompanies[0]))
+              : null),
+        );
+      });
+
+      foldersPromise.then((fetchedFolders) => {
+        setFolders(fetchedFolders.filter(isAllowedScope));
+      });
+
+      // documents + documentShares merge into a single state, so this one
+      // waits for both (but not for anything else) before setting it.
+      Promise.all([docsPromise, documentSharesPromise]).then(
+        ([fetchedDocs, fetchedDocumentShares]) => {
+          setDocuments(
+            mergeDocumentShareRows(
+              fetchedDocs.filter(isAllowedScope),
+              fetchedDocumentShares,
+            ),
+          );
+        },
       );
 
       // Fetch full document records shared with current user (with fileAttachment for preview/download)
-      {
+      documentSharesPromise.then(async (fetchedDocumentShares) => {
         const currentUserId = resolvedUser
           ? String(extractId(resolvedUser.id) || "")
           : String(getCurrentUserId() || "");
@@ -5208,32 +5786,59 @@ const InternalTemplates = () => {
         } else {
           setSharedWithMeDocs([]);
         }
-      }
+      });
 
-      setProjects(fetchedProjects);
-      setCustomers(fetchedCustomers);
-      setCustomerCaseFolders(
-        fetchedCustomerCaseFolders.filter((folder) => !folder?.isDeleted),
+      projectsPromise.then((fetchedProjects) => setProjects(fetchedProjects));
+      customersPromise.then((fetchedCustomers) =>
+        setCustomers(fetchedCustomers),
       );
-      setActiveCompanyId(
-        (prev) =>
-          prev ||
-          (fetchedCompanies[0] ? String(extractId(fetchedCompanies[0])) : null),
+      // Customer gallery (filteredSidebarCustomers/customerStats) reads
+      // customers + projects + customerCaseFolders together — flips once
+      // customers/projects are in AND the FIRST page of customerCaseFolders
+      // has landed (not the whole progressive fetch — see above).
+      Promise.all([
+        customersPromise,
+        projectsPromise,
+        firstCustomerCaseFolderPagePromise,
+      ]).then(() => setCustomerSpaceLoading(false));
+      // Legal Study's own gallery is already folder-driven (excludes
+      // isDeleted folders), so this mainly guards legalStudyRecordById
+      // lookups used elsewhere from resolving a soft-deleted record.
+      legalStudyRecordsPromise.then((fetchedLegalStudyRecords) =>
+        setLegalStudyRecords(
+          fetchedLegalStudyRecords.filter((s) => !s?.isDeleted),
+        ),
       );
-
-      // Set current user & lawyer after data is ready
-      if (resolvedUser) {
-        // Store in refs/state for permission checks
-        setCurrentLawyerId(resolvedLawyerId);
-        // We track the full user object in a ref so memos can use it
-        currentUserRef.current = resolvedUser;
-        currentUserCache = resolvedUser;
-        setCurrentUserState(resolvedUser);
-      }
+      legalMemberRowsPromise.then((fetchedLegalMemberRows) =>
+        setLegalMemberRows(fetchedLegalMemberRows),
+      );
+      Promise.all([
+        legalStudyRecordsPromise,
+        legalMemberRowsPromise,
+        firstCustomerCaseFolderPagePromise,
+      ]).then(() => setReferenceSpaceLoading(false));
 
       // Also refresh case-specific data (caseFolders / caseDocs) if a case is active.
       // Uses a ref so we always get the latest refreshCaseFolders without needing it in deps.
       refreshCaseFoldersRef.current();
+
+      // setLoading(false) below still waits for every fetch to truly
+      // finish (so a manual "Refresh" click's spinner reflects real
+      // completion) — the initial full-page gate only checks
+      // `loading && companies.length === 0 && documents.length === 0`,
+      // which already stops blocking as soon as those two land above,
+      // well before this resolves.
+      await Promise.all([
+        companiesPromise,
+        foldersPromise,
+        docsPromise,
+        projectsPromise,
+        documentSharesPromise,
+        customersPromise,
+        customerCaseFoldersPromise,
+        legalStudyRecordsPromise,
+        legalMemberRowsPromise,
+      ]);
     } catch (e) {
       console.error("loadData error", e);
       message.error("Failed to load data");
@@ -5244,26 +5849,9 @@ const InternalTemplates = () => {
 
   const refreshCaseFolders = useCallback(() => {
     if (!activeCaseId) return;
-    Promise.all([
-      fetchAllList("folders:list", {
-        filter: JSON.stringify({ projectId: { $eq: String(activeCaseId) } }),
-        appends: [
-          "createdBy",
-          "folderManager",
-          "folderMember",
-          "folderManagers",
-          "folderMembers",
-        ],
-        sort: ["createdAt"],
-      }).catch(() => []),
-      fetchAllList("documents:list", {
-        filter: JSON.stringify({ caseId: { $eq: String(activeCaseId) } }),
-        appends: ["fileAttachment", "createdBy"],
-        sort: ["-createdAt"],
-      }).catch(() => []),
-    ]).then(([flds, docs]) => {
-      setCaseFolders(flds.filter((f) => !f.isDeleted));
-      setCaseDocs(docs.filter((d) => !d.isDeleted));
+    fetchCaseFoldersAndDocs(activeCaseId).then(({ folders, docs }) => {
+      setCaseFolders(folders);
+      setCaseDocs(docs);
     });
   }, [activeCaseId]);
 
@@ -5275,18 +5863,18 @@ const InternalTemplates = () => {
   const fetchActivityLogs = useCallback(async () => {
     setActivityLoading(true);
     try {
-      const res = await ctx.api.request({
-        url: "activity_log:list",
-        params: {
-          pageSize: 500,
-          sort: ["-changedAt"],
-          filter: JSON.stringify({
-            collectionName: { $in: ["Document", "Folder"] },
-          }),
-        },
+      // Was a single request with pageSize: 500 — silently capped at the
+      // 500 most-recent matching rows (sort: -changedAt) instead of the
+      // full history. 2026-09-19 real report: admin's raw data-source
+      // grid showed 3041+ total activity_log rows while this table only
+      // ever loaded/showed up to 500 (470 after dedup/system filtering) —
+      // fetchAllList pages through every matching row instead.
+      const raw = await fetchAllList("activity_log:list", {
+        sort: ["-changedAt"],
+        filter: JSON.stringify({
+          collectionName: { $in: ["Document", "Folder"] },
+        }),
       });
-
-      const raw = res?.data?.data || [];
 
       const titleMap = {};
       for (const log of raw) {
@@ -5295,15 +5883,14 @@ const InternalTemplates = () => {
         }
       }
 
-      const companyFolderIds = new Set(
-        folders
-          .filter((f) => matchesInternalCompany(f, activeCompanyId))
-          .map((f) => String(extractId(f.id))),
+      // Built once and reused for every log below — resolves each log's
+      // target folder/document so its sidebar "danh mục" can be attached,
+      // for the Activity History table's category column/filter.
+      const folderById = new Map(
+        folders.map((f) => [String(extractId(f.id)), f]),
       );
-      const companyDocIds = new Set(
-        documents
-          .filter((d) => matchesInternalCompany(d, activeCompanyId))
-          .map((d) => String(extractId(d.id))),
+      const documentById = new Map(
+        documents.map((d) => [String(extractId(d.id)), d]),
       );
       const manualTrashLogs = raw.filter((log) =>
         ["trash_deleted", "restored"].includes(log.action),
@@ -5334,26 +5921,48 @@ const InternalTemplates = () => {
             return false;
           return true;
         })
-        .map((log) => ({
-          ...log,
-          resolvedTitle: titleMap[log.recordId] || null,
-        }))
-        .filter((log) => {
-          const rId = String(log.recordId);
-          if (
-            ["deleted", "trash_deleted", "restored"].includes(log.action) &&
-            activeCompanyId &&
-            String(extractId(log.dataId)) === String(extractId(activeCompanyId))
-          ) {
-            return true;
-          }
-          if (log.collectionName === "Folder") {
-            return companyFolderIds.has(rId);
-          } else if (log.collectionName === "Document") {
-            return companyDocIds.has(rId);
-          }
-          return false;
+        .map((log) => {
+          const isFolder = log.collectionName === "Folder";
+          const targetRecord = isFolder
+            ? folderById.get(String(log.recordId))
+            : documentById.get(String(log.recordId));
+          const resolvedTitle = titleMap[log.recordId] || null;
+          return {
+            ...log,
+            resolvedTitle,
+            // The item's own display name — same fallback chain as the
+            // "Document" column (title-change history, then the current
+            // record's own name/title, then the log's raw old/new value)
+            // — so "Moved"/"Move to folder" descriptions can name WHAT
+            // was moved, not just its generic type ("folder"/"document").
+            itemName:
+              resolvedTitle ||
+              log.recordTitle ||
+              (isFolder
+                ? targetRecord?.name
+                : targetRecord && getDocTitle(targetRecord)) ||
+              null,
+            activitySpaceKey: classifyActivityRecordSpace(
+              targetRecord,
+              isFolder,
+            ),
+          };
         });
+      // Previously also required each log's target folder/document to
+      // still be found in the currently-loaded `folders`/`documents`
+      // state (via a companyFolderIds/companyDocIds existence check) —
+      // removed 2026-09-19: activity_log rows carry no internalCompanyId
+      // (or any other company-scoping field) of their own (confirmed via
+      // a live Network response), so that check only ever worked by
+      // resolving through the STILL-EXISTING target record. Any log whose
+      // record had since been permanently deleted (e.g. via this
+      // session's own folders:destroy cleanup tooling) could never be
+      // found that way and was silently hidden — with a burst of recent
+      // hard-deletes sorted to the top (sort: -changedAt), this hid the
+      // entire table (4113 real rows in the DB, 0 shown). Company
+      // filtering for Activity History isn't reconstructable from this
+      // data at all with the "company" concept; dropped rather than kept
+      // half-working.
 
       setActivityLogs(filtered);
       setActivityPage(1);
@@ -5362,7 +5971,7 @@ const InternalTemplates = () => {
     } finally {
       setActivityLoading(false);
     }
-  }, [folders, documents, activeCompanyId, currentUserState, currentLawyerId]);
+  }, [folders, documents, currentUserState, currentLawyerId]);
 
   const createManualActivityLog = useCallback(
     (record, action, options = {}) => {
@@ -5945,6 +6554,13 @@ const InternalTemplates = () => {
       return `Restored ${entityName} from Trash`;
     }
 
+    // Include the item's own name (not just its generic type word) so a
+    // "Moved" entry reads as "Moved folder 'Legal Study' from X to Y"
+    // instead of just "Moved folder from X to Y" — falls back to the bare
+    // entityName when the item's name couldn't be resolved (e.g. it was
+    // later permanently deleted and never had a title-change log either).
+    const itemLabel = log.itemName ? `${entityName} "${log.itemName}"` : entityName;
+
     if (action === "moved") {
       const getFolderName = (id) => {
         if (!id || id === "root" || id === "0" || id === 0)
@@ -5957,9 +6573,9 @@ const InternalTemplates = () => {
       if (oldV || newV) {
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Moved ${entityName} from "${oldFolder}" sang "${newFolder}"`;
+        return `Moved ${itemLabel} from "${oldFolder}" to "${newFolder}"`;
       }
-      return `Moved ${entityName}`;
+      return `Moved ${itemLabel}`;
     }
 
     if (action === "updated") {
@@ -5987,7 +6603,7 @@ const InternalTemplates = () => {
         };
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Moved from "${oldFolder}" sang "${newFolder}"`;
+        return `Moved ${itemLabel} from "${oldFolder}" to "${newFolder}"`;
       }
 
       const fieldLabel = FIELD_LABELS[field] || field;
@@ -6005,6 +6621,13 @@ const InternalTemplates = () => {
         if (info.key !== activityActionFilter) {
           return false;
         }
+      }
+
+      if (
+        activityCategoryFilter !== "all" &&
+        log.activitySpaceKey !== activityCategoryFilter
+      ) {
+        return false;
       }
 
       if (activityDateFilter) {
@@ -6040,6 +6663,7 @@ const InternalTemplates = () => {
   }, [
     activityLogs,
     activityActionFilter,
+    activityCategoryFilter,
     activityDateFilter,
     activitySearchQuery,
     folders,
@@ -6102,35 +6726,21 @@ const InternalTemplates = () => {
   // Reset "show more" when search query or active space changes
   // Fetch folders + docs for selected case
   useEffect(() => {
-    if (!activeCaseId) {
-      setCaseFolders([]);
-      setCaseDocs([]);
-      return;
-    }
+    // Clear immediately (not just when going to null) so switching straight
+    // from one case to another can't render the PREVIOUS case's
+    // folders/docs against the new selection while the new fetch is still
+    // in flight — was a real stale-data flash, now shows the loading state
+    // (caseFoldersLoading below) instead.
+    setCaseFolders([]);
+    setCaseDocs([]);
+    if (!activeCaseId) return;
     let cancelled = false;
     setCaseFoldersLoading(true);
-    Promise.all([
-      fetchAllList("folders:list", {
-        filter: JSON.stringify({ projectId: { $eq: String(activeCaseId) } }),
-        appends: [
-          "createdBy",
-          "folderManager",
-          "folderMember",
-          "folderManagers",
-          "folderMembers",
-        ],
-        sort: ["createdAt"],
-      }).catch(() => []),
-      fetchAllList("documents:list", {
-        filter: JSON.stringify({ caseId: { $eq: String(activeCaseId) } }),
-        appends: ["fileAttachment", "createdBy"],
-        sort: ["-createdAt"],
-      }).catch(() => []),
-    ])
-      .then(([flds, docs]) => {
+    fetchCaseFoldersAndDocs(activeCaseId)
+      .then(({ folders, docs }) => {
         if (cancelled) return;
-        setCaseFolders(flds.filter((f) => !f.isDeleted));
-        setCaseDocs(docs.filter((d) => !d.isDeleted));
+        setCaseFolders(folders);
+        setCaseDocs(docs);
       })
       .finally(() => {
         if (!cancelled) setCaseFoldersLoading(false);
@@ -6207,6 +6817,150 @@ const InternalTemplates = () => {
     const folderId = String(extractId(activeLegalStudyFolder));
     if (selectedFolderId === "root") setSelectedFolderId(folderId);
   }, [activeSpace, activeCaseId, activeLegalStudyFolder, selectedFolderId]);
+
+  // Category root của Knowledge/Reference — resolve động qua
+  // libraryCategoryKey HOẶC tên folder (thay vì hardcode id) để không lặp
+  // lại sự cố ID lệch: bản dev/prod tạo folder này thủ công trong Nocobase
+  // Admin UI, mỗi bên tự sinh 1 id khác nhau, nên hardcode 1 id cụ thể
+  // trong code sẽ luôn đúng cho đúng 1 môi trường và sai ở môi trường còn
+  // lại. Match theo libraryCategoryKey trước; nếu môi trường nào quên gán
+  // field đó thì fallback theo đúng tên hiển thị ("Knowledge"/"Reference")
+  // — cùng pattern key-rồi-tên đã dùng cho
+  // isRenameLockedFolder/SYSTEM_LOCKED_RENAME_TEMPLATE_NAMES trong file
+  // này. Chỉ xét folder ở cấp cao nhất (không có parentId) để tránh khớp
+  // nhầm 1 folder con trùng tên do người dùng tự đặt.
+  const resolveLibraryCategoryRootId = useCallback(
+    (space) => {
+      const key = LIBRARY_CATEGORY_KEY_BY_SPACE[space];
+      const name = LIBRARY_CATEGORY_NAME_BY_SPACE[space];
+      const root = folders.find(
+        (f) =>
+          !f.isDeleted &&
+          !getFolderParentId(f) &&
+          ((key && f.libraryCategoryKey === key) || f.name === name),
+      );
+      return root ? extractId(root) : null;
+    },
+    [folders],
+  );
+  const knowledgeRootFolderId = useMemo(
+    () => resolveLibraryCategoryRootId(KNOWLEDGE_STORAGE_TYPE),
+    [resolveLibraryCategoryRootId],
+  );
+  const legalStudyRootFolderId = useMemo(
+    () => resolveLibraryCategoryRootId(LEGAL_STUDY_STORAGE_TYPE),
+    [resolveLibraryCategoryRootId],
+  );
+  const libraryCategoryRootFolderId = useMemo(
+    () => ({
+      [KNOWLEDGE_STORAGE_TYPE]: knowledgeRootFolderId,
+      [LEGAL_STUDY_STORAGE_TYPE]: legalStudyRootFolderId,
+    }),
+    [knowledgeRootFolderId, legalStudyRootFolderId],
+  );
+
+  // Category root của My Documents — resolve động qua `libraryCategoryKey`
+  // (giá trị "category_mydocuments", cùng cơ chế key-trước với
+  // resolveLibraryCategoryRootId ở trên) thay vì hardcode id, để không lặp
+  // lại sự cố ID lệch (folder gốc bị xoá/tạo lại từng khiến myDocumentsFolder
+  // bên dưới không bao giờ match được ai). Field `type` cũ giữ lại làm
+  // fallback cho môi trường nào chưa gán libraryCategoryKey.
+  const myDocumentsRootFolderId = useMemo(() => {
+    const root = folders.find(
+      (f) =>
+        !f.isDeleted &&
+        (f.libraryCategoryKey === MY_DOCUMENTS_LIBRARY_CATEGORY_KEY ||
+          f.type === MY_DOCUMENTS_ROOT_FOLDER_TYPE),
+    );
+    return root ? extractId(root) : null;
+  }, [folders]);
+
+  // 🌟 My Documents: mỗi lawyer có đúng 1 folder cá nhân là con trực tiếp
+  // của myDocumentsRootFolderId, nhận diện qua field lawyerId (liên kết
+  // thật qua relation "lawyers", không suy luận theo tên).
+  const myDocumentsFolder = useMemo(() => {
+    if (!currentLawyerId || !myDocumentsRootFolderId) return null;
+    return (
+      folders.find(
+        (f) =>
+          !f.isDeleted &&
+          String(getFolderLawyerId(f) || "") === String(currentLawyerId) &&
+          String(getFolderParentId(f) || "") ===
+            String(myDocumentsRootFolderId),
+      ) || null
+    );
+  }, [folders, currentLawyerId, myDocumentsRootFolderId]);
+
+  // Toàn bộ id folder con cháu của folder cá nhân trên — dùng khoanh vùng
+  // visibleFolders/visibleDocs vào đúng cây của lawyer đang đăng nhập,
+  // cùng cách legalStudySubtreeFolderIds đã dùng cho Legal Study.
+  const myDocumentsSubtreeIds = useMemo(() => {
+    if (!myDocumentsFolder) return new Set();
+    return getFolderSubtreeIds(
+      extractId(myDocumentsFolder),
+      folders.filter((f) => !f?.isDeleted),
+    );
+  }, [myDocumentsFolder, folders]);
+
+  // Toàn bộ id folder con cháu THẬT của root Knowledge (gồm cả chính root)
+  // — thay cho việc quét storageType phẳng trước đây, cùng cách
+  // myDocumentsSubtreeIds/legalStudySubtreeFolderIds đã dùng. visibleFolders
+  // bên dưới sẽ loại trừ chính knowledgeRootFolderId khỏi kết quả (chỉ giữ
+  // hậu duệ) để root không tự hiện thành 1 dòng trong chính nó — cùng lý do
+  // My Documents đã loại trừ myDocumentsRootFolderId ở nhánh admin.
+  const knowledgeSubtreeIds = useMemo(() => {
+    if (!knowledgeRootFolderId) return new Set();
+    return getFolderSubtreeIds(
+      knowledgeRootFolderId,
+      folders.filter((f) => !f?.isDeleted),
+    );
+  }, [knowledgeRootFolderId, folders]);
+
+  // True when the current space's category root folder hasn't been
+  // created/tagged yet (missing libraryCategoryKey) — every folder/document
+  // read for that space resolves to empty in that case, so the empty-state
+  // UI needs to show this specific message instead of the generic "Folder
+  // is empty", or a user could spend time looking for a create button that
+  // has nowhere valid to write to.
+  const activeCategoryRootMissing =
+    (activeSpace === KNOWLEDGE_STORAGE_TYPE && !knowledgeRootFolderId) ||
+    (activeSpace === MY_DOCUMENT_STORAGE_TYPE && !myDocumentsRootFolderId);
+
+  // True while the folder/document tree content for the current space is
+  // still waiting on its own per-case fetch (caseFolders/caseDocs — see the
+  // activeCaseId effect above) — only Customer's case drill-down and
+  // case-bound Reference read from that state. Without this, switching
+  // straight from one case to another (or entering this view right after
+  // picking a case) could show "Folder is empty" for a moment before the
+  // real content arrives.
+  const isCaseScopedContentLoading =
+    caseFoldersLoading &&
+    (activeSpace === "customer" ||
+      (activeSpace === LEGAL_STUDY_STORAGE_TYPE && !activeStandaloneLegalStudyFolderId));
+
+  // Vào My Documents → chỉ CHECK xem lawyer đang đăng nhập đã có folder cá
+  // nhân (con trực tiếp của myDocumentsRootFolderId, khớp lawyerId) hay
+  // chưa — không còn tự tạo mới nữa (folder cho từng lawyer nay được tạo
+  // sẵn qua 1 workflow riêng ngoài file này). Có folder rồi → tự nhảy
+  // thẳng vào đó (mở đúng tree data của lawyer) để tiếp tục nghiệp vụ
+  // upload folder/file, bỏ qua màn "root" dùng chung của cả team. Chưa có
+  // folder → đứng yên ở "root", không làm gì thêm.
+  // Admin không bị auto-nhảy — được duyệt cả cây My Documents của mọi
+  // lawyer, khớp admin-bypass nhất quán trong toàn file.
+  useEffect(() => {
+    if (activeSpace !== MY_DOCUMENT_STORAGE_TYPE) return;
+    if (isAdminUser(currentUserState)) return;
+    if (!currentLawyerId) return;
+    if (!myDocumentsFolder) return;
+    if (selectedFolderId === "root")
+      setSelectedFolderId(String(extractId(myDocumentsFolder)));
+  }, [
+    activeSpace,
+    currentLawyerId,
+    myDocumentsFolder,
+    selectedFolderId,
+    currentUserState,
+  ]);
 
   const companyFolders = useMemo(
     () =>
@@ -6641,18 +7395,49 @@ const InternalTemplates = () => {
     return map;
   }, [legalStudyEntitiesWithSubtree, legalStudyDocs]);
 
+  // A Case only actually shows anything to browse into once
+  // CaseCreateForm.js's own folder-creation step succeeds (it's a
+  // separate try/catch after the Case record itself is saved — see
+  // CaseCreateForm.js:9088-9147) — so a case with no root folder is a
+  // real (if rare) case-created-but-folder-failed state, not just an
+  // edge case to ignore. Counting it under "Cases" would show a number
+  // the Customer -> Case gallery then can't back up (empty "No data").
+  const caseIdsWithFolder = useMemo(() => {
+    const activeCaseFolders = customerCaseFolders.filter((f) => !f?.isDeleted);
+    // Pre-built once and reused for every folder below — isCaseRootFolder's
+    // own `allFolders.find(...)` fallback is O(n) per call, which made this
+    // loop O(n^2) at customerCaseFolders' system-wide scale (2026-09-19,
+    // same class of bug as resolvePermissionFolder's).
+    const folderById = new Map(
+      activeCaseFolders.map((f) => [String(extractId(f)), f]),
+    );
+    const ids = new Set();
+    activeCaseFolders.forEach((folder) => {
+      if (!isCaseRootFolder(folder, activeCaseFolders, folderById)) return;
+      const pid = getFolderCaseProjectId(folder);
+      if (pid) ids.add(String(pid));
+    });
+    return ids;
+  }, [customerCaseFolders]);
+
   const customerStats = useMemo(() => {
+    // Group once by customerId instead of re-scanning visibleCustomerProjects
+    // per customer (was O(customers x projects), i.e. another O(n^2) on the
+    // same Customer-space data — 2026-09-19).
+    const caseCountByCustomerId = new Map();
+    visibleCustomerProjects.forEach((p) => {
+      if (!caseIdsWithFolder.has(String(extractId(p)))) return;
+      const cid = String(getProjectCustomerId(p) || "");
+      if (!cid) return;
+      caseCountByCustomerId.set(cid, (caseCountByCustomerId.get(cid) || 0) + 1);
+    });
     const stats = {};
     customers.forEach((c) => {
       const cid = String(extractId(c));
-      stats[cid] = {
-        caseCount: visibleCustomerProjects.filter(
-          (p) => String(getProjectCustomerId(p) || "") === cid,
-        ).length,
-      };
+      stats[cid] = { caseCount: caseCountByCustomerId.get(cid) || 0 };
     });
     return stats;
-  }, [customers, visibleCustomerProjects]);
+  }, [customers, visibleCustomerProjects, caseIdsWithFolder]);
 
   const canViewTrashRecord = useCallback(
     (record) => {
@@ -6690,20 +7475,13 @@ const InternalTemplates = () => {
 
     const activeDocs = companyDocs.filter((doc) => !doc.isDeleted);
 
-    if (activeSpace === "company_shared") {
-      return activeDocs.filter((doc) => {
-        const isShared =
-          doc.storageType === "company_shared" ||
-          (!doc.storageType &&
-            !getRecordDocumentType(doc) &&
-            !getInternalTemplateRelationId(doc) &&
-            !getRecordLegalReferenceId(doc));
-        return isShared && doc.storageType !== "legal_reference";
-      });
-    }
     if (activeSpace === KNOWLEDGE_STORAGE_TYPE) {
-      return activeDocs.filter(
-        (doc) => doc.storageType === KNOWLEDGE_STORAGE_TYPE,
+      // Anchored on the real root record (knowledgeSubtreeIds includes the
+      // root itself) instead of a flat storageType scan — a doc counts as
+      // Knowledge content only if it's actually filed under that folder's
+      // real tree.
+      return activeDocs.filter((doc) =>
+        knowledgeSubtreeIds.has(String(extractId(doc.folderId) || "")),
       );
     }
     if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
@@ -6731,18 +7509,17 @@ const InternalTemplates = () => {
       return caseDocs.filter((d) => !d.isDeleted);
     }
     if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) {
-      const currentUserId = String(
-        extractId(currentUserState?.id) || getCurrentUserId() || "",
-      );
-      if (!currentUserId) return [];
-      return documents.filter((doc) => {
-        if (doc.isDeleted) return false;
-        return (
-          doc.storageType === MY_DOCUMENT_STORAGE_TYPE &&
-          (String(extractId(doc.createdById) || "") === currentUserId ||
-            String(extractId(doc.uploadedById) || "") === currentUserId)
+      if (isAdminUser(currentUserState)) {
+        return documents.filter(
+          (doc) => !doc.isDeleted && doc.storageType === MY_DOCUMENT_STORAGE_TYPE,
         );
-      });
+      }
+      return documents.filter(
+        (doc) =>
+          !doc.isDeleted &&
+          doc.storageType === MY_DOCUMENT_STORAGE_TYPE &&
+          myDocumentsSubtreeIds.has(String(extractId(doc.folderId) || "")),
+      );
     }
     if (activeSpace === "shared_with_me") {
       // Use sharedWithMeDocs (built from share rows in loadData) to cover docs
@@ -6772,6 +7549,8 @@ const InternalTemplates = () => {
     canViewTrashRecord,
     caseDocs,
     sharedWithMeDocs,
+    myDocumentsSubtreeIds,
+    knowledgeSubtreeIds,
   ]);
 
   const visibleFolders = useMemo(() => {
@@ -6786,20 +7565,16 @@ const InternalTemplates = () => {
 
     const activeFolders = companyFolders.filter((f) => !f.isDeleted);
 
-    if (activeSpace === "company_shared") {
-      return activeFolders.filter((f) => {
-        const isShared =
-          f.storageType === "company_shared" ||
-          (!f.storageType &&
-            !getRecordDocumentType(f) &&
-            !getInternalTemplateRelationId(f) &&
-            !getRecordLegalReferenceId(f));
-        return isShared && f.storageType !== "legal_reference";
-      });
-    }
     if (activeSpace === KNOWLEDGE_STORAGE_TYPE) {
+      // Real descendants of the root only — the root itself is excluded so
+      // it never shows up as a row inside its own listing (same reasoning
+      // as the My Documents admin branch's myDocumentsRootFolderId
+      // exclusion below), which is what makes browsing "root" auto-expand
+      // straight into the root's real children.
       return activeFolders.filter(
-        (f) => f.storageType === KNOWLEDGE_STORAGE_TYPE,
+        (f) =>
+          knowledgeSubtreeIds.has(String(extractId(f))) &&
+          String(extractId(f)) !== String(knowledgeRootFolderId),
       );
     }
     if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
@@ -6821,17 +7596,31 @@ const InternalTemplates = () => {
       return caseFolders.filter((f) => !f.isDeleted);
     }
     if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) {
-      const currentUserId = String(
-        extractId(currentUserState?.id) || getCurrentUserId() || "",
-      );
-      if (!currentUserId) return [];
-      return folders.filter((f) => {
-        if (f.isDeleted) return false;
-        return (
-          f.storageType === MY_DOCUMENT_STORAGE_TYPE &&
-          String(extractId(f.createdById) || "") === currentUserId
+      if (isAdminUser(currentUserState)) {
+        // Exclude the "My Documents" category root itself — it's the
+        // shared container every lawyer's personal folder nests under,
+        // not a personal folder of its own. If it happens to carry
+        // storageType: "personal" too (e.g. set manually alongside the
+        // other category roots), including it here makes it appear as a
+        // top-level row in admin's own view (parentId: null, same as any
+        // genuinely-orphaned folder) AND makes every correctly-nested
+        // lawyer folder disappear from the top-level list (their
+        // parentId now resolves inside folderMap, so the "orphan-or-root"
+        // display filter in tableData excludes them until you click into
+        // this bogus self-referential entry).
+        return folders.filter(
+          (f) =>
+            !f.isDeleted &&
+            f.storageType === MY_DOCUMENT_STORAGE_TYPE &&
+            String(extractId(f)) !== String(myDocumentsRootFolderId),
         );
-      });
+      }
+      return folders.filter(
+        (f) =>
+          !f.isDeleted &&
+          f.storageType === MY_DOCUMENT_STORAGE_TYPE &&
+          myDocumentsSubtreeIds.has(String(extractId(f))),
+      );
     }
     if (activeSpace === "shared_with_me") {
       return [];
@@ -6847,6 +7636,10 @@ const InternalTemplates = () => {
     canViewTrashRecord,
     caseFolders,
     currentUserState,
+    myDocumentsSubtreeIds,
+    myDocumentsRootFolderId,
+    knowledgeSubtreeIds,
+    knowledgeRootFolderId,
   ]);
 
   // Permission-filtered: hide folders the current user has no access to.
@@ -6863,6 +7656,18 @@ const InternalTemplates = () => {
   const permissionScopedFolders = useMemo(() => {
     const unrestricted = { folders: visibleFolders, entitledFolderIds: null };
     if (activeSpace === "trash") return unrestricted;
+    // My Documents folders never participate in the createdById/
+    // folderManager-folderMembers permission model getVisibleFolderIds
+    // resolves below — the personal root folders were largely created
+    // manually (or auto-created by a different account than the owning
+    // lawyer's own Nocobase user), so their createdById rarely matches
+    // the browsing user and they carry no folderManager/folderMembers
+    // rows at all. Running that model here would incorrectly filter a
+    // lawyer's own folders down to empty. visibleFolders is already
+    // correctly scoped to just this lawyer's own subtree (see
+    // myDocumentsSubtreeIds), so trust it as-is — same reasoning as the
+    // MY_DOCUMENT_STORAGE_TYPE bypass in getFolderPermsById/getRecordPerms.
+    if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) return unrestricted;
     const currentUser = currentUserState;
     if (!currentUser) return unrestricted; // not yet loaded → show all (will re-filter after loadData)
     if (isAdminUser(currentUser)) return unrestricted;
@@ -6895,6 +7700,9 @@ const InternalTemplates = () => {
   // actually entitled to (or root-level docs)
   const permissionFilteredDocs = useMemo(() => {
     if (activeSpace === "trash") return visibleDocs;
+    // Same bypass as permissionScopedFolders above — visibleDocs for My
+    // Documents is already scoped to this lawyer's own subtree.
+    if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) return visibleDocs;
     const currentUser = currentUserState;
     if (!currentUser) return visibleDocs;
     if (isAdminUser(currentUser)) return visibleDocs;
@@ -6961,19 +7769,38 @@ const InternalTemplates = () => {
     entityPermissionContext,
   ]);
 
+  // Shared id→folder Map for the perms helpers below — built once per
+  // visibleFolders change instead of once per call (getFolderPermsById is
+  // invoked once per row while rendering a folder list/tree; without this,
+  // both its own `.find()` lookup AND resolvePermissionFolder's internal
+  // Map build inside getFolderPermissions were each O(n) per call, i.e.
+  // O(n^2) total across a render pass).
+  const visibleFoldersById = useMemo(
+    () =>
+      new Map(visibleFolders.map((f) => [String(extractId(f.id)), f])),
+    [visibleFolders],
+  );
+
   const getFolderPermsById = useCallback(
     (folderId, space = activeSpace) => {
       const normalizedFolderId = normalizeParentId(folderId);
       const currentUser = currentUserState;
       if (!currentUser) return roleToPerms(null);
+      // My Documents folders may have been created by someone other than
+      // their owning lawyer (e.g. an admin manually pre-creating personal
+      // folders, then linking lawyerId afterward) — createdById-based
+      // ownership can't be trusted here, so any non-admin browsing this
+      // space (already confined to their own subtree by visibleFolders)
+      // is always treated as owner, for both the "root" sentinel and any
+      // real folder id inside it.
+      if (space === MY_DOCUMENT_STORAGE_TYPE && !isAdminUser(currentUser)) {
+        return roleToPerms("owner");
+      }
       if (!normalizedFolderId) {
-        if (space === MY_DOCUMENT_STORAGE_TYPE) return roleToPerms("owner");
         if (isAdminUser(currentUser)) return roleToPerms("admin");
         return roleToPerms("viewer");
       }
-      const folder = visibleFolders.find(
-        (item) => String(extractId(item.id)) === String(normalizedFolderId),
-      );
+      const folder = visibleFoldersById.get(String(normalizedFolderId));
       if (!folder) return roleToPerms(null);
       return getFolderPermissions(
         folder,
@@ -6981,6 +7808,7 @@ const InternalTemplates = () => {
         visibleFolders,
         currentLawyerId,
         entityPermissionContext,
+        visibleFoldersById,
       );
     },
     [
@@ -6988,6 +7816,7 @@ const InternalTemplates = () => {
       currentLawyerId,
       currentUserState,
       visibleFolders,
+      visibleFoldersById,
       entityPermissionContext,
     ],
   );
@@ -7062,6 +7891,12 @@ const InternalTemplates = () => {
       const currentUser = currentUserState;
       if (!currentUser) return roleToPerms(null);
       if (isAdminUser(currentUser)) return roleToPerms("admin");
+      // Same reasoning as getFolderPermsById's My Documents shortcut —
+      // createdById on these folders/files can't be trusted as the
+      // ownership source of truth, so any record reached while browsing
+      // this space (already confined to the current lawyer's own
+      // subtree via visibleFolders/visibleDocs) is always their own.
+      if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) return roleToPerms("owner");
       if (record._type === "folder") {
         return getFolderPermissions(
           record,
@@ -7237,13 +8072,6 @@ const InternalTemplates = () => {
       return buildFolderPath(baseItems);
     }
 
-    if (activeSpace === "company_shared") {
-      const rootName = activeCompany
-        ? getCompanyName(activeCompany)
-        : "Shared Folder";
-      return buildFolderPath([{ id: "root", name: rootName }]);
-    }
-
     const rootNameMap = {
       [MY_DOCUMENT_STORAGE_TYPE]: "My Documents",
       [KNOWLEDGE_STORAGE_TYPE]: "Knowledge",
@@ -7415,6 +8243,7 @@ const InternalTemplates = () => {
   }, [
     query,
     selectedFolderId,
+    activeSpace,
     permissionFilteredFolders,
     permissionFilteredDocs,
     folderMap,
@@ -7427,21 +8256,28 @@ const InternalTemplates = () => {
   const canBulkSelectRecord = useCallback(
     (record) => {
       if (!record) return false;
+      if (activeSpace === "trash") {
+        // Trash's only bulk action is (permanent) delete — apply the full
+        // system-folder lock here. Previously this branch skipped
+        // isRenameLockedFolder entirely (the check below only ran for
+        // activeSpace !== "trash"), which was the actual hole: a system
+        // folder that reached Trash could be bulk-selected and
+        // permanently deleted with no check at all (2026-09-04 audit).
+        if (isDeleteLockedFolder(record, customerCaseFolders)) return false;
+        return getRecordPerms(record).canDelete;
+      }
       // System-generated template folders (Legal Study, LSC & Related,
       // Legal docs, Legal dossiers, Report and Result) are not editable
       // or deletable by default — same rule as the individual rename
       // lock (isRenameLockedFolder), extended here to bulk move/delete.
-      if (activeSpace !== "trash" && isRenameLockedFolder(record)) return false;
+      if (isRenameLockedFolder(record, customerCaseFolders)) return false;
       const permissions = getRecordPerms(record);
-      if (activeSpace === "trash") {
-        return permissions.canDelete;
-      }
       return (
         (currentFolderPerms.canMove && permissions.canMove) ||
         (currentFolderPerms.canDelete && permissions.canDelete)
       );
     },
-    [activeSpace, currentFolderPerms, getRecordPerms],
+    [activeSpace, currentFolderPerms, getRecordPerms, customerCaseFolders],
   );
 
   const bulkSelectableKeys = useMemo(
@@ -7572,41 +8408,27 @@ const InternalTemplates = () => {
     [dragState, externalDropTargetKey],
   );
 
-  const companyRootFolders = useMemo(() => {
-    return folders.filter((f) => {
-      if (f.isDeleted) return false;
-      if (!matchesInternalCompany(f, activeCompanyId)) return false;
-      const isShared =
-        f.storageType === "company_shared" ||
-        (!f.storageType &&
-          !getRecordDocumentType(f) &&
-          !getInternalTemplateRelationId(f) &&
-          !getRecordLegalReferenceId(f));
-      if (!isShared) return false;
-      const pId = getFolderParentId(f);
-      if (pId && pId !== "root") return false;
-      const currentUser = currentUserState;
-      if (!currentUser) return true;
-      if (isAdminUser(currentUser)) return true;
-      const { accessible } = getVisibleFolderIds(
-        folders,
-        currentUser,
-        currentLawyerId,
-        entityPermissionContext,
-      );
-      return accessible.has(extractId(f.id));
+  // Customers only ever get a root folder once their first Case is
+  // created (CaseCreateForm.js's find-or-create) — a customer with no
+  // Case yet has no folder at all. The Library's Customer tab is a
+  // document space, not the CRM customer directory, so it only lists
+  // customers that currently have a live root folder to open.
+  const customerIdsWithFolder = useMemo(() => {
+    const ids = new Set();
+    customerCaseFolders.forEach((f) => {
+      if (isCustomerRootFolder(f)) {
+        const cid = getFolderCustomerId(f);
+        if (cid) ids.add(String(cid));
+      }
     });
-  }, [
-    folders,
-    activeCompanyId,
-    currentUserState,
-    currentLawyerId,
-    entityPermissionContext,
-  ]);
+    return ids;
+  }, [customerCaseFolders]);
 
   // Sidebar search-filtered lists
   const filteredSidebarCustomers = useMemo(() => {
-    let result = customers;
+    let result = customers.filter((customer) =>
+      customerIdsWithFolder.has(String(extractId(customer))),
+    );
     const allowedCustomerIds = customerAccessScope.customerIds;
     if (allowedCustomerIds) {
       result = result.filter((customer) =>
@@ -7628,7 +8450,13 @@ const InternalTemplates = () => {
       );
     }
     return result;
-  }, [customers, sidebarSearch, galleryCompanyFilter, customerAccessScope]);
+  }, [
+    customers,
+    sidebarSearch,
+    galleryCompanyFilter,
+    customerAccessScope,
+    customerIdsWithFolder,
+  ]);
 
   const filteredSidebarCases = useMemo(() => {
     if (!sidebarSearch) return customerCases;
@@ -7673,14 +8501,23 @@ const InternalTemplates = () => {
   }, [activeSpace, activeCustomerId, activeCaseId, customerAccessScope]);
 
   const treeData = useMemo(() => {
+    // Pre-group folders by their effective parent bucket once, instead of
+    // `.filter()`-ing the whole permissionFilteredFolders array at every
+    // node inside the recursive build() below — that made tree
+    // construction O(n^2) (worse with deep nesting) on any space with a
+    // few hundred folders. Bucket key mirrors the original filter exactly:
+    // a folder with no parentId, or one whose parent isn't a real folder
+    // in folderMap, buckets under "root".
+    const childrenByBucket = new Map();
+    permissionFilteredFolders.forEach((folder) => {
+      const pId = getFolderParentId(folder);
+      const bucket = !pId || !folderMap.has(String(pId)) ? "root" : String(pId);
+      if (!childrenByBucket.has(bucket)) childrenByBucket.set(bucket, []);
+      childrenByBucket.get(bucket).push(folder);
+    });
     const build = (parentId) =>
-      permissionFilteredFolders
-        .filter((folder) => {
-          const pId = getFolderParentId(folder);
-          return parentId === "root"
-            ? !pId || !folderMap.has(String(pId))
-            : String(pId || "") === String(parentId);
-        })
+      (childrenByBucket.get(String(parentId)) || [])
+        .slice()
         .sort(sortByCreatedAt)
         .map((folder) => ({
           title: folder.name || "Folder",
@@ -7694,14 +8531,25 @@ const InternalTemplates = () => {
       dynamicRootTitle = LEGAL_STUDY_LABEL;
     } else if (activeSpace === KNOWLEDGE_STORAGE_TYPE) {
       dynamicRootTitle = "Knowledge";
-    } else if (activeSpace === "company_shared") {
-      dynamicRootTitle = activeCompany
-        ? getCompanyName(activeCompany)
-        : "Shared Folder";
     } else if (activeSpace === MY_DOCUMENT_STORAGE_TYPE) {
       dynamicRootTitle = "My Documents";
     } else if (activeSpace === "shared_with_me") {
       dynamicRootTitle = "Shared with me";
+    }
+
+    // My Documents has no fixed root the way Knowledge/Legal Study do —
+    // visibleFolders/permissionFilteredFolders are already scoped to just
+    // this lawyer's own subtree, so build("root") resolves to exactly
+    // their one personal folder. Skip the wrapping "root" node here so
+    // the Move/Upload Folder picker can never offer a value that
+    // resolves to parentId: null (a real orphan outside any lawyer's
+    // tree — see resolveMyDocumentsParentId).
+    if (
+      activeSpace === MY_DOCUMENT_STORAGE_TYPE &&
+      myDocumentsFolder &&
+      !isAdminUser(currentUserState)
+    ) {
+      return build("root");
     }
 
     return [
@@ -7712,7 +8560,14 @@ const InternalTemplates = () => {
         children: build("root"),
       },
     ];
-  }, [permissionFilteredFolders, folderMap, activeSpace, activeCompany]);
+  }, [
+    permissionFilteredFolders,
+    folderMap,
+    activeSpace,
+    activeCompany,
+    myDocumentsFolder,
+    currentUserState,
+  ]);
 
   const moveTreeData = useMemo(() => {
     if (!moveRecord || moveRecord._type !== "folder") return treeData;
@@ -7817,6 +8672,49 @@ const InternalTemplates = () => {
     [activeCompanyId],
   );
 
+  // Live existing-title lookup — MUST hit the API fresh rather than read
+  // `documents` state, because state only refreshes after loadData() fully
+  // resolves (can take seconds — see this file's progressive-loading
+  // notes). Two quick uploads in a row would otherwise race past each
+  // other and silently create indistinguishable duplicates (2026-09-18
+  // bug: 3 rapid single-file uploads named "Hoang" into Knowledge root all
+  // landed with no (1)/(2) suffix, because usedNames was seeded from
+  // React state that hadn't caught up yet — fileIndex was still correct
+  // since getNextFileIndex above already queries live). Mirrors
+  // getNextFileIndex's own filter shape.
+  const fetchExistingTitlesInFolder = useCallback(
+    async (folderId, options = {}) => {
+      const targetCompanyId =
+        options.internalCompanyId === undefined
+          ? activeCompanyId
+          : options.internalCompanyId;
+      const parentId = normalizeParentId(folderId);
+      try {
+        const filter = {
+          moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes },
+          internalCompanyId: { $eq: extractId(targetCompanyId) },
+          ...(parentId ? { folderId: { $eq: parentId } } : {}),
+        };
+        const res = await ctx.api.request({
+          url: "documents:list",
+          params: { pageSize: 2000, filter: JSON.stringify(filter) },
+        });
+        return (res?.data?.data || [])
+          .filter(
+            (doc) =>
+              !doc.isDeleted &&
+              String(extractId(doc.folderId) || "") === String(parentId || ""),
+          )
+          .map((doc) => doc.name || getAttachment(doc)?.filename || doc.title)
+          .filter(Boolean)
+          .map((n) => String(n).trim().toLowerCase());
+      } catch (e) {
+        return [];
+      }
+    },
+    [activeCompanyId],
+  );
+
   const reindexFolderFiles = useCallback(
     async (folderId) => {
       const parentId = normalizeParentId(folderId);
@@ -7853,12 +8751,6 @@ const InternalTemplates = () => {
 
   const buildScopedPayload = useCallback(
     (targetSpace) => {
-      if (targetSpace === "company_shared") {
-        return {
-          internalCompanyId: extractId(activeCompanyId),
-          moduleScope: INTERNAL_TEMPLATE_MODULE_SCOPE,
-        };
-      }
       if (targetSpace === LEGAL_STUDY_STORAGE_TYPE && !activeCaseId) {
         // Group 2 — creating a folder/file while browsing a case-less
         // Legal Study. Needs moduleScope so the new row lands in the
@@ -7923,18 +8815,72 @@ const InternalTemplates = () => {
     ],
   );
 
+  // resolveCreateTargetParentId only knows the runtime-resolved per-space
+  // roots in libraryCategoryRootFolderId (Knowledge/Legal Study) — My
+  // Documents deliberately isn't in that map since its root differs per
+  // lawyer, so a raw "root" value (still reachable via the Move/Upload
+  // Folder TreeSelect's top node, or normalizeParentId(bulkTargetId) in
+  // executeFolderUpload) resolves to parentId: null — a real orphan
+  // outside any lawyer's subtree, invisible to myDocumentsSubtreeIds.
+  // Every create/move call site for this space must route through this
+  // wrapper instead of calling resolveCreateTargetParentId directly.
+  const resolveMyDocumentsParentId = useCallback(
+    (rawParentId, targetSpace) => {
+      const resolved = resolveCreateTargetParentId(
+        rawParentId,
+        targetSpace,
+        libraryCategoryRootFolderId,
+      );
+      if (resolved || targetSpace !== MY_DOCUMENT_STORAGE_TYPE) return resolved;
+      return myDocumentsFolder ? extractId(myDocumentsFolder) : null;
+    },
+    [myDocumentsFolder, libraryCategoryRootFolderId],
+  );
+
+  // resolveMyDocumentsParentId (and the Knowledge/Legal Study branch of
+  // resolveCreateTargetParentId it wraps) can return null while their
+  // respective category root folder hasn't resolved yet — e.g.
+  // currentLawyerId/folders just loaded, or the Knowledge/Reference root
+  // folder's own record hasn't arrived in `folders` state yet. Every
+  // payload that consumes this value uses the pattern
+  // `...(parentId ? {parentId} : {})`, so letting the create/move proceed
+  // anyway would silently save the record WITHOUT parentId/folderId —
+  // a real orphan outside any tree, visible only via the raw Admin grid,
+  // never inside Library.js itself (the exact 2026-08-20 incident this
+  // guard was introduced for). Call this right after
+  // resolveMyDocumentsParentId at every create/move call site for these 3
+  // spaces to block early instead of silently creating an orphan.
+  const CATEGORY_ROOT_REQUIRED_SPACES = [
+    MY_DOCUMENT_STORAGE_TYPE,
+    KNOWLEDGE_STORAGE_TYPE,
+    LEGAL_STUDY_STORAGE_TYPE,
+  ];
+  const warnMyDocumentsNotReady = (targetSpace, resolvedId) => {
+    if (!CATEGORY_ROOT_REQUIRED_SPACES.includes(targetSpace) || resolvedId)
+      return false;
+    message.warning(
+      "Chưa xác định được thư mục gốc của không gian này — vui lòng tải lại trang rồi thử lại",
+    );
+    return true;
+  };
+
   const uploadFilesToTarget = useCallback(
     async (selectedFiles, options = {}) => {
       const filesToUpload = Array.from(selectedFiles || []).filter(Boolean);
       if (!filesToUpload.length) return true;
 
       const targetSpace = options.storageType || activeSpace;
-      const targetFolderId = normalizeParentId(
+      const targetFolderId = resolveMyDocumentsParentId(
         options.folderId === undefined ? selectedFolderId : options.folderId,
+        targetSpace,
       );
+      if (warnMyDocumentsNotReady(targetSpace, targetFolderId)) return false;
       if (
         !options.skipPermissionCheck &&
-        !getFolderPermsById(targetFolderId, targetSpace).canCreate
+        !getFolderPermsById(
+          options.folderId === undefined ? selectedFolderId : options.folderId,
+          targetSpace,
+        ).canCreate
       ) {
         message.warning(
           "You do not have permission to upload documents to this folder",
@@ -7958,13 +8904,37 @@ const InternalTemplates = () => {
         const applyTitleOverride =
           metadata?.title && filesToUpload.length === 1;
 
+        // Auto-version filenames that collide with a file already sitting
+        // in this same target folder (e.g. "report.pdf" → "report (1).pdf")
+        // instead of silently creating a second document that reads as an
+        // indistinguishable duplicate in the list. usedNames starts from
+        // the folder's existing files and grows as each new file in this
+        // batch claims its name, so two files named identically in one
+        // upload also get distinct suffixes.
+        const usedNames = new Set(
+          await fetchExistingTitlesInFolder(targetFolderId, {
+            internalCompanyId: activeCompanyId,
+          }),
+        );
+
         for (let index = 0; index < filesToUpload.length; index++) {
           const file = filesToUpload[index];
-          const attachment = await uploadAttachment(file, file.name);
+          const uniqueName = getUniqueFileName(file.name, usedNames);
+          usedNames.add(uniqueName.toLowerCase());
+          const attachment = await uploadAttachment(file, uniqueName);
           const nowIso = new Date().toISOString();
+          // applyTitleOverride's title is a separate user-typed value from
+          // uniqueName — it also needs its own collision check, otherwise a
+          // custom title can still silently collide with an existing
+          // document's title even though the file's own `name` is unique.
+          let title = uniqueName;
+          if (applyTitleOverride) {
+            title = getUniqueFileName(metadata.title, usedNames);
+            usedNames.add(title.toLowerCase());
+          }
           const payload = {
-            name: file.name,
-            title: applyTitleOverride ? metadata.title : file.name,
+            name: uniqueName,
+            title,
             documentCode: metadata?.documentCode || "",
             fileIndex: nextIndex,
             fileAttachment: [{ id: attachment.id }],
@@ -8027,6 +8997,7 @@ const InternalTemplates = () => {
       activeCompanyId,
       activeSpace,
       buildScopedPayload,
+      fetchExistingTitlesInFolder,
       getFolderPermsById,
       getNextFileIndex,
       refreshCaseFolders,
@@ -8043,13 +9014,18 @@ const InternalTemplates = () => {
       if (!filesToUpload.length && !explicitFolderPaths.length) return true;
 
       const targetSpace = options.storageType || activeSpace;
-      const targetFolderId = normalizeParentId(
+      const targetFolderId = resolveMyDocumentsParentId(
         options.folderId === undefined ? bulkTargetId : options.folderId,
+        targetSpace,
       );
+      if (warnMyDocumentsNotReady(targetSpace, targetFolderId)) return false;
 
       if (
         !options.skipPermissionCheck &&
-        !getFolderPermsById(targetFolderId, targetSpace).canCreate
+        !getFolderPermsById(
+          options.folderId === undefined ? bulkTargetId : options.folderId,
+          targetSpace,
+        ).canCreate
       ) {
         message.warning(
           "You do not have permission to upload a folder to this location",
@@ -8140,6 +9116,24 @@ const InternalTemplates = () => {
           return fileIndexCache[key];
         };
 
+        // Same per-parent sibling-name tracking as executeFolderUpload —
+        // targetFolderId/resolvedFolderId can be a pre-existing folder
+        // (unlike the brand-new-only legal-study upload flows), so this
+        // also needs to check against documents already sitting there.
+        // Queried live per parent (not read from `documents` state) for
+        // the same reason as fetchExistingTitlesInFolder above.
+        const usedFileNamesByParent = {};
+        const getFileSiblingNameSet = async (parentKey, folderId) => {
+          if (!usedFileNamesByParent[parentKey]) {
+            usedFileNamesByParent[parentKey] = new Set(
+              await fetchExistingTitlesInFolder(folderId, {
+                internalCompanyId: activeCompanyId,
+              }),
+            );
+          }
+          return usedFileNamesByParent[parentKey];
+        };
+
         for (let index = 0; index < filesToUpload.length; index++) {
           const file = filesToUpload[index];
           if (showProgress) {
@@ -8155,9 +9149,16 @@ const InternalTemplates = () => {
           }
           const relativePath = getUploadRelativePath(file);
           const parts = relativePath.split("/");
-          const fileName = parts.pop();
+          const rawFileName = parts.pop();
           const parentPath = parts.join("/");
           const resolvedFolderId = folderIdMap[parentPath] || targetFolderId;
+          const fileParentKey = String(resolvedFolderId || "");
+          const fileSiblingNames = await getFileSiblingNameSet(
+            fileParentKey,
+            resolvedFolderId,
+          );
+          const fileName = getUniqueFileName(rawFileName, fileSiblingNames);
+          fileSiblingNames.add(fileName.toLowerCase());
           const attachment = await uploadAttachment(file, fileName);
           const fileNowIso = new Date().toISOString();
 
@@ -8219,6 +9220,7 @@ const InternalTemplates = () => {
       activeSpace,
       buildScopedPayload,
       bulkTargetId,
+      fetchExistingTitlesInFolder,
       getFolderPermsById,
       getNextFileIndex,
       refreshCaseFolders,
@@ -8227,6 +9229,12 @@ const InternalTemplates = () => {
 
   const handleCreateLegalStudy = async (values) => {
     if (!requireCompany()) return;
+    if (!legalStudyRootFolderId) {
+      message.error(
+        `Không tìm thấy folder gốc "${LEGAL_STUDY_LABEL}" — vui lòng tải lại trang rồi thử lại.`,
+      );
+      return;
+    }
     setCreateLegalStudyLoading(true);
     try {
       const userId = getCurrentUserId();
@@ -8272,6 +9280,7 @@ const InternalTemplates = () => {
           name: values.title?.trim() || LEGAL_STUDY_LABEL,
           type: "custom",
           folderTemplateKey: LEGAL_STUDY_FOLDER_TEMPLATE_KEY,
+          parentId: legalStudyRootFolderId,
           createdAt: nowIso,
           updatedAt: nowIso,
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
@@ -8373,10 +9382,7 @@ const InternalTemplates = () => {
   // new folder" upload path (handleConfirmUploadFields) so both create
   // folders with identical scoping.
   const applyFolderSpacePayload = (payload) => {
-    if (activeSpace === "company_shared") {
-      payload.internalCompanyId = extractId(activeCompanyId);
-      payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-    } else if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
+    if (activeSpace === LEGAL_STUDY_STORAGE_TYPE) {
       Object.assign(payload, buildScopedPayload(LEGAL_STUDY_STORAGE_TYPE));
     } else if (activeSpace === "customer") {
       if (activeCaseId) {
@@ -8413,11 +9419,20 @@ const InternalTemplates = () => {
       return;
     setFolderLoading(true);
     try {
-      const parentId = normalizeParentId(selectedFolderId);
+      const parentId = resolveMyDocumentsParentId(selectedFolderId, activeSpace);
+      if (warnMyDocumentsNotReady(activeSpace, parentId)) return;
       const userId = getCurrentUserId();
       const nowIso = new Date().toISOString();
+      const siblingFolderNames = visibleFolders
+        .filter(
+          (f) =>
+            !f.isDeleted &&
+            String(getFolderParentId(f) || "") === String(parentId || ""),
+        )
+        .map((f) => f.name)
+        .filter(Boolean);
       const payload = {
-        name: values.name.trim(),
+        name: getUniqueFolderName(values.name.trim(), siblingFolderNames),
         description: values.description?.trim() || "",
         type: "custom",
         createdAt: nowIso,
@@ -8476,9 +9491,21 @@ const InternalTemplates = () => {
       }
       const userId = getCurrentUserId();
       const nowIso = new Date().toISOString();
-      const parentId = normalizeParentId(targetFolderId);
+      const parentId = resolveMyDocumentsParentId(targetFolderId, activeSpace);
+      if (warnMyDocumentsNotReady(activeSpace, parentId)) return;
+      const groupSiblingFolderNames = visibleFolders
+        .filter(
+          (f) =>
+            !f.isDeleted &&
+            String(getFolderParentId(f) || "") === String(parentId || ""),
+        )
+        .map((f) => f.name)
+        .filter(Boolean);
       const folderPayload = {
-        name: metadata.groupFolderName.trim(),
+        name: getUniqueFolderName(
+          metadata.groupFolderName.trim(),
+          groupSiblingFolderNames,
+        ),
         type: "custom",
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -8550,7 +9577,8 @@ const InternalTemplates = () => {
     setBulkProgress("Analyzing folder structure...");
     setBulkPercent(5);
     try {
-      const rootParentId = normalizeParentId(bulkTargetId);
+      const rootParentId = resolveMyDocumentsParentId(bulkTargetId, activeSpace);
+      if (warnMyDocumentsNotReady(activeSpace, rootParentId)) return;
       const folderIdMap = { "": rootParentId };
       const folderPaths = new Set();
       pendingFolderFiles.forEach((file) => {
@@ -8570,6 +9598,33 @@ const InternalTemplates = () => {
       const userId = getCurrentUserId();
       setBulkProgress(`Creating ${sortedPaths.length} folder(s)...`);
 
+      // Per-parent sibling-name tracking so bulk-uploaded folders never
+      // collide with an existing folder (or each other) under the same
+      // parent. Only the batch's own root parent needs seeding from real
+      // data — freshly-created subfolders within this same batch have no
+      // pre-existing siblings, so their set starts empty and grows as the
+      // batch populates it.
+      const usedFolderNamesByParent = {};
+      const getFolderSiblingNameSet = (parentKey) => {
+        if (!usedFolderNamesByParent[parentKey]) {
+          const existingNames =
+            parentKey === String(rootParentId || "")
+              ? visibleFolders
+                  .filter(
+                    (f) =>
+                      !f.isDeleted &&
+                      String(getFolderParentId(f) || "") === parentKey,
+                  )
+                  .map((f) => f.name)
+                  .filter(Boolean)
+              : [];
+          usedFolderNamesByParent[parentKey] = new Set(
+            existingNames.map((n) => String(n).trim().toLowerCase()),
+          );
+        }
+        return usedFolderNamesByParent[parentKey];
+      };
+
       const nowIso = new Date().toISOString();
       for (
         let folderIndex = 0;
@@ -8584,9 +9639,16 @@ const InternalTemplates = () => {
             ),
         );
         const parts = path.split("/");
-        const folderName = parts.pop();
+        const rawFolderName = parts.pop();
         const parentPath = parts.join("/");
         const parentId = folderIdMap[parentPath] || null;
+        const folderParentKey = String(parentId || "");
+        const folderSiblingNames = getFolderSiblingNameSet(folderParentKey);
+        const folderName = getUniqueFolderName(
+          rawFolderName,
+          folderSiblingNames,
+        );
+        folderSiblingNames.add(folderName.toLowerCase());
 
         const folderPayload = {
           name: folderName,
@@ -8622,6 +9684,23 @@ const InternalTemplates = () => {
         return fileIndexCache[key];
       };
 
+      // Same per-parent sibling-name tracking as the folder loop above, but
+      // for file names — mirrors uploadFilesToTarget's dedup logic so bulk
+      // "Upload Folder" files get version-suffixed on collision too.
+      // Queried live per parent (not read from `documents` state) — see
+      // fetchExistingTitlesInFolder's comment for why.
+      const usedFileNamesByParent = {};
+      const getFileSiblingNameSet = async (parentKey, folderId) => {
+        if (!usedFileNamesByParent[parentKey]) {
+          usedFileNamesByParent[parentKey] = new Set(
+            await fetchExistingTitlesInFolder(folderId, {
+              internalCompanyId: activeCompanyId,
+            }),
+          );
+        }
+        return usedFileNamesByParent[parentKey];
+      };
+
       for (let index = 0; index < pendingFolderFiles.length; index++) {
         const file = pendingFolderFiles[index];
         setBulkProgress(
@@ -8635,9 +9714,16 @@ const InternalTemplates = () => {
         );
         const relativePath = getUploadRelativePath(file);
         const parts = relativePath.split("/");
-        const fileName = parts.pop();
+        const rawFileName = parts.pop();
         const parentPath = parts.join("/");
         const targetFolderId = folderIdMap[parentPath] || rootParentId;
+        const fileParentKey = String(targetFolderId || "");
+        const fileSiblingNames = await getFileSiblingNameSet(
+          fileParentKey,
+          targetFolderId,
+        );
+        const fileName = getUniqueFileName(rawFileName, fileSiblingNames);
+        fileSiblingNames.add(fileName.toLowerCase());
         const attachment = await uploadAttachment(file, fileName);
         const fileNowIso = new Date().toISOString();
 
@@ -8681,7 +9767,8 @@ const InternalTemplates = () => {
 
   const handleMoveRecord = async (record, targetFolderId) => {
     if (!record) return;
-    const targetId = normalizeParentId(targetFolderId);
+    const targetId = resolveMyDocumentsParentId(targetFolderId, activeSpace);
+    if (warnMyDocumentsNotReady(activeSpace, targetId)) return;
     if (!getRecordPerms(record).canMove) {
       message.warning("You do not have permission to move this item");
       return;
@@ -8929,7 +10016,8 @@ const InternalTemplates = () => {
     try {
       const recordsToMove = getBulkRecordsWithPermission("canMove", "move");
       if (!recordsToMove) return;
-      const targetId = normalizeParentId(bulkMoveTargetId);
+      const targetId = resolveMyDocumentsParentId(bulkMoveTargetId, activeSpace);
+      if (warnMyDocumentsNotReady(activeSpace, targetId)) return;
       if (!getFolderPermsById(targetId).canCreate) {
         message.warning(
           "You do not have permission to add items to the destination folder",
@@ -9096,8 +10184,13 @@ const InternalTemplates = () => {
     getFolderPermsById(targetFolderId).canCreate;
 
   const uploadDroppedItems = async (dataTransfer, targetFolderId) => {
-    const normalizedTargetId = normalizeParentId(targetFolderId);
+    const normalizedTargetId = resolveMyDocumentsParentId(
+      targetFolderId,
+      activeSpace,
+    );
     clearExternalDropState();
+
+    if (warnMyDocumentsNotReady(activeSpace, normalizedTargetId)) return false;
 
     if (!canUploadDroppedItems(normalizedTargetId)) {
       message.warning(
@@ -9309,7 +10402,7 @@ const InternalTemplates = () => {
   };
 
   const handleSaveFileTitle = async (record) => {
-    if (isRenameLockedFolder(record)) {
+    if (isRenameLockedFolder(record, customerCaseFolders)) {
       message.error("Folder mẫu hệ thống không được đổi tên.");
       cancelEditTitle();
       return;
@@ -9394,7 +10487,7 @@ const InternalTemplates = () => {
     // Same lock as rename — system-generated template folders (Legal
     // Study, LSC & Related, Legal docs, Legal dossiers, Report and
     // Result) can never be deleted from here, regardless of role.
-    if (isRenameLockedFolder(folder)) {
+    if (isRenameLockedFolder(folder, customerCaseFolders)) {
       message.error("Folder mẫu hệ thống không được xoá.");
       return;
     }
@@ -9673,6 +10766,13 @@ const InternalTemplates = () => {
       message.warning("Only administrators can permanently delete items.");
       return;
     }
+    // Previously unguarded — a system folder that reached Trash could be
+    // permanently destroyed with no check at all, even as admin (2026-09-04
+    // audit).
+    if (isDeleteLockedFolder(record, customerCaseFolders)) {
+      message.warning("System folders can't be deleted.");
+      return;
+    }
     Modal.confirm({
       title:
         record._type === "folder"
@@ -9749,7 +10849,7 @@ const InternalTemplates = () => {
 
   const handleRenameSubmit = async () => {
     try {
-      if (isRenameLockedFolder(renameRecord)) {
+      if (isRenameLockedFolder(renameRecord, customerCaseFolders)) {
         message.error("Folder mẫu hệ thống không được đổi tên.");
         return;
       }
@@ -9772,6 +10872,35 @@ const InternalTemplates = () => {
             method: "POST",
             data: { name: newName },
           });
+          // A Reference's root folder's own .name is what's shown
+          // everywhere as its display label, but the legalStudy record's
+          // own .title field is a SEPARATE column — it's what the Link
+          // modal's system-wide picker and the raw admin data grid read
+          // directly (they have no folder to join against). Renaming only
+          // the folder previously left that .title permanently stale
+          // (e.g. still "Legal Study" after the folder was renamed to
+          // "Lĩnh vực nào đó"). Keep them in sync whenever the record
+          // being renamed IS the entity's own root folder — never for an
+          // ordinary subfolder inside it, which would incorrectly
+          // overwrite the entity's title with a child folder's name.
+          const syncStudyId = extractId(renameRecord?.legalStudyId);
+          if (syncStudyId && isLegalStudyRootFolder(renameRecord)) {
+            for (const url of [
+              `legalStudy:update?filterByTk=${syncStudyId}`,
+              `legalStudies:update?filterByTk=${syncStudyId}`,
+            ]) {
+              try {
+                await ctx.api.request({
+                  url,
+                  method: "POST",
+                  data: { title: newName },
+                });
+                break;
+              } catch (e) {
+                // try next candidate
+              }
+            }
+          }
           message.success("Folder renamed");
         } else {
           await ctx.api.request({
@@ -9827,6 +10956,33 @@ const InternalTemplates = () => {
     setPreviewDoc(record);
   };
 
+  // Small pill shown next to a folder's name/count wherever a task-upload
+  // origin exists (getFolderTaskOriginLabel) — surfaces the trace directly
+  // in the UI instead of requiring a trip to the raw Admin grid.
+  const renderFolderTaskOriginBadge = (folder) => {
+    const label = getFolderTaskOriginLabel(folder);
+    if (!label) return null;
+    return (
+      <Tooltip title={`Folder được tạo tự động khi upload từ ${label}`}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "#0958D9",
+            background: "#E6F4FF",
+            border: "1px solid #91CAFF",
+            borderRadius: 4,
+            padding: "0 6px",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          {label}
+        </span>
+      </Tooltip>
+    );
+  };
+
   const renderNameCell = (record, isAllFiles = false) => {
     const recordId = String(extractId(record));
     const isEditing = editingTitleId === recordId;
@@ -9851,6 +11007,7 @@ const InternalTemplates = () => {
             >
               {record.name || "Folder"}
             </Text>
+            {renderFolderTaskOriginBadge(record)}
           </div>
         );
       }
@@ -9925,6 +11082,7 @@ const InternalTemplates = () => {
           >
             ({folderSubFolderCount} Folder - {folderFileCount} file)
           </span>
+          {renderFolderTaskOriginBadge(record)}
         </div>
       );
     }
@@ -10181,7 +11339,7 @@ const InternalTemplates = () => {
         canShare,
         canManagePermissions,
       } = getRecordPerms(record);
-      const isLocked = isRenameLockedFolder(record);
+      const isLocked = isRenameLockedFolder(record, customerCaseFolders);
       const canRename = rawCanRename && !isLocked;
       // Same lock as rename — system template folders can never be
       // deleted from the context menu either, regardless of role.
@@ -10190,10 +11348,13 @@ const InternalTemplates = () => {
       // move/edit, but only an admin can delete a shared record/folder,
       // so an accidental delete by a delegated collaborator can't happen.
       // Personal space keeps role-based canDelete since only the owner
-      // themselves ever holds it there.
+      // themselves ever holds it there. Legal Study root is already baked
+      // into rawCanDelete by getFolderPermissions; category roots
+      // (Knowledge/Reference/My Documents) are not, so checked explicitly.
       const canDelete =
         rawCanDelete &&
         !isLocked &&
+        !isLibraryCategoryRootFolder(record) &&
         (activeSpace === MY_DOCUMENT_STORAGE_TYPE ||
           isAdminUser(currentUserState));
 
@@ -10322,10 +11483,6 @@ const InternalTemplates = () => {
 
       if (storage === LEGAL_STUDY_STORAGE_TYPE) {
         rootName = LEGAL_STUDY_LABEL;
-      } else if (storage === "company_shared") {
-        rootName = activeCompany
-          ? getCompanyName(activeCompany)
-          : "Shared Folder";
       } else {
         const typeId =
           getRecordDocumentType(record) ||
@@ -10345,11 +11502,27 @@ const InternalTemplates = () => {
     [folderMap, activeCompany, documentTypes, getRecordDocumentType],
   );
 
-  const tableColumns = useMemo(() => {
+  // tableColumns only ever reads tableData to know whether the current rows
+  // are all-folders / all-files / mixed (isAllFolders/isAllFiles below) —
+  // never individual rows. Depending on the full tableData array in
+  // tableColumns' own useMemo rebuilt every column (with all its render
+  // closures) on every navigation/search keystroke, since tableData's
+  // identity changes then even when this 2-boolean "shape" doesn't. Compute
+  // the shape as its own tiny memo so tableColumns only rebuilds when the
+  // shape actually flips.
+  const tableDataShape = useMemo(() => {
     const hasFolders = tableData.some((r) => r._type === "folder");
     const hasFiles = tableData.some((r) => r._type === "file");
-    const isAllFolders = tableData.length > 0 && hasFolders && !hasFiles;
-    const isAllFiles = tableData.length > 0 && hasFiles && !hasFolders;
+    return {
+      hasFolders,
+      hasFiles,
+      isAllFolders: tableData.length > 0 && hasFolders && !hasFiles,
+      isAllFiles: tableData.length > 0 && hasFiles && !hasFolders,
+    };
+  }, [tableData]);
+
+  const tableColumns = useMemo(() => {
+    const { hasFolders, hasFiles, isAllFolders, isAllFiles } = tableDataShape;
     const currentUser = currentUserState;
 
     // Shared action cell renderer for folder rows
@@ -10400,14 +11573,17 @@ const InternalTemplates = () => {
         canDelete: rawCanDelete,
         canManagePermissions: rawCanManagePermissions,
       } = getRecordPerms(record);
-      const isLocked = isRenameLockedFolder(record);
+      const isLocked = isRenameLockedFolder(record, customerCaseFolders);
       const canRename = rawCanRename && !isLocked;
       // Same lock as rename — system template folders can never be
       // deleted from here either, regardless of role. Also admin-only
       // outside My Documents — see renderContextMenuItems for why.
+      // Category roots aren't covered by rawCanDelete (getFolderPermissions
+      // doesn't know about them), so checked explicitly.
       const canDelete =
         rawCanDelete &&
         !isLocked &&
+        !isLibraryCategoryRootFolder(record) &&
         (activeSpace === MY_DOCUMENT_STORAGE_TYPE || isAdminUser(currentUser));
       // Permissions is now offered on the Case root OR any of its direct
       // (level-2) children — see isPermissionBearingFolder.
@@ -11198,7 +12374,7 @@ const InternalTemplates = () => {
       },
     ];
   }, [
-    tableData,
+    tableDataShape,
     documentTypes,
     getTypeConfig,
     getRecordDocumentType,
@@ -11374,6 +12550,15 @@ const InternalTemplates = () => {
             </span>
           );
         },
+      },
+      {
+        title: "Danh mục",
+        dataIndex: "activitySpaceKey",
+        key: "activitySpaceKey",
+        width: 130,
+        render: (spaceKey) => (
+          <Tag>{ACTIVITY_CATEGORY_LABELS[spaceKey] || ACTIVITY_CATEGORY_LABELS.other}</Tag>
+        ),
       },
       {
         title: "Performed By",
@@ -11578,6 +12763,21 @@ const InternalTemplates = () => {
 
   return (
     <React.Fragment>
+      {spaceSwitching && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(255,255,255,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+          }}
+        >
+          <Spin size="large" />
+        </div>
+      )}
       <Dropdown
         menu={{
           items: contextMenuState.record
@@ -11682,7 +12882,8 @@ const InternalTemplates = () => {
                       entityPermissionContext,
                     );
                     const canRenameFolder =
-                      perms.canRename && !isRenameLockedFolder(entry.folder);
+                      perms.canRename &&
+                      !isRenameLockedFolder(entry.folder, customerCaseFolders);
                     const isStandalone = !entry.project;
 
                     items.push({
@@ -11840,13 +13041,7 @@ const InternalTemplates = () => {
                 return (
                   <button
                     type="button"
-                    onClick={() => {
-                      setActiveSpace(KNOWLEDGE_STORAGE_TYPE);
-                      setActiveCustomerId(null);
-                      setActiveCaseId(null);
-                      setSelectedFolderId("root");
-                      setSidebarSearch("");
-                    }}
+                    onClick={() => switchActiveSpace(KNOWLEDGE_STORAGE_TYPE)}
                     style={{
                       width: "100%",
                       display: "flex",
@@ -11940,13 +13135,7 @@ const InternalTemplates = () => {
                           </svg>
                         ),
                         isActive: activeSpace === "customer",
-                        onClick: () => {
-                          setActiveSpace("customer");
-                          setActiveCustomerId(null);
-                          setActiveCaseId(null);
-                          setSelectedFolderId("root");
-                          setSidebarSearch("");
-                        },
+                        onClick: () => switchActiveSpace("customer"),
                       },
                     ]
                   : []),
@@ -11969,13 +13158,7 @@ const InternalTemplates = () => {
                     </svg>
                   ),
                   isActive: activeSpace === LEGAL_STUDY_STORAGE_TYPE,
-                  onClick: () => {
-                    setActiveSpace(LEGAL_STUDY_STORAGE_TYPE);
-                    setActiveCustomerId(null);
-                    setActiveCaseId(null);
-                    setSelectedFolderId("root");
-                    setSidebarSearch("");
-                  },
+                  onClick: () => switchActiveSpace(LEGAL_STUDY_STORAGE_TYPE),
                 },
               ].map(({ key, label, icon, isActive, onClick }) => (
                 <button
@@ -12056,13 +13239,7 @@ const InternalTemplates = () => {
                       <polyline points="9 22 9 12 15 12 15 22" />
                     </svg>
                   ),
-                  onClick: () => {
-                    setActiveSpace(MY_DOCUMENT_STORAGE_TYPE);
-                    setActiveCustomerId(null);
-                    setActiveCaseId(null);
-                    setSelectedFolderId("root");
-                    setSidebarSearch("");
-                  },
+                  onClick: () => switchActiveSpace(MY_DOCUMENT_STORAGE_TYPE),
                 },
                 {
                   key: "shared_with_me",
@@ -12085,13 +13262,7 @@ const InternalTemplates = () => {
                       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                     </svg>
                   ),
-                  onClick: () => {
-                    setActiveSpace("shared_with_me");
-                    setActiveCustomerId(null);
-                    setActiveCaseId(null);
-                    setSelectedFolderId("root");
-                    setSidebarSearch("");
-                  },
+                  onClick: () => switchActiveSpace("shared_with_me"),
                 },
               ].map(({ key, label, icon, onClick }) => {
                 const isActive = activeSpace === key;
@@ -12375,6 +13546,21 @@ const InternalTemplates = () => {
                     { value: "trash_deleted", label: "Move to Trash" },
                     { value: "restored", label: "Restore" },
                     { value: "deleted", label: "Permanently Delete" },
+                  ]}
+                />
+                <Select
+                  value={activityCategoryFilter}
+                  onChange={(val) => {
+                    setActivityCategoryFilter(val);
+                    setActivityPage(1);
+                  }}
+                  style={{ width: 160, borderRadius: 8 }}
+                  options={[
+                    { value: "all", label: "All categories" },
+                    ...Object.keys(ACTIVITY_CATEGORY_LABELS).map((key) => ({
+                      value: key,
+                      label: ACTIVITY_CATEGORY_LABELS[key],
+                    })),
                   ]}
                 />
                 <DatePicker
@@ -12690,7 +13876,7 @@ const InternalTemplates = () => {
                   <Button
                     icon={REFRESH_ICON}
                     onClick={loadData}
-                    loading={loading}
+                    loading={dataRefreshing}
                     style={{
                       borderRadius: 8,
                       border: "0.5px solid #E5E7EB",
@@ -13108,11 +14294,13 @@ const InternalTemplates = () => {
                   getCreatedBy,
                   renderActions,
                   rowSelection,
+                  loading,
                 }) => (
                   <Table
                     size="small"
                     rowSelection={rowSelection}
                     dataSource={items}
+                    loading={loading}
                     rowKey={rowKey}
                     onRow={(r) => ({
                       onClick: () => onOpen(r),
@@ -13124,10 +14312,12 @@ const InternalTemplates = () => {
                         ),
                     })}
                     pagination={{
-                      pageSize: 20,
+                      pageSize: entityGalleryPageSize,
                       showSizeChanger: true,
                       pageSizeOptions: ["20", "50", "100"],
                       showTotal: (total) => `${total} items`,
+                      onShowSizeChange: (_, size) => setEntityGalleryPageSize(size),
+                      onChange: (_, size) => setEntityGalleryPageSize(size),
                     }}
                     style={{
                       background: "#fff",
@@ -13304,7 +14494,8 @@ const InternalTemplates = () => {
                           entityPermissionContext,
                         );
                         const canRenameFolder =
-                          perms.canRename && !isRenameLockedFolder(r.folder);
+                          perms.canRename &&
+                          !isRenameLockedFolder(r.folder, customerCaseFolders);
                         // Manager+members permission only exists on the
                         // standalone legalStudy record (r.study) — Group
                         // 1 (case-bound) never owns one.
@@ -13372,19 +14563,26 @@ const InternalTemplates = () => {
                           </div>
                         );
                       },
+                      loading: referenceSpaceLoading && items.length === 0,
                     });
                   }
                   return (
                     <div style={{ fontFamily: FONT }}>
                       {items.length === 0 ? (
-                        <Empty
-                          description={
-                            sidebarSearch
-                              ? `No ${LEGAL_STUDY_LABEL} found`
-                              : `No case has a ${LEGAL_STUDY_LABEL} folder yet`
-                          }
-                          style={{ padding: "80px 0" }}
-                        />
+                        referenceSpaceLoading ? (
+                          <div style={{ padding: "80px 0", textAlign: "center" }}>
+                            <Spin />
+                          </div>
+                        ) : (
+                          <Empty
+                            description={
+                              sidebarSearch
+                                ? `No ${LEGAL_STUDY_LABEL} found`
+                                : `No case has a ${LEGAL_STUDY_LABEL} folder yet`
+                            }
+                            style={{ padding: "80px 0" }}
+                          />
+                        )
                       ) : (
                         <Row gutter={[10, 10]}>
                           {items.map((entry) => {
@@ -13456,10 +14654,21 @@ const InternalTemplates = () => {
                               handleEntityCtx(e, r, "customer"),
                           })}
                           pagination={{
-                            pageSize: 20,
+                            pageSize: customerGalleryPageSize,
                             showSizeChanger: true,
                             pageSizeOptions: ["20", "50", "100"],
                             showTotal: (total) => `${total} items`,
+                            onShowSizeChange: (_, size) =>
+                              setCustomerGalleryPageSize(size),
+                            onChange: (_, size) =>
+                              setCustomerGalleryPageSize(size),
+                          }}
+                          locale={{
+                            emptyText: customerSpaceLoading ? (
+                              <div style={{ padding: "40px 0" }}>
+                                <Spin />
+                              </div>
+                            ) : undefined,
                           }}
                           style={{
                             background: "#fff",
@@ -13536,14 +14745,25 @@ const InternalTemplates = () => {
                   return (
                     <div style={{ fontFamily: FONT }}>
                       {items.length === 0 ? (
-                        <Empty
-                          description={
-                            sidebarSearch
-                              ? "No customer found"
-                              : "No customers yet"
-                          }
-                          style={{ padding: "80px 0" }}
-                        />
+                        customerSpaceLoading ? (
+                          <div
+                            style={{
+                              padding: "80px 0",
+                              textAlign: "center",
+                            }}
+                          >
+                            <Spin />
+                          </div>
+                        ) : (
+                          <Empty
+                            description={
+                              sidebarSearch
+                                ? "No customer found"
+                                : "No customers yet"
+                            }
+                            style={{ padding: "80px 0" }}
+                          />
+                        )
                       ) : (
                         <Row gutter={[10, 10]}>
                           {items.map((customer) => {
@@ -13692,7 +14912,7 @@ const InternalTemplates = () => {
                             );
                             const canRenameFolder =
                               perms.canRename &&
-                              !isRenameLockedFolder(r.folder);
+                              !isRenameLockedFolder(r.folder, customerCaseFolders);
                             const canManagePermissions =
                               perms.canManagePermissions;
                             return (
@@ -13749,6 +14969,7 @@ const InternalTemplates = () => {
                               </div>
                             );
                           },
+                          loading: !customerCaseFoldersFullyLoaded && items.length === 0,
                         })}
                       </div>
                     );
@@ -13757,14 +14978,24 @@ const InternalTemplates = () => {
                     <div style={{ fontFamily: FONT }}>
                       {entityBreadcrumb}
                       {items.length === 0 ? (
-                        <Empty
-                          description={
-                            sidebarSearch
-                              ? "No folder found"
-                              : "No cases or folders yet"
-                          }
-                          style={{ padding: "80px 0" }}
-                        />
+                        // Filtered to one customer, so the first-page-only
+                        // customerSpaceLoading heuristic isn't precise enough
+                        // here (this customer's cases could be on a later
+                        // page) — wait for the full progressive load instead.
+                        !customerCaseFoldersFullyLoaded ? (
+                          <div style={{ padding: "80px 0", textAlign: "center" }}>
+                            <Spin />
+                          </div>
+                        ) : (
+                          <Empty
+                            description={
+                              sidebarSearch
+                                ? "No folder found"
+                                : "No cases or folders yet"
+                            }
+                            style={{ padding: "80px 0" }}
+                          />
+                        )
                       ) : (
                         <Row gutter={[10, 10]}>
                           {items.map((entry) => {
@@ -14095,7 +15326,11 @@ const InternalTemplates = () => {
 
                 {viewMode === "grid" ? (
                   <React.Fragment>
-                    {tableData.length === 0 ? (
+                    {isCaseScopedContentLoading ? (
+                      <div style={{ padding: "80px 0", textAlign: "center" }}>
+                        <Spin size="large" />
+                      </div>
+                    ) : tableData.length === 0 ? (
                       <div
                         style={{
                           padding: "80px 0",
@@ -14128,11 +15363,13 @@ const InternalTemplates = () => {
                             fontFamily: FONT,
                           }}
                         >
-                          {activeSpace === "trash"
-                            ? "Trash is empty"
-                            : query
-                              ? "No results found"
-                              : "Folder is empty"}
+                          {activeCategoryRootMissing
+                            ? "Root folder is missing"
+                            : activeSpace === "trash"
+                              ? "Trash is empty"
+                              : query
+                                ? "No results found"
+                                : "Folder is empty"}
                         </div>
                         <div
                           style={{
@@ -14141,13 +15378,16 @@ const InternalTemplates = () => {
                             fontFamily: FONT,
                           }}
                         >
-                          {activeSpace === "trash"
-                            ? "No deleted files or folders"
-                            : query
-                              ? "Try a different search term"
-                              : ""}
+                          {activeCategoryRootMissing
+                            ? "Cần tạo folder root để tiếp tục thao tác nghiệp vụ"
+                            : activeSpace === "trash"
+                              ? "No deleted files or folders"
+                              : query
+                                ? "Try a different search term"
+                                : ""}
                         </div>
-                        {activeSpace !== "trash" &&
+                        {!activeCategoryRootMissing &&
+                          activeSpace !== "trash" &&
                           !query &&
                           currentFolderPerms.canCreate && (
                             <div
@@ -14212,6 +15452,8 @@ const InternalTemplates = () => {
                             ).length;
                           const folderIsEditing =
                             editingTitleId === String(extractId(record));
+                          const taskOriginBadge =
+                            renderFolderTaskOriginBadge(record);
                           const isEmpty =
                             folderFileCount === 0 && folderSubFolderCount === 0;
 
@@ -14378,6 +15620,7 @@ const InternalTemplates = () => {
                                       </div>
                                     </Tooltip>
                                   )}
+                                  {taskOriginBadge && <div>{taskOriginBadge}</div>}
 
                                   {/* Empty state or count + meta */}
                                   <div
@@ -14888,10 +16131,26 @@ const InternalTemplates = () => {
                           );
                         };
 
+                        // Grid view has no built-in row cap like the Table
+                        // view's pagination — without slicing here, a
+                        // folder with a few hundred documents rendered every
+                        // card at once and froze the tab. Paginate over the
+                        // same combined tableData the Table view uses, then
+                        // split by type within just that page so headers
+                        // only show for sections actually present on it.
+                        const gridPageCount = Math.max(
+                          1,
+                          Math.ceil(tableData.length / GRID_PAGE_SIZE),
+                        );
+                        const safeGridPage = Math.min(gridPage, gridPageCount);
+                        const pagedTableData = tableData.slice(
+                          (safeGridPage - 1) * GRID_PAGE_SIZE,
+                          safeGridPage * GRID_PAGE_SIZE,
+                        );
                         return (
                           <React.Fragment>
                             {/* ── Section: Thư mục ── */}
-                            {tableData.some((r) => r._type === "folder") && (
+                            {pagedTableData.some((r) => r._type === "folder") && (
                               <div
                                 style={{
                                   fontSize: 12,
@@ -14908,19 +16167,19 @@ const InternalTemplates = () => {
                               gutter={[10, 10]}
                               style={{
                                 marginBottom:
-                                  tableData.some((r) => r._type === "file") &&
-                                  tableData.some((r) => r._type === "folder")
+                                  pagedTableData.some((r) => r._type === "file") &&
+                                  pagedTableData.some((r) => r._type === "folder")
                                     ? 20
                                     : 0,
                               }}
                             >
-                              {tableData
+                              {pagedTableData
                                 .filter((r) => r._type === "folder")
                                 .map((record) => renderFolderCard(record))}
                             </Row>
 
                             {/* ── Section: Tài liệu ── */}
-                            {tableData.some((r) => r._type === "file") && (
+                            {pagedTableData.some((r) => r._type === "file") && (
                               <div
                                 style={{
                                   fontSize: 12,
@@ -14934,10 +16193,28 @@ const InternalTemplates = () => {
                               </div>
                             )}
                             <Row gutter={[10, 10]}>
-                              {tableData
+                              {pagedTableData
                                 .filter((r) => r._type === "file")
                                 .map((record) => renderFileCard(record))}
                             </Row>
+
+                            {tableData.length > GRID_PAGE_SIZE && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "center",
+                                  marginTop: 20,
+                                }}
+                              >
+                                <Pagination
+                                  current={safeGridPage}
+                                  pageSize={GRID_PAGE_SIZE}
+                                  total={tableData.length}
+                                  onChange={(page) => setGridPage(page)}
+                                  showSizeChanger={false}
+                                />
+                              </div>
+                            )}
                           </React.Fragment>
                         );
                       })()
@@ -14949,19 +16226,27 @@ const InternalTemplates = () => {
                     rowKey={(record) => record._key}
                     columns={tableColumns}
                     dataSource={tableData}
+                    loading={isCaseScopedContentLoading}
                     size="middle"
-                    pagination={{ pageSize: 20, showSizeChanger: true }}
+                    pagination={{
+                      pageSize: mainTablePageSize,
+                      showSizeChanger: true,
+                      onShowSizeChange: (_, size) => setMainTablePageSize(size),
+                      onChange: (_, size) => setMainTablePageSize(size),
+                    }}
                     scroll={{ x: "max-content" }}
                     onRow={(record) => rowDragProps(record)}
                     locale={{
                       emptyText: (
                         <div style={{ padding: "40px 0", textAlign: "center" }}>
                           <div style={{ fontSize: 14, color: "#9CA3AF" }}>
-                            {query
-                              ? "No results found"
-                              : activeSpace === "trash"
-                                ? "Trash is empty"
-                                : "Folder is empty"}
+                            {activeCategoryRootMissing
+                              ? "Cần tạo folder root để tiếp tục thao tác nghiệp vụ"
+                              : query
+                                ? "No results found"
+                                : activeSpace === "trash"
+                                  ? "Trash is empty"
+                                  : "Folder is empty"}
                           </div>
                         </div>
                       ),

@@ -25,6 +25,7 @@ const {
   Dropdown,
   Checkbox,
   Radio,
+  Pagination,
 } = ctx.antd;
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -1612,6 +1613,29 @@ const getDocTitle = (doc) =>
   doc?.templateName ||
   getAttachment(doc)?.filename ||
   "Untitled";
+// Sao chép nguyên văn từ Library.js/TaskDetailView.js — cùng 1 thuật toán
+// chống trùng tên cho mọi nơi upload trong hệ thống (2026-09-18: chuẩn
+// hoá 1 format duy nhất "(1)", "(2)"... thay vì để mỗi file tự bịa format
+// riêng). Chỉ đổi tên file/document MỚI đang được tạo — không đụng tới
+// file/document đã tồn tại.
+const getUniqueFileName = (fileName, existingNames) => {
+  const raw = String(fileName || "").trim();
+  if (!raw) return raw;
+  const taken = new Set(
+    Array.from(existingNames || [], (n) => String(n || "").trim().toLowerCase()),
+  );
+  if (!taken.has(raw.toLowerCase())) return raw;
+  const dotIndex = raw.lastIndexOf(".");
+  const base = dotIndex > 0 ? raw.slice(0, dotIndex) : raw;
+  const ext = dotIndex > 0 ? raw.slice(dotIndex) : "";
+  let counter = 1;
+  let candidate = `${base} (${counter})${ext}`;
+  while (taken.has(candidate.toLowerCase())) {
+    counter += 1;
+    candidate = `${base} (${counter})${ext}`;
+  }
+  return candidate;
+};
 const getDocCode = (doc) => doc?.documentCode || doc?.templateCode || "";
 const getDocDate = (doc) => doc?.updatedAt || doc?.createdAt;
 const getAttachment = (doc) =>
@@ -2026,11 +2050,20 @@ const isReferenceEntityRootFolder = (folder) =>
 // (e.g. caseReferenceVisibleFolders, which hides that root's own row from
 // the tree body) makes this walk stop one level too low and resolve to a
 // template child folder instead of the real root.
-const resolveFolderTreeRoot = (folder, allFolders) => {
+// `folderByIdOverride`: an already-built id→folder Map, for callers that
+// invoke this once PER FOLDER in a loop (e.g. getVisibleFolderIds below) —
+// without it, this rebuilds a fresh O(n) Map on every single call, turning
+// an O(n) loop into O(n^2) (measured 2026-09-19 in the sibling Library.js/
+// CaseDocument.js files: the same pattern froze the page for several
+// seconds against an unscoped folder set at system-wide scale — this
+// file's own `folders` state is the same shape of unscoped fetch). Falls
+// back to building its own Map when not given, so every other call site
+// keeps working unchanged.
+const resolveFolderTreeRoot = (folder, allFolders, folderByIdOverride) => {
   if (!folder) return null;
-  const folderById = new Map(
-    (allFolders || []).map((f) => [String(extractId(f.id)), f]),
-  );
+  const folderById =
+    folderByIdOverride ||
+    new Map((allFolders || []).map((f) => [String(extractId(f.id)), f]));
   // Case-bound folders (getLinkedCaseId set) stop climbing once the parent
   // no longer carries the SAME case's link — the Case root's own parent is
   // the Customer folder above it, which must never be treated as part of
@@ -2125,11 +2158,18 @@ const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId, entityCtx
 
   if (!uid) return { accessible: new Set(), entitled: new Set() };
 
+  // Built once and reused for every folder below — resolveFolderTreeRoot's
+  // own internal Map rebuild is O(n) per call, which made this whole
+  // function O(n^2) (see resolveFolderTreeRoot's comment for the measured
+  // impact).
+  const folderById = new Map(
+    (allFolders || []).map((f) => [String(extractId(f.id)), f]),
+  );
   const rootCache = new Map();
   const resolveRoot = (folder) => {
     const key = String(extractId(folder.id));
     if (rootCache.has(key)) return rootCache.get(key);
-    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+    const root = resolveFolderTreeRoot(folder, allFolders, folderById) || folder;
     rootCache.set(key, root);
     return root;
   };
@@ -2495,6 +2535,81 @@ const fetchFoldersForInternalTemplates = async () => {
   }
 };
 
+// Same query/appends/fallback as fetchFoldersForInternalTemplates above, but
+// calls onPage(rows, isLastPage) as each page lands instead of only
+// resolving once every page is in. Same unscoped-with-4-relation-appends
+// shape as CaseDocument.js's fetchFoldersForInternalTemplates (ported here
+// 2026-09-18 once ProjectDocument.js showed the same multi-second slowdown)
+// — decoupling it from the OTHER loadData fetches wasn't enough on its own,
+// dataRefreshing still waited for this ONE fetch's full multi-page
+// duration. Safe to stream into `folders` state page-by-page: this file's
+// own resolveFolderTreeRoot/isFolderTreeRoot fails CLOSED when a folder's
+// parent isn't found in the array yet (treats the folder as its own root,
+// i.e. locked) — a still-partial tree only ever over-locks, never
+// under-locks, while more pages are still arriving.
+const fetchFoldersForInternalTemplatesProgressive = async (onPage) => {
+  const scopeFilter = JSON.stringify({
+    $or: [
+      {
+        moduleScope: {
+          $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+        },
+      },
+      { projectInternalId: { $ne: null } },
+    ],
+  });
+  let deliveredAnyPage = false;
+  const runPages = async (params) => {
+    let all = [];
+    let page = 1;
+    const pageSize = 200;
+    while (true) {
+      const res = await ctx.api.request({
+        url: "folders:list",
+        params: { ...params, page, pageSize },
+      });
+      const data = res?.data?.data || [];
+      all = all.concat(data);
+      const meta = res?.data?.meta || {};
+      const isLastPage =
+        !meta.count || all.length >= meta.count || data.length < pageSize;
+      deliveredAnyPage = true;
+      if (onPage) onPage(data, isLastPage);
+      if (isLastPage) break;
+      page++;
+    }
+    return all;
+  };
+  const params = {
+    sort: ["createdAt"],
+    filter: scopeFilter,
+    appends: [
+      "createdBy",
+      "updatedBy",
+      "folderManager",
+      "folderManagers",
+      "folderMember",
+      "folderMembers",
+    ],
+  };
+  try {
+    return await runPages(params);
+  } catch (e) {
+    if (deliveredAnyPage) {
+      if (onPage) onPage([], true);
+      return [];
+    }
+    return runPages({
+      sort: ["createdAt"],
+      filter: scopeFilter,
+      appends: ["createdBy", "updatedBy"],
+    }).catch(() => {
+      if (onPage) onPage([], true);
+      return [];
+    });
+  }
+};
+
 const fetchDocumentsForInternalTemplates = async () => {
   // Same $or as fetchFoldersForInternalTemplates — a document tagged with
   // a projectInternalId is always included regardless of its moduleScope.
@@ -2511,6 +2626,130 @@ const fetchDocumentsForInternalTemplates = async () => {
   const params = {
     sort: ["fileIndex", "-createdAt"],
     filter: scopeFilter,
+    fields: DOCUMENT_SAFE_FIELDS,
+    appends: ["fileAttachment", "createdBy", "updatedBy", "cases"],
+  };
+  try {
+    return await fetchAllList("documents:list", params);
+  } catch (e) {
+    const { appends, ...fallbackParams } = params;
+    return fetchAllList("documents:list", {
+      ...fallbackParams,
+      appends: ["fileAttachment", "createdBy", "updatedBy"],
+    }).catch(() => []);
+  }
+};
+
+// Same query/appends/fallback as fetchDocumentsForInternalTemplates above,
+// but calls onPage(rows, isLastPage) as each page lands. Documents have no
+// tree/parent-chain reasoning the way folders do, so streaming them in
+// page-by-page carries none of the "partial tree" risk folders needed to
+// reason through — only cosmetic effects (e.g. a folder's file count
+// ticking up as more pages land).
+const fetchDocumentsForInternalTemplatesProgressive = async (onPage) => {
+  const scopeFilter = JSON.stringify({
+    $or: [
+      {
+        moduleScope: {
+          $in: [...DASHBOARD_CONFIG.moduleScopes, "legal_reference", "legal_study"],
+        },
+      },
+      { projectInternalId: { $ne: null } },
+    ],
+  });
+  let deliveredAnyPage = false;
+  const runPages = async (params) => {
+    let all = [];
+    let page = 1;
+    const pageSize = 200;
+    while (true) {
+      const res = await ctx.api.request({
+        url: "documents:list",
+        params: { ...params, page, pageSize },
+      });
+      const data = res?.data?.data || [];
+      all = all.concat(data);
+      const meta = res?.data?.meta || {};
+      const isLastPage =
+        !meta.count || all.length >= meta.count || data.length < pageSize;
+      deliveredAnyPage = true;
+      if (onPage) onPage(data, isLastPage);
+      if (isLastPage) break;
+      page++;
+    }
+    return all;
+  };
+  const params = {
+    sort: ["fileIndex", "-createdAt"],
+    filter: scopeFilter,
+    fields: DOCUMENT_SAFE_FIELDS,
+    appends: ["fileAttachment", "createdBy", "updatedBy", "cases"],
+  };
+  try {
+    return await runPages(params);
+  } catch (e) {
+    if (deliveredAnyPage) {
+      if (onPage) onPage([], true);
+      return [];
+    }
+    return runPages({
+      sort: ["fileIndex", "-createdAt"],
+      filter: scopeFilter,
+      fields: DOCUMENT_SAFE_FIELDS,
+      appends: ["fileAttachment", "createdBy", "updatedBy"],
+    }).catch(() => {
+      if (onPage) onPage([], true);
+      return [];
+    });
+  }
+};
+
+// Fast, case-scoped primary fetch for the default "project_internal" space
+// — filters directly on projectInternalId (flatly stamped on every folder/
+// document in a project's tree, at any depth: applyCaseFolderPayload/
+// applyCaseDocumentPayload stamp it on every create in this file) instead
+// of the moduleScope-only $or used by fetchFoldersForInternalTemplates
+// [Progressive] above, which has to scan every project's + legal_reference's
+// + legal_study's + null-scope folder in the WHOLE SYSTEM. Same fix as
+// CaseDocument.js's fetchCaseScopedFolders (2026-09-19, ported here once
+// this file showed the same multi-second slowdown at scale). Runs
+// ALONGSIDE (not instead of) the global progressive fetch below, which
+// still backfills anything this narrower filter might miss — merged by id
+// in loadData, so correctness never regresses, only latency improves for
+// the common case.
+const fetchCaseScopedFolders = async (caseId) => {
+  if (!caseId) return [];
+  const filter = JSON.stringify({ projectInternalId: { $eq: caseId } });
+  const params = {
+    sort: ["createdAt"],
+    filter,
+    appends: [
+      "createdBy",
+      "updatedBy",
+      "folderManager",
+      "folderManagers",
+      "folderMember",
+      "folderMembers",
+    ],
+  };
+  try {
+    return await fetchAllList("folders:list", params);
+  } catch (e) {
+    return fetchAllList("folders:list", {
+      sort: ["createdAt"],
+      filter,
+      appends: ["createdBy", "updatedBy"],
+    }).catch(() => []);
+  }
+};
+
+// Documents counterpart of fetchCaseScopedFolders above.
+const fetchCaseScopedDocuments = async (caseId) => {
+  if (!caseId) return [];
+  const filter = JSON.stringify({ projectInternalId: { $eq: caseId } });
+  const params = {
+    sort: ["fileIndex", "-createdAt"],
+    filter,
     fields: DOCUMENT_SAFE_FIELDS,
     appends: ["fileAttachment", "createdBy", "updatedBy", "cases"],
   };
@@ -3731,6 +3970,14 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
 const InternalTemplates = () => {
   const initialCaseContext = useMemo(() => getInitialCaseContext(), []);
   const [loading, setLoading] = useState(true);
+  // Separate from `loading` (which only flips false once the whole
+  // loadData Promise.all is done). Used for: (a) the Refresh button's own
+  // spinner, so it doesn't keep spinning after folders/documents already
+  // updated; (b) gating the grid/table empty-state message, so navigating
+  // to a folder can't show "No data" while a fetch is still genuinely in
+  // flight (2026-09-18 perf investigation, same class of fix as
+  // Library.js's customerSpaceLoading / CaseDocument.js's dataRefreshing).
+  const [dataRefreshing, setDataRefreshing] = useState(true);
   const [companies, setCompanies] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [folders, setFolders] = useState([]);
@@ -3819,6 +4066,25 @@ const InternalTemplates = () => {
     activeSpace === "legal_reference" && !activeLegalReferenceId;
 
   const [viewMode, setViewMode] = useState("table");
+  // Grid view rendered every card in tableData at once (no pagination,
+  // unlike the Table/list view's built-in pageSize) — a folder with a few
+  // hundred documents froze the tab. Paginated the same way the list view
+  // already is; reset to page 1 whenever the folder/search/space changes
+  // so a stale page number doesn't strand the user on an empty page (same
+  // fix as Library.js/CaseDocument.js, 2026-09-18 perf investigation).
+  const [gridPage, setGridPage] = useState(1);
+  const GRID_PAGE_SIZE = 60;
+  useEffect(() => {
+    setGridPage(1);
+  }, [selectedFolderId, activeSpace, query]);
+  // Table view's own page size — antd's pagination merges this PROP over
+  // its internal state on every render, so passing a hardcoded literal
+  // (`pageSize: 20`) here silently snapped the user's "50/page" selection
+  // back to 20 the next time the component re-rendered for any reason (a
+  // known antd gotcha for uncontrolled pagination). Controlling it via
+  // this state (updated by the Table's own onChange/onShowSizeChange)
+  // fixes that.
+  const [mainTablePageSize, setMainTablePageSize] = useState(20);
   const [sortMode, setSortMode] = useState("manual");
 
   const [isFolderOpen, setIsFolderOpen] = useState(false);
@@ -3976,6 +4242,7 @@ const InternalTemplates = () => {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setDataRefreshing(true);
     try {
       // 1. Resolve current user (auth:check is most reliable)
       let resolvedUser = null;
@@ -4025,24 +4292,19 @@ const InternalTemplates = () => {
         }
       }
 
-      const [fetchedCompanies, fetchedFolders, fetchedDocs, fetchedProjects] =
-        await Promise.all([
-          Promise.resolve([]),
-          fetchFoldersForInternalTemplates(),
-          fetchDocumentsForInternalTemplates(),
-          fetchAllList("projectInternal:list", {
-            fields: [
-              "id",
-              "projectCode",
-              "projectName",
-              "description",
-              "internalCompanyId",
-            ],
-            sort: ["-createdAt"],
-          }).catch(() => []),
-        ]);
+      // Set current user & lawyer as soon as they're resolved — nothing
+      // below depends on the fetches kicked off next.
+      if (resolvedUser) {
+        setCurrentLawyerId(resolvedLawyerId);
+        currentUserRef.current = resolvedUser;
+        setCurrentUserState(resolvedUser);
+      }
 
-      setCompanies(fetchedCompanies);
+      // companies is never actually fetched in this file (always []) —
+      // set it synchronously instead of holding a slot in Promise.all.
+      setCompanies([]);
+      setActiveCompanyId(null);
+
       const isAllowedScope = (record) => {
         // A folder/document tagged with a projectInternalId always passes,
         // regardless of moduleScope — matches the $or in
@@ -4060,21 +4322,124 @@ const InternalTemplates = () => {
           ].includes(scope)
         );
       };
-      setFolders(fetchedFolders.filter(isAllowedScope));
-      setDocuments(fetchedDocs.filter(isAllowedScope));
-      setProjects(fetchedProjects);
-      setActiveCompanyId(null);
-      const nextCaseId = activeCaseId || initialCaseContext.caseId;
-      const matchedCase =
-        (nextCaseId
-          ? fetchedProjects.find(
-              (item) => String(extractId(item)) === String(nextCaseId),
-            )
-          : null) ||
-        initialCaseContext.record ||
-        null;
-      if (nextCaseId && !activeCaseId) setActiveCaseId(String(nextCaseId));
-      if (matchedCase) setActiveCaseRecord(matchedCase);
+
+      // Kick off independently instead of gathering into one Promise.all —
+      // folders/documents don't depend on projectInternal items (or vice
+      // versa), so don't make them wait for each other before setting
+      // state. fetchFoldersForInternalTemplates/fetchDocumentsForInternalTemplates
+      // are unscoped-with-heavy-appends fetches (see their own comments) —
+      // the same class of fetch measured taking multiple seconds in
+      // Library.js (2026-09-18 perf investigation); gating the whole view
+      // behind them via one Promise.all is the same bottleneck fixed
+      // there and in CaseDocument.js.
+      // Progressive: page 1 replaces `folders`/`documents` immediately so
+      // the view doesn't wait for the whole unscoped fetch; later pages
+      // append as they land (2026-09-18, same fix already applied to
+      // CaseDocument.js — see fetchFoldersForInternalTemplatesProgressive's
+      // own comment for why this is safe without an extra "fully loaded"
+      // lock gate).
+      //
+      // 2026-09-19: ALSO run a fast case-scoped fetch (fetchCaseScopedFolders/
+      // fetchCaseScopedDocuments) in parallel — the project id is already
+      // known synchronously (activeCaseIdValue derives from
+      // initialCaseContext, no fetch needed), so it doesn't have to wait
+      // on anything. Both paths merge into the SAME id-keyed Map, so
+      // whichever lands first (usually the narrow scoped one) paints the
+      // view, and the global progressive fetch still runs to completion
+      // behind it to backfill any legacy/edge-case rows the narrow filter
+      // might miss. Same fix as CaseDocument.js.
+      const folderMap = new Map();
+      const mergeFolders = (rows) => {
+        rows.filter(isAllowedScope).forEach((f) =>
+          folderMap.set(String(extractId(f.id)), f),
+        );
+        setFolders(Array.from(folderMap.values()));
+      };
+      const documentMap = new Map();
+      const mergeDocuments = (rows) => {
+        rows.filter(isAllowedScope).forEach((d) =>
+          documentMap.set(String(extractId(d.id)), d),
+        );
+        setDocuments(Array.from(documentMap.values()));
+      };
+
+      const activeCaseIdForFastPath = extractId(activeCaseIdValue);
+      const fastScopedPromise = activeCaseIdForFastPath
+        ? Promise.all([
+            fetchCaseScopedFolders(activeCaseIdForFastPath),
+            fetchCaseScopedDocuments(activeCaseIdForFastPath),
+          ])
+            .then(([fastFolders, fastDocs]) => {
+              mergeFolders(fastFolders);
+              mergeDocuments(fastDocs);
+            })
+            .catch(() => {})
+        : null;
+
+      let resolveFirstFoldersPage;
+      const firstFoldersPagePromise = new Promise((resolve) => {
+        resolveFirstFoldersPage = resolve;
+      });
+      let foldersPageIndex = 0;
+      const foldersPromise = fetchFoldersForInternalTemplatesProgressive(
+        (pageRows) => {
+          foldersPageIndex += 1;
+          mergeFolders(pageRows);
+          if (foldersPageIndex === 1) resolveFirstFoldersPage();
+        },
+      );
+      // Progressive, same reasoning as folders above.
+      let resolveFirstDocsPage;
+      const firstDocsPagePromise = new Promise((resolve) => {
+        resolveFirstDocsPage = resolve;
+      });
+      let docsPageIndex = 0;
+      const docsPromise = fetchDocumentsForInternalTemplatesProgressive(
+        (pageRows) => {
+          docsPageIndex += 1;
+          mergeDocuments(pageRows);
+          if (docsPageIndex === 1) resolveFirstDocsPage();
+        },
+      );
+      const projectsPromise = fetchAllList("projectInternal:list", {
+        fields: [
+          "id",
+          "projectCode",
+          "projectName",
+          "description",
+          "internalCompanyId",
+        ],
+        sort: ["-createdAt"],
+      }).catch(() => []);
+
+      // Refresh button's own spinner (see its onClick below) and the grid/
+      // table empty-state gate both reflect this instead of the full
+      // loadData completion — whichever lands first, the fast case-scoped
+      // fetch or the global progressive fetch's first page, is what the
+      // view needs to render something real, not either fetch's full
+      // multi-page tail.
+      (fastScopedPromise
+        ? Promise.race([
+            fastScopedPromise,
+            Promise.all([firstFoldersPagePromise, firstDocsPagePromise]),
+          ])
+        : Promise.all([firstFoldersPagePromise, firstDocsPagePromise])
+      ).then(() => setDataRefreshing(false));
+
+      projectsPromise.then((fetchedProjects) => {
+        setProjects(fetchedProjects);
+        const nextCaseId = activeCaseId || initialCaseContext.caseId;
+        const matchedCase =
+          (nextCaseId
+            ? fetchedProjects.find(
+                (item) => String(extractId(item)) === String(nextCaseId),
+              )
+            : null) ||
+          initialCaseContext.record ||
+          null;
+        if (nextCaseId && !activeCaseId) setActiveCaseId(String(nextCaseId));
+        if (matchedCase) setActiveCaseRecord(matchedCase);
+      });
 
       // No relation-row fetch here: "legalReference"/"caseReferences"/
       // "legalStudy" all belong to the Case collection's "Linked Cases"/
@@ -4088,14 +4453,12 @@ const InternalTemplates = () => {
       // "legal_reference"/"case_reference"/"legal_study") dead branches
       // further down keep resolving safely instead of throwing.
 
-      // Set current user & lawyer after data is ready
-      if (resolvedUser) {
-        // Store in refs/state for permission checks
-        setCurrentLawyerId(resolvedLawyerId);
-        // We track the full user object in a ref so memos can use it
-        currentUserRef.current = resolvedUser;
-        setCurrentUserState(resolvedUser);
-      }
+      await Promise.all([
+        foldersPromise,
+        docsPromise,
+        projectsPromise,
+        fastScopedPromise,
+      ]);
     } catch (e) {
       console.error("loadData error", e);
       message.error("Failed to load data");
@@ -4107,18 +4470,16 @@ const InternalTemplates = () => {
   const fetchActivityLogs = useCallback(async () => {
     setActivityLoading(true);
     try {
-      const res = await ctx.api.request({
-        url: "activity_log:list",
-        params: {
-          pageSize: 500,
-          sort: ["-changedAt"],
-          filter: JSON.stringify({
-            collectionName: { $in: ["Document", "Folder"] },
-          }),
-        },
+      // Was a single request with pageSize: 500 — silently capped at the
+      // 500 most-recent matching rows (sort: -changedAt) instead of the
+      // full history, same bug found and fixed in Library.js/CaseDocument.js
+      // (2026-09-19). fetchAllList pages through every matching row instead.
+      const raw = await fetchAllList("activity_log:list", {
+        sort: ["-changedAt"],
+        filter: JSON.stringify({
+          collectionName: { $in: ["Document", "Folder"] },
+        }),
       });
-
-      const raw = res?.data?.data || [];
 
       const titleMap = {};
       for (const log of raw) {
@@ -4279,11 +4640,19 @@ const InternalTemplates = () => {
         }))
         .filter((log) => {
           const rId = String(log.recordId);
-          if (
-            ["deleted", "trash_deleted", "restored"].includes(log.action) &&
-            activeCaseIdValue &&
-            String(extractId(log.dataId)) === String(activeCaseIdValue)
-          ) {
+          // Delete/trash/restore-type actions: the record itself is gone
+          // (or was) by the time this filter runs, so it can never be
+          // found in scopedFolderIds/scopedDocIds (those are derived from
+          // the currently-loaded folders/documents state) — case
+          // membership can only be positively confirmed via log.dataId,
+          // which is null on the vast majority of these rows. Defaulting
+          // to "hide" here silently dropped every hard-delete history
+          // entry (2026-09-19 real report, same root cause found in
+          // Library.js/CaseDocument.js) — default to showing instead.
+          if (["deleted", "trash_deleted", "restored"].includes(log.action)) {
+            if (activeCaseIdValue && log.dataId) {
+              return String(extractId(log.dataId)) === String(activeCaseIdValue);
+            }
             return true;
           }
           if (log.collectionName === "Folder") {
@@ -6107,14 +6476,24 @@ const InternalTemplates = () => {
   ]);
 
   const treeData = useMemo(() => {
+    // Pre-group folders by their effective parent bucket once, instead of
+    // `.filter()`-ing the whole permissionFilteredFolders array at every
+    // node inside the recursive build() below — that made tree
+    // construction O(n^2) (worse with deep nesting) (same fix as
+    // Library.js/CaseDocument.js, 2026-09-18 perf investigation). Bucket
+    // key mirrors the original filter exactly: a folder with no parentId,
+    // or one whose parent isn't a real folder in folderMap, buckets under
+    // "root".
+    const childrenByBucket = new Map();
+    permissionFilteredFolders.forEach((folder) => {
+      const pId = getFolderParentId(folder);
+      const bucket = !pId || !folderMap.has(String(pId)) ? "root" : String(pId);
+      if (!childrenByBucket.has(bucket)) childrenByBucket.set(bucket, []);
+      childrenByBucket.get(bucket).push(folder);
+    });
     const build = (parentId) =>
-      permissionFilteredFolders
-        .filter((folder) => {
-          const pId = getFolderParentId(folder);
-          return parentId === "root"
-            ? !pId || !folderMap.has(String(pId))
-            : String(pId || "") === String(parentId);
-        })
+      (childrenByBucket.get(String(parentId)) || [])
+        .slice()
         .sort(sortByCreatedAt)
         .map((folder) => ({
           title: folder.name || "Folder",
@@ -6435,6 +6814,82 @@ const InternalTemplates = () => {
     ],
   );
 
+  // Lấy title các document đang có SẴN trong 1 folder cụ thể — hỏi API
+  // trực tiếp (KHÔNG đọc từ state documents/caseDocs), vì state đó chỉ
+  // được cập nhật sau khi loadData() chạy xong toàn bộ (có thể mất vài
+  // giây) — 2 lượt upload liên tiếp nhanh sẽ "đua" qua nhau và tạo ra
+  // document trùng tên mà không được gắn (1)/(2) (bug thực tế phát hiện
+  // 2026-09-18 ở Library.js: upload 3 file "Hoang" liên tiếp nhanh, không
+  // file nào bị đánh version vì lúc check, state chưa kịp có file vừa tạo
+  // trước đó). Cùng filter với getNextFileIndex ở trên.
+  const getExistingTitlesInFolder = useCallback(
+    async (folderId) => {
+      const parentId = normalizeParentId(folderId);
+      try {
+        const filter = {
+          moduleScope: {
+            $in: [
+              ...DASHBOARD_CONFIG.moduleScopes,
+              "legal_reference",
+              "legal_study",
+            ],
+          },
+          ...(parentId ? { folderId: { $eq: parentId } } : {}),
+        };
+        if (activeSpace === "project_internal" && activeCaseIdValue && !parentId) {
+          filter.projectInternalId = { $eq: extractId(activeCaseIdValue) };
+        } else if (
+          activeSpace === "case_reference" &&
+          activeCaseReferenceId &&
+          !parentId
+        ) {
+          filter.caseId = { $eq: extractId(activeCaseReferenceId) };
+        } else if (
+          activeSpace === "legal_reference" &&
+          activeLegalReferenceId &&
+          !parentId
+        ) {
+          filter.legalReferenceId = { $eq: extractId(activeLegalReferenceId) };
+        } else if (
+          activeSpace === "legal_study" &&
+          activeLegalStudyId &&
+          !parentId
+        ) {
+          filter.legalStudyId = { $eq: extractId(activeLegalStudyId) };
+        } else if (activeSpace === "personal") {
+          filter.storageType = { $eq: "personal" };
+        } else if (activeCompanyId) {
+          filter.internalCompanyId = { $eq: extractId(activeCompanyId) };
+        }
+        const res = await ctx.api.request({
+          url: "documents:list",
+          params: withDocumentSafeFields({
+            pageSize: 2000,
+            filter: JSON.stringify(filter),
+          }),
+        });
+        return (res?.data?.data || [])
+          .filter(
+            (doc) =>
+              !doc?.isDeleted &&
+              String(extractId(doc.folderId) || "") === String(parentId || ""),
+          )
+          .map((doc) => getDocTitle(doc))
+          .filter(Boolean);
+      } catch (e) {
+        return [];
+      }
+    },
+    [
+      activeSpace,
+      activeCaseIdValue,
+      activeCaseReferenceId,
+      activeLegalReferenceId,
+      activeLegalStudyId,
+      activeCompanyId,
+    ],
+  );
+
   const reindexFolderFiles = useCallback(
     async (folderId) => {
       const parentId = normalizeParentId(folderId);
@@ -6681,12 +7136,30 @@ const InternalTemplates = () => {
         description: metadata?.description || "",
       };
 
+      // Auto-version tên/title trùng với document đang có sẵn trong cùng
+      // folder đích (vd "report.pdf" -> "report (1).pdf") — cùng thuật
+      // toán/format với Library.js & TaskDetailView.js. usedTitles khởi
+      // tạo từ dữ liệu đã load rồi cập nhật dần theo từng file trong
+      // chính batch này, để 2 file cùng tên trong 1 lần upload cũng
+      // không đụng nhau.
+      const usedTitles = new Set(
+        (await getExistingTitlesInFolder(targetFolderId)).map((n) =>
+          String(n).trim().toLowerCase(),
+        ),
+      );
+
       for (const file of filesToUpload) {
-        const attachment = await uploadAttachment(file, file.name);
-        const title = applyTitleOverride ? metadata.title : file.name;
+        const uniqueName = getUniqueFileName(file.name, usedTitles);
+        usedTitles.add(uniqueName.toLowerCase());
+        const attachment = await uploadAttachment(file, uniqueName);
+        let title = applyTitleOverride ? metadata.title : uniqueName;
+        if (applyTitleOverride) {
+          title = getUniqueFileName(title, usedTitles);
+          usedTitles.add(title.toLowerCase());
+        }
         const nowIso = new Date().toISOString();
         const payload = {
-          name: file.name,
+          name: uniqueName,
           title,
           fileIndex: nextIndex,
           fileAttachment: [{ id: attachment.id }],
@@ -6863,6 +7336,24 @@ const InternalTemplates = () => {
         return fileIndexCache[key];
       };
 
+      // Target folder đổi theo từng file (theo folderIdMap[parentPath]), nên
+      // cần theo dõi usedTitles riêng cho từng folder — seed từ dữ liệu đã
+      // load (getExistingTitlesInFolder) rồi cập nhật dần trong chính batch
+      // này. Cùng thuật toán/format với usedFileNamesByParent trong
+      // Library.js.
+      const usedTitlesByFolder = {};
+      const getFolderUsedTitles = async (folderId) => {
+        const key = String(folderId || "root");
+        if (!usedTitlesByFolder[key]) {
+          usedTitlesByFolder[key] = new Set(
+            (await getExistingTitlesInFolder(folderId)).map((n) =>
+              String(n).trim().toLowerCase(),
+            ),
+          );
+        }
+        return usedTitlesByFolder[key];
+      };
+
       for (let index = 0; index < pendingFolderFiles.length; index++) {
         const file = pendingFolderFiles[index];
         setBulkProgress(
@@ -6876,9 +7367,12 @@ const InternalTemplates = () => {
         );
         const relativePath = file.webkitRelativePath || file.name;
         const parts = relativePath.split("/");
-        const fileName = parts.pop();
+        const rawFileName = parts.pop();
         const parentPath = parts.join("/");
         const targetFolderId = folderIdMap[parentPath] || rootParentId;
+        const folderUsedTitles = await getFolderUsedTitles(targetFolderId);
+        const fileName = getUniqueFileName(rawFileName, folderUsedTitles);
+        folderUsedTitles.add(fileName.toLowerCase());
         const attachment = await uploadAttachment(file, fileName);
         const fileNowIso = new Date().toISOString();
 
@@ -7011,8 +7505,27 @@ const InternalTemplates = () => {
 
   const handleBulkPermanentDelete = async () => {
     if (selectedRowKeys.length === 0) return;
+    // Previously unguarded — the Internal Work root folder (or any folder
+    // that is its own tree root) could be permanently destroyed with no
+    // check at all once it reached Trash (2026-09-04 audit). Same guard as
+    // handleBulkDelete's soft-delete path below.
+    const deletableKeys = selectedRowKeys.filter((key) => {
+      const record = tableData.find((r) => r._key === key);
+      if (!record) return false;
+      if (
+        record._type === "folder" &&
+        isFolderTreeRoot(record, permissionAllFolders)
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (deletableKeys.length === 0) {
+      message.warning("Root folders can't be deleted.");
+      return;
+    }
     Modal.confirm({
-      title: `Permanently delete ${selectedRowKeys.length} selected item(s)?`,
+      title: `Permanently delete ${deletableKeys.length} selected item(s)?`,
       content:
         "This action cannot be undone. Files and folders will be permanently removed from the system.",
       okText: "Permanently Delete",
@@ -7020,11 +7533,11 @@ const InternalTemplates = () => {
       cancelText: "Cancel",
       onOk: async () => {
         try {
-          const recordsToDelete = selectedRowKeys
+          const recordsToDelete = deletableKeys
             .map((key) => tableData.find((record) => record._key === key))
             .filter(Boolean);
           await Promise.all(
-            selectedRowKeys.map(async (key) => {
+            deletableKeys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
               const rId = Number(
                 key.replace("folder_", "").replace("file_", ""),
@@ -7050,7 +7563,7 @@ const InternalTemplates = () => {
               }),
             ),
           );
-          message.success(`Deleted ${selectedRowKeys.length} item(s) successfully!`);
+          message.success(`Deleted ${deletableKeys.length} item(s) successfully!`);
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
@@ -7628,6 +8141,16 @@ const InternalTemplates = () => {
   };
 
   const handlePermanentDelete = (record) => {
+    // Previously unguarded — the Internal Work root folder could be
+    // destroyed with no check at all (2026-09-04 audit). Same lock as the
+    // soft-delete path.
+    if (
+      record._type === "folder" &&
+      isFolderTreeRoot(record, permissionAllFolders)
+    ) {
+      message.warning("Root folders can't be deleted.");
+      return;
+    }
     Modal.confirm({
       title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
       icon: React.createElement(
@@ -8436,11 +8959,26 @@ const InternalTemplates = () => {
     ],
   );
 
-  const tableColumns = useMemo(() => {
+  // tableColumns only ever reads tableData to know whether the current rows
+  // are all-folders / all-files / mixed — never individual rows. Depending
+  // on the full tableData array in tableColumns' own useMemo rebuilt every
+  // column (with all its render closures) on every navigation/search
+  // keystroke, since tableData's identity changes then even when this
+  // 2-boolean "shape" doesn't (same fix as Library.js/CaseDocument.js,
+  // 2026-09-18 perf investigation).
+  const tableDataShape = useMemo(() => {
     const hasFolders = tableData.some((r) => r._type === "folder");
     const hasFiles = tableData.some((r) => r._type === "file");
-    const isAllFolders = tableData.length > 0 && hasFolders && !hasFiles;
-    const isAllFiles = tableData.length > 0 && hasFiles && !hasFolders;
+    return {
+      hasFolders,
+      hasFiles,
+      isAllFolders: tableData.length > 0 && hasFolders && !hasFiles,
+      isAllFiles: tableData.length > 0 && hasFiles && !hasFolders,
+    };
+  }, [tableData]);
+
+  const tableColumns = useMemo(() => {
+    const { hasFolders, hasFiles, isAllFolders, isAllFiles } = tableDataShape;
     const currentUser = currentUserState;
 
     // Shared action cell renderer for folder rows
@@ -9437,7 +9975,7 @@ const InternalTemplates = () => {
       },
     ];
   }, [
-    tableData,
+    tableDataShape,
     documentTypes,
     getTypeConfig,
     getRecordDocumentType,
@@ -10615,7 +11153,8 @@ const InternalTemplates = () => {
               ) : (
                 <React.Fragment>
                   {activeSpace !== "trash" &&
-                    (currentFolderPerms.canEdit ||
+                    (currentFolderPerms.canCreate ||
+                      currentFolderPerms.canEdit ||
                       currentFolderPerms.isManager ||
                       (activeSpace === "legal_reference" &&
                         !activeLegalReferenceId)) && (
@@ -10661,7 +11200,7 @@ const InternalTemplates = () => {
                   <Button
                     icon={REFRESH_ICON}
                     onClick={loadData}
-                    loading={loading}
+                    loading={dataRefreshing}
                     style={{
                       borderRadius: 8,
                       border: "0.5px solid #E5E7EB",
@@ -10984,6 +11523,11 @@ const InternalTemplates = () => {
                 {viewMode === "grid" ? (
                   <React.Fragment>
                     {tableData.length === 0 ? (
+                      dataRefreshing ? (
+                        <div style={{ padding: "80px 0", textAlign: "center" }}>
+                          <Spin />
+                        </div>
+                      ) : (
                       <div
                         style={{
                           padding: "80px 0",
@@ -11119,14 +11663,35 @@ const InternalTemplates = () => {
                           )
                         )}
                       </div>
+                      )
                     ) : (
+                      (() => {
+                        // Grid view has no built-in row cap like the Table
+                        // view's pagination — without slicing here, a
+                        // folder with a few hundred documents rendered
+                        // every card at once and froze the tab. Paginate
+                        // over the same combined tableData the Table view
+                        // uses, then split by type within just that page
+                        // so headers only show for sections actually
+                        // present on it (same fix as Library.js/
+                        // CaseDocument.js, 2026-09-18 perf investigation).
+                        const gridPageCount = Math.max(
+                          1,
+                          Math.ceil(tableData.length / GRID_PAGE_SIZE),
+                        );
+                        const safeGridPage = Math.min(gridPage, gridPageCount);
+                        const pagedTableData = tableData.slice(
+                          (safeGridPage - 1) * GRID_PAGE_SIZE,
+                          safeGridPage * GRID_PAGE_SIZE,
+                        );
+                        return (
                       <React.Fragment>
                         {/* ── Section: Reference Cases ── */}
-                        {tableData.some(
+                        {pagedTableData.some(
                           (r) => r._type === "legal_reference_record",
                         ) && (
                           <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
-                            {tableData
+                            {pagedTableData
                               .filter(
                                 (r) => r._type === "legal_reference_record",
                               )
@@ -11272,7 +11837,7 @@ const InternalTemplates = () => {
                         )}
 
                         {/* ── Section: Folders ── */}
-                        {tableData.some((r) => r._type === "folder") && (
+                        {pagedTableData.some((r) => r._type === "folder") && (
                           <div
                             style={{
                               fontSize: 12,
@@ -11289,13 +11854,13 @@ const InternalTemplates = () => {
                           gutter={[10, 10]}
                           style={{
                             marginBottom:
-                              tableData.some((r) => r._type === "file") &&
-                              tableData.some((r) => r._type === "folder")
+                              pagedTableData.some((r) => r._type === "file") &&
+                              pagedTableData.some((r) => r._type === "folder")
                                 ? 20
                                 : 0,
                           }}
                         >
-                          {tableData
+                          {pagedTableData
                             .filter((r) => r._type === "folder")
                             .map((record) => {
                               const folderFileCount =
@@ -11623,7 +12188,7 @@ const InternalTemplates = () => {
                         </Row>
 
                         {/* ── Section: Documents ── */}
-                        {tableData.some((r) => r._type === "file") && (
+                        {pagedTableData.some((r) => r._type === "file") && (
                           <div
                             style={{
                               fontSize: 12,
@@ -11637,7 +12202,7 @@ const InternalTemplates = () => {
                           </div>
                         )}
                         <Row gutter={[10, 10]}>
-                          {tableData
+                          {pagedTableData
                             .filter((r) => r._type === "file")
                             .map((record) => {
                               const fileIsEditing =
@@ -11946,7 +12511,27 @@ const InternalTemplates = () => {
                               );
                             })}
                         </Row>
+
+                        {tableData.length > GRID_PAGE_SIZE && (
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                              marginTop: 20,
+                            }}
+                          >
+                            <Pagination
+                              current={safeGridPage}
+                              pageSize={GRID_PAGE_SIZE}
+                              total={tableData.length}
+                              onChange={(page) => setGridPage(page)}
+                              showSizeChanger={false}
+                            />
+                          </div>
+                        )}
                       </React.Fragment>
+                        );
+                      })()
                     )}
                   </React.Fragment>
                 ) : (
@@ -11957,13 +12542,27 @@ const InternalTemplates = () => {
                         : {
                             selectedRowKeys,
                             onChange: setSelectedRowKeys,
+                            // Bulk actions already re-filter root folders out
+                            // before deleting, but disabling the checkbox
+                            // surfaces it immediately instead of silently
+                            // no-op'ing the row on delete.
+                            getCheckboxProps: (record) => ({
+                              disabled:
+                                record._type === "folder" &&
+                                isFolderTreeRoot(record, permissionAllFolders),
+                            }),
                           }
                     }
                     rowKey={(record) => record._key}
                     columns={tableColumns}
                     dataSource={tableData}
                     size="middle"
-                    pagination={{ pageSize: 20, showSizeChanger: true }}
+                    pagination={{
+                      pageSize: mainTablePageSize,
+                      showSizeChanger: true,
+                      onShowSizeChange: (_, size) => setMainTablePageSize(size),
+                      onChange: (_, size) => setMainTablePageSize(size),
+                    }}
                     scroll={{ x: "max-content" }}
                     onRow={(record) => rowDragProps(record)}
                     locale={{
@@ -12595,7 +13194,7 @@ const InternalTemplates = () => {
           setPermissionTarget(null);
           loadData();
         }}
-      />
+      />  
     </React.Fragment>
   );
 };

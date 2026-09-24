@@ -20,15 +20,14 @@
     Select,
     Table,
     Tooltip,
-    Upload,
     Progress,
     TreeSelect,
     Dropdown,
     Checkbox,
+    Radio,
   } = ctx.antd;
   const { Sider, Content } = Layout;
   const { Title, Text } = Typography;
-const { Dragger } = Upload;
 
 const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 const GRID_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 4, xxl: 4 };
@@ -55,7 +54,7 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
       "customer:create",
     ],
 
-    // ── Tên field relation trong document/folder trỏ về "parent" ─────────────
+    // ── Name field relation trong document/folder trỏ về "parent" ─────────────
     // Thứ tự: field chính → các alias fallback (dùng khi thử tạo record)
     relationFieldCandidates: [
       "customerId",       // field chính (array/object)
@@ -63,13 +62,13 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
       "customer",         // singular fallback
     ],
 
-    // ── Hàm lấy ID của parent từ 1 record folder/document ───────────────────
+    // ── Hàm lấy ID of parent từ 1 record folder/document ───────────────────
     getParentIdFromRecord: (record) =>
       extractId(record?.customerId) ||
       extractRelationId(record?.customers) ||
       extractRelationId(record?.customer),
 
-    // ── Hàm lấy ID của parent từ 1 record sidebar (Legal Reference / Customer) ─
+    // ── Hàm lấy ID of parent từ 1 record sidebar (Legal Reference / Customer) ─
     getParentListId: (record) =>
       extractId(record?.customerId) ||
       extractRelationId(record?.customers) ||
@@ -79,10 +78,10 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
 
     // ── Nhãn hiển thị trong UI ────────────────────────────────────────────────
     label: {
-      sidebar: "Khách hàng",          // tiêu đề sidebar
-      sidebarItem: "Khách hàng",      // tên 1 item trong sidebar
-      createButton: "Tạo khách hàng mới",
-      searchPlaceholder: "Tìm khách hàng...",
+      sidebar: "Customers",          // title sidebar
+      sidebarItem: "Customers",      // tên 1 item trong sidebar
+      createButton: "Create new customer",
+      searchPlaceholder: "Search customers...",
     },
   };
 
@@ -808,122 +807,225 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
     );
   };
 
+  // Root-only permission model — ported from Library.js (see
+  // nocobase-docs/library-js-architecture-reference.md §3). Every folder
+  // tree has exactly one root (the topmost ancestor via parentId — no Case
+  // boundary needed here, unlike Library.js, since CustomerDocument.js's
+  // trees are scoped by customerId only). Only the ROOT folder's own
+  // folderManager/folderMembers rows are ever consulted — subfolders no
+  // longer carry their own grants, so granting/revoking access at the root
+  // immediately applies to (or removes access from) the entire subtree.
+  // The old per-subfolder "check own rows, else inherit from parent" model
+  // let a subfolder carry an independent grant that bypassed the root's
+  // permissions entirely — that was the actual bug this fixes.
+  const roleToPerms = (role) => ({
+    role,
+    canView: role !== null,
+    canCreate: ["admin", "owner", "manager", "editor", "viewer"].includes(role),
+    canRename: ["admin", "owner", "manager", "editor"].includes(role),
+    canMove: ["admin", "owner", "manager", "editor"].includes(role),
+    canDelete: ["admin", "owner", "manager", "editor"].includes(role),
+    canShare: ["admin", "owner", "manager", "editor"].includes(role),
+    canManagePermissions: ["admin", "owner", "manager"].includes(role),
+    // Legacy field names — every existing call site in this file destructures
+    // isManager/isMember/canEdit, so keep them so nothing else needs to change.
+    isManager: ["admin", "owner", "manager"].includes(role),
+    isMember: role !== null,
+    canEdit: ["admin", "owner", "manager", "editor"].includes(role),
+  });
+
+  // 3-tier capability set for folder Members (viewer/editor/contributed) —
+  // matches Library.js's MEMBER_ROLE_CAPABILITIES byte-for-byte. Members
+  // only ever get these tiers, never "manager" (a Member row with
+  // role: "manager" shouldn't occur — Managers live in folderManagers).
+  const MEMBER_ROLE_CAPABILITIES = {
+    viewer: { canCreate: true, canRename: false, canMove: false, canDelete: false, canShare: false, canEdit: false },
+    editor: { canCreate: true, canRename: true, canMove: false, canDelete: false, canShare: true, canEdit: true },
+    contributed: { canCreate: true, canRename: true, canMove: true, canDelete: true, canShare: true, canEdit: true },
+  };
+  const getMemberRoleTierPerms = (role) => {
+    const capabilities = MEMBER_ROLE_CAPABILITIES[role];
+    if (!capabilities) return roleToPerms(null);
+    return { role, canView: true, canManagePermissions: false, isManager: false, isMember: true, ...capabilities };
+  };
+
+  const resolveFolderTreeRoot = (folder, allFolders) => {
+    if (!folder) return null;
+    const folderById = new Map((allFolders || []).map((f) => [String(extractId(f.id)), f]));
+    let current = folder;
+    const visited = new Set();
+    while (true) {
+      const parentId = extractId(current.parentId);
+      if (!parentId || parentId === "root") break;
+      const parentKey = String(parentId);
+      if (visited.has(parentKey)) break;
+      visited.add(parentKey);
+      const parent = folderById.get(parentKey);
+      if (!parent) break;
+      current = parent;
+    }
+    return current;
+  };
+
+  // Whether `folder` is itself the root of its tree — gates the
+  // "Permissions" action so it only ever appears at the root, never on a
+  // subfolder (matches Library.js: subfolder folderManager/folderMembers
+  // rows are never read, so editing them there would silently do nothing).
+  const isFolderTreeRoot = (folder) => {
+    if (!folder) return false;
+    const parentId = extractId(folder.parentId);
+    return !parentId || parentId === "root";
+  };
+
+  // Level-2 grants (Customer trees only) — a folder directly under a
+  // Customer root may carry its own folderManagers/folderMembers rows,
+  // checked BEFORE falling back to the Customer root. Non-customer trees
+  // (Company Shared, Personal) are intentionally left untouched — strictly
+  // root-only. Ported from Library.js's resolvePermissionFolder (there
+  // scoped to Case trees via getFolderCaseProjectId; here scoped to
+  // Customer trees via getRecordCustomerId, since this file has no Case
+  // boundary of its own).
+  const resolvePermissionFolder = (folder, allFolders) => {
+    if (!folder) return null;
+    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+    const rootId = String(extractId(root));
+    if (String(extractId(folder)) === rootId) return root;
+    if (!getRecordCustomerId(root)) return root;
+
+    const folderById = new Map((allFolders || []).map((f) => [String(extractId(f.id)), f]));
+    let current = folder;
+    let level2 = null;
+    const visited = new Set();
+    while (current) {
+      const parentId = String(extractId(current.parentId) || "");
+      if (parentId === rootId) {
+        level2 = current;
+        break;
+      }
+      if (!parentId || parentId === "root" || visited.has(parentId)) break;
+      visited.add(parentId);
+      const parent = folderById.get(parentId);
+      if (!parent) break;
+      current = parent;
+    }
+
+    if (level2) {
+      const hasOwnGrant =
+        getFolderManagerRows(level2).length > 0 || getFolderMemberRows(level2).length > 0;
+      if (hasOwnGrant) return level2;
+    }
+
+    return root;
+  };
+
+  // Gates the "Permissions" UI action. True for a Customer tree's absolute
+  // root OR any of its direct (level-2) children; matches
+  // resolvePermissionFolder's scoping. Non-customer trees keep the old
+  // root-only gating (isFolderTreeRoot).
+  const isPermissionBearingFolder = (folder, allFolders) => {
+    if (!folder) return false;
+    if (isFolderTreeRoot(folder)) return true;
+    const root = resolveFolderTreeRoot(folder, allFolders) || folder;
+    if (!getRecordCustomerId(root)) return false;
+    const parentId = String(extractId(folder.parentId) || "");
+    return parentId !== "" && parentId === String(extractId(root));
+  };
+
   const getFolderPermissions = (folder, user, allFolders, currentLawyerId) => {
-    if (isAdminUser(user))
-      return { isManager: true, isMember: true, canEdit: true };
-    if (!folder) return { isManager: true, isMember: true, canEdit: true };
-    if (!user) return { isManager: false, isMember: false, canEdit: false };
+    if (isAdminUser(user)) return roleToPerms("admin");
+    if (!folder) return roleToPerms("admin");
+    if (!user) return roleToPerms(null);
 
     const uid = extractId(user.id);
     const lwId = extractId(currentLawyerId);
+    const root = resolvePermissionFolder(folder, allFolders) || folder;
 
-    // Owner check (Nocobase user ID)
-    if (extractId(folder.createdById) === uid) {
-      return { isManager: true, isMember: true, canEdit: true };
+    // Owner check (Nocobase user ID) — the ROOT folder's creator, not the
+    // specific subfolder's.
+    if (uid && String(extractId(root.createdById)) === String(uid)) {
+      return roleToPerms("owner");
     }
 
-    const managers = getFolderManagerRows(folder);
-    const members = getFolderMemberRows(folder);
-
-    // Check explicit permissions using Lawyer ID
     if (lwId) {
+      const managers = getFolderManagerRows(root);
       const isExplicitManager = managers.some(
-        (m) => getPermissionLawyerId(m) === lwId,
+        (m) => String(getPermissionLawyerId(m)) === String(lwId),
       );
-      if (isExplicitManager)
-        return { isManager: true, isMember: true, canEdit: true };
+      if (isExplicitManager) return roleToPerms("manager");
 
+      const members = getFolderMemberRows(root);
       const explicitMember = members.find(
-        (m) => getPermissionLawyerId(m) === lwId,
+        (m) => String(getPermissionLawyerId(m)) === String(lwId),
       );
       if (explicitMember) {
-        const role = getPermissionRole(explicitMember);
-        const canEdit = role === "editor";
-        return { isManager: false, isMember: true, canEdit };
+        return getMemberRoleTierPerms(getPermissionRole(explicitMember, "viewer"));
       }
     }
 
-    // Inherit from parent
-    const pId = extractId(folder.parentId);
-    if (!pId || pId === "root")
-      return { isManager: false, isMember: false, canEdit: false };
-
-    const parentFolder = allFolders.find(
-      (f) => String(extractId(f.id)) === String(pId),
-    );
-    if (!parentFolder)
-      return { isManager: false, isMember: false, canEdit: false };
-
-    return getFolderPermissions(parentFolder, user, allFolders, currentLawyerId);
+    return roleToPerms(null);
   };
 
+  // File permissions = its parent folder's permissions (root-only model —
+  // a document never carries its own grant, only the folder it's in does).
+  const getFilePermissions = (file, folder, user, allFolders, currentLawyerId) =>
+    folder ? getFolderPermissions(folder, user, allFolders, currentLawyerId) : roleToPerms(null);
+
+  // Back-compat boolean wrapper — every existing call site just needs a
+  // yes/no. Keeps the "uploader can always manage their own file" bypass
+  // that predates this permission-model sync (not part of Library.js's
+  // model, which has no such bypass — kept intentionally so an existing
+  // Viewer's own uploads don't regress from editable to read-only).
   const canManageFile = (file, folder, user, allFolders, currentLawyerId) => {
     if (!user) return false;
-    const { isManager, canEdit } = getFolderPermissions(
-      folder,
-      user,
-      allFolders,
-      currentLawyerId,
-    );
-    if (isManager || canEdit) return true;
+    const perms = getFilePermissions(file, folder, user, allFolders, currentLawyerId);
+    if (perms.isManager || perms.canEdit) return true;
     if (extractId(file.createdById) === extractId(user.id)) return true;
     return false;
   };
 
+  // Root-only visibility: a folder is visible to a user iff the ROOT of its
+  // tree grants them access (owner of the root, or an explicit manager/
+  // member row on the root). Replaces the old "direct grant + cascade to
+  // descendants" approach, which let a subfolder's own (bogus, unread-
+  // elsewhere) grant rows make it independently visible.
   const getVisibleFolderIds = (allFolders, currentUser, currentLawyerId) => {
-    const accessible = new Set();
     const uid = extractId(currentUser?.id);
     const lwId = extractId(currentLawyerId);
 
     if (isAdminUser(currentUser)) {
-      allFolders.forEach((f) => accessible.add(extractId(f.id)));
-      return { accessible };
+      const all = new Set(allFolders.map((f) => extractId(f.id)));
+      return { accessible: all, entitled: new Set(all) };
     }
 
-    if (!uid) return { accessible };
+    if (!uid) return { accessible: new Set(), entitled: new Set() };
 
-    // 1. Find folders with direct access
-    allFolders.forEach((f) => {
-      const fId = extractId(f.id);
-      // Owner check
-      if (extractId(f.createdById) === uid) {
-        accessible.add(fId);
-        return;
-      }
-      // Manager/Member check via currentLawyerId
-      if (lwId) {
-        const managers = getFolderManagerRows(f);
-        const members = getFolderMemberRows(f);
-        if (
-          managers.some((m) => getPermissionLawyerId(m) === lwId) ||
-          members.some((m) => getPermissionLawyerId(m) === lwId)
-        ) {
-          accessible.add(fId);
-          return;
-        }
-      }
-    });
-
-    // 2. Cascade down: include all descendants of accessible folders
-    const getDescendantIdsRecursive = (pId, list) => {
-      let ids = [];
-      list.forEach((f) => {
-        if (extractId(f.parentId) === pId) {
-          const id = extractId(f.id);
-          ids.push(id);
-          ids = ids.concat(getDescendantIdsRecursive(id, list));
-        }
-      });
-      return ids;
+    const rootCache = new Map();
+    const resolveRoot = (folder) => {
+      const key = String(extractId(folder.id));
+      if (rootCache.has(key)) return rootCache.get(key);
+      const root = resolvePermissionFolder(folder, allFolders) || folder;
+      rootCache.set(key, root);
+      return root;
     };
 
-    const directIds = Array.from(accessible);
-    directIds.forEach((pId) => {
-      const descIds = getDescendantIdsRecursive(pId, allFolders);
-      descIds.forEach((id) => accessible.add(id));
+    const hasRootGrant = (root) => {
+      if (!root) return false;
+      if (String(extractId(root.createdById)) === String(uid)) return true;
+      if (!lwId) return false;
+      const managers = getFolderManagerRows(root);
+      const members = getFolderMemberRows(root);
+      return (
+        managers.some((m) => String(getPermissionLawyerId(m)) === String(lwId)) ||
+        members.some((m) => String(getPermissionLawyerId(m)) === String(lwId))
+      );
+    };
+
+    const entitled = new Set();
+    allFolders.forEach((f) => {
+      if (hasRootGrant(resolveRoot(f))) entitled.add(extractId(f.id));
     });
 
-    return { accessible };
+    return { accessible: entitled, entitled };
   };
 
   const LOCK_ICON = (
@@ -968,7 +1070,7 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
     return fullUrl;
   };
   const stripInternalTemplateRelationPayload = (payload = {}) => {
-    // Xóa tất cả các field relation khỏi payload (dựa trên DASHBOARD_CONFIG)
+    // Delete tất cả các field relation khỏi payload (dựa trên DASHBOARD_CONFIG)
     const stripped = { ...payload };
     DASHBOARD_CONFIG.relationFieldCandidates.forEach((field) => {
       delete stripped[field];
@@ -1176,10 +1278,14 @@ const getCustomerDisplayName = (record) => {
         moduleScope: { $in: DASHBOARD_CONFIG.moduleScopes }
       }];
     }
+    // customerId is a flat scalar FK column on documents/folders (confirmed
+    // in pgsql/log_activity_documents.sql's f."customerId" and
+    // JsField/Search/Filter/CaseSearchFilter.js's parseInt(form.customerId)
+    // note) — there is no "customer"/"customers" association to filter on,
+    // so nested { customers: { id: { $eq } } } candidates 500 with a
+    // Sequelize "Invalid value" cast error instead of just finding no rows.
     return [
       { customerId: { $eq: id } },
-      { customers: { id: { $eq: id } } },
-      { customer: { id: { $eq: id } } },
     ];
   };
 
@@ -1311,7 +1417,7 @@ const getCustomerDisplayName = (record) => {
       headers: { "Content-Type": "multipart/form-data" },
     });
     const attachment = uploadRes?.data?.data;
-    if (!attachment?.id) throw new Error("Upload file thất bại");
+    if (!attachment?.id) throw new Error("Upload failed");
     return attachment;
   };
 
@@ -1323,6 +1429,131 @@ const getCustomerDisplayName = (record) => {
       const { documentType, ...fallbackPayload } = payload;
       return requestCreateWithInternalTemplateRelation("folders:create", fallbackPayload);
     }
+  };
+
+  // Same de-dup convention used across the Document module (Library.js,
+  // CaseDocument.js, TaskDetailView.js): on a case-insensitive name
+  // collision, append " (1)", " (2)", ... — never silently overwrite.
+  const getUniqueFileName = (fileName, existingNames) => {
+    const raw = String(fileName || "").trim();
+    if (!raw) return raw;
+    const taken = new Set(
+      Array.from(existingNames || [], (n) => String(n || "").trim().toLowerCase()),
+    );
+    if (!taken.has(raw.toLowerCase())) return raw;
+    const dotIndex = raw.lastIndexOf(".");
+    const base = dotIndex > 0 ? raw.slice(0, dotIndex) : raw;
+    const ext = dotIndex > 0 ? raw.slice(dotIndex) : "";
+    let counter = 1;
+    let candidate = `${base} (${counter})${ext}`;
+    while (taken.has(candidate.toLowerCase())) {
+      counter += 1;
+      candidate = `${base} (${counter})${ext}`;
+    }
+    return candidate;
+  };
+
+  // Folder counterpart — no extension handling, same suffix convention.
+  const getUniqueFolderName = (name, existingNames) => {
+    const raw = String(name || "").trim();
+    if (!raw) return raw;
+    const taken = new Set(
+      Array.from(existingNames || [], (n) => String(n || "").trim().toLowerCase()),
+    );
+    if (!taken.has(raw.toLowerCase())) return raw;
+    let counter = 1;
+    let candidate = `${raw} (${counter})`;
+    while (taken.has(candidate.toLowerCase())) {
+      counter += 1;
+      candidate = `${raw} (${counter})`;
+    }
+    return candidate;
+  };
+
+  // External OS drag-drop helpers (ported from Library.js §5.4) — reading
+  // real files/folders dropped from Explorer/Finder via the HTML5
+  // DataTransferItem API, with a fallback for browsers that don't expose
+  // getAsEntry/webkitGetAsEntry (treats every dropped item as a flat file).
+  const getUploadRelativePath = (file) =>
+    String(file?._dropRelativePath || file?.webkitRelativePath || file?.name || "")
+      .replace(/^\/+/, "")
+      .replace(/\\/g, "/");
+
+  const hasExternalFiles = (dataTransfer) =>
+    Array.from(dataTransfer?.types || []).includes("Files");
+
+  const setDroppedFilePath = (file, relativePath) => {
+    if (!file) return file;
+    try {
+      Object.defineProperty(file, "_dropRelativePath", {
+        value: String(relativePath || file.name).replace(/^\/+/, ""),
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      try {
+        file._dropRelativePath = String(relativePath || file.name).replace(/^\/+/, "");
+      } catch {}
+    }
+    return file;
+  };
+
+  const readDirectoryEntries = async (directoryEntry) => {
+    const reader = directoryEntry.createReader();
+    const entries = [];
+    while (true) {
+      const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+      if (!batch.length) break;
+      entries.push(...batch);
+    }
+    return entries;
+  };
+
+  const readDroppedEntry = async (entry, parentPath, files, folderPaths) => {
+    const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      files.push(setDroppedFilePath(file, relativePath));
+      return;
+    }
+    if (!entry.isDirectory) return;
+    folderPaths.add(relativePath);
+    const children = await readDirectoryEntries(entry);
+    for (const child of children) {
+      await readDroppedEntry(child, relativePath, files, folderPaths);
+    }
+  };
+
+  const readDroppedFiles = async (dataTransfer) => {
+    const files = [];
+    const folderPaths = new Set();
+    const items = Array.from(dataTransfer?.items || []);
+    const entries = items
+      .map((item) => {
+        const getEntry = item.getAsEntry || item.webkitGetAsEntry;
+        return typeof getEntry === "function" ? getEntry.call(item) : null;
+      })
+      .filter(Boolean);
+
+    if (entries.length) {
+      for (const entry of entries) {
+        await readDroppedEntry(entry, "", files, folderPaths);
+      }
+    } else {
+      Array.from(dataTransfer?.files || []).forEach((file) => {
+        const relativePath = getUploadRelativePath(file);
+        files.push(setDroppedFilePath(file, relativePath));
+        const parts = relativePath.split("/");
+        parts.pop();
+        let currentPath = "";
+        parts.forEach((part) => {
+          currentPath = currentPath ? `${currentPath}/${part}` : part;
+          if (currentPath) folderPaths.add(currentPath);
+        });
+      });
+    }
+
+    return { files, folderPaths: Array.from(folderPaths), hasDirectories: folderPaths.size > 0 };
   };
 
   // ============================================================
@@ -1415,16 +1646,16 @@ const getCustomerDisplayName = (record) => {
         footer={[
           fullUrl && (
             <Button key="download" type="primary" icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")}>
-              Tải về
+              Download
             </Button>
           ),
-          <Button key="close" onClick={onClose}>Đóng</Button>,
+          <Button key="close" onClick={onClose}>Close</Button>,
         ].filter(Boolean)}
       >
         {/* Spinner nền */}
         {!isText && (
           <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 0 }}>
-            <Spin tip="Đang tải bản xem trước..." />
+            <Spin tip="Loading preview..." />
           </div>
         )}
 
@@ -1469,7 +1700,7 @@ const getCustomerDisplayName = (record) => {
                     fileExt === ".ogg" ? "video/ogg" :
                       fileExt === ".mov" ? "video/quicktime" : "video/mp4"
               } />
-              Trình duyệt của bạn không hỗ trợ phát video.
+              Your browser does not support video playback.
             </video>
           </div>
         )}
@@ -1496,7 +1727,7 @@ const getCustomerDisplayName = (record) => {
                         fileExt === ".flac" ? "audio/flac" :
                           fileExt === ".m4a" ? "audio/mp4" : "audio/mpeg"
               } />
-              Trình duyệt của bạn không hỗ trợ phát audio.
+              Your browser does not support audio playback.
             </audio>
           </div>
         )}
@@ -1514,21 +1745,21 @@ const getCustomerDisplayName = (record) => {
                 {fileExt.replace(".", "").toUpperCase()} · {finalFileName}
               </span>
               <span style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}>
-                {textContent != null ? `${textContent.split("\n").length} dòng · ${textContent.length} ký tự` : ""}
+                {textContent != null ? `${textContent.split("\n").length} lines · ${textContent.length} characters` : ""}
               </span>
             </div>
             {/* Content */}
             <div style={{ flex: 1, overflow: "auto", background: getMonoBackground() }}>
               {textLoading && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#ccc" }}>
-                  <Spin tip="Đang tải nội dung..." />
+                  <Spin tip="Loading content..." />
                 </div>
               )}
               {textError && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16 }}>
-                  <Empty description={<span style={{ color: "#aaa" }}>Không thể tải nội dung file</span>} />
+                  <Empty description={<span style={{ color: "#aaa" }}>Unable to load file content</span>} />
                   <Button icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")} style={{ borderColor: "#555", color: "#ccc", background: "transparent" }}>
-                    Tải xuống để xem
+                    Download to view
                   </Button>
                 </div>
               )}
@@ -1570,7 +1801,7 @@ const getCustomerDisplayName = (record) => {
         {/* ── NO URL ── */}
         {!fullUrl && (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1 }}>
-            <Empty description="Tài liệu chưa có file hoặc URL để xem trước" />
+            <Empty description="This document has no file or URL to preview" />
           </div>
         )}
 
@@ -1579,11 +1810,11 @@ const getCustomerDisplayName = (record) => {
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1, gap: 12 }}>
             <div style={{ fontSize: 48 }}>📎</div>
             <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 15, color: "#374151" }}>
-              Không thể xem trước định dạng <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>{fileExt || "này"}</code>
+              Cannot preview format <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>{fileExt || "this"}</code>
             </div>
-            <div style={{ color: "#6b7280", fontSize: 13 }}>Tải xuống để mở bằng ứng dụng phù hợp</div>
+            <div style={{ color: "#6b7280", fontSize: 13 }}>Download to open with a suitable application</div>
             <Button type="primary" icon={DOWNLOAD_ICON} style={{ marginTop: 8 }} onClick={() => window.open(fullUrl, "_blank")}>
-              Tải xuống để xem
+              Download to view
             </Button>
           </div>
         )}
@@ -1594,14 +1825,27 @@ const getCustomerDisplayName = (record) => {
   // ============================================================
   // Folder Permissions Modal
   // ============================================================
+  // Single Manager (folderManagers, one row) + role-tiered Members
+  // (folderMembers: viewer/editor/contributed) — ported from Library.js's
+  // PermissionManagerModal/loadFolderPermissions/saveFolderPermissions,
+  // replacing the old "multiple managers mixed into one flat list" shape.
+  // Opened for the tree ROOT or any of its direct (level-2) children —
+  // see isPermissionBearingFolder — and always reads/writes directly on
+  // whichever folder was passed in (`folder.id`), never resolved further,
+  // since the trigger button itself is already scoped to grant-bearing
+  // folders only.
   const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
     const [saving, setSaving] = useState(false);
     const [availableLawyers, setAvailableLawyers] = useState([]);
+    const [managerId, setManagerId] = useState(null);
     const [shares, setShares] = useState([]);
+    const [pendingLawyerIds, setPendingLawyerIds] = useState([]);
 
     useEffect(() => {
       if (!open) {
+        setManagerId(null);
         setShares([]);
+        setPendingLawyerIds([]);
         return;
       }
       if (!folder) return;
@@ -1619,20 +1863,19 @@ const getCustomerDisplayName = (record) => {
         }).catch(() => ({ data: { data: [] } })),
       ]).then(([lwRes, mgRes, mbRes]) => {
         setAvailableLawyers(lwRes?.data?.data || []);
-        const initialShares = [];
-        const managerRows = mgRes?.data?.data || [];
+        const managerRow = (mgRes?.data?.data || [])[0];
         const memberRows = mbRes?.data?.data || [];
-        managerRows.forEach((row) => {
-          const lawyerId = getPermissionLawyerId(row);
-          if (!lawyerId) return;
-          initialShares.push({ id: String(lawyerId), role: "manager", lawyerData: getRelationLawyerRecord(row) });
-        });
-        memberRows.forEach((row) => {
-          const lawyerId = getPermissionLawyerId(row);
-          if (!lawyerId) return;
-          initialShares.push({ id: String(lawyerId), role: getPermissionRole(row), lawyerData: getRelationLawyerRecord(row) });
-        });
-        setShares(initialShares);
+        setManagerId(managerRow ? String(getPermissionLawyerId(managerRow)) : null);
+        setShares(
+          memberRows
+            .map((row) => ({
+              id: String(getPermissionLawyerId(row)),
+              role: getPermissionRole(row, "viewer"),
+              lawyerData: getRelationLawyerRecord(row),
+            }))
+            .filter((s) => s.id && s.id !== "undefined"),
+        );
+        setPendingLawyerIds([]);
       });
     }, [open, folder]);
 
@@ -1640,8 +1883,6 @@ const getCustomerDisplayName = (record) => {
       setSaving(true);
       try {
         const folderId = extractId(folder.id);
-        const managers = shares.filter((s) => s.role === "manager");
-        const members = shares.filter((s) => s.role !== "manager");
 
         await Promise.all([
           ctx.api.request({
@@ -1657,31 +1898,40 @@ const getCustomerDisplayName = (record) => {
         ]);
 
         const createPromises = [];
-        managers.forEach((s) => {
+        if (managerId) {
           createPromises.push(
-            ctx.api.request({ url: "folderManagers:create", method: "POST", data: { folderId, lawyerId: Number(s.id), role: "manager" } }),
+            ctx.api.request({ url: "folderManagers:create", method: "POST", data: { folderId, lawyerId: Number(managerId), role: "manager" } }),
           );
-        });
-        members.forEach((s) => {
+        }
+        shares.forEach((s) => {
           createPromises.push(
             ctx.api.request({ url: "folderMembers:create", method: "POST", data: { folderId, lawyerId: Number(s.id), role: s.role } }),
           );
         });
 
         await Promise.all(createPromises);
-        message.success("Cập nhật phân quyền thành công");
+        message.success("Permissions updated successfully");
         onSuccess();
       } catch (e) {
-        message.error("Có lỗi xảy ra khi cập nhật phân quyền");
+        message.error("An error occurred while updating permissions");
       }
       setSaving(false);
     };
 
-    const handleAddLawyer = (lawyerId) => {
-      if (!lawyerId) return;
-      const safeLawyerId = String(extractId(lawyerId));
-      if (!safeLawyerId || shares.some((s) => String(s.id) === safeLawyerId)) return;
-      setShares([...shares, { id: safeLawyerId, role: "viewer" }]);
+    const handleAddLawyers = (selectedIds = pendingLawyerIds) => {
+      const ids = Array.isArray(selectedIds) ? selectedIds : [selectedIds].filter(Boolean);
+      if (!ids.length) return;
+      const existingIds = new Set(shares.map((s) => String(s.id)));
+      const nextShares = [...shares];
+      ids.forEach((lawyerId) => {
+        const safeLawyerId = String(extractId(lawyerId));
+        if (!safeLawyerId || safeLawyerId === String(managerId) || existingIds.has(safeLawyerId)) return;
+        existingIds.add(safeLawyerId);
+        const lawyerData = availableLawyers.find((l) => String(extractId(l.id)) === safeLawyerId) || {};
+        nextShares.push({ id: safeLawyerId, role: "viewer", lawyerData });
+      });
+      setShares(nextShares);
+      setPendingLawyerIds([]);
     };
 
     const handleChangeRole = (lawyerId, newRole) => {
@@ -1692,38 +1942,54 @@ const getCustomerDisplayName = (record) => {
       setShares(shares.filter((s) => String(s.id) !== String(lawyerId)));
     };
 
-    const lawyerOptions = availableLawyers
-      .filter((l) => !shares.some((s) => String(s.id) === String(extractId(l.id))))
-      .map((l) => ({ value: String(extractId(l.id)), label: getLawyerDisplayName(l) }));
+    const lawyerOptions = availableLawyers.map((l) => ({ value: String(extractId(l.id)), label: getLawyerDisplayName(l) }));
 
     return (
       <Modal
         open={open}
         onCancel={onClose}
-        title={<span style={{ fontFamily: FONT }}>Phân quyền thư mục: {folder?.name || ""}</span>}
+        title={<span style={{ fontFamily: FONT }}>Folder permissions: {folder?.name || ""}</span>}
         width={520}
         destroyOnClose
         footer={[
-          <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>Hủy</Button>,
-          <Button key="save" type="primary" loading={saving} onClick={handleSave} style={{ fontFamily: FONT }}>Lưu</Button>,
+          <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>Cancel</Button>,
+          <Button key="save" type="primary" loading={saving} onClick={handleSave} style={{ fontFamily: FONT }}>Save</Button>,
         ]}
       >
         <div style={{ marginBottom: 16, fontFamily: FONT }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Thêm người</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>Manager</div>
           <Select
+            allowClear
             showSearch
             style={{ width: "100%" }}
-            placeholder="Tìm và thêm người..."
+            placeholder="Select manager..."
             options={lawyerOptions}
-            value={null}
-            onChange={handleAddLawyer}
+            value={managerId}
+            onChange={(val) => {
+              setManagerId(val || null);
+              if (val) setShares((prev) => prev.filter((s) => String(s.id) !== String(val)));
+            }}
+            filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
+          />
+        </div>
+        <div style={{ marginBottom: 16, fontFamily: FONT }}>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
+          <Select
+            mode="multiple"
+            showSearch
+            allowClear
+            style={{ width: "100%" }}
+            placeholder="Search and select multiple people..."
+            options={lawyerOptions.filter((o) => o.value !== managerId && !shares.some((s) => String(s.id) === o.value))}
+            value={pendingLawyerIds}
+            onChange={handleAddLawyers}
             filterOption={(input, option) => (option?.label ?? "").toLowerCase().includes(input.toLowerCase())}
           />
         </div>
         <div style={{ fontFamily: FONT }}>
-          <div style={{ marginBottom: 12, fontWeight: 600 }}>Những người có quyền truy cập</div>
+          <div style={{ marginBottom: 12, fontWeight: 600 }}>Members</div>
           {shares.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa chia sẻ cho ai" />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No members added yet" />
           ) : (
             shares.map((s) => {
               const lw = availableLawyers.find((l) => String(extractId(l.id)) === String(s.id)) || s.lawyerData || {};
@@ -1741,7 +2007,7 @@ const getCustomerDisplayName = (record) => {
                     <div>
                       <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{displayName}</div>
                       <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                        {s.role === "manager" ? "Quản lý" : s.role === "editor" ? "Người chỉnh sửa" : "Người xem"}
+                        {s.role === "editor" ? "Editor" : s.role === "contributed" ? "Contributed" : "Viewer"}
                       </div>
                     </div>
                   </div>
@@ -1752,9 +2018,9 @@ const getCustomerDisplayName = (record) => {
                       bordered={false}
                       style={{ width: 150, fontFamily: FONT }}
                       options={[
-                        { value: "viewer", label: "Người xem" },
-                        { value: "editor", label: "Người chỉnh sửa" },
-                        { value: "manager", label: "Quản lý" },
+                        { value: "viewer", label: "Viewer" },
+                        { value: "editor", label: "Editor" },
+                        { value: "contributed", label: "Contributed" },
                       ]}
                     />
                     <Button type="text" danger onClick={() => handleRemoveShare(s.id)} style={{ padding: "4px 8px" }}>✕</Button>
@@ -1765,6 +2031,255 @@ const getCustomerDisplayName = (record) => {
           )}
         </div>
       </Modal>
+    );
+  };
+
+  // Metadata modal for the native multi-file picker upload flow — ported
+  // from Library.js's DocumentUploadFieldsModal. Replaces the old single-
+  // file Modal+Form+Dragger (and its create-time Google Drive URL field,
+  // deliberately dropped to match Library.js — old records with a
+  // googleDriveUrl still preview/display fine, only the create path lost
+  // the field). "Group into a new folder" only appears when ≥ 2 files are
+  // picked at once.
+  const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit, defaultDocumentType = "" }) => {
+    const [form] = Form.useForm();
+    const [submitting, setSubmitting] = useState(false);
+    const [uploadMode, setUploadMode] = useState("separate");
+
+    useEffect(() => {
+      if (open) {
+        form.resetFields();
+        setUploadMode("separate");
+        if (files.length === 1) {
+          const rawName = files[0].name;
+          const dotIndex = rawName.lastIndexOf(".");
+          const nameWithoutExt = dotIndex > 0 ? rawName.slice(0, dotIndex) : rawName;
+          form.setFieldsValue({ title: nameWithoutExt, documentType: defaultDocumentType });
+        } else {
+          form.setFieldsValue({ documentType: defaultDocumentType });
+        }
+        setSubmitting(false);
+      }
+    }, [open, files]);
+
+    const handleOk = async () => {
+      let values = {};
+      try {
+        values = await form.validateFields();
+      } catch {
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await onSubmit({
+          title: values.title?.trim() || "",
+          documentType: values.documentType?.trim() || "",
+          documentCode: values.documentCode?.trim() || "",
+          openingDate: values.openingDate || "",
+          signedAt: values.signedAt || "",
+          effectiveAt: values.effectiveAt || "",
+          senderName: values.senderName?.trim() || "",
+          recipientName: values.recipientName?.trim() || "",
+          description: values.description?.trim() || "",
+          uploadMode,
+          groupFolderName: values.groupFolderName?.trim() || "",
+        });
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    const fileNames = files.map((f) => f.name).join(", ");
+    const inpStyle = { fontFamily: FONT };
+    const dateStyle = { width: "100%", fontFamily: FONT };
+
+    return (
+      <Modal
+        open={open}
+        onCancel={submitting ? undefined : onClose}
+        maskClosable={!submitting}
+        destroyOnClose
+        width={640}
+        title={
+          <span style={{ fontFamily: FONT }}>
+            📎 Document information {files.length > 1 ? `(${files.length} file)` : ""}
+          </span>
+        }
+        footer={[
+          <Button key="cancel" onClick={onClose} disabled={submitting} style={{ fontFamily: FONT }}>Cancel</Button>,
+          <Button key="ok" type="primary" loading={submitting} onClick={handleOk} style={{ fontFamily: FONT }}>Upload</Button>,
+        ]}
+      >
+        <Form form={form} layout="vertical" style={{ fontFamily: FONT }}>
+          <div style={{ fontFamily: FONT, marginBottom: 12, fontSize: 12, color: "#6B7280" }}>
+            Selected files: <b>{fileNames || "—"}</b>
+            {files.length > 1 && (
+              <div style={{ marginTop: 4 }}>
+                The information below will apply to all {files.length} files (document name will default to the file name if left blank).
+              </div>
+            )}
+          </div>
+          {files.length > 1 && (
+            <div style={{ marginBottom: 16 }}>
+              <Radio.Group value={uploadMode} onChange={(e) => setUploadMode(e.target.value)} style={{ fontFamily: FONT }}>
+                <Radio value="separate">Upload as separate files</Radio>
+                <Radio value="grouped">Group into a new folder</Radio>
+              </Radio.Group>
+              {uploadMode === "grouped" && (
+                <Form.Item
+                  name="groupFolderName"
+                  label="Folder name"
+                  style={{ marginTop: 8, marginBottom: 0 }}
+                  rules={[{ required: true, message: "Please enter a folder name" }]}
+                >
+                  <Input allowClear placeholder="Enter new folder name..." style={{ fontFamily: FONT }} />
+                </Form.Item>
+              )}
+            </div>
+          )}
+          {uploadMode !== "grouped" && (
+            <React.Fragment>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentType" label="Document type">
+                    <Input allowClear placeholder="e.g. Contract, Meeting minutes..." style={inpStyle} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="title" label="Document name">
+                    <Input allowClear placeholder="Leave blank to use the file name" style={inpStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="documentCode" label="Reference No.">
+                    <Input allowClear placeholder="vd: 123/2024/CT" style={inpStyle} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="openingDate" label="Issue date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="signedAt" label="Signed date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="effectiveAt" label="Effective date">
+                    <Input type="date" style={dateStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="senderName" label="Sender">
+                    <Input allowClear placeholder="Sender's name/organization" style={inpStyle} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="recipientName" label="Recipient">
+                    <Input allowClear placeholder="Recipient's name/organization" style={inpStyle} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="description" label="Description">
+                <Input.TextArea rows={3} allowClear placeholder="Summarize the main content..." />
+              </Form.Item>
+            </React.Fragment>
+          )}
+        </Form>
+      </Modal>
+    );
+  };
+
+  // Formats any stored date value into the "YYYY-MM-DD" shape a native
+  // <input type="date"> needs for its `value` — display formatting still
+  // goes through formatDate().
+  const toDateInputValue = (value) => (value ? String(value).slice(0, 10) : "");
+
+  // Generic click-to-edit cell for the Table view — ported from Library.js.
+  // Used by the Description column and buildDocMetaColumns() so those 8
+  // metadata fields don't each need their own open/save/cancel state
+  // machine. Each instance owns its own edit state via useState (not a
+  // shared editingCell state).
+  const InlineEditCell = ({ value, type = "text", canEdit, onSave, placeholder = "—" }) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    const displayValue = type === "date" ? (value ? formatDate(value) : placeholder) : (value || placeholder);
+
+    if (!canEdit) {
+      return <Text type="secondary">{displayValue}</Text>;
+    }
+
+    if (!editing) {
+      return (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setDraft(type === "date" ? toDateInputValue(value) : value || "");
+            setEditing(true);
+          }}
+          style={{ cursor: "pointer", display: "inline-block", minHeight: 20, borderBottom: "1px dashed transparent" }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderBottomColor = "#D1D5DB"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderBottomColor = "transparent"; }}
+        >
+          <Text type="secondary">{displayValue}</Text>
+        </div>
+      );
+    }
+
+    const commit = async () => {
+      if (saving) return;
+      setSaving(true);
+      try {
+        await onSave(type === "date" ? draft || null : draft);
+        setEditing(false);
+      } catch (e) {
+        // onSave already shows message.error — stay in edit mode so the
+        // user can fix the value and retry instead of losing it.
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const cancel = () => setEditing(false);
+
+    if (type === "textarea") {
+      return (
+        <Input.TextArea
+          size="small"
+          autoFocus
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+
+    return (
+      <Input
+        size="small"
+        type={type === "date" ? "date" : "text"}
+        autoFocus
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onPressEnter={commit}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
+        onClick={(e) => e.stopPropagation()}
+      />
     );
   };
 
@@ -1860,11 +2375,16 @@ const getCustomerDisplayName = (record) => {
 
 
 
-    const [viewMode, setViewMode] = useState("grid");
+    const [viewMode, setViewMode] = useState("table");
     const [sortMode, setSortMode] = useState("manual");
 
     const [isFolderOpen, setIsFolderOpen] = useState(false);
-    const [isUploadOpen, setIsUploadOpen] = useState(false);
+    // Upload flow (ported from Library.js — native multi-file picker +
+    // DocumentUploadFieldsModal, replacing the old single-file
+    // Modal+Form+Dragger). uploadFieldsTarget holds the picked files +
+    // destination folder while the metadata modal is open; the modal's
+    // `open` prop is simply `!!uploadFieldsTarget`.
+    const [uploadFieldsTarget, setUploadFieldsTarget] = useState(null);
     const [moveRecord, setMoveRecord] = useState(null);
     const [moveTargetId, setMoveTargetId] = useState("root");
     const [previewDoc, setPreviewDoc] = useState(null);
@@ -1876,6 +2396,8 @@ const getCustomerDisplayName = (record) => {
     const [bulkUploading, setBulkUploading] = useState(false);
     const [bulkProgress, setBulkProgress] = useState("");
     const [bulkPercent, setBulkPercent] = useState(0);
+    const [externalDropActive, setExternalDropActive] = useState(false);
+    const [externalUploadInProgress, setExternalUploadInProgress] = useState(false);
 
     const [folderLoading, setFolderLoading] = useState(false);
     const [uploadLoading, setUploadLoading] = useState(false);
@@ -1895,9 +2417,8 @@ const getCustomerDisplayName = (record) => {
     const [activityActionFilter, setActivityActionFilter] = useState("all");
 
     const folderInputRef = useRef(null);
+    const fileInputRef = useRef(null);
     const [folderForm] = Form.useForm();
-    const [uploadForm] = Form.useForm();
-    const [uploadFileList, setUploadFileList] = useState([]);
     const [renameRecord, setRenameRecord] = useState(null);
     const [renameForm] = Form.useForm();
 
@@ -1907,11 +2428,9 @@ const getCustomerDisplayName = (record) => {
 
     const [spacesExpanded, setSpacesExpanded] = useState(true);
     const [libraryExpanded, setLibraryExpanded] = useState(true);
-    const [workspaceExpanded, setWorkspaceExpanded] = useState(true);
 
     const [showAllCompanies, setShowAllCompanies] = useState(false);
     const [showAllCustomers, setShowAllCustomers] = useState(false);
-    const [showAllPersonalFolders, setShowAllPersonalFolders] = useState(false);
 
     const activeCompany = useMemo(
       () => companies.find((c) => String(extractId(c)) === String(activeCompanyId)) || null,
@@ -1925,7 +2444,7 @@ const getCustomerDisplayName = (record) => {
         if (ext) exts.add(ext.toUpperCase().replace('.', ''));
       });
       return [
-        { value: "all", label: "Tất cả" },
+        { value: "all", label: "All" },
         ...Array.from(exts).map(ext => ({ value: ext.toLowerCase(), label: ext }))
       ];
     }, [documents]);
@@ -2024,7 +2543,7 @@ const getCustomerDisplayName = (record) => {
         }
       } catch (e) {
         console.error("loadData error", e);
-        message.error("Lỗi tải dữ liệu");
+        message.error("Failed to load data");
       } finally {
         setLoading(false);
       }
@@ -2095,7 +2614,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "uploaded") {
         return {
           key: "uploaded",
-          label: "Tải lên",
+          label: "Uploaded",
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2112,7 +2631,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "previewed") {
         return {
           key: "previewed",
-          label: "Xem trước",
+          label: "Previewed",
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2128,7 +2647,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "downloaded") {
         return {
           key: "downloaded",
-          label: "Tải về",
+          label: "Downloaded",
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2145,7 +2664,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "shared_file") {
         return {
           key: "shared_file",
-          label: "Chia sẻ tài liệu",
+          label: "Shared document",
           color: "#0891B2",
           bg: "#ECFEFF",
           border: "#A5F3FC",
@@ -2164,7 +2683,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "unshared_file") {
         return {
           key: "unshared_file",
-          label: "Hủy chia sẻ",
+          label: "Unshared",
           color: "#9CA3AF",
           bg: "#F9FAFB",
           border: "#E5E7EB",
@@ -2180,7 +2699,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "permission_updated") {
         return {
           key: "permission_updated",
-          label: "Cập nhật phân quyền",
+          label: "Permissions updated",
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -2196,7 +2715,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "created") {
         return {
           key: "created",
-          label: "Tạo mới",
+          label: "Created",
           color: "#0369A1",
           bg: "#F0F9FF",
           border: "#BAE6FD",
@@ -2212,7 +2731,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "moved") {
         return {
           key: "moved",
-          label: "Di chuyển",
+          label: "Moved",
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -2234,7 +2753,7 @@ const getCustomerDisplayName = (record) => {
           if (newV === true || newV === "true" || newV === 1) {
             return {
               key: "trash_deleted",
-              label: "Xóa vào Thùng rác",
+              label: "Moved to Trash",
               color: "#B91C1C",
               bg: "#FEF2F2",
               border: "#FEE2E2",
@@ -2248,7 +2767,7 @@ const getCustomerDisplayName = (record) => {
           } else {
             return {
               key: "restored",
-              label: "Khôi phục",
+              label: "Restored",
               color: "#15803D",
               bg: "#F0FDF4",
               border: "#DCFCE7",
@@ -2264,7 +2783,7 @@ const getCustomerDisplayName = (record) => {
         if (field === "folderId" || field === "parentId") {
           return {
             key: "moved",
-            label: "Di chuyển",
+            label: "Moved",
             color: "#B45309",
             bg: "#FFFBEB",
             border: "#FEF3C7",
@@ -2282,7 +2801,7 @@ const getCustomerDisplayName = (record) => {
         }
         return {
           key: "updated",
-          label: "Cập nhật",
+          label: "Updated",
           color: "#4D7C0F",
           bg: "#F7FEE7",
           border: "#ECFCCB",
@@ -2298,7 +2817,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "deleted") {
         return {
           key: "deleted",
-          label: "Xóa",
+          label: "Deleted",
           color: "#451A03",
           bg: "#FFF7ED",
           border: "#FFEDD5",
@@ -2332,134 +2851,134 @@ const getCustomerDisplayName = (record) => {
     const resolveActivityDesc = useCallback((log, foldersList, docsList) => {
       const { action, fieldName: field, oldValue: oldV, newValue: newV, collectionName } = log;
       const isFolder = collectionName === "Folder";
-      const entityName = isFolder ? "thư mục" : "tài liệu";
+      const entityName = isFolder ? "folder" : "document";
 
       const FIELD_LABELS = {
-        internalTemplateId: "loại tài liệu",
-        internalTemplate: "loại tài liệu",
-        internalTemplates: "loại tài liệu",
-        internalTemplatesId: "loại tài liệu",
-        legalReferenceId: "khách hàng liên kết",
-        legalReference: "khách hàng liên kết",
-        customerId: "khách hàng liên kết",
-        customer: "khách hàng liên kết",
-        customers: "khách hàng liên kết",
-        folderId: "thư mục",
-        folder: "thư mục",
-        parentId: "thư mục cha",
-        internalCompanyId: "công ty nội bộ",
-        internalCompany: "công ty nội bộ",
-        name: "tên gọi",
-        title: "tiêu đề",
-        description: "mô tả",
-        googleDriveUrl: "liên kết Google Drive",
-        fileAttachment: "tập tin thô",
-        fileIndex: "vị trí sắp xếp",
-        documentType: "phân loại tài liệu",
-        storageType: "không gian lưu trữ",
-        status: "trạng thái",
-        isDeleted: "trạng thái xóa",
-        updatedAt: "thời gian cập nhật",
-        createdAt: "thời gian tạo",
-        documentCode: "mã tài liệu",
-        openingDate: "ngày mở",
-        senderName: "người gửi",
-        recipientName: "người nhận",
-        language: "ngôn ngữ",
-        docFormat: "định dạng tài liệu",
-        signedAt: "ngày ký",
-        effectiveAt: "ngày có hiệu lực",
-        note: "ghi chú",
-        deteledAt: "ngày xoá",
+        internalTemplateId: "document type",
+        internalTemplate: "document type",
+        internalTemplates: "document type",
+        internalTemplatesId: "document type",
+        legalReferenceId: "linked customer",
+        legalReference: "linked customer",
+        customerId: "linked customer",
+        customer: "linked customer",
+        customers: "linked customer",
+        folderId: "folder",
+        folder: "folder",
+        parentId: "parent folder",
+        internalCompanyId: "internal company",
+        internalCompany: "internal company",
+        name: "name",
+        title: "title",
+        description: "description",
+        googleDriveUrl: "Google Drive link",
+        fileAttachment: "raw file",
+        fileIndex: "sort position",
+        documentType: "document classification",
+        storageType: "storage space",
+        status: "status",
+        isDeleted: "deletion status",
+        updatedAt: "updated time",
+        createdAt: "created time",
+        documentCode: "document code",
+        openingDate: "opening date",
+        senderName: "sender",
+        recipientName: "recipient",
+        language: "language",
+        docFormat: "document format",
+        signedAt: "signed date",
+        effectiveAt: "effective date",
+        note: "note",
+        deteledAt: "deleted date",
       };
 
       const ACTION_LABELS = {
-        uploaded: "tải lên",
-        created: "tạo mới",
-        updated: "cập nhật",
-        moved: "di chuyển",
-        deleted: "xóa",
-        previewed: "xem trước",
-        downloaded: "tải về",
-        shared_file: "chia sẻ tài liệu",
-        unshared_file: "hủy chia sẻ tài liệu",
-        permission_updated: "cập nhật phân quyền",
+        uploaded: "uploaded",
+        created: "created",
+        updated: "updated",
+        moved: "moved",
+        deleted: "deleted",
+        previewed: "previewed",
+        downloaded: "downloaded",
+        shared_file: "shared document",
+        unshared_file: "unshared document",
+        permission_updated: "permissions updated",
       };
 
       if (action === "previewed") {
-        return `Đã xem trước ${entityName}`;
+        return `Previewed ${entityName}`;
       }
 
       if (action === "downloaded") {
-        return `Đã tải về ${entityName}`;
+        return `Downloaded ${entityName}`;
       }
 
       if (action === "shared_file") {
         const sharedWith = newV || "";
-        return sharedWith ? `Đã chia sẻ ${entityName} với ${sharedWith}` : `Đã chia sẻ ${entityName}`;
+        return sharedWith ? `Shared ${entityName} with ${sharedWith}` : `Shared ${entityName}`;
       }
 
       if (action === "unshared_file") {
-        return `Đã hủy chia sẻ ${entityName}`;
+        return `Unshared ${entityName}`;
       }
 
       if (action === "permission_updated") {
-        return `Đã cập nhật phân quyền ${entityName}`;
+        return `Updated permissions on ${entityName}`;
       }
 
       if (action === "uploaded" || action === "created") {
-        return isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
+        return isFolder ? "Created a new folder" : "Uploaded a new document";
       }
 
       if (action === "deleted") {
-        return `Đã xóa ${entityName}`;
+        return `Deleted ${entityName}`;
       }
 
       if (action === "moved") {
         const getFolderName = (id) => {
-          if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
+          if (!id || id === "root" || id === "0" || id === 0) return "Root folder";
           const f = foldersList.find(item => String(extractId(item.id)) === String(id));
-          return f ? f.name : `Thư mục #${id}`;
+          return f ? f.name : `Folder #${id}`;
         };
         if (oldV || newV) {
           const oldFolder = getFolderName(oldV);
           const newFolder = getFolderName(newV);
-          return `Đã di chuyển ${entityName} từ "${oldFolder}" sang "${newFolder}"`;
+          return `Moved ${entityName} from "${oldFolder}" to "${newFolder}"`;
         }
-        return `Đã di chuyển ${entityName}`;
+        return `Moved ${entityName}`;
       }
 
       if (action === "updated") {
         if (field === "isDeleted") {
           if (newV === true || newV === "true" || newV === 1) {
-            return `Đã di chuyển ${entityName} vào Thùng rác`;
+            return `Moved ${entityName} to Trash`;
           } else {
-            return `Đã khôi phục ${entityName} từ Thùng rác`;
+            return `Restored ${entityName} from Trash`;
           }
         }
         if (field === "name" || field === "title") {
           if (oldV && newV) {
-            return `Đã đổi tên ${entityName}: "${oldV}" → "${newV}"`;
+            return `Renamed ${entityName}: "${oldV}" → "${newV}"`;
           }
-          return `Đã đổi tên ${entityName} thành "${newV}"`;
+          return `Renamed ${entityName} to "${newV}"`;
         }
         if (field === "folderId" || field === "parentId") {
           const getFolderName = (id) => {
-            if (!id || id === "root" || id === "0" || id === 0) return "Thư mục gốc";
+            if (!id || id === "root" || id === "0" || id === 0) return "Root folder";
             const f = foldersList.find(item => String(extractId(item.id)) === String(id));
-            return f ? f.name : `Thư mục #${id}`;
+            return f ? f.name : `Folder #${id}`;
           };
           const oldFolder = getFolderName(oldV);
           const newFolder = getFolderName(newV);
-          return `Đã di chuyển từ "${oldFolder}" sang "${newFolder}"`;
+          return `Moved from "${oldFolder}" to "${newFolder}"`;
         }
 
         const fieldLabel = FIELD_LABELS[field] || field;
-        return `Cập nhật ${fieldLabel} của ${entityName}`;
+        return `Updated ${fieldLabel} of ${entityName}`;
       }
 
       const actionLabel = ACTION_LABELS[action] || action;
-      return `Thao tác [${actionLabel}] trên ${entityName}`;
+      return `Action [${actionLabel}] on ${entityName}`;
     }, []);
 
     const filteredActivityLogs = useMemo(() => {
@@ -2473,7 +2992,7 @@ const getCustomerDisplayName = (record) => {
 
         if (activitySearchQuery.trim()) {
           const q = activitySearchQuery.toLowerCase();
-          const userName = (log.changedByName || "Hệ thống").toLowerCase();
+          const userName = (log.changedByName || "System").toLowerCase();
           const name = (log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "").toLowerCase();
           const desc = resolveActivityDesc(log, folders, documents).toLowerCase();
 
@@ -2566,16 +3085,29 @@ const getCustomerDisplayName = (record) => {
       [isCustomerDetailMode, activeCustomerIdValue, customerScopeDocs, companyDocs],
     );
 
+    // Trash is filtered by "who deleted it" (deletedById if present, else
+    // the updatedById stamped at delete time), NOT by folder permission
+    // like every other view — a Manager doesn't see items a Member of the
+    // same folder deleted. Admin sees everything. Matches Library.js §5.8.
+    const canViewTrashRecord = useCallback((record) => {
+      if (isAdminUser(currentUserState)) return true;
+      const deleterId = extractId(record.deletedById) || extractId(record.updatedById);
+      if (!deleterId) return false;
+      const uid = extractId(currentUserState?.id);
+      const lwId = extractId(currentLawyerId);
+      return (uid && String(deleterId) === String(uid)) || (lwId && String(deleterId) === String(lwId));
+    }, [currentUserState, currentLawyerId]);
+
     const quickTrashCount = useMemo(
       () =>
-        quickScopeFolders.filter((f) => f.isDeleted === true).length +
-        quickScopeDocs.filter((d) => d.isDeleted === true).length,
-      [quickScopeFolders, quickScopeDocs],
+        quickScopeFolders.filter((f) => f.isDeleted === true && canViewTrashRecord(f)).length +
+        quickScopeDocs.filter((d) => d.isDeleted === true && canViewTrashRecord(d)).length,
+      [quickScopeFolders, quickScopeDocs, canViewTrashRecord],
     );
 
     const visibleDocs = useMemo(() => {
       if (activeSpace === "trash") {
-        return quickScopeDocs.filter((doc) => doc.isDeleted === true);
+        return quickScopeDocs.filter((doc) => doc.isDeleted === true && canViewTrashRecord(doc));
       }
       if (activeSpace === "recent") {
         return quickScopeDocs.filter((doc) => !doc.isDeleted);
@@ -2610,11 +3142,11 @@ const getCustomerDisplayName = (record) => {
         });
       }
       return activeDocs;
-    }, [companyDocs, documents, activeSpace, activeCustomerId, currentLawyerId, isCustomerDetailMode, initialCustomerContext.customerId, quickScopeDocs, customerScopeDocs]);
+    }, [companyDocs, documents, activeSpace, activeCustomerId, currentLawyerId, isCustomerDetailMode, initialCustomerContext.customerId, quickScopeDocs, customerScopeDocs, canViewTrashRecord]);
 
     const visibleFolders = useMemo(() => {
       if (activeSpace === "trash") {
-        return quickScopeFolders.filter((f) => f.isDeleted === true);
+        return quickScopeFolders.filter((f) => f.isDeleted === true && canViewTrashRecord(f));
       }
       if (activeSpace === "recent") {
         return [];
@@ -2644,7 +3176,7 @@ const getCustomerDisplayName = (record) => {
         });
       }
       return activeFolders;
-    }, [companyFolders, folders, activeSpace, activeCustomerId, isCustomerDetailMode, initialCustomerContext.customerId, quickScopeFolders, customerScopeFolders]);
+    }, [companyFolders, folders, activeSpace, activeCustomerId, isCustomerDetailMode, initialCustomerContext.customerId, quickScopeFolders, customerScopeFolders, canViewTrashRecord]);
 
 
     // Permission-filtered: hide folders the current user has no access to
@@ -2693,44 +3225,78 @@ const getCustomerDisplayName = (record) => {
       return map;
     }, [permissionFilteredFolders]);
 
+    // Root of the active customer's own folder tree — resolved purely by
+    // structural boundary (customerId field + parentId not found within
+    // this customer's own fetched folder scope), same pattern
+    // ProjectDocument.js's activeCaseRootFolder uses. No name-matching, no
+    // "must already have children" requirement — both of those caused real
+    // bugs (a folder could keep matching by name after being renamed away
+    // from the customer's own name; a freshly-created empty root folder
+    // like "Lead hôn nhân" wouldn't be recognized at all until it had a
+    // child). If a customer somehow has more than one boundary-qualifying
+    // folder, the earliest-created one is treated as THE root for
+    // auto-expand/breadcrumb purposes — the others still show up as normal
+    // rows, nothing is hidden.
     const activeCustomerRootFolder = useMemo(() => {
       if (activeSpace !== "customer" || !activeCustomerIdValue) return null;
-      const customerRecord = activeCustomer || initialCustomerContext.record || {};
-      const customerNames = [
-        customerRecord.customerName,
-        customerRecord.name,
-        customerRecord.legalName,
-        getCustomerDisplayName(customerRecord),
-      ].map(normalizeKey).filter(Boolean);
-      if (customerNames.length === 0) return null;
 
       const customerFolders = permissionFilteredFolders.filter(
         (folder) => String(getRecordCustomerId(folder) || "") === String(activeCustomerIdValue),
       );
-      const customerDocs = permissionFilteredDocs.filter(
-        (doc) => String(getRecordCustomerId(doc) || "") === String(activeCustomerIdValue),
+      const customerFolderIdSet = new Set(
+        customerFolders.map((folder) => String(extractId(folder))),
       );
-
-      return customerFolders.find((folder) => {
-        const folderId = String(extractId(folder));
+      const rootCandidates = customerFolders.filter((folder) => {
+        if (folder.isDeleted) return false;
         const parentId = getFolderParentId(folder);
-        const isTopLevel = !parentId || parentId === "root" || !folderMap.has(String(parentId));
-        if (!isTopLevel || !customerNames.includes(normalizeKey(folder.name))) return false;
-
-        const hasChildFolder = customerFolders.some(
-          (child) => String(getFolderParentId(child) || "") === folderId,
+        return (
+          !parentId ||
+          parentId === "root" ||
+          !customerFolderIdSet.has(String(parentId))
         );
-        const hasChildDoc = customerDocs.some(
-          (doc) => String(extractId(doc.folderId) || "") === folderId,
-        );
-        return hasChildFolder || hasChildDoc;
-      }) || null;
-    }, [activeSpace, activeCustomerIdValue, activeCustomer, initialCustomerContext.record, permissionFilteredFolders, permissionFilteredDocs, folderMap]);
+      });
+      if (!rootCandidates.length) return null;
+      return [...rootCandidates].sort(sortByCreatedAt)[0];
+    }, [activeSpace, activeCustomerIdValue, permissionFilteredFolders]);
 
     const activeCustomerRootFolderId = useMemo(
       () => extractId(activeCustomerRootFolder),
       [activeCustomerRootFolder],
     );
+
+    // Readonly "Manager: ... / Member: ..." summary shown below the
+    // breadcrumb — ported from Library.js, adapted to resolve through
+    // resolvePermissionFolder rather than the pure tree root: a level-2
+    // folder (direct child of the Customer root) can carry its own
+    // manager/member grant (see resolvePermissionFolder above), and the
+    // label should reflect whoever actually controls what's being browsed,
+    // not always the absolute root — which would otherwise show empty (or
+    // a stale/unrelated owner list) for a level-2 folder that was granted
+    // access directly, a real case in this file's existing data.
+    //
+    // In "customer" space, `selectedFolderId` is the literal sentinel
+    // "root" (not the actual root folder's id) whenever the user is AT the
+    // customer's document root — same convention `handleCreateFolder`/
+    // `handleFileInputTrigger`/etc. already resolve via
+    // `activeCustomerRootFolderId`.
+    const currentRootFolderPermissionSummary = useMemo(() => {
+      if (["personal", "trash", "recent"].includes(activeSpace)) return null;
+      const effectiveFolderId =
+        activeSpace === "customer" && selectedFolderId === "root" && activeCustomerRootFolderId
+          ? activeCustomerRootFolderId
+          : selectedFolderId;
+      if (effectiveFolderId === "root") return null;
+      const folder = visibleFolders.find((f) => String(extractId(f)) === String(effectiveFolderId));
+      if (!folder) return null;
+      const grantFolder = resolvePermissionFolder(folder, visibleFolders) || folder;
+      const managerNames = getFolderManagerRows(grantFolder)
+        .map((row) => getLawyerDisplayName(getRelationLawyerRecord(row)))
+        .filter(Boolean);
+      const memberNames = getFolderMemberRows(grantFolder)
+        .map((row) => getLawyerDisplayName(getRelationLawyerRecord(row)))
+        .filter(Boolean);
+      return { managerNames, memberNames };
+    }, [selectedFolderId, activeSpace, visibleFolders, activeCustomerRootFolderId]);
 
     const getDescendantIds = useCallback(
       (folderId) => {
@@ -2767,12 +3333,19 @@ const getCustomerDisplayName = (record) => {
       if (activeSpace === "personal") {
         rootName = "My Workspace";
       } else if (activeSpace === "company_shared") {
-        rootName = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+        rootName = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
       } else if (activeSpace === "customer") {
-        const items = [
-          ...(isCustomerDetailMode ? [] : [{ id: "customer_root", name: "Customer" }]),
-          { id: "root", name: "Customer" },
-        ];
+        // In customer-detail mode the "Documents" tab already establishes
+        // the context, so the leading "Customer" crumb is pure clutter —
+        // start the breadcrumb empty (auto-expand's virtual root keeps it
+        // that way at "root") and let it fill in only once the user is
+        // actually inside a real subfolder.
+        const items = isCustomerDetailMode
+          ? []
+          : [
+              { id: "customer_root", name: "Customer" },
+              { id: "root", name: "Customer" },
+            ];
         const selectedIsCustomerRoot =
           activeCustomerRootFolderId && String(selectedFolderId) === String(activeCustomerRootFolderId);
         if (selectedFolderId === "root" || selectedIsCustomerRoot) return items;
@@ -2787,9 +3360,9 @@ const getCustomerDisplayName = (record) => {
         }
         return items.concat(path);
       } else if (activeSpace === "recent") {
-        rootName = "Lịch sử hoạt động";
+        rootName = "Activity log";
       } else if (activeSpace === "trash") {
-        rootName = "Thùng rác";
+        rootName = "Trash";
       }
 
       const items = [{ id: "root", name: rootName }];
@@ -2953,42 +3526,6 @@ const getCustomerDisplayName = (record) => {
       return { folders: fCount, files: dCount };
     }, [folders, documents, activeCompanyId]);
 
-    const personalCounts = useMemo(() => {
-      const fCount = folders.filter((f) => {
-        if (f.isDeleted) return false;
-        const isPersonal = f.storageType === "personal";
-        if (!isPersonal) return false;
-        const currentUser = currentUserState;
-        if (!currentUser) return true;
-        if (isAdminUser(currentUser)) return true;
-        const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
-        return accessible.has(extractId(f.id));
-      }).length;
-
-      const dCount = documents.filter((doc) => {
-        if (doc.isDeleted) return false;
-        const isPersonal = doc.storageType === "personal";
-        const isCreatedByMe = extractId(doc.createdById) === currentLawyerId || extractId(doc.uploadedById) === currentLawyerId;
-        return isPersonal && isCreatedByMe;
-      }).length;
-
-      return { folders: fCount, files: dCount };
-    }, [folders, documents, currentUserState, currentLawyerId]);
-
-    const personalRootFolders = useMemo(() => {
-      return folders.filter((f) => {
-        if (f.isDeleted) return false;
-        if (f.storageType !== "personal") return false;
-        const pId = getFolderParentId(f);
-        if (pId && pId !== "root") return false;
-        const currentUser = currentUserState;
-        if (!currentUser) return true;
-        if (isAdminUser(currentUser)) return true;
-        const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
-        return accessible.has(extractId(f.id));
-      });
-    }, [folders, currentUserState, currentLawyerId]);
-
     const companyRootFolders = useMemo(() => {
       return folders.filter((f) => {
         if (f.isDeleted) return false;
@@ -3005,17 +3542,26 @@ const getCustomerDisplayName = (record) => {
       });
     }, [folders, activeCompanyId, currentUserState, currentLawyerId]);
 
+    // Sidebar list of the active customer's own top-level folder(s) —
+    // always the literal boundary-of-scope folders (never collapsed into
+    // "children of the root"), so whichever folder activeCustomerRootFolder
+    // picks for auto-expand still shows up here as a clickable entry.
     const customerRootFolders = useMemo(() => {
       const customerId = activeCustomerId || initialCustomerContext.customerId;
-      const logicalRootFolderId = activeCustomerRootFolderId ? String(activeCustomerRootFolderId) : null;
-      return folders.filter((f) => {
-        if (f.isDeleted) return false;
-        if (!customerId) return false;
-        if (String(getRecordCustomerId(f)) !== String(customerId)) return false;
+      if (!customerId) return [];
+      const customerFolders = folders.filter(
+        (f) => !f.isDeleted && String(getRecordCustomerId(f)) === String(customerId),
+      );
+      // A folder whose parentId points outside this customer's own folder
+      // set (e.g. a stale reference left over from before the customerId
+      // filter fix, or a parent that now lives in a different scope — such
+      // as the shared "Customers" category root folder, which carries no
+      // customerId of its own) is treated as root here too — same boundary
+      // check activeCustomerRootFolder/tableData use.
+      const customerFolderIds = new Set(customerFolders.map((f) => String(extractId(f.id))));
+      return customerFolders.filter((f) => {
         const pId = getFolderParentId(f);
-        const isRootChild = logicalRootFolderId
-          ? String(pId || "") === logicalRootFolderId
-          : !pId || pId === "root";
+        const isRootChild = !pId || pId === "root" || !customerFolderIds.has(String(pId));
         if (!isRootChild) return false;
         const currentUser = currentUserState;
         if (!currentUser) return true;
@@ -3023,7 +3569,7 @@ const getCustomerDisplayName = (record) => {
         const { accessible } = getVisibleFolderIds(folders, currentUser, currentLawyerId);
         return accessible.has(extractId(f.id));
       });
-    }, [folders, activeCustomerId, initialCustomerContext.customerId, currentUserState, currentLawyerId, activeCustomerRootFolderId]);
+    }, [folders, activeCustomerId, initialCustomerContext.customerId, currentUserState, currentLawyerId]);
 
     const treeData = useMemo(() => {
       const build = (parentId) =>
@@ -3044,7 +3590,7 @@ const getCustomerDisplayName = (record) => {
       if (activeSpace === "personal") {
         dynamicRootTitle = "My Workspace";
       } else if (activeSpace === "company_shared") {
-        dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+        dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
       } else if (activeSpace === "customer") {
         dynamicRootTitle = "Customer";
       }
@@ -3067,7 +3613,7 @@ const getCustomerDisplayName = (record) => {
 
     const requireCompany = () => {
       if (activeCompanyId) return true;
-      message.warning("Vui lòng chọn công ty nội bộ trước");
+      message.warning("Please select an internal company first");
       return false;
     };
 
@@ -3150,13 +3696,13 @@ const getCustomerDisplayName = (record) => {
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
         await createCustomerRecord(payload);
-        message.success("Tạo khách hàng liên kết thành công!");
+        message.success("Linked customer created successfully!");
         setIsCreateTemplateOpen(false);
         createTemplateForm.resetFields();
         loadData();
       } catch (e) {
         console.error(e);
-        message.error("Tạo khách hàng liên kết thất bại");
+        message.error("Failed to create linked customer");
       } finally {
         setCreateTemplateLoading(false);
       }
@@ -3190,12 +3736,12 @@ const getCustomerDisplayName = (record) => {
         if (!success) {
           throw lastError || new Error("Failed to update customer title");
         }
-        message.success("Cập nhật khách hàng thành công!");
+        message.success("Customer updated successfully!");
         setEditTemplateRecord(null);
         editTemplateForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Cập nhật thất bại");
+        message.error("Update failed");
       } finally {
         setEditTemplateLoading(false);
       }
@@ -3223,7 +3769,7 @@ const getCustomerDisplayName = (record) => {
       try {
         const targetCustomerId = String(extractId(linkCaseRecord) || activeCustomerIdValue || "");
         if (!targetCustomerId) {
-          message.warning("Vui lòng chọn khách hàng cần liên kết");
+          message.warning("Please select a customer to link");
           return;
         }
         const payload = {
@@ -3251,14 +3797,14 @@ const getCustomerDisplayName = (record) => {
         if (!success) {
           throw lastError || new Error("Failed to update case links");
         }
-        message.success("Cập nhật liên kết case thành công");
+        message.success("Case link updated successfully");
         setIsLinkCaseOpen(false);
         setLinkCaseRecord(null);
         linkCaseForm.resetFields();
         loadData();
       } catch (e) {
-        console.error("Lỗi liên kết case:", e);
-        message.error("Lỗi liên kết case");
+        console.error("Case linking error:", e);
+        message.error("Case linking error");
       } finally {
         setLinkCaseLoading(false);
       }
@@ -3275,8 +3821,12 @@ const getCustomerDisplayName = (record) => {
         const parentId = normalizeParentId(targetFolderId);
         const userId = getCurrentUserId();
         const nowIso = new Date().toISOString();
+        const siblingFolderNames = visibleFolders
+          .filter((f) => !f.isDeleted && String(getFolderParentId(f) || "") === String(parentId || ""))
+          .map((f) => f.name)
+          .filter(Boolean);
         const payload = {
-          name: values.name.trim(),
+          name: getUniqueFolderName(values.name.trim(), siblingFolderNames),
           description: values.description?.trim() || "",
           type: "custom",
           createdAt: nowIso,
@@ -3307,91 +3857,193 @@ const getCustomerDisplayName = (record) => {
         }
 
         await createFolderRecord(payload);
-        message.success("Tạo thư mục thành công!");
+        message.success("Folder created successfully!");
         setIsFolderOpen(false);
         folderForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Tạo thư mục thất bại");
+        message.error("Failed to create folder");
       } finally {
         setFolderLoading(false);
       }
     };
 
-    const handleUploadSubmit = async () => {
-      if (activeSpace !== "personal" && !isCustomerDetailMode && !requireCompany()) return;
-      try {
-        await uploadForm.validateFields();
-      } catch {
+    // Upload flow (ported from Library.js §5.2): native multi-file picker
+    // → handleFileInputTrigger checks permission on the target folder and
+    // opens DocumentUploadFieldsModal → handleConfirmUploadFields creates
+    // the "grouped" folder first if chosen, then calls uploadFilesToTarget
+    // — the single function every upload source in this file funnels
+    // through, so file-name dedup only has to live in one place.
+    const handleFileInputTrigger = (event) => {
+      const files = Array.from(event.target.files || []);
+      event.target.value = null;
+      if (!files.length) return;
+      const targetFolderId =
+        activeSpace === "customer" && selectedFolderId === "root" && activeCustomerRootFolderId
+          ? activeCustomerRootFolderId
+          : selectedFolderId;
+      const folderRecord = visibleFolders.find((f) => String(extractId(f.id)) === String(targetFolderId));
+      const perms = getFolderPermissions(folderRecord || null, currentUserState, visibleFolders, currentLawyerId);
+      if (!perms.canCreate) {
+        message.warning("You don't have permission to upload documents to this folder");
         return;
       }
-      const values = uploadForm.getFieldsValue();
-      const hasFile = uploadFileList.length > 0;
-      const hasUrl = !!values.googleDriveUrl?.trim();
-      if (!hasFile && !hasUrl) {
-        message.error("Vui lòng chọn file hoặc nhập Google Drive URL");
-        return;
-      }
+      setUploadFieldsTarget({ files, folderId: targetFolderId });
+    };
 
+    const uploadFilesToTarget = async (selectedFiles, options = {}) => {
+      const filesToUpload = Array.from(selectedFiles || []).filter(Boolean);
+      if (!filesToUpload.length) return true;
+      if (activeSpace !== "personal" && !isCustomerDetailMode && !requireCompany()) return false;
+
+      const targetFolderId = normalizeParentId(options.folderId);
       setUploadLoading(true);
       try {
-        const uploadTargetFolderId =
-          activeSpace === "customer" && selectedFolderId === "root" && activeCustomerRootFolderId
-            ? activeCustomerRootFolderId
-            : selectedFolderId;
-        const folderId = normalizeParentId(uploadTargetFolderId);
-        const attachment = hasFile ? await uploadAttachment(uploadFileList[0].originFileObj) : null;
-        const title = hasFile ? uploadFileList[0].name : "Google Drive Link";
         const userId = getCurrentUserId();
-        const nowIso = new Date().toISOString();
-        const payload = {
-          name: title,
-          title,
-          documentCode: "",
-          description: values.description?.trim() || "",
-          googleDriveUrl: values.googleDriveUrl?.trim() || "",
-          fileIndex: await getNextFileIndex(folderId),
-          createdAt: nowIso,
-          updatedAt: nowIso,
-          uploadedAt: nowIso,
-          uploaded_at: nowIso,
-          storageType: getDbStorageType(activeSpace),
-          ...(folderId ? { folderId } : {}),
-          ...(attachment ? { fileAttachment: [{ id: attachment.id }] } : {}),
-          ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
-        };
+        let nextIndex = await getNextFileIndex(targetFolderId);
 
-        if (activeSpace === "company_shared") {
-          payload.internalCompanyId = extractId(activeCompanyId);
-          payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-        } else if (activeSpace === "personal") {
-          if (activeCompanyId) {
+        const metadata = options.metadata || null;
+        const applyTitleOverride = metadata?.title && filesToUpload.length === 1;
+
+        // Auto-version filenames that collide with a file already sitting
+        // in this same target folder, instead of silently creating a
+        // second document that reads as an indistinguishable duplicate.
+        const targetFolderKey = String(targetFolderId || "");
+        const usedNames = new Set(
+          documents
+            .filter((doc) => !doc.isDeleted && String(extractId(doc.folderId) || "") === targetFolderKey)
+            .map((doc) => doc.name || getAttachment(doc)?.filename || doc.title)
+            .filter(Boolean)
+            .map((n) => String(n).trim().toLowerCase()),
+        );
+
+        for (let index = 0; index < filesToUpload.length; index++) {
+          const file = filesToUpload[index];
+          const uniqueName = getUniqueFileName(file.name, usedNames);
+          usedNames.add(uniqueName.toLowerCase());
+          const attachment = await uploadAttachment(file, uniqueName);
+          const nowIso = new Date().toISOString();
+          const payload = {
+            name: uniqueName,
+            title: applyTitleOverride ? metadata.title : uniqueName,
+            documentCode: metadata?.documentCode || "",
+            fileIndex: nextIndex,
+            fileAttachment: [{ id: attachment.id }],
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            uploadedAt: nowIso,
+            uploaded_at: nowIso,
+            storageType: getDbStorageType(activeSpace),
+            ...(targetFolderId ? { folderId: targetFolderId } : {}),
+            ...(userId ? { uploadedById: userId, createdById: userId, updatedById: userId } : {}),
+            ...(metadata
+              ? {
+                  documentType: metadata.documentType || "",
+                  openingDate: metadata.openingDate || null,
+                  signedAt: metadata.signedAt || null,
+                  effectiveAt: metadata.effectiveAt || null,
+                  senderName: metadata.senderName || "",
+                  recipientName: metadata.recipientName || "",
+                  description: metadata.description || "",
+                }
+              : {}),
+          };
+
+          if (activeSpace === "company_shared") {
             payload.internalCompanyId = extractId(activeCompanyId);
-          }
-          payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
-          if (isCustomerDetailMode) {
+            payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+          } else if (activeSpace === "personal") {
+            if (activeCompanyId) {
+              payload.internalCompanyId = extractId(activeCompanyId);
+            }
+            payload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+            if (isCustomerDetailMode) {
+              payload.customerId = extractId(activeCustomerIdValue);
+              payload.moduleScope = "case_document";
+            }
+          } else if (activeSpace === "customer") {
             payload.customerId = extractId(activeCustomerIdValue);
             payload.moduleScope = "case_document";
+            if (activeCompanyId) {
+              payload.internalCompanyId = extractId(activeCompanyId);
+            }
           }
-        } else if (activeSpace === "customer") {
-          payload.customerId = extractId(activeCustomerIdValue);
-          payload.moduleScope = "case_document";
-          if (activeCompanyId) {
-            payload.internalCompanyId = extractId(activeCompanyId);
-          }
+
+          await createDocumentRecord(payload);
+          nextIndex += 1;
         }
 
-        await createDocumentRecord(payload);
-        message.success("Upload thành công!");
-        setIsUploadOpen(false);
-        setUploadFileList([]);
-        uploadForm.resetFields();
+        message.success(`Uploaded ${filesToUpload.length} file(s) successfully!`);
         loadData();
+        return true;
       } catch (e) {
-        message.error("Upload thất bại");
+        message.error("Upload failed");
+        return false;
       } finally {
         setUploadLoading(false);
       }
+    };
+
+    const handleConfirmUploadFields = async (metadata) => {
+      const target = uploadFieldsTarget;
+      if (!target) return;
+
+      let targetFolderId = target.folderId;
+
+      if (metadata.uploadMode === "grouped") {
+        const parentId = normalizeParentId(targetFolderId);
+        const userId = getCurrentUserId();
+        const nowIso = new Date().toISOString();
+        const groupSiblingFolderNames = visibleFolders
+          .filter((f) => !f.isDeleted && String(getFolderParentId(f) || "") === String(parentId || ""))
+          .map((f) => f.name)
+          .filter(Boolean);
+        const folderPayload = {
+          name: getUniqueFolderName(metadata.groupFolderName.trim(), groupSiblingFolderNames),
+          type: "custom",
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          storageType: getDbStorageType(activeSpace),
+          ...(parentId ? { parentId } : {}),
+          ...(userId ? { createdById: userId, updatedById: userId } : {}),
+        };
+
+        if (activeSpace === "company_shared") {
+          folderPayload.internalCompanyId = extractId(activeCompanyId);
+          folderPayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+        } else if (activeSpace === "personal") {
+          if (activeCompanyId) {
+            folderPayload.internalCompanyId = extractId(activeCompanyId);
+          }
+          folderPayload.moduleScope = INTERNAL_TEMPLATE_MODULE_SCOPE;
+          if (isCustomerDetailMode) {
+            folderPayload.customerId = extractId(activeCustomerIdValue);
+            folderPayload.moduleScope = "case_document";
+          }
+        } else if (activeSpace === "customer") {
+          folderPayload.customerId = extractId(activeCustomerIdValue);
+          folderPayload.moduleScope = "case_document";
+          if (activeCompanyId) {
+            folderPayload.internalCompanyId = extractId(activeCompanyId);
+          }
+        }
+
+        let folderRes;
+        try {
+          folderRes = await createFolderRecord(folderPayload);
+        } catch (e) {
+          message.error("Failed to create folder");
+          return;
+        }
+        targetFolderId = extractId(folderRes?.data?.data);
+        if (!targetFolderId) {
+          message.error("Failed to create folder");
+          return;
+        }
+      }
+
+      const ok = await uploadFilesToTarget(target.files, { folderId: targetFolderId, metadata });
+      if (ok) setUploadFieldsTarget(null);
     };
 
     const handleFolderInputTrigger = (event) => {
@@ -3406,7 +4058,7 @@ const getCustomerDisplayName = (record) => {
     const executeFolderUpload = async () => {
       if (activeSpace !== "personal" && !isCustomerDetailMode && !requireCompany()) return;
       setBulkUploading(true);
-      setBulkProgress("Đang phân tích cấu trúc thư mục...");
+      setBulkProgress("Analyzing folder structure...");
       setBulkPercent(5);
       try {
         const effectiveBulkTargetId =
@@ -3417,7 +4069,7 @@ const getCustomerDisplayName = (record) => {
         const folderIdMap = { "": rootParentId };
         const folderPaths = new Set();
         pendingFolderFiles.forEach((file) => {
-          const relativePath = file.webkitRelativePath || file.name;
+          const relativePath = getUploadRelativePath(file);
           const parts = relativePath.split("/");
           parts.pop();
           let currentPath = "";
@@ -3429,16 +4081,42 @@ const getCustomerDisplayName = (record) => {
 
         const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
         const userId = getCurrentUserId();
-        setBulkProgress(`Đang tạo ${sortedPaths.length} thư mục...`);
+        setBulkProgress(`Creating ${sortedPaths.length} folder(s)...`);
+
+        // Per-parent sibling-name dedup — mirrors the file-loop's usedNames
+        // below. Only the batch's own root parent needs seeding from real
+        // data; freshly-created subfolders within this same batch have no
+        // pre-existing siblings, so their set starts empty and grows only
+        // from within the batch.
+        const usedFolderNamesByParent = {};
+        const getFolderSiblingNameSet = (parentKey) => {
+          if (!usedFolderNamesByParent[parentKey]) {
+            const existingNames =
+              parentKey === String(rootParentId || "")
+                ? visibleFolders
+                    .filter((f) => !f.isDeleted && String(getFolderParentId(f) || "") === parentKey)
+                    .map((f) => f.name)
+                    .filter(Boolean)
+                : [];
+            usedFolderNamesByParent[parentKey] = new Set(
+              existingNames.map((n) => String(n).trim().toLowerCase()),
+            );
+          }
+          return usedFolderNamesByParent[parentKey];
+        };
 
         const nowIso = new Date().toISOString();
         for (let folderIndex = 0; folderIndex < sortedPaths.length; folderIndex++) {
           const path = sortedPaths[folderIndex];
           setBulkPercent(5 + Math.round(((folderIndex + 1) / Math.max(sortedPaths.length, 1)) * 25));
           const parts = path.split("/");
-          const folderName = parts.pop();
+          const rawFolderName = parts.pop();
           const parentPath = parts.join("/");
           const parentId = folderIdMap[parentPath] || null;
+          const folderParentKey = String(parentId || "");
+          const folderSiblingNames = getFolderSiblingNameSet(folderParentKey);
+          const folderName = getUniqueFolderName(rawFolderName, folderSiblingNames);
+          folderSiblingNames.add(folderName.toLowerCase());
 
           const folderPayload = {
             name: folderName,
@@ -3489,15 +4167,36 @@ const getCustomerDisplayName = (record) => {
           return fileIndexCache[key];
         };
 
+        // Same per-parent sibling-name tracking as the folder loop above,
+        // but for file names — mirrors uploadFilesToTarget's dedup so bulk
+        // "Upload Folder" files also get version-suffixed on collision.
+        const usedFileNamesByParent = {};
+        const getFileSiblingNameSet = (parentKey) => {
+          if (!usedFileNamesByParent[parentKey]) {
+            const existingNames = documents
+              .filter((d) => !d.isDeleted && String(extractId(d.folderId) || "") === parentKey)
+              .map((d) => d.name || getAttachment(d)?.filename || d.title)
+              .filter(Boolean);
+            usedFileNamesByParent[parentKey] = new Set(
+              existingNames.map((n) => String(n).trim().toLowerCase()),
+            );
+          }
+          return usedFileNamesByParent[parentKey];
+        };
+
         for (let index = 0; index < pendingFolderFiles.length; index++) {
           const file = pendingFolderFiles[index];
-          setBulkProgress(`Đang tải file ${index + 1}/${pendingFolderFiles.length}...`);
+          setBulkProgress(`Uploading file ${index + 1}/${pendingFolderFiles.length}...`);
           setBulkPercent(30 + Math.round(((index + 1) / Math.max(pendingFolderFiles.length, 1)) * 65));
-          const relativePath = file.webkitRelativePath || file.name;
+          const relativePath = getUploadRelativePath(file);
           const parts = relativePath.split("/");
-          const fileName = parts.pop();
+          const rawFileName = parts.pop();
           const parentPath = parts.join("/");
           const targetFolderId = folderIdMap[parentPath] || rootParentId;
+          const fileParentKey = String(targetFolderId || "");
+          const fileSiblingNames = getFileSiblingNameSet(fileParentKey);
+          const fileName = getUniqueFileName(rawFileName, fileSiblingNames);
+          fileSiblingNames.add(fileName.toLowerCase());
           const attachment = await uploadAttachment(file, fileName);
           const fileNowIso = new Date().toISOString();
 
@@ -3542,13 +4241,13 @@ const getCustomerDisplayName = (record) => {
           await createDocumentRecord(filePayload);
         }
 
-        message.success("Upload thư mục hoàn tất!");
+        message.success("Folder upload complete!");
         setBulkPercent(100);
         setBulkConfirmOpen(false);
         setPendingFolderFiles([]);
         loadData();
       } catch (e) {
-        message.error("Upload thư mục thất bại");
+        message.error("Folder upload failed");
       } finally {
         setBulkUploading(false);
         setBulkProgress("");
@@ -3567,11 +4266,11 @@ const getCustomerDisplayName = (record) => {
         if (record._type === "folder") {
           const folderId = String(extractId(record));
           if (targetId && String(targetId) === folderId) {
-            message.warning("Không thể di chuyển thư mục vào chính nó");
+            message.warning("Cannot move a folder into itself");
             return;
           }
           if (targetId && getDescendantIds(folderId).includes(String(targetId))) {
-            message.warning("Không thể di chuyển thư mục vào thư mục con của nó");
+            message.warning("Cannot move a folder into its own subfolder");
             return;
           }
           await ctx.api.request({
@@ -3579,7 +4278,7 @@ const getCustomerDisplayName = (record) => {
             method: "POST",
             data: { parentId: targetId },
           });
-          message.success("Đã di chuyển thư mục");
+          message.success("Folder moved");
         } else {
           const oldFolderId = normalizeParentId(record.folderId);
           await ctx.api.request({
@@ -3591,25 +4290,59 @@ const getCustomerDisplayName = (record) => {
             },
           });
           await Promise.all([reindexFolderFiles(oldFolderId), reindexFolderFiles(targetId)]);
-          message.success("Đã di chuyển tài liệu");
+          message.success("Document moved");
         }
         setMoveRecord(null);
         loadData();
       } catch (e) {
-        message.error("Di chuyển thất bại");
+        message.error("Move failed");
       }
+    };
+
+    // Defense in depth for bulk actions (Library.js §5.9) — the checkbox
+    // column doesn't re-verify permission per row, so re-check every
+    // selected key right before executing instead of trusting the
+    // selection state wasn't stale or bypassed. requireAdminOutsidePersonal
+    // mirrors the single-item Move-to-Trash guard; requireAbsoluteAdmin
+    // mirrors the single-item hard-delete guard.
+    const getBulkRecordsWithPermission = (keys, { requireAdminOutsidePersonal = false, requireAbsoluteAdmin = false } = {}) => {
+      const resolved = keys
+        .map((key) => {
+          const isFolder = key.startsWith("folder_");
+          const rId = key.replace("folder_", "").replace("file_", "");
+          const record = isFolder
+            ? folders.find((f) => String(extractId(f.id)) === String(rId))
+            : documents.find((d) => String(extractId(d.id)) === String(rId));
+          return record ? { key, isFolder, record } : null;
+        })
+        .filter(Boolean);
+
+      const allowed = resolved.filter(({ isFolder, record }) => {
+        if (requireAbsoluteAdmin) return isAdminUser(currentUserState);
+        if (requireAdminOutsidePersonal && !isAdminUser(currentUserState) && activeSpace !== "personal") {
+          return false;
+        }
+        const perms = getRecordPerms({ ...record, _type: isFolder ? "folder" : "file" });
+        return perms.canWrite || perms.isManager;
+      });
+
+      if (allowed.length < keys.length) {
+        message.warning(`Skipped ${keys.length - allowed.length} item(s) you don't have permission to act on`);
+      }
+      return allowed.map((item) => item.key);
     };
 
     const handleBulkRestore = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Khôi phục ${selectedRowKeys.length} mục đã chọn?`,
-        content: "Các thư mục và tài liệu sẽ được đưa trở lại không gian ban đầu.",
-        okText: "Khôi phục",
-        cancelText: "Hủy",
+        title: `Restore ${selectedRowKeys.length} selected item(s)?`,
+        content: "Folders and documents will be restored to their original space.",
+        okText: "Restore",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
-            await Promise.all(selectedRowKeys.map(async (key) => {
+            const keys = getBulkRecordsWithPermission(selectedRowKeys);
+            await Promise.all(keys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
               const rId = Number(key.replace("folder_", "").replace("file_", ""));
               const url = isFolder ? `folders:update?filterByTk=${rId}` : `documents:update?filterByTk=${rId}`;
@@ -3619,11 +4352,11 @@ const getCustomerDisplayName = (record) => {
                 data: { isDeleted: false, deletedAt: null },
               });
             }));
-            message.success(`Đã khôi phục ${selectedRowKeys.length} mục thành công!`);
+            message.success(`Restored ${keys.length} item(s) successfully!`);
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Khôi phục thất bại");
+            message.error("Restore failed");
           }
         }
       });
@@ -3632,14 +4365,21 @@ const getCustomerDisplayName = (record) => {
     const handleBulkPermanentDelete = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
-        content: "Hành động này không thể hoàn tác. Các tệp và thư mục sẽ bị xóa khỏi hệ thống.",
-        okText: "Xóa",
+        title: `Delete ${selectedRowKeys.length} selected item(s)?`,
+        content: "This action cannot be undone. Files and folders will be permanently deleted from the system.",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
-            await Promise.all(selectedRowKeys.map(async (key) => {
+            // Hard delete is admin-only, absolute — same as the single-item
+            // guard in handlePermanentDelete.
+            if (!isAdminUser(currentUserState)) {
+              message.warning("Only administrators can permanently delete");
+              return;
+            }
+            const keys = getBulkRecordsWithPermission(selectedRowKeys, { requireAbsoluteAdmin: true });
+            await Promise.all(keys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
               const rId = Number(key.replace("folder_", "").replace("file_", ""));
               const url = isFolder ? `folders:destroy?filterByTk=${rId}` : `documents:destroy?filterByTk=${rId}`;
@@ -3648,11 +4388,11 @@ const getCustomerDisplayName = (record) => {
                 method: "POST",
               });
             }));
-            message.success(`Đã xóa ${selectedRowKeys.length} mục thành công!`);
+            message.success(`Deleted ${keys.length} item(s) successfully!`);
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         }
       });
@@ -3661,29 +4401,37 @@ const getCustomerDisplayName = (record) => {
     const handleBulkDelete = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Xóa ${selectedRowKeys.length} mục đã chọn?`,
-        content: "Các mục bị xóa sẽ được chuyển vào Thùng rác.",
-        okText: "Xóa",
+        title: `Delete ${selectedRowKeys.length} selected item(s)?`,
+        content: "Deleted items will be moved to Trash.",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
+            // Moving to Trash is admin-only outside the Personal space —
+            // same as the single-item guard in showDeleteConfirm/handleDeleteFile.
+            if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
+              message.warning("Only administrators can delete in this space");
+              return;
+            }
+            const keys = getBulkRecordsWithPermission(selectedRowKeys, { requireAdminOutsidePersonal: true });
             const nowIso = new Date().toISOString();
-            await Promise.all(selectedRowKeys.map(async (key) => {
+            const deleterId = getCurrentUserId();
+            await Promise.all(keys.map(async (key) => {
               const isFolder = key.startsWith("folder_");
               const rId = Number(key.replace("folder_", "").replace("file_", ""));
               const url = isFolder ? `folders:update?filterByTk=${rId}` : `documents:update?filterByTk=${rId}`;
               await ctx.api.request({
                 url,
                 method: "POST",
-                data: { isDeleted: true, deletedAt: nowIso },
+                data: { isDeleted: true, deletedAt: nowIso, ...(deleterId ? { updatedById: deleterId } : {}) },
               });
             }));
-            message.success(`Đã di chuyển ${selectedRowKeys.length} mục vào Thùng rác!`);
+            message.success(`Moved ${keys.length} item(s) to Trash!`);
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         }
       });
@@ -3702,7 +4450,8 @@ const getCustomerDisplayName = (record) => {
             ? activeCustomerRootFolderId
             : bulkMoveTargetId;
         const targetId = normalizeParentId(effectiveBulkMoveTargetId);
-        await Promise.all(selectedRowKeys.map(async (key) => {
+        const keys = getBulkRecordsWithPermission(selectedRowKeys);
+        await Promise.all(keys.map(async (key) => {
           const isFolder = key.startsWith("folder_");
           const rId = Number(key.replace("folder_", "").replace("file_", ""));
           if (isFolder) {
@@ -3736,12 +4485,12 @@ const getCustomerDisplayName = (record) => {
         if (targetId) {
           await reindexFolderFiles(targetId);
         }
-        message.success(`Đã di chuyển ${selectedRowKeys.length} mục thành công!`);
+        message.success(`Moved ${keys.length} item(s) successfully!`);
         setIsBulkMoveOpen(false);
         setSelectedRowKeys([]);
         loadData();
       } catch (e) {
-        message.error("Di chuyển thất bại");
+        message.error("Move failed");
       }
     };
 
@@ -3805,14 +4554,94 @@ const getCustomerDisplayName = (record) => {
           ),
         );
       }
-      message.success("Đã sắp xếp tài liệu");
+      message.success("Document reordered");
       loadData();
       return true;
+    };
+
+    // External OS file/folder drag-drop (ported from Library.js §5.4) —
+    // dropping real files/folders from Explorer/Finder, distinct from the
+    // internal record-to-record drag already handled below.
+    const canUploadDroppedItems = (targetFolderId) => {
+      if (activeSpace === "trash" || activeSpace === "recent") return false;
+      const folderRecord = visibleFolders.find((f) => String(extractId(f.id)) === String(targetFolderId));
+      const perms = getFolderPermissions(folderRecord || null, currentUserState, visibleFolders, currentLawyerId);
+      return perms.canCreate;
+    };
+
+    const uploadDroppedItems = async (dataTransfer, targetFolderId) => {
+      setExternalDropActive(false);
+      if (!canUploadDroppedItems(targetFolderId)) {
+        message.warning("You don't have permission to upload documents to this folder");
+        return false;
+      }
+
+      let droppedItems;
+      try {
+        droppedItems = await readDroppedFiles(dataTransfer);
+      } catch (error) {
+        message.error("Unable to read the dropped file(s) or folder(s)");
+        return false;
+      }
+
+      const { files, folderPaths, hasDirectories } = droppedItems;
+      if (!files.length && !folderPaths.length) {
+        message.warning("No valid files or folders found");
+        return false;
+      }
+
+      setExternalUploadInProgress(true);
+      try {
+        if (hasDirectories) {
+          // No standalone "upload this file[] as a folder tree" function
+          // exists in this file (unlike Library.js's
+          // uploadFolderFilesToTarget) — route through the existing
+          // confirm-then-upload bulk flow instead (executeFolderUpload),
+          // which already has folder/file dedup and a progress bar.
+          setPendingFolderFiles(files);
+          setBulkTargetId(targetFolderId);
+          setBulkConfirmOpen(true);
+          return true;
+        }
+        return await uploadFilesToTarget(files, { folderId: targetFolderId });
+      } finally {
+        setExternalUploadInProgress(false);
+      }
+    };
+
+    const handleContentDragEnter = (event) => {
+      if (!hasExternalFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      const canUpload = canUploadDroppedItems(selectedFolderId);
+      event.dataTransfer.dropEffect = canUpload ? "copy" : "none";
+      setExternalDropActive(canUpload);
+    };
+
+    const handleContentDragOver = (event) => {
+      event.preventDefault();
+      if (!hasExternalFiles(event.dataTransfer)) return;
+      const canUpload = canUploadDroppedItems(selectedFolderId);
+      event.dataTransfer.dropEffect = canUpload ? "copy" : "none";
+      setExternalDropActive(canUpload);
+    };
+
+    const handleContentDragLeave = (event) => {
+      if (!externalDropActive && !hasExternalFiles(event.dataTransfer)) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.clientX > rect.left && event.clientX < rect.right && event.clientY > rect.top && event.clientY < rect.bottom) {
+        return;
+      }
+      setExternalDropActive(false);
     };
 
     const handleDropOnRecord = async (event, targetRecord) => {
       event.preventDefault();
       event.stopPropagation();
+      if (hasExternalFiles(event.dataTransfer)) {
+        const targetFolderId = targetRecord._type === "folder" ? extractId(targetRecord) : selectedFolderId;
+        await uploadDroppedItems(event.dataTransfer, targetFolderId);
+        return;
+      }
       const raw = event.dataTransfer.getData("application/json");
       if (!raw) return;
       let payload = null;
@@ -3842,6 +4671,11 @@ const getCustomerDisplayName = (record) => {
 
     const handleDropToCurrentFolder = async (event) => {
       event.preventDefault();
+      if (hasExternalFiles(event.dataTransfer)) {
+        await uploadDroppedItems(event.dataTransfer, selectedFolderId);
+        return;
+      }
+      setExternalDropActive(false);
       if (activeSpace === "trash") return;
       const raw = event.dataTransfer.getData("application/json");
       if (!raw) return;
@@ -3919,7 +4753,7 @@ const getCustomerDisplayName = (record) => {
               ...(userId ? { updatedById: userId } : {}),
             },
           });
-          message.success("Đã cập nhật tên thư mục");
+          message.success("Folder name updated");
         } else {
           await ctx.api.request({
             url: `documents:update?filterByTk=${extractId(record)}`,
@@ -3940,16 +4774,54 @@ const getCustomerDisplayName = (record) => {
               })
               .catch(() => { });
           }
-          message.success("Đã cập nhật tên tài liệu và file");
+          message.success("Document and file name updated");
         }
         cancelEditTitle();
         loadData();
       } catch (e) {
-        message.error(record._type === "folder" ? "Cập nhật tên thư mục thất bại" : "Cập nhật tên tài liệu thất bại");
+        message.error(record._type === "folder" ? "Failed to update folder name" : "Failed to update document name");
+      }
+    };
+
+    // Saves a single metadata field via inline edit (InlineEditCell /
+    // buildDocMetaColumns below) — ported from Library.js. Must throw on
+    // failure so InlineEditCell knows to stay in edit mode.
+    const saveRecordField = async (record, field, value) => {
+      try {
+        const isFolder = record._type === "folder";
+        const userId = getCurrentUserId();
+        await ctx.api.request({
+          url: isFolder
+            ? `folders:update?filterByTk=${extractId(record)}`
+            : `documents:update?filterByTk=${extractId(record)}`,
+          method: "POST",
+          data: {
+            [field]: value,
+            updatedAt: new Date().toISOString(),
+            ...(userId ? { updatedById: userId } : {}),
+          },
+        });
+        loadData();
+      } catch (e) {
+        message.error("Update failed");
+        throw e;
       }
     };
 
     const showDeleteConfirm = (folder) => {
+      // Root folder can never be moved to Trash (Library.js §7 rule #2) —
+      // applies to every kind of root (Customer, Personal, Company Shared).
+      if (isFolderTreeRoot(folder)) {
+        message.warning("Cannot delete the root folder");
+        return;
+      }
+      // Defense in depth — the Move-to-Trash trigger is already hidden for
+      // non-admins outside the Personal space (see canDelete/showFolderDelete
+      // above), matching Library.js's admin-outside-Personal rule (§6).
+      if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
+        message.warning("Only administrators can delete folders in this space");
+        return;
+      }
       const fId = extractId(folder);
       const folderIdsToDelete = getDescendantIds(fId);
       // Include the folder itself
@@ -3958,15 +4830,15 @@ const getCustomerDisplayName = (record) => {
       const subFoldersCount = folderIdsToDelete.length - 1;
 
       let contentElements = [];
-      if (subFoldersCount > 0) contentElements.push(`- ${subFoldersCount} thư mục con`);
-      if (filesCount > 0) contentElements.push(`- ${filesCount} tệp tin`);
+      if (subFoldersCount > 0) contentElements.push(`- ${subFoldersCount} subfolder`);
+      if (filesCount > 0) contentElements.push(`- ${filesCount} file`);
 
       Modal.confirm({
-        title: `Xác nhận xóa thư mục "${folder.name}"?`,
+        title: `Confirm delete folder "${folder.name}"?`,
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
         content: (
           <div style={{ fontFamily: FONT, marginTop: 8 }}>
-            <p>Bạn sắp xóa thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:</p>
+            <p>You are about to delete this folder. The following data will also be deleted:</p>
             {contentElements.length > 0 ? (
               <div
                 style={{
@@ -3985,61 +4857,86 @@ const getCustomerDisplayName = (record) => {
                 ))}
               </div>
             ) : (
-              <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>(Thư mục đang trống)</p>
+              <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>(Folder is empty)</p>
             )}
-            <p>Bạn có chắc chắn muốn xóa?</p>
+            <p>Are you sure you want to delete?</p>
           </div>
         ),
-        okText: "Xóa",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
+            // Stamp updatedById with the deleter — canViewTrashRecord below
+            // filters Trash by "who deleted it", not by folder permission,
+            // so this needs to reflect the actual deleter, not whoever last
+            // edited the record before deletion.
+            const deleterId = getCurrentUserId();
+            const deletePayload = {
+              isDeleted: true,
+              deletedAt: new Date().toISOString(),
+              ...(deleterId ? { updatedById: deleterId } : {}),
+            };
             if (folderIdsToDelete.length > 0) {
               await ctx.api.request({
                 url: "documents:update",
                 method: "POST",
                 params: { filter: JSON.stringify({ folderId: { $in: folderIdsToDelete.map(id => Number(id)) } }) },
-                data: { isDeleted: true, deletedAt: new Date().toISOString() }
+                data: deletePayload
               }).catch(() => { });
               await ctx.api.request({
                 url: "folders:update",
                 method: "POST",
                 params: { filter: JSON.stringify({ id: { $in: folderIdsToDelete.map(id => Number(id)) } }) },
-                data: { isDeleted: true, deletedAt: new Date().toISOString() }
+                data: deletePayload
               }).catch(() => { });
             }
-            message.success("Đã xóa thư mục và dữ liệu bên trong");
+            message.success("Folder and its contents deleted");
             if (selectedFolderId !== "root" && folderIdsToDelete.includes(String(selectedFolderId))) {
               setSelectedFolderId("root");
             }
+            // Deleting a folder from the middle of a manually-sorted parent
+            // leaves a gap in fileIndex — reindex so sort order stays dense.
+            await reindexFolderFiles(getFolderParentId(folder));
             loadData();
           } catch (e) {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         },
       });
     };
 
     const handleDeleteFile = (record) => {
+      // Defense in depth — the Move-to-Trash trigger is already hidden for
+      // non-admins outside the Personal space.
+      if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
+        message.warning("Only administrators can delete documents in this space");
+        return;
+      }
       Modal.confirm({
-        title: "Xóa file này?",
+        title: "Delete this file?",
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
-        content: "Hành động này sẽ xóa file khỏi hệ thống.",
-        okText: "Xóa",
+        content: "This action will delete the file from the system.",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
+            const deleterId = getCurrentUserId();
             await ctx.api.request({
               url: `documents:update?filterByTk=${extractId(record)}`,
               method: "POST",
-              data: { isDeleted: true, deletedAt: new Date().toISOString() }
+              data: {
+                isDeleted: true,
+                deletedAt: new Date().toISOString(),
+                ...(deleterId ? { updatedById: deleterId } : {}),
+              }
             });
-            message.success("Đã xóa file");
+            message.success("File deleted");
+            await reindexFolderFiles(normalizeParentId(record.folderId));
             loadData();
           } catch {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         },
       });
@@ -4060,21 +4957,28 @@ const getCustomerDisplayName = (record) => {
             data: { isDeleted: false, deletedAt: null }
           });
         }
-        message.success("Đã khôi phục thành công");
+        message.success("Restored successfully");
         loadData();
       } catch (e) {
-        message.error("Khôi phục thất bại");
+        message.error("Restore failed");
       }
     };
 
     const handlePermanentDelete = (record) => {
+      // Hard delete is admin-only, absolute — no exception, matching
+      // Library.js §7 rule #4. Defense in depth: the trigger is already
+      // hidden for non-admins (context menu + row action buttons above).
+      if (!isAdminUser(currentUserState)) {
+        message.warning("Only administrators can permanently delete");
+        return;
+      }
       Modal.confirm({
-        title: record._type === "folder" ? "Xóa thư mục này?" : "Xóa file này?",
+        title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
         icon: React.createElement("span", { style: { color: "#ff4d4f", marginRight: 16 } }, WarningIcon),
-        content: "Cảnh báo: Hành động này không thể hoàn tác, dữ liệu sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu.",
-        okText: "Xóa",
+        content: "Warning: This action cannot be undone — the data will be permanently deleted from the database.",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
             if (record._type === "folder") {
@@ -4088,10 +4992,10 @@ const getCustomerDisplayName = (record) => {
                 method: "POST"
               });
             }
-            message.success("Đã xóa");
+            message.success("Deleted");
             loadData();
           } catch {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         },
       });
@@ -4101,7 +5005,7 @@ const getCustomerDisplayName = (record) => {
       if (spaceType === "company_shared") {
         const targetCompanyId = companyId || activeCompanyId;
         if (!targetCompanyId) {
-          message.warning("Vui lòng chọn công ty nội bộ trước");
+          message.warning("Please select an internal company first");
           return;
         }
         setActiveCompanyId(String(targetCompanyId));
@@ -4115,12 +5019,12 @@ const getCustomerDisplayName = (record) => {
     const handleDeleteTemplate = async (templateRecord) => {
       const isCustomerRecord = !!(templateRecord.customerCode || templateRecord._type === "customer_record" || activeSpace === "customer");
       Modal.confirm({
-        title: isCustomerRecord ? `Xác nhận xóa Khách hàng "${templateRecord.customerName || templateRecord.name || getCustomerDisplayName(templateRecord)}"?` : `Xác nhận xóa loại tài liệu "${templateRecord.title || templateRecord.name}"?`,
+        title: isCustomerRecord ? `Confirm delete Customer "${templateRecord.customerName || templateRecord.name || getCustomerDisplayName(templateRecord)}"?` : `Confirm delete document type "${templateRecord.title || templateRecord.name}"?`,
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
-        content: isCustomerRecord ? "Bạn có chắc chắn muốn xóa khách hàng này? Các tài liệu và thư mục thuộc khách hàng này vẫn sẽ được lưu trữ trong Thùng rác hoặc không còn liên kết." : "Bạn có chắc chắn muốn xóa mục phân loại tài liệu này? Các tài liệu thuộc phân loại này vẫn được lưu trữ nhưng sẽ không còn liên kết.",
-        okText: "Xóa",
+        content: isCustomerRecord ? "Are you sure you want to delete this customer? Documents and folders belonging to this customer will remain in Trash or become unlinked." : "Are you sure you want to delete this document type? Documents in this category will remain but become unlinked.",
+        okText: "Delete",
         okType: "danger",
-        cancelText: "Hủy",
+        cancelText: "Cancel",
         onOk: async () => {
           try {
             if (isCustomerRecord) {
@@ -4144,13 +5048,13 @@ const getCustomerDisplayName = (record) => {
                 method: "POST",
               });
             }
-            message.success(isCustomerRecord ? "Đã xóa khách hàng" : "Đã xóa loại tài liệu");
+            message.success(isCustomerRecord ? "Customer deleted" : "Document type deleted");
             if (isCustomerRecord && activeCustomerId === String(extractId(templateRecord))) {
               setActiveCustomerId(null);
             }
             loadData();
           } catch (e) {
-            message.error("Xóa thất bại");
+            message.error("Delete failed");
           }
         },
       });
@@ -4188,14 +5092,14 @@ const getCustomerDisplayName = (record) => {
           if (!success) {
             throw lastError || new Error("Failed to rename");
           }
-          message.success("Đã đổi tên khách hàng");
+          message.success("Customer renamed");
         } else if (rType === "template" || rType === "document_type") {
           await ctx.api.request({
             url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
             method: "POST",
             data: { title: newName },
           });
-          message.success("Đã đổi tên loại tài liệu");
+          message.success("Document type renamed");
         } else {
           if (rType === "folder") {
             await ctx.api.request({
@@ -4203,7 +5107,7 @@ const getCustomerDisplayName = (record) => {
               method: "POST",
               data: { name: newName },
             });
-            message.success("Đã đổi tên thư mục");
+            message.success("Folder renamed");
           } else {
             await ctx.api.request({
               url: `documents:update?filterByTk=${rId}`,
@@ -4218,21 +5122,21 @@ const getCustomerDisplayName = (record) => {
                 data: { title: newName },
               }).catch(() => { });
             }
-            message.success("Đã đổi tên tài liệu");
+            message.success("Document renamed");
           }
         }
         setRenameRecord(null);
         renameForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Đổi tên thất bại");
+        message.error("Rename failed");
       }
     };
 
     const openRecordFile = (record) => {
       const fileUrl = getRecordFileUrl(record);
       if (!fileUrl) {
-        message.warning("Tài liệu chưa có file hoặc URL");
+        message.warning("This document has no file or URL");
         return;
       }
       window.open(fileUrl, "_blank");
@@ -4240,7 +5144,7 @@ const getCustomerDisplayName = (record) => {
 
     const previewRecordFile = (record) => {
       if (!getRecordFileUrl(record)) {
-        message.warning("Tài liệu chưa có file hoặc URL để xem trước");
+        message.warning("This document has no file or URL to preview");
         return;
       }
       setPreviewDoc(record);
@@ -4306,7 +5210,7 @@ const getCustomerDisplayName = (record) => {
               {record.name || "Folder"}
             </button>
             <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginLeft: 8 }}>
-              ({folderSubFolderCount} Thư mục - {folderFileCount} file)
+              ({folderSubFolderCount} Folder - {folderFileCount} file)
             </span>
           </div>
         );
@@ -4315,7 +5219,7 @@ const getCustomerDisplayName = (record) => {
       // File
       const attachment = getAttachment(record);
       const hasPrefix = !!(isAllFiles && record._displayFileIndex);
-      const displayName = attachment?.title || attachment?.filename || record.googleDriveUrl || record.description || "Chưa có file đính kèm";
+      const displayName = attachment?.title || attachment?.filename || record.googleDriveUrl || record.description || "No attached file";
       const hasFile = !!getRecordFileUrl(record);
 
       if (isEditing) {
@@ -4341,7 +5245,7 @@ const getCustomerDisplayName = (record) => {
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
           {hasFile ? (
-            <Tooltip title="Nhấn để xem trước" placement="topLeft">
+            <Tooltip title="Click to preview" placement="topLeft">
               <span
                 onClick={(e) => { e.stopPropagation(); previewRecordFile(record); }}
                 style={{
@@ -4411,19 +5315,33 @@ const getCustomerDisplayName = (record) => {
       </span>
     );
 
-    // Helper: compute per-row write/manage permissions
+    // Helper: compute per-row permissions. Returns the FULL roleToPerms
+    // shape (canRename/canMove/canDelete/canManagePermissions/canShare/...)
+    // plus a back-compat `canWrite` field, so existing call sites that only
+    // ever destructured {canWrite, isManager} keep working unchanged while
+    // newer call sites (buildDocMetaColumns' inline-edit gating, the
+    // "Permissions" action gating) can read the finer-grained fields — those
+    // were silently always-false before this widened, since the old narrow
+    // shape never carried them.
     const getRecordPerms = useCallback((record) => {
       const currentUser = currentUserState;
-      if (!currentUser) return { canWrite: true, isManager: true };
-      if (isAdminUser(currentUser)) return { canWrite: true, isManager: true };
+      if (!currentUser) return { ...roleToPerms("admin"), canWrite: true };
+      if (isAdminUser(currentUser)) return { ...roleToPerms("admin"), canWrite: true };
       if (record._type === "folder") {
         const perms = getFolderPermissions(record, currentUser, visibleFolders, currentLawyerId);
-        return { canWrite: perms.canEdit || perms.isManager, isManager: perms.isManager };
+        return { ...perms, canWrite: perms.canEdit || perms.isManager };
       }
-      // For files: check parent folder permissions
+      // For files: check parent folder permissions, preserving the
+      // "uploader can manage their own file" bypass canManageFile applies.
       const parentFolder = visibleFolders.find((f) => String(extractId(f.id)) === String(extractId(record.folderId) || ""));
-      const canWrite = canManageFile(record, parentFolder || null, currentUser, visibleFolders, currentLawyerId);
-      return { canWrite, isManager: false };
+      const perms = getFilePermissions(record, parentFolder || null, currentUser, visibleFolders, currentLawyerId);
+      const isOwnUpload = extractId(record.createdById) === extractId(currentUser.id);
+      return {
+        ...perms,
+        canWrite: perms.canEdit || perms.isManager || isOwnUpload,
+        canRename: perms.canRename || isOwnUpload,
+        canMove: perms.canMove || isOwnUpload,
+      };
     }, [currentUserState, currentLawyerId, visibleFolders]);
 
     const renderContextMenuItems = useCallback((record) => {
@@ -4436,7 +5354,7 @@ const getCustomerDisplayName = (record) => {
       if (isCustomerRecord) {
         items.push({
           key: "open_detail",
-          label: renderContextMenuItemLabel(EYE_ICON, "Mở chi tiết"),
+          label: renderContextMenuItemLabel(EYE_ICON, "Open detail"),
           onClick: () => {
             closeContextMenu();
             openCustomerDetail(record);
@@ -4444,7 +5362,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "link_case",
-          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Liên kết Case"),
+          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Link Case"),
           onClick: () => {
             closeContextMenu();
             openLinkCaseModal(record);
@@ -4452,7 +5370,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -4461,7 +5379,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -4473,7 +5391,7 @@ const getCustomerDisplayName = (record) => {
       if (isTemplate) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -4482,7 +5400,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -4494,28 +5412,32 @@ const getCustomerDisplayName = (record) => {
       if (activeSpace === "trash") {
         items.push({
           key: "restore",
-          label: renderContextMenuItemLabel(RESTORE_ICON, "Khôi phục"),
+          label: renderContextMenuItemLabel(RESTORE_ICON, "Restore"),
           onClick: () => { closeContextMenu(); handleRestoreRecord(record); },
         });
-        items.push({
-          key: "permanent_delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
-          onClick: () => { closeContextMenu(); handlePermanentDelete(record); },
-        });
+        // Hard delete (permanently destroying the record) is admin-only —
+        // absolute, no exception for Personal space or folder owner/manager.
+        if (isAdminUser(currentUserState)) {
+          items.push({
+            key: "permanent_delete",
+            label: renderContextMenuItemLabel(DELETE_ICON, "Permanently delete", "#cf1322"),
+            onClick: () => { closeContextMenu(); handlePermanentDelete(record); },
+          });
+        }
         return items;
       }
 
-      const { canWrite, isManager } = getRecordPerms(record);
+      const { canWrite, isManager, canManagePermissions } = getRecordPerms(record);
 
       if (!isFolder) {
         items.push({
           key: "preview",
-          label: renderContextMenuItemLabel(EYE_ICON, "Xem trước"),
+          label: renderContextMenuItemLabel(EYE_ICON, "Preview"),
           onClick: () => { closeContextMenu(); previewRecordFile(record); },
         });
         items.push({
           key: "download",
-          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Tải về"),
+          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Download"),
           onClick: () => { closeContextMenu(); openRecordFile(record); },
         });
       }
@@ -4523,7 +5445,7 @@ const getCustomerDisplayName = (record) => {
       if (canWrite) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Đổi tên"),
+          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -4532,24 +5454,35 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "move",
-          label: renderContextMenuItemLabel(MOVE_ICON, "Di chuyển"),
+          label: renderContextMenuItemLabel(MOVE_ICON, "Move"),
           onClick: () => { closeContextMenu(); setMoveRecord(record); setMoveTargetId("root"); },
         });
       }
 
-      if (isFolder && (isManager || isAdminUser(currentUserState))) {
+      if (
+        isFolder &&
+        (isManager || canManagePermissions || isAdminUser(currentUserState)) &&
+        isPermissionBearingFolder(record, visibleFolders)
+      ) {
         items.push({
           key: "permission",
-          label: renderContextMenuItemLabel(LOCK_ICON, "Phân quyền"),
+          label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
           onClick: () => { closeContextMenu(); setPermissionFolder(record); },
         });
       }
 
-      const canDelete = isFolder ? (isManager || isAdminUser(currentUserState)) : canWrite;
+      // Moving to Trash is admin-only outside the Personal space — a
+      // folder Manager can still rename/move/manage content, but only an
+      // admin (or the owner, within their own Personal space) can move
+      // things to Trash. Matches Library.js's showDeleteConfirm/
+      // handleDeleteFile guard exactly (see §6 of the reference doc).
+      const canDelete =
+        (isFolder ? (isManager || isAdminUser(currentUserState)) : canWrite) &&
+        (isAdminUser(currentUserState) || activeSpace === "personal");
       if (canDelete) {
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Xóa", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
           onClick: () => {
             closeContextMenu();
             if (isFolder) showDeleteConfirm(record);
@@ -4559,7 +5492,7 @@ const getCustomerDisplayName = (record) => {
       }
 
       return items;
-    }, [getRecordPerms, currentUserState, activeSpace, openCustomerDetail, openLinkCaseModal]);
+    }, [getRecordPerms, currentUserState, activeSpace, visibleFolders, openCustomerDetail, openLinkCaseModal]);
 
     const getRecordPathString = useCallback((record) => {
       if (!record) return "—";
@@ -4583,18 +5516,18 @@ const getCustomerDisplayName = (record) => {
       const storage = record.storageType || (parentFolderId && folderMap.get(String(parentFolderId))?.storageType);
 
       if (storage === "personal") {
-        rootName = "Workspace cá nhân";
+        rootName = "Personal workspace";
       } else if (storage === "company_shared") {
-        rootName = activeCompany ? getCompanyName(activeCompany) : "Thư mục chung";
+        rootName = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
       } else if (getRecordCustomerId(record)) {
         rootName = "Customer";
       } else {
         const typeId = getRecordDocumentType(record) || (parentFolderId && getRecordDocumentType(folderMap.get(String(parentFolderId))));
         if (typeId) {
           const type = documentTypes.find(t => t.id === String(typeId));
-          rootName = type ? `Thư viện / ${type.label}` : "Thư viện";
+          rootName = type ? `Library / ${type.label}` : "Library";
         } else {
-          rootName = "Thư mục chung";
+          rootName = "Shared folder";
         }
       }
 
@@ -4610,12 +5543,100 @@ const getCustomerDisplayName = (record) => {
         const isAllFiles = tableData.length > 0 && hasFiles && !hasFolders;
         const currentUser = currentUserState;
 
+        // 7 of the 8 inline-editable metadata columns (Description is wired
+        // separately below since every branch already has its own column
+        // for it) — ported from Library.js's buildDocMetaColumns(). Only
+        // meaningful on files; folders render "—". Spread into the
+        // non-trash branches only, right after Description and before Size.
+        const buildDocMetaColumns = () => [
+          {
+            title: "Document type",
+            key: "documentType",
+            width: 140,
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell value={record.documentType} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "documentType", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Reference No.",
+            key: "documentCode",
+            width: 140,
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell value={record.documentCode} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "documentCode", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Issue date",
+            key: "openingDate",
+            width: 120,
+            sorter: (a, b) => new Date(a.openingDate || 0) - new Date(b.openingDate || 0),
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell type="date" value={record.openingDate} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "openingDate", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Signed date",
+            key: "signedAt",
+            width: 120,
+            sorter: (a, b) => new Date(a.signedAt || 0) - new Date(b.signedAt || 0),
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell type="date" value={record.signedAt} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "signedAt", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Effective date",
+            key: "effectiveAt",
+            width: 130,
+            sorter: (a, b) => new Date(a.effectiveAt || 0) - new Date(b.effectiveAt || 0),
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell type="date" value={record.effectiveAt} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "effectiveAt", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Sender",
+            key: "senderName",
+            width: 150,
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell value={record.senderName} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "senderName", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+          {
+            title: "Recipient",
+            key: "recipientName",
+            width: 150,
+            render: (_, record) =>
+              record._type === "file" ? (
+                <InlineEditCell value={record.recipientName} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "recipientName", v)} />
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
+          },
+        ];
+
         // Shared action cell renderer for folder rows
         const renderFolderActions = (record) => {
           if (activeSpace === "trash") {
             return (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Khôi phục">
+                <Tooltip title="Restore">
                   <Button
                     size="small"
                     icon={RESTORE_ICON}
@@ -4623,59 +5644,94 @@ const getCustomerDisplayName = (record) => {
                     style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
                   />
                 </Tooltip>
-                <Tooltip title="Xóa">
-                  <Button
-                    size="small"
-                    danger
-                    icon={DELETE_ICON}
-                    onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
-                  />
-                </Tooltip>
+                {isAdminUser(currentUser) && (
+                  <Tooltip title="Permanently delete">
+                    <Button
+                      size="small"
+                      danger
+                      icon={DELETE_ICON}
+                      onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
+                    />
+                  </Tooltip>
+                )}
               </div>
             );
           }
-          const { canWrite, isManager } = getRecordPerms(record);
+          const { canWrite, isManager, canManagePermissions } = getRecordPerms(record);
           const showEdit = canWrite;
           const showMove = canWrite;
-          const showLock = isManager || isAdminUser(currentUser);
-          if (showLock) {
-            return (
-              <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Phân quyền">
-                  <Button
-                    size="small"
-                    icon={LOCK_ICON}
-                    onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
-                  />
-                </Tooltip>
-                <Tooltip title="Xóa">
-                  <Button
-                    size="small"
-                    danger
-                    icon={DELETE_ICON}
-                    onClick={(event) => { event.stopPropagation(); showDeleteConfirm(record); }}
-                  />
-                </Tooltip>
-              </div>
-            );
+          const isRoot = isFolderTreeRoot(record);
+          // isPermissionBearingFolder also admits a level-2 folder (direct
+          // child of the Customer root) that's eligible to carry its own
+          // grant — see resolvePermissionFolder above.
+          const showLock =
+            (isManager || canManagePermissions || isAdminUser(currentUser)) &&
+            isPermissionBearingFolder(record, visibleFolders);
+          // Moving to Trash is admin-only outside the Personal space —
+          // matches Library.js's showDeleteConfirm guard (§6 of the
+          // reference doc). Kept root-only (unlike showLock above) so a
+          // level-2 folder's inline Delete button doesn't newly appear
+          // here — it stays reachable only via the right-click menu, same
+          // as before this level-2 permission sync.
+          const showFolderDelete = isRoot && showLock && (isAdminUser(currentUser) || activeSpace === "personal");
+          if (isRoot) {
+            // Root folder keeps its original lock-only inline row (no
+            // inline Edit/Move — those stay reachable via right-click).
+            if (showLock) {
+              return (
+                <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
+                  <Tooltip title="Permissions">
+                    <Button
+                      size="small"
+                      icon={LOCK_ICON}
+                      onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
+                    />
+                  </Tooltip>
+                  {showFolderDelete && (
+                    <Tooltip title="Delete">
+                      <Button
+                        size="small"
+                        danger
+                        icon={DELETE_ICON}
+                        onClick={(event) => { event.stopPropagation(); showDeleteConfirm(record); }}
+                      />
+                    </Tooltip>
+                  )}
+                </div>
+              );
+            }
+            return null;
           }
-          if (showEdit || showMove) {
+          if (showEdit || showMove || showLock) {
             return (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Sửa tên">
-                  <Button
-                    size="small"
-                    icon={EDIT_ICON}
-                    onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
-                  />
-                </Tooltip>
-                <Tooltip title="Di chuyển">
-                  <Button
-                    size="small"
-                    icon={MOVE_ICON}
-                    onClick={(event) => { event.stopPropagation(); setMoveRecord(record); setMoveTargetId("root"); }}
-                  />
-                </Tooltip>
+                {(showEdit || showMove) && (
+                  <React.Fragment>
+                    <Tooltip title="Rename">
+                      <Button
+                        size="small"
+                        icon={EDIT_ICON}
+                        onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Move">
+                      <Button
+                        size="small"
+                        icon={MOVE_ICON}
+                        onClick={(event) => { event.stopPropagation(); setMoveRecord(record); setMoveTargetId("root"); }}
+                      />
+                    </Tooltip>
+                  </React.Fragment>
+                )}
+                {showLock && (
+                  <Tooltip title="Permissions">
+                    <Button
+                      size="small"
+                      icon={LOCK_ICON}
+                      onClick={(event) => { event.stopPropagation(); setPermissionFolder(record); }}
+                    />
+                  </Tooltip>
+                )}
               </div>
             );
           }
@@ -4687,7 +5743,7 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Khôi phục">
+                <Tooltip title="Restore">
                   <Button
                     size="small"
                     icon={RESTORE_ICON}
@@ -4695,27 +5751,29 @@ const getCustomerDisplayName = (record) => {
                     style={{ color: "#3B6D11", borderColor: "#c3e6cb", background: "#e2f0d9" }}
                   />
                 </Tooltip>
-                <Tooltip title="Xóa">
-                  <Button
-                    size="small"
-                    danger
-                    icon={DELETE_ICON}
-                    onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
-                  />
-                </Tooltip>
+                {isAdminUser(currentUser) && (
+                  <Tooltip title="Permanently delete">
+                    <Button
+                      size="small"
+                      danger
+                      icon={DELETE_ICON}
+                      onClick={(event) => { event.stopPropagation(); handlePermanentDelete(record); }}
+                    />
+                  </Tooltip>
+                )}
               </div>
             );
           }
           return (
             <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Xem trước">
+              <Tooltip title="Preview">
                 <Button
                   size="small"
                   icon={EYE_ICON}
                   onClick={(event) => { event.stopPropagation(); previewRecordFile(record); }}
                 />
               </Tooltip>
-              <Tooltip title="Tải về">
+              <Tooltip title="Download">
                 <Button
                   size="small"
                   icon={DOWNLOAD_ICON}
@@ -4736,14 +5794,14 @@ const getCustomerDisplayName = (record) => {
               render: (_, __, index) => index + 1,
             },
             {
-              title: "Mã khách hàng",
+              title: "Customer code",
               key: "customerCode",
               width: 150,
               sorter: (a, b) => (a.customerCode || "").localeCompare(b.customerCode || "", "vi"),
               render: (_, record) => <Text style={{ fontWeight: 600, color: "#111827" }}>{record.customerCode || record.code || "—"}</Text>,
             },
             {
-              title: "Tên khách hàng",
+              title: "Customer name",
               key: "customerName",
               minWidth: 250,
               sorter: (a, b) => (a.customerName || a.name || "").localeCompare(b.customerName || b.name || "", "vi"),
@@ -4767,13 +5825,13 @@ const getCustomerDisplayName = (record) => {
               render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
             },
             {
-              title: "Cases liên kết",
+              title: "Linked cases",
               key: "linkedCases",
               minWidth: 200,
               render: (_, record) => (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                   {(record.cases || []).length === 0 ? (
-                    <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>Chưa liên kết</span>
+                    <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>Not linked</span>
                   ) : (() => {
                     const list = record.cases || [];
                     const visibleCount = 2;
@@ -4800,7 +5858,7 @@ const getCustomerDisplayName = (record) => {
                             }
                           >
                             <Tag color="default" style={{ borderRadius: 4, margin: 0, cursor: "pointer", fontWeight: 600 }}>
-                              +{extraItems.length} khác
+                              +{extraItems.length} more
                             </Tag>
                           </Tooltip>
                         )}
@@ -4811,13 +5869,13 @@ const getCustomerDisplayName = (record) => {
               ),
             },
             {
-              title: "Thao tác",
+              title: "Actions",
               key: "actions",
               width: 100,
               align: "right",
               render: (_, record) => (
                 <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                  <Tooltip title="Liên kết Case">
+                  <Tooltip title="Link Case">
                     <Button
                       size="small"
                       icon={LINK_CASE_ICON}
@@ -4827,7 +5885,7 @@ const getCustomerDisplayName = (record) => {
                       }}
                     />
                   </Tooltip>
-                  <Tooltip title="Xóa">
+                  <Tooltip title="Delete">
                     <Button
                       size="small"
                       danger
@@ -4845,14 +5903,14 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return [
               {
-                title: "Tên folder",
+                title: "Folder name",
                 key: "name",
                 minWidth: 250,
                 render: (_, record) => renderNameCell(record, false),
                 sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
               },
               {
-                title: "Mô tả",
+                title: "Description",
                 key: "description",
                 minWidth: 200,
                 render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
@@ -4865,33 +5923,33 @@ const getCustomerDisplayName = (record) => {
                 render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
               },
               {
-                title: "Người upload",
+                title: "Uploaded by",
                 key: "createdBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
               },
               {
-                title: "Ngày upload",
+                title: "Upload date",
                 key: "createdAt",
                 width: 150,
                 sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
                 render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
               },
               {
-                title: "Người xoá",
+                title: "Deleted by",
                 key: "deletedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
               },
               {
-                title: "Ngày xoá",
+                title: "Deleted date",
                 key: "deletedAt",
                 width: 160,
                 sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
               },
               {
-                title: "Thao tác",
+                title: "Actions",
                 key: "actions",
                 width: 120,
                 align: "right",
@@ -4902,18 +5960,19 @@ const getCustomerDisplayName = (record) => {
 
           return [
             {
-              title: "Tên folder",
+              title: "Folder name",
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, false),
               sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
             },
             {
-              title: "Mô tả",
+              title: "Description",
               key: "description",
               minWidth: 200,
-              render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+              render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
             },
+            ...buildDocMetaColumns(),
             {
               title: "Size",
               key: "size",
@@ -4922,20 +5981,20 @@ const getCustomerDisplayName = (record) => {
               render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
             },
             {
-              title: "Ngày tạo",
+              title: "Created date",
               key: "createdAt",
               width: 150,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
             },
             {
-              title: "Người tạo",
+              title: "Created by",
               key: "createdBy",
               width: 180,
               render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
             },
             {
-              title: "Thao tác",
+              title: "Actions",
               key: "actions",
               width: 120,
               align: "right",
@@ -4948,14 +6007,14 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return [
               {
-                title: "Tên file",
+                title: "File name",
                 key: "name",
                 minWidth: 250,
                 render: (_, record) => renderNameCell(record, true),
                 sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
               },
               {
-                title: "Mô tả",
+                title: "Description",
                 key: "description",
                 minWidth: 200,
                 render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
@@ -4968,33 +6027,33 @@ const getCustomerDisplayName = (record) => {
                 render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
               },
               {
-                title: "Người upload",
+                title: "Uploaded by",
                 key: "uploadedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
               },
               {
-                title: "Ngày upload",
+                title: "Upload date",
                 key: "uploadedAt",
                 width: 160,
                 sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
               },
               {
-                title: "Người xoá",
+                title: "Deleted by",
                 key: "deletedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
               },
               {
-                title: "Ngày xoá",
+                title: "Deleted date",
                 key: "deletedAt",
                 width: 160,
                 sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
               },
               {
-                title: "Thao tác",
+                title: "Actions",
                 key: "actions",
                 width: 120,
                 align: "right",
@@ -5005,18 +6064,19 @@ const getCustomerDisplayName = (record) => {
 
           return [
             {
-              title: "Tên file",
+              title: "File name",
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, true),
               sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
             },
             {
-              title: "Mô tả",
+              title: "Description",
               key: "description",
               minWidth: 200,
-              render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+              render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
             },
+            ...buildDocMetaColumns(),
             {
               title: "Size",
               key: "size",
@@ -5025,20 +6085,20 @@ const getCustomerDisplayName = (record) => {
               render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
             },
             {
-              title: "Ngày upload",
+              title: "Upload date",
               key: "uploadedAt",
               width: 160,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
             },
             {
-              title: "Người upload",
+              title: "Uploaded by",
               key: "uploadedBy",
               width: 180,
               render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
             },
             {
-              title: "Thao tác",
+              title: "Actions",
               key: "actions",
               width: 120,
               align: "right",
@@ -5051,14 +6111,14 @@ const getCustomerDisplayName = (record) => {
         if (activeSpace === "trash") {
           return [
             {
-              title: "Tên",
+              title: "Name",
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, true),
               sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
             },
             {
-              title: "Mô tả",
+              title: "Description",
               key: "description",
               minWidth: 200,
               render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
@@ -5078,40 +6138,40 @@ const getCustomerDisplayName = (record) => {
               },
             },
             {
-              title: "Ngày tạo",
+              title: "Created date",
               key: "createdAt",
               width: 120,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Người upload",
+              title: "Uploaded by",
               key: "uploadedBy",
               width: 150,
               render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Ngày upload",
+              title: "Upload date",
               key: "uploadedAt",
               width: 150,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Người xoá",
+              title: "Deleted by",
               key: "deletedBy",
               width: 150,
               render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
             },
             {
-              title: "Ngày xoá",
+              title: "Deleted date",
               key: "deletedAt",
               width: 150,
               sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
               render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
             },
             {
-              title: "Thao tác",
+              title: "Actions",
               key: "actions",
               width: 120,
               align: "right",
@@ -5122,18 +6182,19 @@ const getCustomerDisplayName = (record) => {
 
         return [
           {
-            title: "Tên",
+            title: "Name",
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, true),
             sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
           },
           {
-            title: "Mô tả",
+            title: "Description",
             key: "description",
             minWidth: 200,
-            render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
+            render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
           },
+          ...buildDocMetaColumns(),
           {
             title: "Size",
             key: "size",
@@ -5149,27 +6210,27 @@ const getCustomerDisplayName = (record) => {
             },
           },
           {
-            title: "Ngày tạo",
+            title: "Created date",
             key: "createdAt",
             width: 120,
             sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
             render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Ngày upload",
+            title: "Upload date",
             key: "uploadedAt",
             width: 150,
             sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
             render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Người upload",
+            title: "Uploaded by",
             key: "uploadedBy",
             width: 150,
             render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Thao tác",
+            title: "Actions",
             key: "actions",
             width: 120,
             align: "right",
@@ -5177,7 +6238,7 @@ const getCustomerDisplayName = (record) => {
           }
         ];
       },
-      [tableData, documentTypes, getTypeConfig, getRecordDocumentType, editingTitleId, editingTitleValue, currentUserState, currentLawyerId, visibleFolders, getRecordPathString, activeSpace, activeCustomerIdValue, getFolderSize, openCustomerDetail, openLinkCaseModal],
+      [tableData, documentTypes, getTypeConfig, getRecordDocumentType, editingTitleId, editingTitleValue, currentUserState, currentLawyerId, visibleFolders, getRecordPathString, activeSpace, activeCustomerIdValue, getFolderSize, openCustomerDetail, openLinkCaseModal, saveRecordField, getRecordPerms],
     );
 
     const rowDragProps = (record) => ({
@@ -5213,10 +6274,7 @@ const getCustomerDisplayName = (record) => {
         return;
       }
       if (key === "upload") {
-        uploadForm.resetFields();
-        uploadForm.setFieldsValue({ documentType: activeTypeId });
-        setUploadFileList([]);
-        setIsUploadOpen(true);
+        fileInputRef.current?.click();
         return;
       }
       if (key === "upload_folder") {
@@ -5226,16 +6284,16 @@ const getCustomerDisplayName = (record) => {
 
     const newMenu = {
       items: [
-        { key: "folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo thư mục") },
+        { key: "folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Create folder") },
         { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload") },
-        { key: "upload_folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload thư mục") },
+        { key: "upload_folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload folder") },
       ],
       onClick: handleNewActionClick,
     };
 
     const activityColumns = useMemo(() => [
       {
-        title: "Loại hoạt động",
+        title: "Activity type",
         dataIndex: "action",
         key: "action",
         width: 170,
@@ -5264,12 +6322,12 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Người thực hiện",
+        title: "Performed by",
         dataIndex: "changedByName",
         key: "changedByName",
         width: 200,
         render: (name) => {
-          const displayName = name || "Hệ thống";
+          const displayName = name || "System";
           const initials = displayName
             .split(" ")
             .map((w) => w[0])
@@ -5310,7 +6368,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Tài liệu",
+        title: "Documents",
         key: "file",
         width: 280,
         render: (text, log) => {
@@ -5352,7 +6410,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Mô tả thay đổi",
+        title: "Change description",
         key: "desc",
         render: (text, log) => {
           const desc = resolveActivityDesc(log, folders, documents);
@@ -5362,7 +6420,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Thời gian",
+        title: "Time",
         dataIndex: "changedAt",
         key: "changedAt",
         width: 160,
@@ -5405,30 +6463,9 @@ const getCustomerDisplayName = (record) => {
             <Sider width={240} style={{ background: "#FFFFFF", borderRight: "0.5px solid #E5E7EB", padding: "16px 12px", overflowY: "auto" }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
 
-                {/* Workspace header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 2px 16px 2px", borderBottom: "0.5px solid #E5E7EB", marginBottom: 16 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 8, background: "#185FA5",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
-                      <line x1="9" y1="22" x2="9" y2="16" />
-                      <line x1="15" y1="22" x2="15" y2="16" />
-                      <line x1="9" y1="16" x2="15" y2="16" />
-                      <path d="M8 6h2" />
-                      <path d="M14 6h2" />
-                      <path d="M8 10h2" />
-                      <path d="M14 10h2" />
-                    </svg>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      Customer Workspace
-                    </span>
-                    <span style={{ fontSize: 11, color: "#6B7280" }}>Customer</span>
-                  </div>
-                  <Tooltip title="Đóng sidebar">
+                {/* Sidebar toggle */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 2px 16px 2px", borderBottom: "0.5px solid #E5E7EB", marginBottom: 16 }}>
+                  <Tooltip title="Collapse sidebar">
                     <Button type="text" icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(true)}
                       style={{ width: 22, height: 22, minWidth: 22, padding: 0, color: "#9CA3AF" }} />
                   </Tooltip>
@@ -5437,7 +6474,7 @@ const getCustomerDisplayName = (record) => {
                 {/* ══ SEARCH BOX ══ */}
                 <div style={{ marginBottom: 16 }}>
                   <Input
-                    placeholder="Tìm kiếm tài liệu..."
+                    placeholder="Search documents..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     allowClear
@@ -5453,96 +6490,6 @@ const getCustomerDisplayName = (record) => {
                 {isCustomerDetailMode ? (
                   // ── REDESIGNED SIDEBAR FOR CUSTOMER DETAIL MODE ──
                   <React.Fragment>
-                    {/* ══ SECTION 2: MY WORKSPACE ══ */}
-                    <div style={{ order: 2, borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span
-                            onClick={() => setWorkspaceExpanded(!workspaceExpanded)}
-                            style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
-                          >
-                            {workspaceExpanded ? ChevronDown : ChevronRight}
-                          </span>
-                          <span
-                            onClick={() => {
-                              setActiveSpace("personal");
-                              setSelectedFolderId("root");
-                            }}
-                            style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "personal" ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, cursor: "pointer", userSelect: "none" }}
-                          >
-                            My Workspace
-                          </span>
-                        </div>
-                        <button type="button"
-                          onClick={() => handleCreateFolderFromSidebar("personal")}
-                          style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Tạo</button>
-                      </div>
-                      {workspaceExpanded && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12 }}>
-                            {personalRootFolders.length === 0 ? (
-                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
-                            ) : (
-                              (showAllPersonalFolders ? personalRootFolders : personalRootFolders.slice(0, 5)).map((folder) => {
-                                const fid = String(extractId(folder.id));
-                                const isFolderActive = activeSpace === "personal" && selectedFolderId === fid;
-                                return (
-                                  <button
-                                    key={fid}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveSpace("personal");
-                                      setSelectedFolderId(fid);
-                                    }}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setContextMenuState({
-                                        open: true,
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        record: { ...folder, _type: "folder" }
-                                      });
-                                    }}
-                                    style={{
-                                      width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                      border: "0", borderRadius: 8, cursor: "pointer",
-                                      background: isFolderActive ? "#E6F1FB" : "transparent",
-                                      color: isFolderActive ? "#185FA5" : "#6B7280",
-                                      fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                      transition: "background 0.15s", minWidth: 0, textAlign: "left"
-                                    }}
-                                    onMouseEnter={(e) => { if (!isFolderActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                                    onMouseLeave={(e) => { if (!isFolderActive) e.currentTarget.style.background = "transparent"; }}
-                                  >
-                                    <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                      {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
-                                    </span>
-                                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {folder.name}
-                                    </span>
-                                  </button>
-                                );
-                              })
-                            )}
-                            {personalRootFolders.length > 5 && (
-                              <button
-                                type="button"
-                                onClick={() => setShowAllPersonalFolders(!showAllPersonalFolders)}
-                                style={{
-                                  fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
-                                  padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
-                                }}
-                              >
-                                {showAllPersonalFolders ? "Thu gọn" : `Xem thêm (${personalRootFolders.length - 5})`}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
                     {/* ══ SECTION 1: CUSTOMER (Shared folders) ══ */}
                     <div style={{ order: 1, marginTop: 4 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
@@ -5566,13 +6513,13 @@ const getCustomerDisplayName = (record) => {
                         <button type="button"
                           onClick={() => handleCreateFolderFromSidebar("customer")}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Tạo</button>
+                        >+ Create</button>
                       </div>
                       {libraryExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12 }}>
                             {customerRootFolders.length === 0 ? (
-                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
+                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>No folders yet</Text>
                             ) : (
                               customerRootFolders.map((folder) => {
                                 const fid = String(extractId(folder.id));
@@ -5627,7 +6574,7 @@ const getCustomerDisplayName = (record) => {
                         <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Nhanh</span>
                       </div>
 
-                      {/* Lịch sử hoạt động */}
+                      {/* Activity log */}
                       {(() => {
                         const isActive = activeSpace === "recent";
                         return (
@@ -5647,12 +6594,12 @@ const getCustomerDisplayName = (record) => {
                               <circle cx="12" cy="12" r="10" />
                               <polyline points="12 6 12 12 16 14" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Lịch sử hoạt động</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Activity log</span>
                           </button>
                         );
                       })()}
 
-                      {/* Thùng rác */}
+                      {/* Trash */}
                       {(() => {
                         const isActive = activeSpace === "trash";
                         const trashCount = quickTrashCount;
@@ -5673,7 +6620,7 @@ const getCustomerDisplayName = (record) => {
                               <polyline points="3 6 5 6 21 6" />
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Thùng rác</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Trash</span>
                             {trashCount > 0 && (
                               <span style={{
                                 fontSize: 11,
@@ -5721,12 +6668,12 @@ const getCustomerDisplayName = (record) => {
                         <button type="button"
                           onClick={() => handleCreateFolderFromSidebar("company_shared")}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Tạo</button>
+                        >+ Create</button>
                       </div>
                       {spacesExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           {companies.length === 0 ? (
-                            <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>Chưa có</Text>
+                            <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>None yet</Text>
                           ) : (
                             (showAllCompanies ? companies : companies.slice(0, 5)).map((company) => {
                               const cid = String(extractId(company));
@@ -5829,14 +6776,14 @@ const getCustomerDisplayName = (record) => {
                                 padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
                               }}
                             >
-                              {showAllCompanies ? "Thu gọn" : `Xem thêm (${companies.length - 5})`}
+                              {showAllCompanies ? "Collapse" : `Show more (${companies.length - 5})`}
                             </button>
                           )}
                         </div>
                       )}
                     </div>
 
-                    {/* ══ SECTION 2: THƯ VIỆN (Customer / Khách hàng) ══ */}
+                    {/* ══ SECTION 2: THƯ VIỆN (Customer / Customers) ══ */}
                     <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginBottom: 4 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
                         <div
@@ -5853,18 +6800,18 @@ const getCustomerDisplayName = (record) => {
                           >
                             {libraryExpanded ? ChevronDown : ChevronRight}
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "customer" && !activeCustomerId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Khách hàng</span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "customer" && !activeCustomerId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Customers</span>
                         </div>
                         <button type="button"
                           onClick={() => { if (!requireCompany()) return; createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Tạo</button>
+                        >+ Create</button>
                       </div>
                       {libraryExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           {filteredCustomers.length === 0 ? (
                             <div style={{ padding: "4px 10px" }}>
-                              <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Chưa có khách hàng</Text>
+                              <Text style={{ fontSize: 11, color: "#9CA3AF" }}>No customers yet</Text>
                             </div>
                           ) : (
                             (showAllCustomers ? filteredCustomers : filteredCustomers.slice(0, 5)).map((ref) => {
@@ -5978,102 +6925,9 @@ const getCustomerDisplayName = (record) => {
                                 padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
                               }}
                             >
-                              {showAllCustomers ? "Thu gọn" : `Xem thêm (${filteredCustomers.length - 5})`}
+                              {showAllCustomers ? "Collapse" : `Show more (${filteredCustomers.length - 5})`}
                             </button>
                           )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ══ SECTION 3: MY WORKSPACE (Personal) ══ */}
-                    <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 4 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 2px 6px 2px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <span
-                            onClick={() => setWorkspaceExpanded(!workspaceExpanded)}
-                            style={{ color: "#9CA3AF", display: "inline-flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
-                          >
-                            {workspaceExpanded ? ChevronDown : ChevronRight}
-                          </span>
-                          <span
-                            onClick={() => {
-                              setActiveSpace("personal");
-                              setActiveCustomerId(null);
-                              setSelectedFolderId("root");
-                            }}
-                            style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "personal" ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, cursor: "pointer", userSelect: "none" }}
-                          >
-                            My Workspace
-                          </span>
-                        </div>
-                        <button type="button"
-                          onClick={() => handleCreateFolderFromSidebar("personal")}
-                          style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Tạo</button>
-                      </div>
-                      {workspaceExpanded && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          {/* Render root folders of My Workspace (indented) */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12 }}>
-                            {personalRootFolders.length === 0 ? (
-                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>Chưa có thư mục</Text>
-                            ) : (
-                              (showAllPersonalFolders ? personalRootFolders : personalRootFolders.slice(0, 5)).map((folder) => {
-                                const fid = String(extractId(folder.id));
-                                const isFolderActive = activeSpace === "personal" && selectedFolderId === fid;
-                                return (
-                                  <button
-                                    key={fid}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveSpace("personal");
-                                      setActiveCustomerId(null);
-                                      setSelectedFolderId(fid);
-                                    }}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setContextMenuState({
-                                        open: true,
-                                        x: e.clientX,
-                                        y: e.clientY,
-                                        record: { ...folder, _type: "folder" }
-                                      });
-                                    }}
-                                    style={{
-                                      width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                                      border: "0", borderRadius: 8, cursor: "pointer",
-                                      background: isFolderActive ? "#E6F1FB" : "transparent",
-                                      color: isFolderActive ? "#185FA5" : "#6B7280",
-                                      fontWeight: isFolderActive ? 600 : 400, fontFamily: FONT, fontSize: 12,
-                                      transition: "background 0.15s", minWidth: 0, textAlign: "left"
-                                    }}
-                                    onMouseEnter={(e) => { if (!isFolderActive) e.currentTarget.style.background = "#F3F4F6"; }}
-                                    onMouseLeave={(e) => { if (!isFolderActive) e.currentTarget.style.background = "transparent"; }}
-                                  >
-                                    <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                      {React.cloneElement(TYPE_ICONS.folder, { size: 13 })}
-                                    </span>
-                                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                      {folder.name}
-                                    </span>
-                                  </button>
-                                );
-                              })
-                            )}
-                            {personalRootFolders.length > 5 && (
-                              <button
-                                type="button"
-                                onClick={() => setShowAllPersonalFolders(!showAllPersonalFolders)}
-                                style={{
-                                  fontSize: 11, color: "#185FA5", background: "transparent", border: "none", cursor: "pointer",
-                                  padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
-                                }}
-                              >
-                                {showAllPersonalFolders ? "Thu gọn" : `Xem thêm (${personalRootFolders.length - 5})`}
-                              </button>
-                            )}
-                          </div>
                         </div>
                       )}
                     </div>
@@ -6084,7 +6938,7 @@ const getCustomerDisplayName = (record) => {
                         <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Nhanh</span>
                       </div>
 
-                      {/* ① Lịch sử hoạt động */}
+                      {/* ① Activity log */}
                       {(() => {
                         const isActive = activeSpace === "recent";
                         return (
@@ -6104,12 +6958,12 @@ const getCustomerDisplayName = (record) => {
                               <circle cx="12" cy="12" r="10" />
                               <polyline points="12 6 12 12 16 14" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Lịch sử hoạt động</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Activity log</span>
                           </button>
                         );
                       })()}
 
-                      {/* ② Thùng rác */}
+                      {/* ② Trash */}
                       {(() => {
                         const isActive = activeSpace === "trash";
                         const trashCount = quickTrashCount;
@@ -6130,7 +6984,7 @@ const getCustomerDisplayName = (record) => {
                               <polyline points="3 6 5 6 21 6" />
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Thùng rác</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Trash</span>
                             {trashCount > 0 && (
                               <span style={{
                                 fontSize: 11,
@@ -6156,8 +7010,8 @@ const getCustomerDisplayName = (record) => {
             {/* ── TOPBAR ── */}
             <div style={{ padding: "10px 20px", borderBottom: "0.5px solid #E5E7EB", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap", background: "#FFFFFF", minWidth: 0, overflowX: "auto" }}>
               {sidebarCollapsed && (
-                <Tooltip title="Mở sidebar">
-                  <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label="Mở sidebar"
+                <Tooltip title="Expand sidebar">
+                  <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label="Expand sidebar"
                     style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "0.5px solid #E5E7EB", flex: "0 0 auto" }} />
                 </Tooltip>
               )}
@@ -6168,7 +7022,7 @@ const getCustomerDisplayName = (record) => {
               {activeSpace === "recent" ? (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
                   <Input.Search
-                    placeholder="Tìm kiếm hoạt động..."
+                    placeholder="Search activity..."
                     value={activitySearchQuery}
                     onChange={(e) => {
                       setActivitySearchQuery(e.target.value);
@@ -6185,41 +7039,41 @@ const getCustomerDisplayName = (record) => {
                     }}
                     style={{ width: 180, borderRadius: 8 }}
                     options={[
-                      { value: "all", label: "Tất cả hoạt động" },
-                      { value: "uploaded", label: "Tải lên tài liệu" },
-                      { value: "previewed", label: "Xem trước" },
-                      { value: "downloaded", label: "Tải về" },
-                      { value: "shared_file", label: "Chia sẻ tài liệu" },
-                      { value: "unshared_file", label: "Hủy chia sẻ" },
-                      { value: "permission_updated", label: "Cập nhật phân quyền" },
-                      { value: "created", label: "Tạo mới thư mục" },
-                      { value: "updated", label: "Cập nhật khác" },
-                      { value: "moved", label: "Di chuyển" },
-                      { value: "trash_deleted", label: "Xóa vào Thùng rác" },
-                      { value: "restored", label: "Khôi phục" },
-                      { value: "deleted", label: "Xóa vĩnh viễn" },
+                      { value: "all", label: "All activity" },
+                      { value: "uploaded", label: "Uploaded document" },
+                      { value: "previewed", label: "Previewed" },
+                      { value: "downloaded", label: "Downloaded" },
+                      { value: "shared_file", label: "Shared document" },
+                      { value: "unshared_file", label: "Unshared" },
+                      { value: "permission_updated", label: "Permissions updated" },
+                      { value: "created", label: "Created folder" },
+                      { value: "updated", label: "Other update" },
+                      { value: "moved", label: "Moved" },
+                      { value: "trash_deleted", label: "Moved to Trash" },
+                      { value: "restored", label: "Restored" },
+                      { value: "deleted", label: "Permanently delete" },
                     ]}
                   />
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
-                  <Input.Search placeholder="Tìm kiếm..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 260, borderRadius: 8 }} allowClear />
+                  <Input.Search placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 260, borderRadius: 8 }} allowClear />
                   <Select value={sortMode} onChange={setSortMode} style={{ width: 140, borderRadius: 8 }}
                     options={[
                       { value: "manual", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>STT</span> },
-                      { value: "newest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Mới nhất</span> },
-                      { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Cũ nhất</span> },
-                      { value: "name", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Tên A-Z</span> },
+                      { value: "newest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Newest</span> },
+                      { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Oldest</span> },
+                      { value: "name", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Name A-Z</span> },
                     ]}
                   />
-                  <Select allowClear placeholder="Định dạng" style={{ width: 140, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
+                  <Select allowClear placeholder="Format" style={{ width: 140, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
                   <div style={{ display: "inline-flex", gap: 3, padding: 3, border: "0.5px solid #E5E7EB", borderRadius: 8, background: "#FAFAFA" }}>
-                    <Tooltip title="Lưới">
-                      <Button aria-label="Lưới" icon={GRID_ICON} onClick={() => setViewMode("grid")}
+                    <Tooltip title="Grid">
+                      <Button aria-label="Grid" icon={GRID_ICON} onClick={() => setViewMode("grid")}
                         style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "grid" ? "#185FA5" : "transparent", color: viewMode === "grid" ? "#fff" : "#6B7280" }} />
                     </Tooltip>
-                    <Tooltip title="Bảng">
-                      <Button aria-label="Bảng" icon={TABLE_ICON} onClick={() => setViewMode("table")}
+                    <Tooltip title="Table">
+                      <Button aria-label="Table" icon={TABLE_ICON} onClick={() => setViewMode("table")}
                         style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "table" ? "#185FA5" : "transparent", color: viewMode === "table" ? "#fff" : "#6B7280" }} />
                     </Tooltip>
                   </div>
@@ -6239,7 +7093,7 @@ const getCustomerDisplayName = (record) => {
                   <React.Fragment>
                     {activeSpace !== "trash" && (currentFolderPerms.canEdit || currentFolderPerms.isManager || isCustomerRoot) && (
                       <Dropdown menu={isCustomerRoot ? {
-                        items: [{ key: "create_customer", label: renderNewMenuLabel(TYPE_ICONS.folder, "Tạo khách hàng") }],
+                        items: [{ key: "create_customer", label: renderNewMenuLabel(TYPE_ICONS.folder, "Create customer") }],
                         onClick: () => { if (requireCompany()) { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); } }
                       } : newMenu} trigger={["click"]}>
                         <Button type="primary" icon={PLUS_ICON}
@@ -6258,8 +7112,10 @@ const getCustomerDisplayName = (record) => {
             </div>
 
             <Content
-              style={{ padding: 20, overflowY: "auto", overflowX: "hidden", background: "#F9FAFB", minWidth: 0 }}
-              onDragOver={(event) => event.preventDefault()}
+              style={{ padding: 20, overflowY: "auto", overflowX: "hidden", background: "#F9FAFB", minWidth: 0, position: "relative" }}
+              onDragEnter={handleContentDragEnter}
+              onDragOver={handleContentDragOver}
+              onDragLeave={handleContentDragLeave}
               onDrop={handleDropToCurrentFolder}
             >
               <input
@@ -6271,6 +7127,31 @@ const getCustomerDisplayName = (record) => {
                 style={{ display: "none" }}
                 onChange={handleFolderInputTrigger}
               />
+
+              {(externalDropActive || externalUploadInProgress) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    background: "rgba(24, 95, 165, 0.06)",
+                    border: "2px dashed #185FA5",
+                    borderRadius: 8,
+                    pointerEvents: externalUploadInProgress ? "auto" : "none",
+                    fontFamily: FONT,
+                  }}
+                >
+                  <div style={{ fontSize: 32 }}>{TYPE_ICONS.upload}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "#185FA5" }}>
+                    {externalUploadInProgress ? "Uploading..." : "Drop files or folders here to upload"}
+                  </div>
+                </div>
+              )}
 
               {activeSpace === "recent" ? (
                 <div style={{ padding: "8px 4px 24px 4px", fontFamily: FONT }}>
@@ -6287,13 +7168,13 @@ const getCustomerDisplayName = (record) => {
                       onChange: (page) => setActivityPage(page),
                       showSizeChanger: false,
                       total: filteredActivityLogs.length,
-                      showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} hoạt động`,
+                      showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} activities`,
                     }}
                     locale={{
                       emptyText: (
                         <Empty
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
-                          description="Không tìm thấy lịch sử hoạt động nào"
+                          description="No activity history found"
                           style={{ padding: "40px 0" }}
                         />
                       )
@@ -6334,6 +7215,39 @@ const getCustomerDisplayName = (record) => {
                     })}
                   </div>
 
+                  {currentRootFolderPermissionSummary && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        flexWrap: "wrap",
+                        marginBottom: 16,
+                        marginTop: -8,
+                        fontFamily: FONT,
+                        fontSize: 12,
+                        color: "#6B7280",
+                      }}
+                    >
+                      <span>
+                        <span style={{ color: "#9CA3AF" }}>Manager: </span>
+                        <strong style={{ color: "#374151", fontWeight: 500 }}>
+                          {currentRootFolderPermissionSummary.managerNames.length
+                            ? currentRootFolderPermissionSummary.managerNames.join(", ")
+                            : "—"}
+                        </strong>
+                      </span>
+                      <span>
+                        <span style={{ color: "#9CA3AF" }}>Member: </span>
+                        <strong style={{ color: "#374151", fontWeight: 500 }}>
+                          {currentRootFolderPermissionSummary.memberNames.length
+                            ? currentRootFolderPermissionSummary.memberNames.join(", ")
+                            : "—"}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+
                   {selectedRowKeys.length > 0 && !isCustomerRoot && (
                     <div style={{
                       background: "#FFFFFF",
@@ -6351,7 +7265,7 @@ const getCustomerDisplayName = (record) => {
                     }}>
                       <div style={{ display: "flex", alignItems: "center" }}>
                         <span style={{ fontWeight: 500, color: "#374151", fontSize: 13 }}>
-                          Đã chọn <strong style={{ color: "#111827", fontWeight: 600 }}>{selectedRowKeys.length}</strong> mục
+                          Selected <strong style={{ color: "#111827", fontWeight: 600 }}>{selectedRowKeys.length}</strong> item(s)
                         </span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -6361,7 +7275,7 @@ const getCustomerDisplayName = (record) => {
                           onClick={() => setSelectedRowKeys([])}
                           style={{ borderRadius: 6, fontSize: 12, color: "#6B7280", fontFamily: FONT, padding: "4px 8px" }}
                         >
-                          Bỏ chọn
+                          Deselect
                         </Button>
                         <div style={{ width: 1, height: 16, background: "#E5E7EB" }} />
                         {activeSpace === "trash" ? (
@@ -6381,7 +7295,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Khôi phục
+                              Restore
                             </Button>
                             <Button
                               size="small"
@@ -6398,7 +7312,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Xóa
+                              Delete
                             </Button>
                           </React.Fragment>
                         ) : (
@@ -6418,7 +7332,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Di chuyển
+                              Move
                             </Button>
                             <Button
                               size="small"
@@ -6435,7 +7349,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Xóa
+                              Delete
                             </Button>
                           </React.Fragment>
                         )}
@@ -6452,36 +7366,36 @@ const getCustomerDisplayName = (record) => {
                             <line x1="12" y1="11" x2="12" y2="17" /><polyline points="9 14 12 17 15 14" />
                           </svg>
                           <div style={{ fontSize: 15, fontWeight: 500, color: "#6B7280", fontFamily: FONT }}>
-                            {isCustomerRoot ? "Chưa có khách hàng nào" :
-                              (activeSpace === "trash" ? "Thùng rác trống" :
-                                (query ? "Không tìm thấy kết quả" : "Thư mục trống"))}
+                            {isCustomerRoot ? "No customers yet" :
+                              (activeSpace === "trash" ? "Trash is empty" :
+                                (query ? "No results found" : "Folder is empty"))}
                           </div>
                           <div style={{ fontSize: 13, color: "#9CA3AF", fontFamily: FONT }}>
-                            {isCustomerRoot ? "Nhấn + Tạo khách hàng bên dưới để bắt đầu" :
-                              (activeSpace === "trash" ? "Không có file hay thư mục nào bị xóa" :
-                                (query ? "Thử tìm với từ khóa khác" : "Nhấn + New để tạo thư mục hoặc tải lên tài liệu đầu tiên"))}
+                            {isCustomerRoot ? "Click + Create customer below to get started" :
+                              (activeSpace === "trash" ? "No deleted files or folders" :
+                                (query ? "Try a different search term" : "Click + New to create a folder or upload your first document"))}
                           </div>
                           {isCustomerRoot ? (
                             <button type="button" onClick={() => { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
                               style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
-                              + Tạo khách hàng
+                              + Create customer
                             </button>
                           ) : (activeSpace !== "trash" && !query) && (
                             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                              <button type="button" onClick={() => setIsUploadOpen(true)}
+                              <button type="button" onClick={() => fileInputRef.current?.click()}
                                 style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                                + Thêm tài liệu
+                                + Add document
                               </button>
                               <button type="button" onClick={() => { folderForm.resetFields(); setIsFolderOpen(true); }}
                                 style={{ padding: "8px 18px", background: "transparent", color: "#185FA5", border: "1px solid #185FA5", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                                + Thêm thư mục
+                                + Add folder
                               </button>
                             </div>
                           )}
                         </div>
                       ) : (
                         <React.Fragment>
-                          {/* ── Section: Khách hàng ── */}
+                          {/* ── Section: Customers ── */}
                           {tableData.some(r => r._type === "customer_record") && (
                             <Row gutter={[12, 12]} style={{ marginBottom: 20 }}>
                               {tableData.filter(r => r._type === "customer_record").map((record) => {
@@ -6513,18 +7427,18 @@ const getCustomerDisplayName = (record) => {
                                       </div>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4, fontSize: 12, color: "#6B7280" }}>
                                         <div>
-                                          <span style={{ color: "#9CA3AF" }}>Mã KH: </span>
+                                          <span style={{ color: "#9CA3AF" }}>Customer code: </span>
                                           <strong>{record.customerCode || record.code || extractId(record)}</strong>
                                         </div>
                                         <div>
-                                          <span style={{ color: "#9CA3AF" }}>Case liên kết: </span>
+                                          <span style={{ color: "#9CA3AF" }}>Linked case: </span>
                                           <span>{(record.cases || []).length}</span>
                                         </div>
                                       </div>
                                       <div style={{ marginTop: "auto", paddingTop: 8, borderTop: "0.5px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <span style={{ fontSize: 11, color: "#9CA3AF" }}>Tài nguyên:</span>
+                                        <span style={{ fontSize: 11, color: "#9CA3AF" }}>Resources:</span>
                                         <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                          {foldersCount} Thư mục · {filesCount} file
+                                          {foldersCount} Folder · {filesCount} file
                                         </span>
                                       </div>
                                     </Card>
@@ -6534,9 +7448,9 @@ const getCustomerDisplayName = (record) => {
                             </Row>
                           )}
 
-                          {/* ── Section: Thư mục ── */}
+                          {/* ── Section: Folder ── */}
                           {tableData.some(r => r._type === "folder") && (
-                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Thư mục</div>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Folder</div>
                           )}
                           <Row gutter={[10, 10]} style={{ marginBottom: tableData.some(r => r._type === "file") && tableData.some(r => r._type === "folder") ? 20 : 0 }}>
                             {tableData.filter(r => r._type === "folder").map((record) => {
@@ -6608,36 +7522,36 @@ const getCustomerDisplayName = (record) => {
                                         {activeSpace === "trash" ? (
                                           <React.Fragment>
                                             <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>
-                                              Nguồn: {getRecordPathString(record)}
+                                              Source: {getRecordPathString(record)}
                                             </span>
                                             <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>
-                                              Người xoá: {getDeletedUserName(record)}
+                                              Deleted by: {getDeletedUserName(record)}
                                             </span>
                                             <span style={{ fontSize: 10, color: "#9CA3AF", fontFamily: FONT }}>
-                                              Ngày xoá: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}
+                                              Deleted date: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}
                                             </span>
                                           </React.Fragment>
                                         ) : (
                                           <React.Fragment>
                                             {isEmpty ? (
                                               <div onClick={(e) => e.stopPropagation()}>
-                                                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: FONT }}>Chưa có tài liệu</div>
-                                                <button type="button" onClick={(e) => { e.stopPropagation(); setIsUploadOpen(true); }}
+                                                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: FONT }}>No documents yet</div>
+                                                <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                                                   style={{ fontSize: 11, color: "#185FA5", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT }}>
-                                                  + Tải lên file đầu tiên
+                                                  + Upload your first file
                                                 </button>
                                               </div>
                                             ) : (
                                               <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                                {folderSubFolderCount} Thư mục · {folderFileCount} file
+                                                {folderSubFolderCount} Folder · {folderFileCount} file
                                               </span>
                                             )}
                                             <div style={{ display: "flex", flexDirection: "column", marginTop: 2 }}>
                                               <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT }}>
-                                                Ngày tạo: {formatDate(record.createdAt || record.updatedAt)}
+                                                Created date: {formatDate(record.createdAt || record.updatedAt)}
                                               </span>
                                               <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>
-                                                Người tạo: {getUploadUserName(record)}
+                                                Created by: {getUploadUserName(record)}
                                               </span>
                                             </div>
                                           </React.Fragment>
@@ -6650,14 +7564,14 @@ const getCustomerDisplayName = (record) => {
                             })}
                           </Row>
 
-                          {/* ── Section: Tài liệu ── */}
+                          {/* ── Section: Documents ── */}
                           {tableData.some(r => r._type === "file") && (
-                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Tài liệu</div>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Documents</div>
                           )}
                           <Row gutter={[10, 10]}>
                             {tableData.filter(r => r._type === "file").map((record) => {
                               const fileIsEditing = editingTitleId === String(extractId(record));
-                              const cardFileName = (() => { const att = getAttachment(record); return att?.title || att?.filename || record.googleDriveUrl || "Chưa có file đính kèm"; })();
+                              const cardFileName = (() => { const att = getAttachment(record); return att?.title || att?.filename || record.googleDriveUrl || "No attached file"; })();
                               const cardHasFile = !!getRecordFileUrl(record);
                               const ext = getFileExtension(record);
 
@@ -6736,14 +7650,14 @@ const getCustomerDisplayName = (record) => {
                                         )}
                                         {activeSpace === "trash" ? (
                                           <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>Nguồn: {getRecordPathString(record)}</div>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>Người xoá: {getDeletedUserName(record)}</div>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere", color: "#9CA3AF" }}>Ngày xoá: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>Source: {getRecordPathString(record)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>Deleted by: {getDeletedUserName(record)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere", color: "#9CA3AF" }}>Deleted date: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}</div>
                                           </div>
                                         ) : (
                                           <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Ngày tạo: {formatDate(record.uploadedAt || record.createdAt || getDocDate(record))}</div>
-                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>Người tạo: {getUploadUserName(record)}</div>
+                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Created date: {formatDate(record.uploadedAt || record.createdAt || getDocDate(record))}</div>
+                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>Created by: {getUploadUserName(record)}</div>
                                           </div>
                                         )}
                                       </div>
@@ -6773,7 +7687,7 @@ const getCustomerDisplayName = (record) => {
                         emptyText: (
                           <div style={{ padding: "40px 0", textAlign: "center" }}>
                             <div style={{ fontSize: 14, color: "#9CA3AF" }}>
-                              {query ? "Không tìm thấy kết quả" : (activeSpace === "trash" ? "Thùng rác trống" : "Thư mục trống")}
+                              {query ? "No results found" : (activeSpace === "trash" ? "Trash is empty" : "Folder is empty")}
                             </div>
                           </div>
                         )
@@ -6788,87 +7702,53 @@ const getCustomerDisplayName = (record) => {
         </Layout>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Tạo thư mục</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Create folder</span>}
           open={isFolderOpen}
           onCancel={() => { setIsFolderOpen(false); folderForm.resetFields(); }}
           footer={null}
           destroyOnClose
         >
-          <Text type="secondary">Vị trí: {breadcrumbs.map((item) => item.name).join(" / ")}</Text>
+          <Text type="secondary">Location: {breadcrumbs.map((item) => item.name).join(" / ")}</Text>
           <Form form={folderForm} layout="vertical" onFinish={handleCreateFolder} style={{ marginTop: 16 }}>
-            <Form.Item name="name" label="Tên thư mục" rules={[{ required: true, message: "Vui lòng nhập tên thư mục" }]}>
-              <Input placeholder="Nhập tên thư mục..." />
+            <Form.Item name="name" label="Folder name" rules={[{ required: true, message: "Please enter a folder name" }]}>
+              <Input placeholder="Enter folder name..." />
             </Form.Item>
-            <Form.Item name="description" label="Mô tả">
-              <Input.TextArea rows={3} placeholder="Mô tả ngắn..." />
+            <Form.Item name="description" label="Description">
+              <Input.TextArea rows={3} placeholder="Short description..." />
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setIsFolderOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-              <Button type="primary" htmlType="submit" loading={folderLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Tạo thư mục</Button>
+              <Button onClick={() => setIsFolderOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={folderLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Create folder</Button>
             </div>
           </Form>
         </Modal>
 
-        <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload tài liệu</span>}
-          open={isUploadOpen}
-          onCancel={() => { setIsUploadOpen(false); uploadForm.resetFields(); setUploadFileList([]); }}
-          width={760}
-          footer={[
-            <Button key="cancel" onClick={() => setIsUploadOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-            <Button key="submit" type="primary" loading={uploadLoading} onClick={handleUploadSubmit} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Upload</Button>,
-          ]}
-          destroyOnClose
-        >
-          <Form form={uploadForm} layout="vertical" initialValues={{ documentType: activeTypeId }}>
-            <div style={{ display: "grid", gridTemplateColumns: activeSpace === "document_type" ? "1fr 1fr" : "1fr", gap: 12 }}>
-              {activeSpace === "document_type" && (
-                <Form.Item name="documentType" label="Loại tài liệu" rules={[{ required: true, message: "Vui lòng chọn loại tài liệu" }]}>
-                  <Select optionLabelProp="label">
-                    {documentTypes.map((type) => (
-                      <Select.Option key={type.id} value={type.id} label={type.label}>
-                        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, paddingTop: 1 }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", color: type.color }}>{type.svgIcon}</span>
-                          <span>{type.label}</span>
-                        </div>
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              )}
-              <Form.Item name="googleDriveUrl" label="Google Drive URL" style={{ width: "100%" }}>
-                <Input placeholder="Dán URL nếu không upload file" />
-              </Form.Item>
-            </div>
-            <Form.Item name="description" label="Mô tả">
-              <Input.TextArea rows={2} placeholder="Mô tả ngắn..." />
-            </Form.Item>
-            <Form.Item label="File đính kèm">
-              <Dragger
-                fileList={uploadFileList}
-                beforeUpload={() => false}
-                onChange={({ fileList }) => setUploadFileList(fileList.slice(-1))}
-                maxCount={1}
-              >
-                <p style={{ fontSize: 22, margin: "4px 0", color: "#6b7280" }}>{TYPE_ICONS.upload}</p>
-                <p style={{ margin: 0 }}>Kéo thả hoặc click để chọn file</p>
-              </Dragger>
-            </Form.Item>
-          </Form>
-        </Modal>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          style={{ display: "none" }}
+          onChange={handleFileInputTrigger}
+        />
+        <DocumentUploadFieldsModal
+          open={!!uploadFieldsTarget}
+          files={uploadFieldsTarget?.files || []}
+          onClose={() => setUploadFieldsTarget(null)}
+          onSubmit={handleConfirmUploadFields}
+        />
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload thư mục</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload folder</span>}
           open={bulkConfirmOpen}
           onCancel={() => { if (bulkUploading) return; setBulkConfirmOpen(false); setPendingFolderFiles([]); }}
           footer={[
-            <Button key="cancel" disabled={bulkUploading} onClick={() => setBulkConfirmOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-            <Button key="submit" type="primary" loading={bulkUploading} onClick={executeFolderUpload} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Xác nhận Upload</Button>,
+            <Button key="cancel" disabled={bulkUploading} onClick={() => setBulkConfirmOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
+            <Button key="submit" type="primary" loading={bulkUploading} onClick={executeFolderUpload} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Confirm upload</Button>,
           ]}
         >
-          <Text>Đã chọn {pendingFolderFiles.length} file từ thư mục bên ngoài.</Text>
+          <Text>Selected {pendingFolderFiles.length} file(s) from an external folder.</Text>
           <div style={{ marginTop: 16 }}>
-            <Text strong>Upload vào:</Text>
+            <Text strong>Upload to:</Text>
             <TreeSelect
               value={bulkTargetId}
               onChange={setBulkTargetId}
@@ -6886,15 +7766,15 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Di chuyển</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Move</span>}
           open={!!moveRecord}
           onCancel={() => setMoveRecord(null)}
           footer={[
-            <Button key="cancel" onClick={() => setMoveRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-            <Button key="submit" type="primary" onClick={() => handleMoveRecord(moveRecord, moveTargetId)} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Di chuyển</Button>,
+            <Button key="cancel" onClick={() => setMoveRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
+            <Button key="submit" type="primary" onClick={() => handleMoveRecord(moveRecord, moveTargetId)} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Move</Button>,
           ]}
         >
-          <Text>Chọn thư mục đích cho <b>{moveRecord?._type === "folder" ? moveRecord?.name : getDocTitle(moveRecord)}</b></Text>
+          <Text>Select destination folder for <b>{moveRecord?._type === "folder" ? moveRecord?.name : getDocTitle(moveRecord)}</b></Text>
           <TreeSelect
             value={moveTargetId}
             onChange={setMoveTargetId}
@@ -6905,7 +7785,7 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Tạo khách hàng</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Create customer</span>}
           open={isCreateTemplateOpen}
           onCancel={() => { setIsCreateTemplateOpen(false); createTemplateForm.resetFields(); }}
           footer={null}
@@ -6914,21 +7794,21 @@ const getCustomerDisplayName = (record) => {
           <Form form={createTemplateForm} layout="vertical" onFinish={handleCreateCustomer}>
             <Form.Item
               name="title"
-              label="Tên khách hàng"
-              rules={[{ required: true, message: "Vui lòng nhập tên khách hàng" }]}
+              label="Customer name"
+              rules={[{ required: true, message: "Please enter a customer name" }]}
             >
-              <Input placeholder="Nhập tên khách hàng..." />
+              <Input placeholder="Enter customer name..." />
             </Form.Item>
-            <Form.Item name="description" label="Ghi chú">
-              <Input.TextArea rows={3} placeholder="Ghi chú ngắn..." />
+            <Form.Item name="description" label="Note">
+              <Input.TextArea rows={3} placeholder="Short note..." />
             </Form.Item>
             <Form.Item
               name="sourceCaseId"
-              label="Case nguồn / Case gốc"
-              extra="Chọn case/dự án nguồn liên quan đến khách hàng này."
+              label="Source case / Root case"
+              extra="Select the source case/project related to this customer."
             >
               <Select
-                placeholder="Chọn case nguồn..."
+                placeholder="Select source case..."
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
@@ -6969,12 +7849,12 @@ const getCustomerDisplayName = (record) => {
             </Form.Item>
             <Form.Item
               name="caseIds"
-              label="Các case liên kết hiện tại"
-              extra="Chọn các case đang chạy trong hệ thống để liên kết với khách hàng này."
+              label="Currently linked cases"
+              extra="Select active cases in the system to link with this customer."
             >
               <Select
                 mode="multiple"
-                placeholder="Chọn case liên kết..."
+                placeholder="Select linked cases..."
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
@@ -6991,14 +7871,14 @@ const getCustomerDisplayName = (record) => {
               </Select>
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setIsCreateTemplateOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-              <Button type="primary" htmlType="submit" loading={createTemplateLoading} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Tạo</Button>
+              <Button onClick={() => setIsCreateTemplateOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={createTemplateLoading} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Create</Button>
             </div>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Chỉnh sửa mục tài liệu</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Edit document type</span>}
           open={!!editTemplateRecord}
           onCancel={() => { setEditTemplateRecord(null); editTemplateForm.resetFields(); }}
           footer={null}
@@ -7011,53 +7891,53 @@ const getCustomerDisplayName = (record) => {
           >
             <Form.Item
               name="title"
-              label="Tiêu đề"
-              rules={[{ required: true, message: "Vui lòng nhập tiêu đề" }]}
+              label="Title"
+              rules={[{ required: true, message: "Please enter a title" }]}
             >
-              <Input placeholder="Nhập tiêu đề..." />
+              <Input placeholder="Enter title..." />
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setEditTemplateRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>
-              <Button type="primary" htmlType="submit" loading={editTemplateLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Lưu</Button>
+              <Button onClick={() => setEditTemplateRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={editTemplateLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Save</Button>
             </div>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Đổi tên</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Rename</span>}
           open={!!renameRecord}
           onCancel={() => { setRenameRecord(null); renameForm.resetFields(); }}
           onOk={handleRenameSubmit}
-          okText="Lưu"
-          cancelText="Hủy"
+          okText="Save"
+          cancelText="Cancel"
           destroyOnClose
         >
           <Form form={renameForm} layout="vertical">
-            <Form.Item name="name" label="Tên mới" rules={[{ required: true, message: "Vui lòng nhập tên" }]}>
-              <Input placeholder="Nhập tên mới..." />
+            <Form.Item name="name" label="New name" rules={[{ required: true, message: "Please enter a name" }]}>
+              <Input placeholder="Enter new name..." />
             </Form.Item>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Liên kết Case Tham Chiếu</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Link Reference Case</span>}
           open={isLinkCaseOpen}
           onCancel={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }}
           footer={[
-            <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-            <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Lưu liên kết</Button>,
+            <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
+            <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Save link</Button>,
           ]}
           destroyOnClose
         >
           <Form form={linkCaseForm} layout="vertical" onFinish={handleLinkCaseSubmit}>
             <Form.Item
               name="caseIds"
-              label="Chọn các Case/Dự án đang chạy liên kết"
-              extra="Danh sách được lấy từ các dự án hiện có trong hệ thống."
+              label="Select active Cases/Projects to link"
+              extra="The list is drawn from existing projects in the system."
             >
               <Select
                 mode="multiple"
-                placeholder="Chọn case..."
+                placeholder="Select case..."
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
@@ -7077,15 +7957,15 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Di chuyển nhiều mục</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Move multiple items</span>}
           open={isBulkMoveOpen}
           onCancel={() => setIsBulkMoveOpen(false)}
           footer={[
-            <Button key="cancel" onClick={() => setIsBulkMoveOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Hủy</Button>,
-            <Button key="submit" type="primary" onClick={handleBulkMoveSubmit} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Di chuyển</Button>,
+            <Button key="cancel" onClick={() => setIsBulkMoveOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
+            <Button key="submit" type="primary" onClick={handleBulkMoveSubmit} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Move</Button>,
           ]}
         >
-          <Text>Chọn thư mục đích cho <b>{selectedRowKeys.length} mục đã chọn</b></Text>
+          <Text>Select destination folder for <b>{selectedRowKeys.length} selected item(s)</b></Text>
           <TreeSelect
             value={bulkMoveTargetId}
             onChange={setBulkMoveTargetId}

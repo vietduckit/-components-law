@@ -390,31 +390,29 @@ const saveActiveViewId = (id) => {
 };
 
 // ============================================================
-// UTILS
+// UTILS — dùng chung qua shared-lib/law-shared.js (ctx.importAsync),
+// xem shared-lib/README.md. Chỉ giữ lại local những helper đặc thù
+// của CaseDashboard (isOverdue, projectBaseDate) không dùng ở block khác.
 // ============================================================
-const extractId = (val) => {
-  if (val === null || val === undefined || val === "") return null;
-  if (Array.isArray(val)) return val.length > 0 ? extractId(val[0]) : null;
-  if (typeof val === "object") return val.id ? parseInt(val.id, 10) : null;
-  const parsed = parseInt(val, 10);
-  return isNaN(parsed) ? null : parsed;
-};
-
-const fmtCompactVND = (n) => {
-  const v = Number(n) || 0;
-  if (v >= 1e9)
-    return (v / 1e9).toLocaleString("vi-VN", { maximumFractionDigits: 2 }) + " tỷ ₫";
-  if (v >= 1e6)
-    return (v / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 }) + " tr ₫";
-  return v.toLocaleString("vi-VN") + " ₫";
-};
-
-const fmtDate = (val) => {
-  if (!val) return "-";
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("vi-VN");
-};
+const SHARED_LIB_URL = "https://law.dev.samset.net/storage/uploads/law-shared-qqsf4i.js"; // TODO: thay bằng URL sau khi upload lên Nocobase file-manager
+const Shared = await ctx.importAsync(SHARED_LIB_URL);
+const {
+  extractId,
+  fmtCompactVND,
+  fmtDate,
+  parseNum,
+  isPackagePricing,
+  isDeletedServiceRecord,
+  serviceRowTotal,
+  parseDateInput,
+  rangeToDates,
+  prevRangeDates,
+  monthKey,
+  last12Months,
+  clampSpan,
+  colProps,
+  moveInArray,
+} = Shared;
 
 const isOverdue = (p) =>
   p.deadline &&
@@ -422,94 +420,7 @@ const isOverdue = (p) =>
   p.status !== "cancelled" &&
   new Date(p.deadline) < new Date();
 
-const parseNum = (v) =>
-  parseFloat(String(v ?? "").replace(/[^\d.-]/g, "")) || 0;
-
-const isPackagePricing = (p) =>
-  String(p?.pricingMode || "")
-    .toLowerCase()
-    .trim() === "package";
-
-const isDeletedServiceRecord = (r) =>
-  !!r?.isDeleted ||
-  String(r?.status || r?.lineStatus || "")
-    .toLowerCase()
-    .trim() === "deleted";
-
-const serviceRowTotal = (r) => {
-  const total = parseNum(r?.totalAmount);
-  if (total) return total;
-  const sub =
-    parseNum(r?.subTotal) ||
-    parseNum(r?.basePrice) * (parseNum(r?.quantity) || 1);
-  return sub + parseNum(r?.vatAmount);
-};
-
 const projectBaseDate = (p) => p.date || p.createdAt;
-
-const parseDateInput = (val, endOfDay = false) => {
-  if (!val) return null;
-  const d = new Date(`${val}T${endOfDay ? "23:59:59" : "00:00:00"}`);
-  return isNaN(d.getTime()) ? null : d;
-};
-
-const rangeToDates = (range, customFrom, customTo) => {
-  const now = new Date();
-  let start = null;
-  let end = now;
-  if (range === "7d") start = new Date(now.getTime() - 7 * 86400000);
-  else if (range === "30d") start = new Date(now.getTime() - 30 * 86400000);
-  else if (range === "quarter") {
-    const q = Math.floor(now.getMonth() / 3);
-    start = new Date(now.getFullYear(), q * 3, 1);
-  } else if (range === "year") start = new Date(now.getFullYear(), 0, 1);
-  else if (range === "custom") {
-    start = parseDateInput(customFrom);
-    end = parseDateInput(customTo, true) || now;
-  }
-  return { start, end };
-};
-
-const prevRangeDates = (range, customFrom, customTo) => {
-  const { start, end } = rangeToDates(range, customFrom, customTo);
-  if (!start) return { start: null, end: null };
-  const len = end.getTime() - start.getTime();
-  return { start: new Date(start.getTime() - len), end: start };
-};
-
-const monthKey = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-const last12Months = () => {
-  const out = [];
-  const now = new Date();
-  for (let i = 11; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    out.push({
-      key: monthKey(d),
-      label: `T${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`,
-    });
-  }
-  return out;
-};
-
-const clampSpan = (span) => [4, 6, 8, 12].includes(span) ? span : 4;
-const colProps = (span) => ({
-  xs: 24,
-  md: span >= 12 ? 24 : 12,
-  xl: clampSpan(span) * 2,
-});
-
-const moveInArray = (arr, key, dir) => {
-  const idx = arr.indexOf(key);
-  const target = idx + dir;
-  if (idx < 0 || target < 0 || target >= arr.length) return arr;
-  const next = [...arr];
-  const tmp = next[idx];
-  next[idx] = next[target];
-  next[target] = tmp;
-  return next;
-};
 
 // ============================================================
 // API

@@ -2,8 +2,10 @@ const { React } = ctx;
 const { useEffect, useMemo, useState } = React;
 const {
   Select,
+  Space,
   Spin,
   Table,
+  Tag,
   message,
 } = ctx.antd;
 
@@ -214,6 +216,13 @@ const formatDate = (value) => {
   return date.toLocaleDateString("vi-VN");
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${date.toLocaleDateString("vi-VN")} ${date.toLocaleTimeString("vi-VN", { hour12: false })}`;
+};
+
 const normalizeModeKey = (value) =>
   String(value || "")
     .trim()
@@ -259,9 +268,9 @@ const contractTotalAmount = (contract) => {
   const vatAmount = parseNum(firstPresent(contract, ["vatAmount", "packageVatAmount"]));
   if (subTotal > MONEY_TOLERANCE || vatAmount > MONEY_TOLERANCE) return subTotal + vatAmount;
 
-  const monthlyFee = parseNum(contract?.monthlyFee);
-  const duration = parseNum(contract?.retainerDuration);
-  if (monthlyFee > MONEY_TOLERANCE && duration > MONEY_TOLERANCE) return monthlyFee * duration;
+  const activePlan = contract?.billingPlans?.find((p) => p.status === "active") || contract?.billingPlans?.[0] || null;
+  const planTotal = parseNum(activePlan?.totalAmount);
+  if (planTotal > MONEY_TOLERANCE) return planTotal;
 
   return 0;
 };
@@ -420,6 +429,15 @@ const buildInstallmentRows = (schedule, payments) => {
   });
 };
 
+const CONTRACT_PAYMENT_STATUS_META = {
+  unpaid: { color: "default", label: "Unpaid" },
+  partial: { color: "warning", label: "Partial" },
+  paid: { color: "success", label: "Paid" },
+};
+
+const contractPaymentStatusMeta = (status) =>
+  CONTRACT_PAYMENT_STATUS_META[String(status || "").toLowerCase()] || { color: "default", label: "Unknown" };
+
 const statusTag = (status) => {
   const key = normalizeStatus(status);
   const labelMap = {
@@ -454,15 +472,34 @@ const statusTag = (status) => {
   );
 };
 
-const InfoLine = ({ label, value }) =>
+// Sized to its own content (flex: 0 1 auto), not stretched to an equal
+// share of the row — a short value like "-" stays short instead of being
+// forced into a wide column with dead space around it. `minWidth` only
+// keeps very short content from looking cramped; it never forces growth.
+// Outside a flex container (e.g. the full-width Allocation slot) the flex
+// property is simply ignored, so this stays safe to reuse anywhere.
+const InfoLine = ({ label, value, minWidth = 110 }) =>
   React.createElement(
     "div",
-    { style: { minWidth: 0 } },
+    { style: { flex: "0 1 auto", minWidth } },
     React.createElement("div", { style: { color: "rgba(0,0,0,0.45)", fontSize: 12, marginBottom: 4 } }, label),
     React.createElement("div", { style: { fontWeight: 500, wordBreak: "break-word" } }, value || "-"),
   );
 
-const MetricBox = ({ label, value, sub }) =>
+// The internal-system field-list pattern: a row of label/value pairs that
+// each take only the width their own content needs, wrapping to the next
+// line when they run out of room. Use for read-only field groups (this
+// file's "meta" and "Contract & customer" rows); keep CSS Grid with equal
+// columns only for genuinely uniform tiles like the Financial summary
+// metric cards, where equal width is itself part of the KPI-row look.
+const FieldRow = ({ children }) =>
+  React.createElement(
+    "div",
+    { style: { display: "flex", flexWrap: "wrap", columnGap: 32, rowGap: 12 } },
+    children,
+  );
+
+const MetricBox = ({ label, value, sub, valueColor }) =>
   React.createElement(
     "div",
     {
@@ -479,7 +516,7 @@ const MetricBox = ({ label, value, sub }) =>
       "div",
       {
         style: {
-          color: "rgba(0,0,0,0.88)",
+          color: valueColor || "rgba(0,0,0,0.88)",
           fontSize: 15,
           fontWeight: 500,
           fontVariantNumeric: "tabular-nums",
@@ -493,6 +530,31 @@ const MetricBox = ({ label, value, sub }) =>
       : null,
   );
 
+// A section boundary encodes grouping, not decoration — the border-top is
+// what tells the eye "new group starts here" without adding a heavier
+// divider component. First section on the page should skip the border
+// (nothing above it to separate from).
+const Section = ({ title, first, children }) =>
+  React.createElement(
+    "div",
+    {
+      style: {
+        display: "grid",
+        gap: 10,
+        borderTop: first ? "none" : "1px solid #f0f0f0",
+        paddingTop: first ? 0 : 14,
+      },
+    },
+    title
+      ? React.createElement(
+          "div",
+          { style: { fontSize: 13, fontWeight: 500, color: "rgba(0,0,0,0.72)" } },
+          title,
+        )
+      : null,
+    children,
+  );
+
 const PaymentContractDetailBlock = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -502,6 +564,10 @@ const PaymentContractDetailBlock = () => {
   const [contractPayments, setContractPayments] = useState([]);
   const [accountingUsers, setAccountingUsers] = useState([]);
   const [savingAccounting, setSavingAccounting] = useState(false);
+  // §6h — which contractServices this payment's own Payment Request is
+  // tagged to, so "Allocation" shows the service(s), not just the
+  // installment label.
+  const [allocationServiceNames, setAllocationServiceNames] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -561,6 +627,28 @@ const PaymentContractDetailBlock = () => {
         setContract(freshContract);
         setContractPayments(payments || []);
         setAccountingUsers((users || []).filter((user) => extractId(user?.id) !== 1));
+
+        const requestId = extractId(freshPayment?.paymentRequestId) || extractId(freshPayment?.paymentRequest);
+        if (requestId) {
+          listAny(["paymentRequestServices"], {
+            filter: JSON.stringify({ paymentRequestId: { $eq: requestId } }),
+            fields: ["id", "contractServiceId"],
+          })
+            .then((tagRows) => {
+              const csIds = compact((tagRows || []).map((row) => extractId(row.contractServiceId)));
+              if (!csIds.length || !mounted) return;
+              return listAny(["contractServices"], {
+                filter: JSON.stringify({ id: { $in: csIds } }),
+                fields: ["id", "serviceName"],
+              }).then((serviceRows) => {
+                if (!mounted) return;
+                setAllocationServiceNames((serviceRows || []).map((row) => row.serviceName || `Service #${extractId(row.id)}`));
+              });
+            })
+            .catch(() => {
+              if (mounted) setAllocationServiceNames([]);
+            });
+        }
       } catch (loadError) {
         console.error("[PaymentContractDetailBlock] load failed", loadError);
         if (mounted) setError(loadError?.message || "Could not load payment contract context.");
@@ -627,12 +715,29 @@ const PaymentContractDetailBlock = () => {
     const totalAmount = contractTotalAmount(contract || {});
     const paidAmount = summarizeActualPayments(contractPayments);
     const remainingAmount = totalAmount > MONEY_TOLERANCE ? Math.max(totalAmount - paidAmount, 0) : 0;
+    // When the contract has explicit installments, the sum of their own
+    // remainingAmount IS the ground truth — it's exactly what the table
+    // below shows, so it can never drift from it. contracts.outStandingAmount
+    // (DB, contract-total-based, kept in sync by trg_payment_recompute_contract)
+    // is only used when there's no installment breakdown to sum instead;
+    // the client recompute above is the last-resort fallback for
+    // pre-trigger contracts.
+    const installmentBasedOutstanding = isInstallmentContract
+      ? installmentRows.reduce((sum, row) => sum + row.remainingAmount, 0)
+      : null;
+    const dbOutstanding = contract?.outStandingAmount;
+    const outstandingAmount = installmentBasedOutstanding !== null
+      ? installmentBasedOutstanding
+      : dbOutstanding !== undefined && dbOutstanding !== null
+        ? parseNum(dbOutstanding)
+        : remainingAmount;
+    const paymentStatusMeta = contractPaymentStatusMeta(contract?.paymentStatus);
     const recognizedPaymentAmount =
       !isInactiveStatus(payment?.paymentStatus) && isActualPaidStatus(payment?.paymentStatus)
         ? parseNum(payment?.amount)
         : 0;
     const coveragePercent = totalAmount > MONEY_TOLERANCE
-      ? Math.min(100, Math.round((paidAmount * 10000) / totalAmount) / 100)
+      ? Math.min(100, Math.round(((totalAmount - outstandingAmount) * 10000) / totalAmount) / 100)
       : 0;
     const customer =
       relationRecord(contract?.customers) ||
@@ -653,6 +758,8 @@ const PaymentContractDetailBlock = () => {
       totalAmount,
       paidAmount,
       remainingAmount,
+      outstandingAmount,
+      paymentStatusMeta,
       recognizedPaymentAmount,
       coveragePercent,
       customer,
@@ -690,7 +797,36 @@ const PaymentContractDetailBlock = () => {
     style: { width: "100%" },
     options: accountingOptions,
     onChange: handleAccountingChange,
+    "aria-label": "Accounting owner",
   });
+
+  // The one hero fact on this record — identity + status. The amount
+  // lives in "Financial summary" below (as "This payment"); showing it
+  // again here was a duplicate, not a second hero fact.
+  const heroRow = React.createElement(
+    "div",
+    { key: "hero", style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 } },
+    React.createElement(
+      Space,
+      { size: 8, wrap: true, align: "center" },
+      React.createElement(
+        "span",
+        { style: { fontSize: 16, fontWeight: 600, color: "rgba(0,0,0,0.88)" } },
+        firstPresent(payment, ["paymentNumber", "paymentCode"]) || `Payment #${extractId(payment)}`,
+      ),
+      statusTag(payment.paymentStatus),
+    ),
+  );
+
+  const accountingSection = React.createElement(
+    Section,
+    { title: "Accounting owner" },
+    React.createElement(
+      "div",
+      { style: { background: "#fafafa", border: "1px solid #eee", borderRadius: 6, padding: 10, maxWidth: 360 } },
+      accountingSelect,
+    ),
+  );
 
   if (!contract) {
     return React.createElement(
@@ -702,34 +838,39 @@ const PaymentContractDetailBlock = () => {
           background: "#fff",
           padding: 14,
           display: "grid",
-          gap: 12,
+          gap: 14,
         },
       },
       React.createElement(
-        "div",
-        {
-          style: {
-            display: "grid",
-            gridTemplateColumns: "minmax(180px, 1fr) minmax(220px, 1fr)",
-            gap: 12,
-          },
-        },
-        React.createElement(InfoLine, {
-          label: "Invoice",
-          value: invoice
-            ? firstPresent(invoice, ["invoiceNumber", "invoiceCode", "code"]) || `Invoice #${extractId(invoice)}`
-            : "-",
-        }),
-        React.createElement("div", null, React.createElement("div", {
-          style: { color: "rgba(0,0,0,0.45)", fontSize: 12, marginBottom: 4 },
-        }, "Accounting owner"), accountingSelect),
+        Section,
+        { first: true },
+        heroRow,
+        React.createElement(
+          FieldRow,
+          { key: "meta" },
+          React.createElement(InfoLine, { label: "Payment date", value: formatDateTime(payment.paymentDate), minWidth: 150 }),
+          React.createElement(InfoLine, { label: "Payment method", value: payment.paymentMethod || "-", minWidth: 90 }),
+          React.createElement(InfoLine, { label: "Payment reference", value: payment.paymentRefer || "-", minWidth: 110 }),
+          React.createElement(InfoLine, {
+            label: "Invoice",
+            value: invoice
+              ? firstPresent(invoice, ["invoiceNumber", "invoiceCode", "code"]) || `Invoice #${extractId(invoice)}`
+              : "-",
+            minWidth: 130,
+          }),
+        ),
       ),
-      React.createElement(MetricBox, {
-        label: "This payment",
-        value: isActualPaidStatus(payment.paymentStatus) && !isInactiveStatus(payment.paymentStatus)
-          ? formatMoney(payment.amount)
-          : "0 VND",
-      }),
+      accountingSection,
+      React.createElement(
+        Section,
+        { title: "Financial summary" },
+        React.createElement(MetricBox, {
+          label: "This payment",
+          value: isActualPaidStatus(payment.paymentStatus) && !isInactiveStatus(payment.paymentStatus)
+            ? formatMoney(payment.amount)
+            : "0 VND",
+        }),
+      ),
     );
   }
 
@@ -750,28 +891,66 @@ const PaymentContractDetailBlock = () => {
         background: "#fff",
         padding: 14,
         display: "grid",
-        gap: 12,
+        gap: 14,
       },
     },
     React.createElement(
-      "div",
-      { style: { display: "grid", gap: 12 } },
+      Section,
+      { first: true },
+      heroRow,
       React.createElement(
-        "div",
-        {
-          style: {
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 12,
-          },
-        },
-        React.createElement(InfoLine, { label: "Contract", value: contractLabel(contract) }),
-        React.createElement(InfoLine, { label: "Customer", value: customerLabel(model.customer) }),
-        React.createElement(InfoLine, { label: "Allocation", value: paymentPlanValue }),
-        React.createElement("div", null, React.createElement("div", {
-          style: { color: "rgba(0,0,0,0.45)", fontSize: 12, marginBottom: 4 },
-        }, "Accounting owner"), accountingSelect),
+        FieldRow,
+        { key: "meta" },
+        React.createElement(InfoLine, { label: "Payment date", value: formatDateTime(payment.paymentDate), minWidth: 150 }),
+        React.createElement(InfoLine, { label: "Payment method", value: payment.paymentMethod || "-", minWidth: 90 }),
+        React.createElement(InfoLine, { label: "Payment reference", value: payment.paymentRefer || "-", minWidth: 110 }),
       ),
+    ),
+    React.createElement(
+      Section,
+      { title: "Contract & customer" },
+      React.createElement(
+        FieldRow,
+        { key: "cc" },
+        React.createElement(InfoLine, {
+          label: "Contract",
+          minWidth: 200,
+          value: React.createElement(
+            Space,
+            { size: 6, wrap: true },
+            contractLabel(contract),
+            React.createElement(Tag, { color: model.paymentStatusMeta.color }, model.paymentStatusMeta.label),
+          ),
+        }),
+        React.createElement(InfoLine, { label: "Customer", value: customerLabel(model.customer), minWidth: 150 }),
+      ),
+      React.createElement(InfoLine, {
+        key: "alloc",
+        label: "Allocation",
+        value: React.createElement(
+          "div",
+          { style: { maxWidth: "100%" } },
+          paymentPlanValue,
+          allocationServiceNames.length
+            ? React.createElement(
+                Space,
+                { size: 4, wrap: true, style: { marginTop: 4, display: "flex", maxWidth: "100%" } },
+                allocationServiceNames.map((name) =>
+                  React.createElement(
+                    Tag,
+                    { key: name, style: { whiteSpace: "normal", wordBreak: "break-word", maxWidth: "100%" } },
+                    name,
+                  ),
+                ),
+              )
+            : null,
+        ),
+      }),
+    ),
+    accountingSection,
+    React.createElement(
+      Section,
+      { title: "Financial summary" },
       React.createElement(
         "div",
         {
@@ -792,7 +971,10 @@ const PaymentContractDetailBlock = () => {
         }),
         React.createElement(MetricBox, {
           label: "Balance due",
-          value: model.totalAmount ? formatMoney(model.remainingAmount) : "-",
+          value: model.totalAmount ? formatMoney(model.outstandingAmount) : "-",
+          valueColor: model.totalAmount
+            ? (model.outstandingAmount > MONEY_TOLERANCE ? "#d46b08" : "#237804")
+            : undefined,
         }),
         model.isRetainerContract
           ? React.createElement(MetricBox, {
@@ -805,25 +987,15 @@ const PaymentContractDetailBlock = () => {
           value: model.totalAmount ? `${model.coveragePercent}%` : "-",
         }),
       ),
-      model.isInstallmentContract
-        ? React.createElement(
-            React.Fragment,
-            null,
+    ),
+    model.isInstallmentContract
+      ? React.createElement(
+          Section,
+          { title: "Installment progress" },
             React.createElement(
               "div",
               {
-                style: {
-                  paddingTop: 2,
-                  color: "rgba(0,0,0,0.72)",
-                  fontSize: 13,
-                  fontWeight: 500,
-                },
-              },
-              "Installment progress",
-            ),
-            React.createElement(
-              "div",
-              {
+                key: "stats",
                 style: {
                   display: "grid",
                   gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
@@ -844,17 +1016,18 @@ const PaymentContractDetailBlock = () => {
               }),
             ),
             React.createElement(Table, {
+              key: "table",
               style: { marginTop: 12 },
               rowKey: "scheduleItemId",
               size: "small",
               pagination: false,
               dataSource: model.installmentRows,
-              scroll: { x: 900 },
+              scroll: { x: 720 },
               columns: [
                 {
                   title: "Installment",
                   dataIndex: "label",
-                  width: 180,
+                  width: 160,
                   render: (value, row) =>
                     React.createElement(
                       "span",
@@ -869,21 +1042,20 @@ const PaymentContractDetailBlock = () => {
                         : null,
                     ),
                 },
-                { title: "Due date", dataIndex: "paymentDate", width: 120, render: formatDate },
-                { title: "Planned", dataIndex: "amount", width: 140, align: "right", render: formatMoney },
-                { title: "Received", dataIndex: "paidAmount", width: 140, align: "right", render: formatMoney },
-                { title: "Remaining", dataIndex: "remainingAmount", width: 140, align: "right", render: formatMoney },
+                { title: "Due date", dataIndex: "paymentDate", width: 100, render: formatDate },
+                { title: "Planned", dataIndex: "amount", width: 120, align: "right", render: formatMoney },
+                { title: "Received", dataIndex: "paidAmount", width: 120, align: "right", render: formatMoney },
+                { title: "Remaining", dataIndex: "remainingAmount", width: 120, align: "right", render: formatMoney },
                 {
                   title: "Status",
                   dataIndex: "computedStatus",
-                  width: 110,
+                  width: 100,
                   render: statusTag,
                 },
               ],
             }),
           )
         : null,
-    ),
   );
 };
 
