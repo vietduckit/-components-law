@@ -113,9 +113,15 @@ const CONFIG = {
       placeholder: 'All',
       source: {
         collection: 'customers',
-        labelFields: ['shortName','customerName'],
+        labelFields: ['shortName', 'customerName'],
         sort: 'createdAt',
-        
+        // Only customers that at least one case (within the "My Cases"
+        // scope) points to via customerId — keeps same-name customers with
+        // no case out of the dropdown so they can't be picked by mistake.
+        onlyUsedBy: { field: 'customerId', respectCurrentUserScope: true },
+        // Customers with cases that still share a short name are told apart
+        // by their full name (id only if the full name is shared too).
+        disambiguateLabels: true,
       },
     },
     {
@@ -273,15 +279,61 @@ const mapRelationOptions = (records, filterDef) => {
     (filterDef?.source?.excludeValues || []).map((v) => String(normalizeFilterId(v))),
   );
   const labelFields = filterDef?.source?.labelFields?.length ? filterDef.source.labelFields : ['name'];
-  return (records || [])
+  const options = (records || [])
     .filter((record) => !excludeSet.has(String(normalizeFilterId(record?.id))))
     .map((record) => {
       let label = '';
       for (const field of labelFields) {
         if (record?.[field]) { label = String(record[field]); break; }
       }
-      return { value: record?.id, label: label || `#${record?.id}` };
+      return { value: record?.id, label: label || `#${record?.id}`, record };
     });
+  if (!filterDef?.source?.disambiguateLabels) {
+    return options.map(({ value, label }) => ({ value, label }));
+  }
+  // Records sharing a label (e.g. customers with the same short name, case-
+  // insensitive) get the next differing labelField appended — "ABC (ABC Ha
+  // Noi)". The id is added only when that extra label is missing or still
+  // shared within the group, so the dropdown never shows two identical,
+  // indistinguishable entries.
+  const normalizeLabel = (text) => String(text || '').trim().toLowerCase();
+  const withExtra = options.map((option) => ({
+    ...option,
+    extraLabel: labelFields
+      .map((field) => option.record?.[field])
+      .find((v) => v && String(v) !== option.label) || '',
+  }));
+  const groups = new Map();
+  withExtra.forEach((option) => {
+    const key = normalizeLabel(option.label);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(option);
+  });
+  return withExtra.map(({ value, label, extraLabel }) => {
+    const group = groups.get(normalizeLabel(label)) || [];
+    if (group.length < 2) return { value, label };
+    const extraIsUnique = !!extraLabel && group.filter(
+      (other) => normalizeLabel(other.extraLabel) === normalizeLabel(extraLabel),
+    ).length === 1;
+    if (extraIsUnique) return { value, label: `${label} (${extraLabel})` };
+    return { value, label: `${label} (${extraLabel ? `${extraLabel} · ` : ''}#${value})` };
+  });
+};
+
+// ---- "only values used by the target table" helpers (pure) ----
+const collectUsedRelationIds = (records, field) => {
+  const ids = new Set();
+  (records || []).forEach((record) => {
+    const id = normalizeFilterId(record?.[field]);
+    if (id !== null) ids.add(id);
+  });
+  return Array.from(ids);
+};
+
+const chunkList = (list, size) => {
+  const chunks = [];
+  for (let i = 0; i < list.length; i += size) chunks.push(list.slice(i, i + size));
+  return chunks;
 };
 
 // ---- status-option count filter (pure) ----
@@ -409,8 +461,44 @@ function useCurrentUserScope() {
   return scope;
 }
 
-function useRelationOptions(filterDef) {
+// Distinct values of a flat FK column across the target table's records
+// (e.g. every customerId that at least one case points to), paging through
+// the whole table instead of trusting a single page.
+const USED_IDS_PAGE_SIZE = 1000;
+const USED_IDS_MAX_PAGES = 50;
+const fetchUsedRelationIds = async (field, filter) => {
+  const ids = new Set();
+  for (let page = 1; page <= USED_IDS_MAX_PAGES; page++) {
+    const res = await ctx.api.request({
+      url: `${CONFIG.tableName}:list`,
+      params: {
+        page,
+        pageSize: USED_IDS_PAGE_SIZE,
+        fields: ['id', field],
+        ...(isEmptyFilter(filter) ? {} : { filter: JSON.stringify(filter) }),
+      },
+    });
+    const rows = res?.data?.data || [];
+    collectUsedRelationIds(rows, field).forEach((id) => ids.add(id));
+    const totalPage = res?.data?.meta?.totalPage;
+    if (rows.length < USED_IDS_PAGE_SIZE || (totalPage && page >= totalPage)) break;
+  }
+  return Array.from(ids);
+};
+
+const RELATION_IN_CHUNK_SIZE = 400;
+
+function useRelationOptions(filterDef, currentUserScope) {
   const [state, setState] = useState({ options: [], loading: filterDef.type === 'relation' });
+  // source.onlyUsedBy: { field, respectCurrentUserScope } — only offer
+  // records that CONFIG.tableName actually references through `field`
+  // (a flat FK column), optionally limited to the current-user scope too.
+  const onlyUsedBy = filterDef.source?.onlyUsedBy || null;
+  const useScope = !!onlyUsedBy && onlyUsedBy.respectCurrentUserScope !== false
+    && !!CONFIG.currentUserScope.enable;
+  const waitForScope = useScope && !!currentUserScope?.loading;
+  const scopeFilter = useScope ? currentUserScope?.filter || {} : {};
+  const scopeSignature = JSON.stringify(scopeFilter);
 
   useEffect(() => {
     if (filterDef.type !== 'relation') return;
@@ -418,22 +506,54 @@ function useRelationOptions(filterDef) {
       console.warn(`[GenericSearchFilter] Missing source.collection for relation filter: ${filterDef.key}`);
       return;
     }
+    if (waitForScope) {
+      setState((prev) => ({ ...prev, loading: true }));
+      return;
+    }
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true }));
-    ctx.api.request({
-      url: `${filterDef.source.collection}:list`,
-      params: { pageSize: 500, sort: filterDef.source.sort || 'createdAt' },
-    })
-      .then((res) => {
+    const collectionUrl = `${filterDef.source.collection}:list`;
+    const sort = filterDef.source.sort || 'createdAt';
+
+    const loadRecords = async () => {
+      if (!onlyUsedBy) {
+        const res = await ctx.api.request({ url: collectionUrl, params: { pageSize: 500, sort } });
+        return res?.data?.data || [];
+      }
+      const usedIds = await fetchUsedRelationIds(
+        onlyUsedBy.field || filterDef.field,
+        combineFilters(CONFIG.extraFilter, scopeFilter),
+      );
+      if (usedIds.length === 0) return [];
+      const responses = await Promise.all(
+        chunkList(usedIds, RELATION_IN_CHUNK_SIZE).map((ids) =>
+          ctx.api.request({
+            url: collectionUrl,
+            params: { pageSize: ids.length, sort, filter: JSON.stringify({ id: { $in: ids } }) },
+          }),
+        ),
+      );
+      return responses.flatMap((res) => res?.data?.data || []);
+    };
+
+    loadRecords()
+      .then((records) => {
         if (cancelled) return;
-        setState({ options: mapRelationOptions(res?.data?.data || [], filterDef), loading: false });
+        let options = mapRelationOptions(records, filterDef);
+        // Chunked $in requests can't keep one global sort — order by label.
+        if (onlyUsedBy) {
+          options = [...options].sort((a, b) =>
+            String(a.label).localeCompare(String(b.label), 'vi', { sensitivity: 'base' }),
+          );
+        }
+        setState({ options, loading: false });
       })
       .catch((e) => {
         console.warn(`[GenericSearchFilter] Could not fetch relation options for ${filterDef.key}:`, e);
         if (!cancelled) setState({ options: [], loading: false });
       });
     return () => { cancelled = true; };
-  }, [filterDef.key, filterDef.type]);
+  }, [filterDef.key, filterDef.type, waitForScope, scopeSignature]);
 
   return state;
 }
@@ -501,8 +621,8 @@ const barStyle = {
 const wrapStyle = { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 };
 const labelStyle = { fontSize: 12, fontWeight: 500, color: '#8c8c8c', whiteSpace: 'nowrap' };
 
-const FilterControl = ({ filterDef, value, onChange, counts }) => {
-  const relation = useRelationOptions(filterDef);
+const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope }) => {
+  const relation = useRelationOptions(filterDef, currentUserScope);
 
   if (filterDef.type === 'status') {
     const displayOptions = getDisplayOptions(filterDef);
@@ -645,6 +765,7 @@ const GenericSearchFilter = () => {
         value: activeValues[filterDef.key],
         onChange: (v) => handleChange(filterDef, v),
         counts,
+        currentUserScope,
       }),
     ),
   );
