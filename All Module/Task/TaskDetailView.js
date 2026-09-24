@@ -26,6 +26,7 @@
       TreeSelect,
       Dropdown,
       Segmented,
+      Checkbox,
     } = ctx.antd;
     const { Text } = Typography;
     const { Dragger } = Upload;
@@ -134,6 +135,22 @@
         recordIdFields: ["customerId", "customers", "customer"],
       },
     };
+    // Categories the unified "Move to Library" action offers, per task
+    // context — Case tasks only ever had Reference; Internal Work tasks had
+    // Reference/Customer/Knowledge as 3 separate menu entries. Merging them
+    // into one "Move to Library" entry (with an in-modal category switch,
+    // see LibraryMoveModal) means every task context now has exactly the
+    // same 2-action habit: "Move to <current workspace> Document" + "Move
+    // to Library" — Library itself is where the destination-specific
+    // choice happens, instead of at the menu level.
+    const getLibraryMoveCategories = (isProjectInternalContext) =>
+      isProjectInternalContext
+        ? [
+            LIBRARY_DESTINATION.KNOWLEDGE,
+            LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
+            LIBRARY_DESTINATION.LEGAL_STUDY,
+          ]
+        : [LIBRARY_DESTINATION.LEGAL_STUDY];
     const LIBRARY_SOURCE = {
       CASE_DOCUMENT: "case_document",
       CASE_REFERENCE: "case_reference",
@@ -141,14 +158,23 @@
       LEGAL_STUDY: "legal_study",
       MY_DOCUMENTS: "my_documents",
       KNOWLEDGE: "knowledge",
+      // The current Internal Work's own Document space (ProjectDocument.js)
+      // — only offered for ProjectInternal tasks (buildTaskWorkspaceLibraryTree).
+      PROJECT_INTERNAL_DOCUMENT: "project_internal_document",
     };
+    // Values written to activity_log.action, which is a length-capped
+    // varchar(20) column — every value here must stay at or under 20
+    // characters. The two newer ones were originally the full
+    // "move_to_project_internal_document" (33 chars) / "move_to_customer_document"
+    // (25 chars), which the DB silently rejected with "value too long for
+    // type character varying(20)" on every move.
     const ACTIVITY_ACTION = {
       LINK_LEGAL_STUDY: "link_legal_study",
       LINK_LEGAL_REFERENCE: "link_legal_ref",
       MOVE_TO_CASE_DOCUMENT: "move_to_document",
       MOVE_TO_KNOWLEDGE: "move_to_knowledge",
-      MOVE_TO_PROJECT_INTERNAL_DOCUMENT: "move_to_project_internal_document",
-      MOVE_TO_CUSTOMER_DOCUMENT: "move_to_customer_document",
+      MOVE_TO_PROJECT_INTERNAL_DOCUMENT: "move_to_pi_doc",
+      MOVE_TO_CUSTOMER_DOCUMENT: "move_to_customer",
     };
     const FONT =
       "Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -236,6 +262,13 @@
         ].join("/");
       },
     };
+
+    // View NocoBase riêng gắn thẳng vào collection `subTasks` (khác với view
+    // Task Detail chính gắn vào `tasks`) — dùng để mở popup xem/sửa 1 subtask
+    // ngay trong Task Detail mà không rời trang. Xem nhánh nhận diện
+    // ctx.record?.taskId trong getTaskDetailIdsFromContext() ở trên: view
+    // này filter thẳng theo id subtask nên ctx.record chính là subtask.
+    const SUBTASK_DETAIL_POPUP_UID = "46246a4f9c8";
 
     const STATUS_CFG = {
       toDo: {
@@ -853,6 +886,129 @@
       if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
       if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
       return fmt(iso, "date");
+    };
+
+    // Shared by every bulk-download entry point (comment attachments'
+    // renderBulkSelectBar, the folder-group download button, and the
+    // Attachments section's file grid) — these live in different
+    // components in this file, so this stays a module-level helper rather
+    // than something scoped to any one of them.
+    //
+    // Bundles everything into one .zip and triggers a single download,
+    // instead of firing one download per file (2026-09-05 — that earlier
+    // approach, even using a proper <a download> click instead of
+    // window.open, still failed for more than 1 file: Chrome/Edge silently
+    // block every programmatic download after the first when a page fires
+    // several in a row — its built-in "this site is trying to download
+    // multiple files" guard — so only file #1 ever actually arrived).
+    // Bundling into one archive means exactly ONE download, which that
+    // guard doesn't touch. A single file skips zipping entirely and just
+    // downloads directly. Reuses PizZip (already loaded elsewhere in this
+    // file for DOCX generation, see e.g. TaskTemplateGenerateModal) instead
+    // of adding a second zip library.
+    // Deliberately never appended to document.body — this whole flow runs
+    // inside an SES-locked-down sandbox (confirmed live, 2026-09-05:
+    // "Access to document prop 'body' is not allowed"), and modern
+    // browsers don't require an element to be in the DOM for .click() to
+    // trigger navigation/download anyway.
+    const downloadSingleFile = (item) => {
+      const a = document.createElement("a");
+      a.href = item.url;
+      if (item.filename) a.download = item.filename;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.click();
+    };
+    const downloadFilesAsZip = async (items, zipName = "files.zip") => {
+      const list = (items || [])
+        .map((item) => (typeof item === "string" ? { url: item } : item))
+        .filter((item) => item?.url);
+      if (list.length === 0) return;
+      if (list.length === 1) {
+        downloadSingleFile(list[0]);
+        return;
+      }
+      const hideLoading = message.loading(
+        `Preparing ${list.length} files...`,
+        0,
+      );
+      try {
+        const PizZipModule = await ctx.importAsync(
+          "https://esm.sh/pizzip@3.1.4",
+        );
+        const PizZip = PizZipModule.default || PizZipModule;
+        const zip = new PizZip();
+        const usedNames = new Set();
+        let fetched = 0;
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          let buf;
+          try {
+            // ctx.api.request, not fetch — no global fetch in this
+            // sandbox. rawUrl is the attachment's own relative url field;
+            // baseURL: "/" makes ctx.api.request treat it as root-relative
+            // instead of appending it to the API's normal base path —
+            // the exact call buildFilledDocxBlob already uses to read a
+            // document's bytes.
+            const res = await ctx.api.request({
+              url: item.rawUrl || item.url,
+              method: "GET",
+              responseType: "arraybuffer",
+              baseURL: "/",
+            });
+            buf = res.data;
+          } catch (fetchErr) {
+            console.error(
+              "[downloadFilesAsZip] fetch failed for",
+              item.rawUrl || item.url,
+              fetchErr,
+            );
+            continue; // one bad file shouldn't sink the whole zip
+          }
+          const rawName = item.filename || `file-${i + 1}`;
+          let finalName = rawName;
+          let n = 2;
+          while (usedNames.has(finalName)) {
+            const dot = rawName.lastIndexOf(".");
+            finalName =
+              dot > 0
+                ? `${rawName.slice(0, dot)} (${n})${rawName.slice(dot)}`
+                : `${rawName} (${n})`;
+            n++;
+          }
+          usedNames.add(finalName);
+          zip.file(finalName, buf);
+          fetched++;
+        }
+        if (fetched === 0) {
+          message.error(
+            "Could not fetch any of the selected files — see console for details.",
+          );
+          return;
+        }
+        const blob = zip.generate({ type: "blob", compression: "DEFLATE" });
+        // Uploaded rather than handed to the browser via
+        // URL.createObjectURL — the same round-trip the DOCX-generation
+        // feature already uses for its own generated blob
+        // (uploadTaskAttachment), avoiding an untested Web API in this
+        // sandbox in favor of the same server-upload-then-link path every
+        // other client-generated file in this app already takes.
+        const uploaded = await uploadTaskAttachment(blob, zipName);
+        downloadSingleFile({
+          url: getFullUrl(uploaded.url),
+          filename: zipName,
+        });
+        if (fetched < list.length) {
+          message.warning(
+            `${zipName}: ${fetched}/${list.length} files included — the rest couldn't be fetched (see console).`,
+          );
+        }
+      } catch (e) {
+        console.error("[downloadFilesAsZip] failed", e);
+        message.error("Could not build the zip — see console for details.");
+      } finally {
+        hideLoading();
+      }
     };
 
     const isOD = (iso, st) =>
@@ -2142,6 +2298,20 @@
       return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
+    // activity_log.oldValue/newValue is a length-capped varchar column (see
+    // pgsql/log_activity_changes.sql's own truncate_long_text() guard for
+    // long-text source fields like description/body/note). This JS-side
+    // logActivity() is the one manual activity-log write path in the app
+    // that bypasses that trigger-side guard entirely, so any caller passing
+    // a naturally long string — e.g. LibraryMoveModal's
+    // `${targetLabel} - ${recName}`, where targetLabel can be a full
+    // Customer legal entity name — hit a raw Postgres "value too long for
+    // type character varying" error. Cap here, once, so every caller is
+    // protected without needing to know the DB's exact limit.
+    const truncateActivityLogValue = (value, maxLength = 250) => {
+      const str = String(value);
+      return str.length > maxLength ? `${str.slice(0, maxLength - 1)}…` : str;
+    };
     async function logActivity(
       collectionName,
       recordId,
@@ -2161,8 +2331,8 @@
           recordId,
           action,
           fieldName,
-          oldValue: oldValue ? String(oldValue) : null,
-          newValue: newValue ? String(newValue) : null,
+          oldValue: oldValue ? truncateActivityLogValue(oldValue) : null,
+          newValue: newValue ? truncateActivityLogValue(newValue) : null,
           changedByName: changedByName || "System",
           changedAt: now,
           createdAt: now,
@@ -2952,34 +3122,39 @@
         }
       });
 
-      const getDescendantIdsRecursive = (pId, list, visited = new Set()) => {
-        const parentKey = String(pId);
-        if (visited.has(parentKey)) return [];
-        const nextVisited = new Set(visited);
-        nextVisited.add(parentKey);
-        let ids = [];
-        list.forEach((f) => {
-          if (extractId(f.parentId) === pId) {
-            const id = extractId(f.id);
-            if (!id || nextVisited.has(String(id))) return;
-            ids.push(id);
-            ids = ids.concat(
-              getDescendantIdsRecursive(id, list, nextVisited),
-            );
-          }
-        });
-        return ids;
-      };
+      // Indexed once (parent → children, id → folder) instead of rescanning
+      // allFolders per folder — the old nested scans were O(n²) and made
+      // the "Choose from ..." pickers visibly slow for non-admin users on a
+      // library with thousands of folders. Same result set as before.
+      const childrenByParentId = new Map();
+      const folderById = new Map();
+      allFolders.forEach((f) => {
+        const id = extractId(f.id);
+        if (id && !folderById.has(id)) folderById.set(id, f);
+        const pId = extractId(f.parentId);
+        if (!id || !pId) return;
+        if (!childrenByParentId.has(pId)) childrenByParentId.set(pId, []);
+        childrenByParentId.get(pId).push(id);
+      });
 
       const directIds = Array.from(accessible);
-      directIds.forEach((pId) => {
-        const descIds = getDescendantIdsRecursive(pId, allFolders);
-        descIds.forEach((id) => accessible.add(id));
+      directIds.forEach((rootId) => {
+        const stack = [rootId];
+        const visited = new Set([rootId]);
+        while (stack.length > 0) {
+          const pId = stack.pop();
+          (childrenByParentId.get(pId) || []).forEach((id) => {
+            if (visited.has(id)) return;
+            visited.add(id);
+            accessible.add(id);
+            stack.push(id);
+          });
+        }
       });
 
       const navOnly = new Set();
       accessible.forEach((fId) => {
-        let curr = allFolders.find((f) => extractId(f.id) === fId);
+        let curr = folderById.get(fId);
         const seen = new Set();
         while (curr && curr.parentId) {
           const currentId = extractId(curr.id);
@@ -2989,7 +3164,7 @@
           if (pId && !accessible.has(pId)) {
             navOnly.add(pId);
           }
-          curr = allFolders.find((f) => extractId(f.id) === pId);
+          curr = folderById.get(pId);
         }
       });
 
@@ -3009,6 +3184,13 @@
       extractLibraryRelationId(record?.cases) ||
       extractId(record?.projectId) ||
       extractLibraryRelationId(record?.project);
+
+    // Same lookup as ProjectDocument.js's DASHBOARD_CONFIG.getParentIdFromRecord
+    // — projectInternalId is stamped flatly on every folder/document of an
+    // Internal Work (not only its root folder).
+    const getLibraryRecordProjectInternalId = (record) =>
+      extractId(record?.projectInternalId) ||
+      extractLibraryRelationId(record?.projectInternal);
 
     const getLibraryRecordLegalReferenceId = (record) =>
       extractId(record?.legalReferenceId) ||
@@ -3058,113 +3240,103 @@
       return [];
     }
 
-    async function fetchTaskLibraryData(currentUserId) {
-      const activeFilter = JSON.stringify({ isDeleted: { $ne: true } });
-      const [folders, baseDocuments, shareRows] = await Promise.all([
-        requestLibraryRows("folders:list", [
-          {
-            pageSize: 2000,
-            page: 1,
-            sort: ["createdAt"],
-            filter: activeFilter,
-            appends: [
-              "createdBy",
-              "folderManager",
-              "folderManagers",
-              "folderMember",
-              "folderMembers",
-            ],
-          },
-          {
-            pageSize: 2000,
-            page: 1,
-            sort: ["createdAt"],
-            filter: activeFilter,
-            appends: ["createdBy", "folderManager", "folderMember"],
-          },
-          {
-            pageSize: 2000,
-            page: 1,
-            sort: ["createdAt"],
-            filter: activeFilter,
-          },
-        ]),
-        requestLibraryRows("documents:list", [
-          {
-            pageSize: 2000,
-            page: 1,
-            sort: ["-createdAt"],
-            filter: activeFilter,
-            appends: ["fileAttachment", "createdBy"],
-          },
-          {
-            pageSize: 2000,
-            page: 1,
-            sort: ["-createdAt"],
-            filter: activeFilter,
-            appends: ["fileAttachment", "createdBy"],
-          },
-        ]),
-        currentUserId
-          ? requestLibraryRows("documentShares:list", [
-              {
-                pageSize: 2000,
-                page: 1,
-                sort: ["-createdAt"],
-                appends: ["users", "documents"],
-              },
-              {
-                pageSize: 2000,
-                page: 1,
-                sort: ["-createdAt"],
-              },
-            ])
-          : Promise.resolve([]),
+    const LIBRARY_ACTIVE_FILTER = { isDeleted: { $ne: true } };
+    const LIBRARY_FOLDER_APPEND_VARIANTS = [
+      ["createdBy", "folderManager", "folderManagers", "folderMember", "folderMembers"],
+      ["createdBy", "folderManager", "folderMember"],
+      null,
+    ];
+    // Max ids per `$in` filter — keeps the GET query string well under
+    // typical URL limits when a scope spans hundreds of folders.
+    const LIBRARY_IN_CHUNK_SIZE = 400;
+
+    const chunkList = (list, size) => {
+      const chunks = [];
+      for (let i = 0; i < list.length; i += size) chunks.push(list.slice(i, i + size));
+      return chunks;
+    };
+
+    const requestLibraryFolders = (filter) =>
+      requestLibraryRows(
+        "folders:list",
+        LIBRARY_FOLDER_APPEND_VARIANTS.map((appends) => ({
+          pageSize: 2000,
+          page: 1,
+          sort: ["createdAt"],
+          filter: JSON.stringify(filter),
+          ...(appends ? { appends } : {}),
+        })),
+      );
+
+    const requestLibraryDocuments = (filter) =>
+      requestLibraryRows("documents:list", [
+        {
+          pageSize: 2000,
+          page: 1,
+          sort: ["-createdAt"],
+          filter: JSON.stringify(filter),
+          appends: ["fileAttachment", "createdBy"],
+        },
       ]);
 
-      const currentUserShareRows = shareRows.filter(
+    // documentShares rows of the current user only — tries a server-side
+    // filter first (scalar userId, then the users relation) and only falls
+    // back to the old unfiltered scan when neither shape exists.
+    async function fetchLibraryShareRows(currentUserId) {
+      if (!currentUserId) return [];
+      const base = { pageSize: 2000, page: 1, sort: ["-createdAt"] };
+      const rows = await requestLibraryRows("documentShares:list", [
+        {
+          ...base,
+          filter: JSON.stringify({ userId: { $eq: currentUserId } }),
+          appends: ["users", "documents"],
+        },
+        {
+          ...base,
+          filter: JSON.stringify({ users: { id: { $eq: currentUserId } } }),
+          appends: ["users", "documents"],
+        },
+        { ...base, appends: ["users", "documents"] },
+        base,
+      ]);
+      return rows.filter(
         (row) =>
           String(getLibraryShareRowUserId(row) || "") === String(currentUserId),
       );
-      const sharedDocumentIds = Array.from(
-        new Set(
-          currentUserShareRows
-            .map(getLibraryShareRowDocumentId)
-            .filter(Boolean)
-            .map(String),
-        ),
-      );
-      const baseDocumentIds = new Set(
-        baseDocuments.map((document) => String(extractId(document) || "")),
-      );
-      const missingSharedIds = sharedDocumentIds.filter(
-        (id) => !baseDocumentIds.has(id),
-      );
-      const sharedDocuments = missingSharedIds.length
-        ? await requestLibraryRows("documents:list", [
-            {
-              pageSize: 2000,
-              page: 1,
-              filter: JSON.stringify({ id: { $in: missingSharedIds } }),
-              appends: ["fileAttachment", "createdBy"],
-            },
-            {
-              pageSize: 2000,
-              page: 1,
-              filter: JSON.stringify({ id: { $in: missingSharedIds } }),
-              appends: ["fileAttachment", "createdBy"],
-            },
-          ])
-        : [];
+    }
 
+    // Tags every document with its current-user share rows (_shareRows) and,
+    // when fetchMissingShared is on, pulls in shared documents the scoped
+    // base query didn't return.
+    async function mergeLibraryShares(
+      baseDocuments,
+      shareRows,
+      { fetchMissingShared = true } = {},
+    ) {
       const shareMap = new Map();
-      currentUserShareRows.forEach((row) => {
+      shareRows.forEach((row) => {
         const documentId = getLibraryShareRowDocumentId(row);
         if (!documentId) return;
         const key = String(documentId);
         if (!shareMap.has(key)) shareMap.set(key, []);
         shareMap.get(key).push(row);
       });
+
+      let sharedDocuments = [];
+      if (fetchMissingShared && shareMap.size > 0) {
+        const baseDocumentIds = new Set(
+          baseDocuments.map((document) => String(extractId(document) || "")),
+        );
+        const missingSharedIds = Array.from(shareMap.keys()).filter(
+          (id) => !baseDocumentIds.has(id),
+        );
+        const chunks = await Promise.all(
+          chunkList(missingSharedIds, LIBRARY_IN_CHUNK_SIZE).map((ids) =>
+            requestLibraryDocuments({ id: { $in: ids } }),
+          ),
+        );
+        sharedDocuments = chunks.flat();
+      }
 
       const documentMap = new Map();
       [...baseDocuments, ...sharedDocuments].forEach((document) => {
@@ -3176,14 +3348,178 @@
           _shareRows: shareMap.get(key) || [],
         });
       });
+      return Array.from(documentMap.values()).filter(
+        (document) => document?.isDeleted !== true,
+      );
+    }
 
+    // Full scan (every folder + document) — still what the Case tab needs,
+    // since its tree spans the case, linked cases and Reference material.
+    async function fetchTaskLibraryData(currentUserId) {
+      const [folders, baseDocuments, shareRows] = await Promise.all([
+        requestLibraryFolders(LIBRARY_ACTIVE_FILTER),
+        requestLibraryDocuments(LIBRARY_ACTIVE_FILTER),
+        fetchLibraryShareRows(currentUserId),
+      ]);
       return {
         folders: folders.filter((folder) => folder?.isDeleted !== true),
-        documents: Array.from(documentMap.values()).filter(
-          (document) => document?.isDeleted !== true,
-        ),
+        documents: await mergeLibraryShares(baseDocuments, shareRows),
       };
     }
+
+    // "Choose from Internal Work Docs" — only this Internal Work's own
+    // folders/documents (projectInternalId is stamped on every one of them,
+    // see ProjectDocument.js), plus the ancestor folders above its root so
+    // permissions inherited from a parent folder still resolve.
+    async function fetchProjectInternalLibraryData(projectInternalId, currentUserId) {
+      const safeProjectInternalId = extractId(projectInternalId);
+      if (!safeProjectInternalId) return { folders: [], documents: [] };
+      const scopeFilter = {
+        $and: [
+          LIBRARY_ACTIVE_FILTER,
+          { projectInternalId: { $eq: safeProjectInternalId } },
+        ],
+      };
+      const [scopedFolders, baseDocuments, shareRows] = await Promise.all([
+        requestLibraryFolders(scopeFilter),
+        requestLibraryDocuments(scopeFilter),
+        fetchLibraryShareRows(currentUserId),
+      ]);
+
+      const folderMap = new Map();
+      scopedFolders.forEach((folder) => {
+        const id = extractId(folder);
+        if (id) folderMap.set(String(id), folder);
+      });
+      for (let depth = 0; depth < 8; depth++) {
+        const missingParentIds = Array.from(
+          new Set(
+            Array.from(folderMap.values())
+              .map((folder) => extractId(folder?.parentId))
+              .filter((id) => id && !folderMap.has(String(id)))
+              .map(String),
+          ),
+        );
+        if (missingParentIds.length === 0) break;
+        const parents = await requestLibraryFolders({ id: { $in: missingParentIds } });
+        if (parents.length === 0) break;
+        parents.forEach((folder) => {
+          const id = extractId(folder);
+          if (id) folderMap.set(String(id), folder);
+        });
+      }
+
+      return {
+        folders: Array.from(folderMap.values()).filter(
+          (folder) => folder?.isDeleted !== true,
+        ),
+        documents: await mergeLibraryShares(baseDocuments, shareRows, {
+          fetchMissingShared: false,
+        }),
+      };
+    }
+
+    // "Choose from Library" for Internal Work tasks (Knowledge + My
+    // Documents). Folders still come in full — Knowledge/My Documents
+    // subfolders don't reliably carry storageType themselves (Library.js
+    // resolves them through the real parent tree too) — but documents are
+    // fetched only inside the folders that resolve to those 2 spaces,
+    // instead of every document in the system.
+    async function fetchWorkspaceLibraryData(currentUserId) {
+      const workspaceScopes = [KNOWLEDGE_STORAGE_TYPE, MY_DOCUMENT_STORAGE_TYPE];
+      const [allFolders, shareRows] = await Promise.all([
+        requestLibraryFolders(LIBRARY_ACTIVE_FILTER),
+        fetchLibraryShareRows(currentUserId),
+      ]);
+      const folders = allFolders.filter((folder) => folder?.isDeleted !== true);
+
+      const folderMap = new Map();
+      folders.forEach((folder) => {
+        const id = extractId(folder);
+        if (id) folderMap.set(String(id), folder);
+      });
+      const inWorkspaceMemo = new Map();
+      const isWorkspaceFolder = (folder, seen = new Set()) => {
+        const key = String(extractId(folder) || "");
+        if (!key || seen.has(key)) return false;
+        if (inWorkspaceMemo.has(key)) return inWorkspaceMemo.get(key);
+        seen.add(key);
+        const direct =
+          workspaceScopes.includes(String(folder?.storageType || "").toLowerCase()) ||
+          workspaceScopes.includes(String(folder?.moduleScope || "").toLowerCase());
+        const parent = folderMap.get(String(extractId(folder?.parentId) || ""));
+        const result = direct || (!!parent && isWorkspaceFolder(parent, seen));
+        inWorkspaceMemo.set(key, result);
+        return result;
+      };
+      const workspaceFolderIds = folders
+        .filter((folder) => isWorkspaceFolder(folder))
+        .map((folder) => extractId(folder))
+        .filter(Boolean);
+
+      const scopeFilter = (extra) => ({ $and: [LIBRARY_ACTIVE_FILTER, extra] });
+      const documentRequests = [
+        requestLibraryDocuments(
+          scopeFilter({
+            $or: [
+              { storageType: { $in: workspaceScopes } },
+              { moduleScope: { $in: workspaceScopes } },
+            ],
+          }),
+        ),
+        ...chunkList(workspaceFolderIds, LIBRARY_IN_CHUNK_SIZE).map((ids) =>
+          requestLibraryDocuments(scopeFilter({ folderId: { $in: ids } })),
+        ),
+      ];
+      const baseDocuments = (await Promise.all(documentRequests)).flat();
+      return {
+        folders,
+        documents: await mergeLibraryShares(baseDocuments, shareRows),
+      };
+    }
+
+    // Block-level cache for the "Choose from ..." pickers — lives as long as
+    // this block stays mounted (reopening the attach modal, switching tabs).
+    // Not stored on window: the RunJS sandbox's window proxy throws on
+    // reading unknown globals and keeps writes private to each run
+    // (flow-engine safeGlobals.ts). Serves cached data instantly and
+    // refetches in the background once it's older than the TTL
+    // (stale-while-revalidate), de-duplicating concurrent requests.
+    const TASK_LIBRARY_CACHE_TTL_MS = 60 * 1000;
+    const taskLibraryDataCache = new Map();
+
+    const peekTaskLibraryData = (cacheKey) =>
+      taskLibraryDataCache.get(cacheKey)?.data || null;
+
+    const loadTaskLibraryData = (cacheKey, fetcher) => {
+      const entry = taskLibraryDataCache.get(cacheKey);
+      if (entry?.promise) return entry.promise;
+      if (entry?.data && Date.now() - entry.at < TASK_LIBRARY_CACHE_TTL_MS) {
+        return Promise.resolve(entry.data);
+      }
+      const promise = fetcher()
+        .then((data) => {
+          taskLibraryDataCache.set(cacheKey, { data, at: Date.now(), promise: null });
+          return data;
+        })
+        .catch((error) => {
+          const previous = taskLibraryDataCache.get(cacheKey);
+          taskLibraryDataCache.set(cacheKey, { ...(previous || {}), promise: null });
+          throw error;
+        });
+      taskLibraryDataCache.set(cacheKey, { ...(entry || {}), promise });
+      return promise;
+    };
+
+    // Forces the next load to refetch (e.g. after files were just added).
+    const invalidateTaskLibraryData = (prefix = "") => {
+      Array.from(taskLibraryDataCache.keys()).forEach((key) => {
+        if (!prefix || key.startsWith(prefix)) {
+          const entry = taskLibraryDataCache.get(key);
+          taskLibraryDataCache.set(key, { ...(entry || {}), at: 0 });
+        }
+      });
+    };
 
     async function fetchLibraryRelationRows(caseId, relationName) {
       const safeCaseId = extractId(caseId);
@@ -3243,6 +3579,22 @@
         moduleScope === KNOWLEDGE_STORAGE_TYPE
       ) {
         return makeLibrarySource(LIBRARY_SOURCE.KNOWLEDGE);
+      }
+
+      // Checked before any Case/Reference rule: ProjectDocument.js treats ANY
+      // record carrying this projectInternalId as its own regardless of
+      // moduleScope, so the picker mirrors exactly what its Docs tab shows.
+      if (context.currentProjectInternalId) {
+        const projectInternalId = getLibraryRecordProjectInternalId(record);
+        if (
+          projectInternalId &&
+          String(projectInternalId) === String(context.currentProjectInternalId)
+        ) {
+          return makeLibrarySource(
+            LIBRARY_SOURCE.PROJECT_INTERNAL_DOCUMENT,
+            context.currentProjectInternalId,
+          );
+        }
       }
 
       if (legalStudyId && context.legalStudyIds.has(String(legalStudyId))) {
@@ -3764,7 +4116,8 @@
     // this surfaces the 2 spaces that exist outside a Case: the company-level
     // Knowledge library and the current user's own My Documents — gated by the
     // exact same folder-permission model (owner/manager/member, folder
-    // descendants, or a direct documentShares grant).
+    // descendants, or a direct documentShares grant). The task's own
+    // Internal Work Docs have their own tab (buildTaskProjectInternalLibraryTree).
     const buildTaskWorkspaceLibraryTree = ({
       folders,
       documents,
@@ -3787,11 +4140,28 @@
         context,
       });
 
+      // The space's own category root folder (literally named "Knowledge" /
+      // "My Documents" in Library.js) would otherwise show up as a second
+      // node with the same name right under the group — unwrap it so the
+      // group lists that folder's contents directly.
+      const unwrapCategoryRootFolder = (children, label) => {
+        const target = normalizeLookupText(label);
+        return children.flatMap((node) =>
+          String(node.key || "").startsWith("library_folder_") &&
+          normalizeLookupText(node.searchText || "") === target
+            ? node.children || []
+            : [node],
+        );
+      };
+
       const groups = [];
 
-      const knowledgeChildren = buildBucketChildren(
-        getLibrarySourceKey(makeLibrarySource(LIBRARY_SOURCE.KNOWLEDGE, null)),
-        { flattenRoot: false },
+      const knowledgeChildren = unwrapCategoryRootFolder(
+        buildBucketChildren(
+          getLibrarySourceKey(makeLibrarySource(LIBRARY_SOURCE.KNOWLEDGE, null)),
+          { flattenRoot: false },
+        ),
+        "Knowledge",
       );
       if (knowledgeChildren.length > 0) {
         groups.push({
@@ -3804,9 +4174,12 @@
         });
       }
 
-      const myDocumentsChildren = buildBucketChildren(
-        getLibrarySourceKey(makeLibrarySource(LIBRARY_SOURCE.MY_DOCUMENTS, null)),
-        { flattenRoot: false },
+      const myDocumentsChildren = unwrapCategoryRootFolder(
+        buildBucketChildren(
+          getLibrarySourceKey(makeLibrarySource(LIBRARY_SOURCE.MY_DOCUMENTS, null)),
+          { flattenRoot: false },
+        ),
+        "My Documents",
       );
       if (myDocumentsChildren.length > 0) {
         groups.push({
@@ -3820,6 +4193,44 @@
       }
 
       return groups;
+    };
+
+    // "Choose from Internal Work Docs" tree — the current Internal Work's own
+    // Document space (same records ProjectDocument.js's Docs tab shows), with
+    // the same folder-permission model as every other picker. flattenRoot:
+    // false — every Internal Work folder carries projectInternalId directly,
+    // so findBucketRootFolder can't single out the real root; the tree shows
+    // the actual folder hierarchy (root folder first) instead.
+    const buildTaskProjectInternalLibraryTree = ({
+      folders,
+      documents,
+      currentUser,
+      currentLawyerId,
+      currentProjectInternalId,
+    }) => {
+      const safeProjectInternalId = extractId(currentProjectInternalId);
+      if (!safeProjectInternalId) return [];
+      const context = {
+        currentCaseId: null,
+        currentProjectInternalId: safeProjectInternalId,
+        caseReferenceIds: new Set(),
+        legalReferenceIds: new Set(),
+        legalStudyIds: new Set(),
+        includeGroups: new Set([LIBRARY_SOURCE.PROJECT_INTERNAL_DOCUMENT]),
+      };
+      const { buildBucketChildren } = buildLibraryBucketResolver({
+        folders,
+        documents,
+        currentUser,
+        currentLawyerId,
+        context,
+      });
+      return buildBucketChildren(
+        getLibrarySourceKey(
+          makeLibrarySource(LIBRARY_SOURCE.PROJECT_INTERNAL_DOCUMENT, safeProjectInternalId),
+        ),
+        { flattenRoot: false },
+      );
     };
 
     const buildPerm = ({ currentUser, myLawyer, isManager, itemLawyerId }) => {
@@ -6150,10 +6561,34 @@
       placeholder,
       onSubmit,
       onUploadClick,
+      // Send button used to live inside the composer as a bottom-right
+      // overlay (position:absolute over the Quill editor). That covered
+      // whatever text happened to be scrolled into its corner — fine only
+      // when scrolled to the very end, but it also hid content whenever the
+      // user scrolled back up mid-editor to re-read what they'd typed. It
+      // now renders as a static footer row BELOW the editor (normal
+      // document flow, not overlaid), so it never sits on top of the
+      // scrollable text at any scroll position — showSubmitButton is the
+      // caller's canSend (true only once text/mentions/attachments make the
+      // comment sendable), sending disables it mid-request.
+      showSubmitButton = false,
+      sending = false,
     }) => {
       return React.createElement(
         "div",
-        { style: { display: "flex", flexDirection: "column", gap: 0 } },
+        {
+          // borderRadius+overflow:hidden here (not on .ql-container itself)
+          // so the composer's rounded bottom corners land on whichever
+          // element is visually last — the editor when the footer is
+          // hidden, or the footer's send-button row when it's shown.
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: 0,
+            borderRadius: 8,
+            overflow: "hidden",
+          },
+        },
         React.createElement(QuillEditor, {
           value,
           onChange,
@@ -6164,6 +6599,52 @@
           assignedIds,
           onAssignMultiple,
         }),
+        showSubmitButton &&
+          React.createElement(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: 6,
+                padding: "6px 10px",
+                borderTop: "1px solid #f0f0f0",
+                background: "#fff",
+                borderRadius: "0 0 8px 8px",
+              },
+            },
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 11,
+                  color: "#bbb",
+                  fontFamily: FONT,
+                  whiteSpace: "nowrap",
+                },
+              },
+              "Ctrl+Enter to send",
+            ),
+            React.createElement(
+              "div",
+              {
+                onClick: onSubmit,
+                style: {
+                  padding: "6px 18px",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  fontWeight: 700,
+                  background: sending ? "#f0f0f0" : "#1890ff",
+                  color: sending ? "#bfbfbf" : "#fff",
+                  cursor: sending ? "not-allowed" : "pointer",
+                  border: "none",
+                },
+              },
+              sending ? "Sending..." : "Comment",
+            ),
+          ),
       );
     };
 
@@ -6834,7 +7315,10 @@
       refreshTrigger,
       taskContext = {},
       caseId = null, // 🌟 Bổ sung caseId để tạo deep-link
-      sortOrder = "oldest", // "oldest" | "newest" — hiển thị thứ tự bình luận
+      sortOrder = "newest", // "oldest" | "newest" — hiển thị thứ tự bình luận, áp dụng cho cả list & tree
+      viewMode = "list", // "list" (Zalo-style flat timeline) | "tree" (nested replies)
+      searchText = "", // lọc theo nội dung note.body (đã strip HTML), không phân biệt hoa/thường
+      onCountChange, // reports feed.length up so the "Comments & Reports" header can show a count
     }) => {
       // ProjectInternal (Internal Work) tasks have no Case/Reference to move
       // documents into — the file-level move actions swap to a single
@@ -6873,9 +7357,11 @@
       const [editAssignedIds, setEditAssignedIds] = useState([]);
       const [replyingTo, setReplyingTo] = useState(null);
       const [expandedThreads, setExpandedThreads] = useState({});
-      const [showAll, setShowAll] = useState(false);
       const [folderLookup, setFolderLookup] = useState({});
-      const INITIAL_COUNT = 10;
+      // List mode's "uploaded as a folder" grouping (2026-09-05) — keyed
+      // by `${itemKey}-${folderId}` so expand state never collides between
+      // two different comments that happen to share a folderId.
+      const [expandedFileFolders, setExpandedFileFolders] = useState({});
       const reload = useCallback(() => {
         setLoading(true);
         Promise.all([
@@ -6937,6 +7423,9 @@
       useEffect(() => {
         reload();
       }, [reload, refreshTrigger]);
+      useEffect(() => {
+        if (onCountChange) onCountChange(feed.length);
+      }, [feed, onCountChange]);
       const authorName = (n) =>
         n.createdBy?.nickname ||
         n.createdBy?.username ||
@@ -7108,6 +7597,10 @@
           setPendingBatchId(
             `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           );
+          // New attachments now also live in the Case/Internal Work document
+          // space — mark cached picker data stale so the next "Choose from"
+          // open refetches instead of serving a list without them.
+          if (hasFiles) invalidateTaskLibraryData();
           reload();
           message.success("Comment posted");
         } catch (e) {
@@ -7385,7 +7878,12 @@
         setEditFileTitle("");
       };
 
-      const renderFileRow = (f, itemKey) => {
+      const renderFileRow = (f, itemKey, options = {}) => {
+        // compact/isLast are List mode's "grouped card" look (2026-09-05) —
+        // one shared card per message instead of each file getting its own
+        // bordered box. Tree mode and every other caller omit options, so
+        // they keep the original per-file boxed look unchanged.
+        const { compact = false, isLast = false } = options;
         const bulkState = bulkSelectState[itemKey];
         const bulkSelectActive = !!bulkState?.active;
         const bulkSelected = !!bulkState?.ids?.has(f.id);
@@ -7421,7 +7919,6 @@
         const isExpanded = !!expandedPreviews[f.id];
         const isEditingThisFile = editingFileId === f.id;
         const isMine = currentUser && f.createdById === currentUser.id;
-        const linkedLegalStudy = isLinkedToLegalStudy(f);
         const movedBadge = getMovedDestinationBadge(f, folderLookup);
         const fileActionItems = [
           {
@@ -7435,11 +7932,6 @@
             icon: TASK_FILE_ACTION_ICONS.download,
             label: "Download",
             disabled: !fullUrl,
-          },
-          canEdit && !linkedLegalStudy && {
-            key: "move_legal_study",
-            icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
-            label: "Move to Reference",
           },
           // Replaces the old "Move to Legal Reference" action — moving into
           // the current case's own Document tree is what's actually used;
@@ -7458,12 +7950,13 @@
             icon: TASK_FILE_ACTION_ICONS.folder,
             label: "Move to Internal Work's Document",
           },
-          canEdit && isProjectInternalContext && {
-            key: "move_to_customer_document",
-            icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-            label: "Move to Customer",
-          },
-          canEdit && isProjectInternalContext && {
+          // Single umbrella entry for every destination that lives outside
+          // the current workspace (Reference, and — for Internal Work tasks
+          // only — Customer, Knowledge). LibraryMoveModal shows a category
+          // switch when more than one applies (see getLibraryMoveCategories)
+          // so the menu always stays this same 2-action shape regardless of
+          // context.
+          canEdit && {
             key: "move_to_library",
             icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
             label: "Move to Library",
@@ -7494,13 +7987,6 @@
             if (fullUrl) window.open(fullUrl, "_blank");
             return;
           }
-          if (key === "move_legal_study") {
-            setLibraryMoveTarget({
-              record: f,
-              destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
-            });
-            return;
-          }
           if (key === "move_to_document") {
             setLibraryMoveTarget({
               record: f,
@@ -7515,17 +8001,14 @@
             });
             return;
           }
-          if (key === "move_to_customer_document") {
-            setLibraryMoveTarget({
-              record: f,
-              destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
-            });
-            return;
-          }
           if (key === "move_to_library") {
+            const availableDestinationTypes = getLibraryMoveCategories(
+              isProjectInternalContext,
+            );
             setLibraryMoveTarget({
               record: f,
-              destinationType: LIBRARY_DESTINATION.KNOWLEDGE,
+              destinationType: availableDestinationTypes[0],
+              availableDestinationTypes,
             });
             return;
           }
@@ -7543,16 +8026,24 @@
           "div",
           {
             key: f.id,
-            style: {
-              display: "flex",
-              flexDirection: "column",
-              gap: 0,
-              marginTop: 8,
-              background: "#fff",
-              borderRadius: 8,
-              border: "1px solid #e8e8e8",
-              overflow: "hidden",
-            },
+            style: compact
+              ? {
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0,
+                  background: "transparent",
+                  borderBottom: isLast ? "none" : "1px solid #f0f0f0",
+                }
+              : {
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 0,
+                  marginTop: 8,
+                  background: "#fff",
+                  borderRadius: 8,
+                  border: "1px solid #e8e8e8",
+                  overflow: "hidden",
+                },
           },
           // ── Header row: title + actions ─────────────────────────
           React.createElement(
@@ -7764,6 +8255,35 @@
             { style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 } },
             `${selectedCount} selected`,
           ),
+          React.createElement(
+            Button,
+            {
+              key: "download-selected",
+              size: "small",
+              disabled: selectedCount === 0,
+              onClick: () => {
+                downloadFilesAsZip(
+                  selectedFiles.map((f) => {
+                    const att = Array.isArray(f.fileAttachment)
+                      ? f.fileAttachment[0]
+                      : f.fileAttachment;
+                    return {
+                      url: getFullUrl(att?.url || att?.preview),
+                      rawUrl: att?.url || att?.preview,
+                      filename:
+                        // att?.filename first — it's the raw uploaded name
+                        // and always has the real extension; a user-set
+                        // title can be extension-less and would otherwise
+                        // save without one.
+                        att?.filename || f.title || f.name || att?.title,
+                    };
+                  }),
+                  "attachments.zip",
+                );
+              },
+            },
+            "Download",
+          ),
           ...(isProjectInternalContext
             ? [
                 React.createElement(
@@ -7780,36 +8300,6 @@
                       }),
                   },
                   "Move to Internal Work's Document",
-                ),
-                React.createElement(
-                  Button,
-                  {
-                    key: "move-customer-document",
-                    size: "small",
-                    disabled: selectedCount === 0,
-                    onClick: () =>
-                      setBulkMoveTarget({
-                        records: selectedFiles,
-                        destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
-                        itemKey,
-                      }),
-                  },
-                  "Move to Customer",
-                ),
-                React.createElement(
-                  Button,
-                  {
-                    key: "move-library",
-                    size: "small",
-                    disabled: selectedCount === 0,
-                    onClick: () =>
-                      setBulkMoveTarget({
-                        records: selectedFiles,
-                        destinationType: LIBRARY_DESTINATION.KNOWLEDGE,
-                        itemKey,
-                      }),
-                  },
-                  "Move to Library",
                 ),
               ]
             : [
@@ -7832,17 +8322,22 @@
           React.createElement(
             Button,
             {
-              key: "move-reference",
+              key: "move-library",
               size: "small",
               disabled: selectedCount === 0,
-              onClick: () =>
+              onClick: () => {
+                const availableDestinationTypes = getLibraryMoveCategories(
+                  isProjectInternalContext,
+                );
                 setBulkMoveTarget({
                   records: selectedFiles,
-                  destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
+                  destinationType: availableDestinationTypes[0],
+                  availableDestinationTypes,
                   itemKey,
-                }),
+                });
+              },
             },
-            "Move to Reference",
+            "Move to Library",
           ),
           React.createElement(
             "span",
@@ -8599,11 +9094,20 @@
       const isMentionOnly = assignedIds.length > 0 && !hasCommentText;
       const canSend =
         (hasCommentText || pendingDocs.length > 0) && !isMentionOnly && !sending;
-      // feed is sorted earliest -> latest; collapsed view keeps the most
-      // recent INITIAL_COUNT (the ones nearest the composer) rather than
-      // the oldest, so "load more" reveals older history upward.
-      const visibleFeed = showAll ? feed : feed.slice(-INITIAL_COUNT);
-      const hasMore = feed.length > INITIAL_COUNT;
+      // feed is sorted earliest -> latest; always shown in full now (no more
+      // collapse/"View N more comments" threshold). searchText filters by
+      // note.body's plain text (HTML stripped) — a reply whose own text
+      // doesn't match drops out entirely, including in Tree mode (no parent-
+      // context preservation): if that same reply's parent also drops out,
+      // the reply just surfaces as a root item below (see rootItems/
+      // replyMap below, unaffected by this — they only look at whether the
+      // parent is present in visibleFeed).
+      const trimmedSearch = searchText.trim().toLowerCase();
+      const visibleFeed = trimmedSearch
+        ? feed.filter((item) =>
+            getCommentText(item.note?.body).toLowerCase().includes(trimmedSearch),
+          )
+        : feed;
 
       const rootItems = [];
       const replyMap = {};
@@ -8634,13 +9138,23 @@
           {
             style: {
               padding: isInline ? "12px 0 0 0" : "16px 20px",
-              borderTop: isInline ? "none" : "4px solid #f0f0f0",
+              // Main (non-inline) composer now renders above the feed —
+              // borderBottom separates it from the list below, same divider
+              // role the old borderTop played when it sat below the feed.
+              borderBottom: isInline ? "none" : "4px solid #f0f0f0",
               background: "#fff",
               marginTop: isInline ? 8 : 0,
               flexShrink: isInline ? undefined : 0,
             },
           },
+          // Tree mode keeps the original floating "Replying to X" preview
+          // card. List mode instead seeds the quote + @mention directly into
+          // the editor body itself when Reply is clicked (see
+          // renderListItem's Reply handler + buildReplyQuoteHtml) — showing
+          // this card too would just duplicate what's already visible inside
+          // the input, so it collapses to a small "Cancel reply" link.
           replyingTo &&
+            viewMode === "tree" &&
             React.createElement(
               "div",
               {
@@ -8706,7 +9220,45 @@
                 "×",
               ),
             ),
+          replyingTo &&
+            viewMode === "list" &&
+            React.createElement(
+              "div",
+              {
+                onClick: () => {
+                  setReplyingTo(null);
+                  setBody("");
+                },
+                style: {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  cursor: "pointer",
+                  color: "#8c8c8c",
+                  fontSize: 12,
+                  fontFamily: FONT,
+                  marginBottom: 6,
+                },
+              },
+              "✕ Cancel reply",
+            ),
           React.createElement(CommentComposer, {
+            // List mode keeps this composer permanently mounted (see the
+            // bottom-of-return visibility change) instead of unmount/
+            // remounting it whenever replyingTo changes, so Quill won't
+            // pick up a new seeded body on its own (QuillEditor only applies
+            // `value` once, at construction — see its "Sync initial value"
+            // effect). Keying on the reply target forces the remount that
+            // seeding relies on. Tree mode's inline composer already mounts
+            // fresh per reply (conditionally rendered), so it doesn't need this.
+            key:
+              viewMode === "list"
+                ? `bottom-composer-${
+                    replyingTo
+                      ? replyingTo.note?.id || replyingTo.files?.[0]?.id
+                      : "idle"
+                  }`
+                : undefined,
             value: body,
             onChange: setBody,
             onAssignMultiple: (ids) => setAssignedIds(ids),
@@ -8718,45 +9270,679 @@
                 ? warnMentionOnly
                 : undefined,
             onUploadClick: () => setShowUploadModal(true),
+            // canSend already folds in !sending (see hasCommentText/canSend
+            // above), so "|| sending" keeps the button visible in its
+            // disabled "Sending..." state instead of it vanishing the
+            // instant a send starts.
+            showSubmitButton: canSend || sending,
+            sending,
           }),
           renderPendingUploadChips(),
+        );
+      };
+
+      // ── List mode (Zalo-style flat chronological timeline) ──────────────
+      // Renders visibleFeed directly (already earliest -> latest, replies
+      // included) instead of splitting into rootItems/replyMap like Tree
+      // mode — a flat chat feed has no "nested reply" concept, every item
+      // (comment or reply) is just another bubble in time order. Reuses the
+      // same handlers/sub-renderers as renderItem (CommentComposer,
+      // renderRichText, renderFileRow, renderBulkSelectBar, setReplyingTo,
+      // handleSaveEdit, handleDeleteNote) so editing/replying/deleting behave
+      // identically in both modes.
+      const CHAT_CLUSTER_WINDOW_MS = 5 * 60 * 1000;
+      const getDateDividerLabel = (date) => {
+        const d = new Date(date);
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const sameDay = (a, b) =>
+          a.getFullYear() === b.getFullYear() &&
+          a.getMonth() === b.getMonth() &&
+          a.getDate() === b.getDate();
+        if (sameDay(d, now)) return "Today";
+        if (sameDay(d, yesterday)) return "Yesterday";
+        return fmt(date, "date");
+      };
+
+      const escapeHtmlText = (s) =>
+        String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+      // Drops a leading <blockquote> (buildReplyQuoteHtml's own seeded
+      // quote, saved as literal body content) before quoting a note again —
+      // without this, replying to a reply re-quoted its target's ENTIRE
+      // body including whatever it had quoted, and the next reply after
+      // that re-quoted THAT, compounding without bound. Only the target's
+      // own new text (what's actually visible after its quote block, if
+      // any) should ever be quoted.
+      const stripLeadingQuoteHtml = (html) => {
+        if (!html || typeof document === "undefined") return html || "";
+        const el = document.createElement("div");
+        el.innerHTML = String(html);
+        const first = el.firstElementChild;
+        if (first && first.tagName === "BLOCKQUOTE") first.remove();
+        return el.innerHTML;
+      };
+
+      // Resolves the lawyers.id behind a note's author (createdById is a
+      // Nocobase users.id) — same join as currentLawyerId above — so the
+      // reply quote below can tag them with a real mention chip instead of
+      // inert text.
+      const findLawyerByUserId = (userId) => {
+        const uid = extractId(userId);
+        if (!uid) return null;
+        return (
+          (lawyers || []).find((l) => {
+            const lawyerUserId = extractId(l.userId) || extractId(l.user);
+            return lawyerUserId === uid;
+          }) || null
+        );
+      };
+
+      // Builds the HTML seeded into the composer when Reply is clicked in
+      // List mode: a quoted snippet of the target's text plus a real
+      // @mention chip of its author, both as literal editor content
+      // (Zalo-style) instead of the old floating "Replying to X" banner.
+      // The <law-mention> markup mirrors what MentionBlot itself produces
+      // (see loadQuillAsync) so Quill's clipboard converter recognizes it as
+      // a real mention chip on paste, not inert text.
+      const buildReplyQuoteHtml = (target) => {
+        const targetNote = target?.note;
+        const targetFile = target?.files?.[0];
+        const targetAuthorName = targetNote
+          ? authorName(targetNote)
+          : targetFile
+            ? userName(targetFile.createdBy) ||
+              targetFile.createdBy?.email ||
+              "Someone"
+            : "Someone";
+        const quotedSnippet = targetNote?.body
+          ? getCommentText(stripLeadingQuoteHtml(targetNote.body), false)
+              .trim()
+              .substring(0, 150)
+          : targetFile
+            ? `📎 ${
+                targetFile.title ||
+                targetFile.docTitle ||
+                targetFile.fileName ||
+                "Attached document"
+              }`
+            : "";
+        const targetLawyer = targetNote
+          ? findLawyerByUserId(targetNote.createdById)
+          : null;
+        const mentionHtml = targetLawyer
+          ? `<law-mention data-id="${targetLawyer.id}" contenteditable="false" class="mention-tag" style="${MENTION_TAG_STYLE_CSS}">@${escapeHtmlText(targetLawyer.lawyerName)}</law-mention>`
+          : `<b>@${escapeHtmlText(targetAuthorName)}</b>`;
+        return (
+          `<blockquote style="margin:0 0 6px;padding:4px 10px;border-left:3px solid #bfbfbf;background:#f5f5f5;color:#595959;font-size:12px;">` +
+          `<b>${escapeHtmlText(targetAuthorName)}:</b> ${escapeHtmlText(quotedSnippet)}` +
+          `</blockquote><p>${mentionHtml}&nbsp;</p>`
+        );
+      };
+
+      // A folder uploaded in one go (webkitdirectory / drag-drop a folder)
+      // creates real sub-folders in the document tree — every file inside
+      // ends up sharing both this comment's batchId (so they're already one
+      // `item`) AND that real, non-root folderId. 2+ files in the same item
+      // sharing a folderId is as reliable as it gets that they came from
+      // the same folder upload rather than being picked one by one, with no
+      // extra fetch needed (folderLookup is already loaded for the badge
+      // tooltip elsewhere in this component).
+      const groupFilesByUploadFolder = (files) => {
+        const byFolder = new Map();
+        const rootId = String(extractId(projectFolderId) || "");
+        files.forEach((f) => {
+          const fid = String(extractId(f.folderId) || "");
+          if (!fid || fid === rootId) return;
+          if (!byFolder.has(fid)) byFolder.set(fid, []);
+          byFolder.get(fid).push(f);
+        });
+        const groupedFolderIds = new Set();
+        const groups = [];
+        byFolder.forEach((groupFiles, fid) => {
+          if (groupFiles.length < 2) return;
+          groupedFolderIds.add(fid);
+          groups.push({ folderId: fid, files: groupFiles });
+        });
+        const standalone = files.filter(
+          (f) => !groupedFolderIds.has(String(extractId(f.folderId) || "")),
+        );
+        return { groups, standalone };
+      };
+
+      const renderListItem = (item, key, { dateLabel, isFirstInCluster }) => {
+        const { note, files } = item;
+        const firstFile = files[0];
+        const creatorName = note
+          ? authorName(note)
+          : firstFile?.createdBy
+            ? userName(firstFile.createdBy) || firstFile.createdBy?.email
+            : "System";
+        const time = note?.createdAt || firstFile?.createdAt;
+        const hasBody = !!note?.body;
+        const hasFiles = files.length > 0;
+        const isMyItem =
+          (note && currentUser && note.createdById === currentUser.id) ||
+          (!note &&
+            firstFile &&
+            currentUser &&
+            firstFile.createdById === currentUser.id);
+        const isEditing = note && editingNoteId === note.id;
+        const itemTargetId = note?.id || files[0]?.id;
+
+        return React.createElement(
+          "div",
+          { key },
+          dateLabel &&
+            React.createElement(
+              "div",
+              { style: { textAlign: "center", margin: "16px 0 12px" } },
+              React.createElement(
+                "span",
+                {
+                  style: {
+                    display: "inline-block",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    color: "#8c8c8c",
+                    background: "#f0f0f0",
+                    borderRadius: 12,
+                    padding: "3px 12px",
+                  },
+                },
+                dateLabel,
+              ),
+            ),
           React.createElement(
             "div",
             {
               style: {
                 display: "flex",
-                alignItems: "center",
+                flexDirection: isMyItem ? "row-reverse" : "row",
                 gap: 8,
-                marginTop: 10,
-                flexWrap: "wrap",
+                padding: isFirstInCluster ? "10px 16px 2px" : "1px 16px",
+                // Avatar pins to the top of the message (its own cluster's
+                // first line), not the bottom — content height varies a lot
+                // once a message can hold a file card or a folder group, so
+                // flex-end put the avatar next to the LAST line (the
+                // Reply/Edit/Delete row) instead of next to the author.
+                alignItems: "flex-start",
               },
             },
             React.createElement(
               "div",
+              { style: { width: 30, flexShrink: 0 } },
+              isFirstInCluster
+                ? React.createElement(Av, {
+                    name: creatorName,
+                    color: isMyItem ? "#52c41a" : "#1890ff",
+                    size: 30,
+                  })
+                : null,
+            ),
+            React.createElement(
+              "div",
               {
-                onClick: canSend
-                  ? handleSend
-                  : isMentionOnly
-                    ? warnMentionOnly
-                    : undefined,
                 style: {
-                  marginLeft: "auto",
-                  padding: "6px 18px",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontFamily: FONT,
-                  fontWeight: 700,
-                  background: !canSend ? "#f0f0f0" : "#1890ff",
-                  color: !canSend ? "#bfbfbf" : "#fff",
-                  cursor: !canSend ? "not-allowed" : "pointer",
-                  border: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: isMyItem ? "flex-end" : "flex-start",
+                  maxWidth: "72%",
+                  minWidth: 0,
                 },
               },
-              sending ? "Sending..." : "Comment",
+              isFirstInCluster &&
+                !isMyItem &&
+                React.createElement(
+                  "span",
+                  {
+                    style: {
+                      fontSize: 11,
+                      fontWeight: 700,
+                      fontFamily: FONT,
+                      color: "#8c8c8c",
+                      marginBottom: 3,
+                      marginLeft: 2,
+                    },
+                  },
+                  creatorName,
+                ),
+              isEditing
+                ? React.createElement(
+                    "div",
+                    { style: { marginTop: 4, width: "100%" } },
+                    React.createElement(CommentComposer, {
+                      value: editBody,
+                      onChange: setEditBody,
+                      onAssignMultiple: setEditAssignedIds,
+                      assignedIds: editAssignedIds,
+                      lawyers,
+                      onSubmit: () => handleSaveEdit(note.id),
+                    }),
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 8,
+                          marginTop: 8,
+                        },
+                      },
+                      React.createElement(
+                        "span",
+                        {
+                          onClick: () => {
+                            setEditingNoteId(null);
+                            setEditBody("");
+                            setEditAssignedIds([]);
+                          },
+                          style: {
+                            fontSize: 12,
+                            padding: "4px 12px",
+                            cursor: "pointer",
+                            color: "#595959",
+                            border: "1px solid #d9d9d9",
+                            borderRadius: 4,
+                            fontFamily: FONT,
+                          },
+                        },
+                        "Cancel",
+                      ),
+                      React.createElement(
+                        "span",
+                        {
+                          onClick: () => handleSaveEdit(note.id),
+                          style: {
+                            fontSize: 12,
+                            padding: "4px 16px",
+                            cursor: "pointer",
+                            color: "#fff",
+                            background: "#1890ff",
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            fontFamily: FONT,
+                          },
+                        },
+                        "Save changes",
+                      ),
+                    ),
+                  )
+                : (hasBody || hasFiles) &&
+                    React.createElement(
+                      "div",
+                      {
+                        style: {
+                          fontSize: 13,
+                          fontFamily: FONT,
+                          color: "#262626",
+                          lineHeight: 1.6,
+                          // Always a real bubble now, file-only messages
+                          // included — the old transparent/no-padding
+                          // special case (borrowed from Tree mode, where
+                          // each file already drew its own full box) left
+                          // file-only messages looking like loose,
+                          // unbubbled content once List mode's compact
+                          // file card/folder rows stopped doing that.
+                          background: isMyItem ? "#e6f4ff" : "#f0f0f0",
+                          borderRadius: 14,
+                          padding: "8px 12px",
+                        },
+                      },
+                      // Unlike Tree mode's renderItem (which only shows this
+                      // quote for root items — a reply's quoted parent is
+                      // already right above it visually), List mode has no
+                      // indentation to imply that adjacency, so every reply
+                      // shows its quote regardless of position — EXCEPT when
+                      // the body itself already opens with an embedded
+                      // <blockquote> (buildReplyQuoteHtml's seeded quote,
+                      // saved as literal body content): showing this too
+                      // would duplicate it. Legacy replies made before the
+                      // seeded-quote change have no such blockquote in their
+                      // body, so they still fall back to this replyText box.
+                      note?.replyText &&
+                        !/^\s*<blockquote/i.test(note.body || "") &&
+                        React.createElement(
+                          "div",
+                          {
+                            style: {
+                              fontSize: 12,
+                              fontFamily: FONT,
+                              color: "#595959",
+                              background: "#fff",
+                              border: "1px solid #e8e8e8",
+                              borderLeft: "3px solid #bfbfbf",
+                              borderRadius: "4px",
+                              padding: "6px 10px",
+                              marginBottom: 6,
+                              whiteSpace: "pre-wrap",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            },
+                          },
+                          React.createElement(
+                            "b",
+                            { style: { color: "#8c8c8c", marginRight: 4 } },
+                            "Quote:",
+                          ),
+                          " ",
+                          note.replyText,
+                        ),
+                      hasBody &&
+                        React.createElement(
+                          "div",
+                          { style: { marginBottom: hasFiles ? 8 : 0 } },
+                          renderRichText(note.body, lawyers),
+                        ),
+                      // Files uploaded together as one folder collapse
+                      // under a single folder row (see
+                      // groupFilesByUploadFolder); everything else shares
+                      // one card instead of a separate bordered box per
+                      // file (renderFileRow's compact mode) — much less
+                      // vertical space for file-only messages especially.
+                      hasFiles &&
+                        (() => {
+                          const { groups, standalone } =
+                            groupFilesByUploadFolder(files);
+                          return React.createElement(
+                            "div",
+                            {
+                              style: {
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                              },
+                            },
+                            ...groups.map((group) => {
+                              const groupKey = `${itemTargetId}-${group.folderId}`;
+                              const isOpen = !!expandedFileFolders[groupKey];
+                              const folderName =
+                                folderLookup[group.folderId]?.name ||
+                                folderLookup[group.folderId]?.title ||
+                                "Folder";
+                              return React.createElement(
+                                "div",
+                                { key: groupKey },
+                                React.createElement(
+                                  "div",
+                                  {
+                                    onClick: () =>
+                                      setExpandedFileFolders((prev) => ({
+                                        ...prev,
+                                        [groupKey]: !isOpen,
+                                      })),
+                                    style: {
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 8,
+                                      padding: "8px 12px",
+                                      background: "#fff",
+                                      border: "1px solid #e8e8e8",
+                                      borderRadius: 8,
+                                      cursor: "pointer",
+                                      fontSize: 13,
+                                      fontFamily: FONT,
+                                    },
+                                  },
+                                  React.createElement(
+                                    "span",
+                                    {
+                                      style: {
+                                        fontSize: 10,
+                                        color: "#8c8c8c",
+                                        width: 10,
+                                        display: "inline-block",
+                                        flexShrink: 0,
+                                      },
+                                    },
+                                    isOpen ? "▼" : "▶",
+                                  ),
+                                  TASK_FILE_ACTION_ICONS.folder,
+                                  React.createElement(
+                                    "span",
+                                    {
+                                      style: {
+                                        flex: 1,
+                                        fontWeight: 600,
+                                        color: "#262626",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                      },
+                                    },
+                                    folderName,
+                                  ),
+                                  React.createElement(
+                                    "span",
+                                    {
+                                      style: {
+                                        fontSize: 11,
+                                        color: "#8c8c8c",
+                                        background: "#f5f5f5",
+                                        borderRadius: 999,
+                                        padding: "1px 8px",
+                                        flexShrink: 0,
+                                      },
+                                    },
+                                    `${group.files.length} files`,
+                                  ),
+                                  React.createElement(
+                                    "button",
+                                    {
+                                      type: "button",
+                                      title: "Download all files in this folder",
+                                      onClick: (e) => {
+                                        e.stopPropagation();
+                                        downloadFilesAsZip(
+                                          group.files.map((f) => {
+                                            const att = Array.isArray(
+                                              f.fileAttachment,
+                                            )
+                                              ? f.fileAttachment[0]
+                                              : f.fileAttachment;
+                                            return {
+                                              url: getFullUrl(
+                                                att?.url || att?.preview,
+                                              ),
+                                              rawUrl:
+                                                att?.url || att?.preview,
+                                              filename:
+                                                att?.filename ||
+                                                f.title ||
+                                                f.name ||
+                                                att?.title,
+                                            };
+                                          }),
+                                          `${folderName}.zip`,
+                                        );
+                                      },
+                                      style: {
+                                        flexShrink: 0,
+                                        border: "none",
+                                        background: "transparent",
+                                        cursor: "pointer",
+                                        padding: 4,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        color: "#6B7280",
+                                      },
+                                    },
+                                    TASK_FILE_ACTION_ICONS.download,
+                                  ),
+                                ),
+                                isOpen &&
+                                  React.createElement(
+                                    "div",
+                                    {
+                                      style: {
+                                        marginLeft: 20,
+                                        marginTop: 4,
+                                        paddingLeft: 10,
+                                        borderLeft: "1px dashed #d9d9d9",
+                                      },
+                                    },
+                                    ...group.files.map((f) =>
+                                      renderFileRow(f, itemTargetId),
+                                    ),
+                                  ),
+                              );
+                            }),
+                            standalone.length > 0 &&
+                              React.createElement(
+                                "div",
+                                {
+                                  style: {
+                                    background: "#fff",
+                                    border: "1px solid #e8e8e8",
+                                    borderRadius: 8,
+                                    overflow: "hidden",
+                                  },
+                                },
+                                ...standalone.map((f, i) =>
+                                  renderFileRow(f, itemTargetId, {
+                                    compact: true,
+                                    isLast: i === standalone.length - 1,
+                                  }),
+                                ),
+                              ),
+                          );
+                        })(),
+                      renderBulkSelectBar(itemTargetId, files),
+                    ),
+              !isEditing &&
+                (note || files.length > 0) &&
+                React.createElement(
+                  "div",
+                  {
+                    style: {
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      marginTop: 3,
+                      fontSize: 11,
+                      fontFamily: FONT,
+                      color: "#bfbfbf",
+                    },
+                  },
+                  fmt(time, "full"),
+                  (canEdit || isMyItem) &&
+                    React.createElement(
+                      "span",
+                      {
+                        onClick: () => {
+                          setReplyingTo(item);
+                          setBody(buildReplyQuoteHtml(item));
+                          const targetLawyer = note
+                            ? findLawyerByUserId(note.createdById)
+                            : null;
+                          if (
+                            targetLawyer &&
+                            !(assignedIds || []).includes(targetLawyer.id)
+                          ) {
+                            setAssignedIds([
+                              ...(assignedIds || []),
+                              targetLawyer.id,
+                            ]);
+                          }
+                        },
+                        style: {
+                          cursor: "pointer",
+                          color: "#52c41a",
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                        },
+                      },
+                      "Reply",
+                    ),
+                  isMyItem &&
+                    note &&
+                    React.createElement(
+                      "span",
+                      {
+                        onClick: () => {
+                          setEditingNoteId(note.id);
+                          setEditBody(note.body || "");
+                          setEditAssignedIds(
+                            (note.assignees || []).map((a) =>
+                              typeof a === "object" ? a.id : a,
+                            ),
+                          );
+                        },
+                        style: {
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                        },
+                      },
+                      "Edit",
+                    ),
+                  isMyItem &&
+                    React.createElement(
+                      "span",
+                      {
+                        onClick: () => handleDeleteNote(item),
+                        style: {
+                          cursor: "pointer",
+                          color: "#ff4d4f",
+                          textDecoration: "underline",
+                          textUnderlineOffset: "2px",
+                        },
+                      },
+                      "Delete",
+                    ),
+                ),
             ),
           ),
         );
       };
+
+      // visibleFeed is always earliest -> latest; reversed here (not at the
+      // source) so Tree mode's rootItems/replyMap above — which need the
+      // original earliest-first array to detect parent/reply relationships
+      // — stay unaffected by List mode's own sort choice.
+      const orderedListFeed =
+        sortOrder === "newest" ? [...visibleFeed].reverse() : visibleFeed;
+
+      const renderListFeed = () => {
+        let lastDateKey = null;
+        let lastAuthorKey = null;
+        let lastTime = null;
+        return orderedListFeed.map((item, i) => {
+          const t = item._time instanceof Date ? item._time : new Date(item._time);
+          const dateKey = `${t.getFullYear()}-${t.getMonth()}-${t.getDate()}`;
+          const authorKey = item.note
+            ? `n${item.note.createdById}`
+            : `f${item.files[0]?.createdById}`;
+          const dateLabel = dateKey !== lastDateKey ? getDateDividerLabel(t) : null;
+          // Math.abs — orderedListFeed may run newest -> oldest, so the gap
+          // between consecutive items can be negative; only its magnitude
+          // matters for "does this start a new cluster".
+          const isFirstInCluster =
+            !!dateLabel ||
+            authorKey !== lastAuthorKey ||
+            !lastTime ||
+            Math.abs(t.getTime() - lastTime.getTime()) > CHAT_CLUSTER_WINDOW_MS;
+          lastDateKey = dateKey;
+          lastAuthorKey = authorKey;
+          lastTime = t;
+          return renderListItem(item, `list-item-${i}`, {
+            dateLabel,
+            isFirstInCluster,
+          });
+        });
+      };
+
+      const feedBodyNodes =
+        viewMode === "list"
+          ? renderListFeed()
+          : orderedRootItems.map((item, i) => renderItem(item, `item-${i}`));
 
       return React.createElement(
         "div",
@@ -8768,9 +9954,16 @@
             background: "#fff",
           },
         },
-        // Danh sách bình luận cuộn riêng ở trên — mới nhất -> cũ nhất (đã
-        // sort ở reload()); composer bên dưới nằm ngoài vùng cuộn này nên
-        // luôn hiển thị cố định, không cần cuộn hết mới thấy ô nhập.
+        // Composer sits fixed at the top now (both modes) — always visible
+        // without scrolling, new comment appears right below it. List mode's
+        // composer stays put here even while replying — Tree mode still
+        // swaps it out for the inline one under the item being replied to
+        // (renderItem's isReplyingToThis branch).
+        viewMode === "list" || !replyingTo
+          ? renderComposerBlock(false)
+          : null,
+        // Danh sách bình luận cuộn riêng bên dưới composer — thứ tự theo
+        // sortOrder (Newest/Oldest), áp dụng cho cả list & tree.
         React.createElement(
           "div",
           { style: { flex: 1, overflowY: "auto", overflowX: "hidden" } },
@@ -8797,40 +9990,23 @@
                     },
                     "No comments or documents yet",
                   )
-                : React.createElement(
-                    "div",
-                    null,
-                    ...orderedRootItems.map((item, i) => renderItem(item, `item-${i}`)),
-                    hasMore &&
-                      React.createElement(
-                        "div",
-                        {
-                          onClick: () => setShowAll((v) => !v),
-                          style: {
-                            margin: "16px",
-                            textAlign: "center",
-                            fontSize: 12,
-                            fontFamily: FONT,
-                            color: "#1890ff",
-                            cursor: "pointer",
-                            padding: "7px 0",
-                            border: "1px dashed #91caff",
-                            borderRadius: 6,
-                            background: "#f0f8ff",
-                          },
-                          onMouseEnter: (e) =>
-                            (e.currentTarget.style.background = "#d6ecff"),
-                          onMouseLeave: (e) =>
-                            (e.currentTarget.style.background = "#f0f8ff"),
+                : visibleFeed.length === 0
+                  ? React.createElement(
+                      "div",
+                      {
+                        style: {
+                          textAlign: "center",
+                          padding: "32px 0",
+                          fontSize: 13,
+                          fontFamily: FONT,
+                          color: "#bfbfbf",
                         },
-                        showAll
-                          ? `▲ Collapse (showing ${INITIAL_COUNT} of ${feed.length})`
-                          : `▼ View ${feed.length - INITIAL_COUNT} more comments (${feed.length} total)`,
-                      ),
-                  ),
+                      },
+                      "No comments match your search",
+                    )
+                  : React.createElement("div", null, ...feedBodyNodes),
           ),
         ),
-        !replyingTo ? renderComposerBlock(false) : null,
         React.createElement("input", {
           key: "pending-replace-input",
           ref: pendingReplaceInputRef,
@@ -8889,6 +10065,7 @@
             open: !!libraryMoveTarget,
             record: libraryMoveTarget.record,
             destinationType: libraryMoveTarget.destinationType,
+            availableDestinationTypes: libraryMoveTarget.availableDestinationTypes,
             sourceContext: {
               collectionName,
               recordId,
@@ -8907,6 +10084,7 @@
             open: !!bulkMoveTarget,
             records: bulkMoveTarget.records,
             destinationType: bulkMoveTarget.destinationType,
+            availableDestinationTypes: bulkMoveTarget.availableDestinationTypes,
             sourceContext: {
               collectionName,
               recordId,
@@ -9029,12 +10207,25 @@
       open,
       record,
       records,
-      destinationType,
+      destinationType: initialDestinationType,
+      availableDestinationTypes: availableDestinationTypesProp,
       sourceContext,
       currentUser,
       onClose,
       onSuccess,
     }) => {
+      // `destinationType` is mutable state, not a fixed prop — the unified
+      // "Move to Library" action opens with a default category (see
+      // getLibraryMoveCategories) but lets the user switch between the
+      // categories offered for this context via the Segmented control
+      // rendered below (only shown when there's more than one). Every other
+      // caller (Move to Case's/Internal Work's Document) still passes a
+      // single fixed destinationType, so availableDestinationTypesProp
+      // defaults to just that one type and the switch never renders.
+      const availableDestinationTypes = availableDestinationTypesProp || [
+        initialDestinationType,
+      ];
+      const [destinationType, setDestinationType] = useState(initialDestinationType);
       const config = getLibraryDestinationConfig(destinationType);
       const isCaseDocument = destinationType === LIBRARY_DESTINATION.CASE_DOCUMENT;
       const isKnowledge = destinationType === LIBRARY_DESTINATION.KNOWLEDGE;
@@ -9553,6 +10744,30 @@
                 sourceLabel &&
                   React.createElement("div", { style: { color: "#6B7280" } }, "Source: ", sourceLabel),
               ),
+          // Category switch — only rendered when "Move to Library" bundles
+          // more than one destination for this context (see
+          // getLibraryMoveCategories). Switching resets the parent-record
+          // and folder selections below since those are keyed off
+          // destinationType in their own effects.
+          availableDestinationTypes.length > 1 &&
+            React.createElement(
+              "div",
+              null,
+              React.createElement(
+                "div",
+                { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
+                "Category",
+              ),
+              React.createElement(Segmented, {
+                block: true,
+                value: destinationType,
+                onChange: (value) => setDestinationType(value),
+                options: availableDestinationTypes.map((dt) => ({
+                  value: dt,
+                  label: getLibraryDestinationConfig(dt).label,
+                })),
+              }),
+            ),
           !hasImplicitScope &&
             React.createElement(
               "div",
@@ -9691,10 +10906,12 @@
       const initialEditTitleRef = useRef("");
 
       const [activeTab, setActiveTab] = useState("local");
-      const [treeData, setTreeData] = useState([]);
-      const [libraryLoading, setLibraryLoading] = useState(false);
+      // One tree per picker tab ("internalDocs" / "library") so switching
+      // tabs never refetches or rebuilds what's already loaded.
+      const [libraryTrees, setLibraryTrees] = useState({});
+      const [libraryLoadingTabs, setLibraryLoadingTabs] = useState({});
+      const [libraryLoadedTabs, setLibraryLoadedTabs] = useState({});
       const [libraryExpandedKeys, setLibraryExpandedKeys] = useState([]);
-      const [libraryLoaded, setLibraryLoaded] = useState(false);
       const [selectedLibDocs, setSelectedLibDocs] = useState([]);
       const { TreeSelect } = ctx.antd;
       const currentUserId = extractId(currentUser?.id);
@@ -9711,13 +10928,78 @@
         extractId(PROJECT_ID) ||
         extractId(ctx.record?.projectId) ||
         extractId(ctx.record?.caseId);
+      const safeProjectInternalId = extractId(projectInternalId);
+      const showInternalDocsTab = isProjectInternalContext && !!safeProjectInternalId;
+      const isLibraryPickerTab = (tabKey) =>
+        tabKey === "library" || (tabKey === "internalDocs" && showInternalDocsTab);
+      const isPickingFromLibrary = isLibraryPickerTab(activeTab);
+      const treeData = libraryTrees[activeTab] || [];
+      const libraryLoading = !!libraryLoadingTabs[activeTab];
+
+      // How each picker tab gets its data (cache key + scoped fetcher) and
+      // turns it into a tree. Data is cached per window (see
+      // loadTaskLibraryData); the tree is rebuilt per modal since it
+      // depends on the current user's folder permissions.
+      const getLibraryPickerMode = (tabKey) => {
+        if (tabKey === "internalDocs" && showInternalDocsTab) {
+          return {
+            cacheKey: `pi:${safeProjectInternalId}:u${currentUserId || ""}`,
+            fetcher: () => fetchProjectInternalLibraryData(safeProjectInternalId, currentUserId),
+            build: (data) =>
+              buildTaskProjectInternalLibraryTree({
+                ...data,
+                currentUser,
+                currentLawyerId: safeCurrentLawyerId,
+                currentProjectInternalId: safeProjectInternalId,
+              }),
+          };
+        }
+        if (tabKey !== "library") return null;
+        if (isProjectInternalContext) {
+          return {
+            cacheKey: `ws:u${currentUserId || ""}`,
+            fetcher: () => fetchWorkspaceLibraryData(currentUserId),
+            build: (data) =>
+              buildTaskWorkspaceLibraryTree({
+                ...data,
+                currentUser,
+                currentLawyerId: safeCurrentLawyerId,
+              }),
+          };
+        }
+        return {
+          cacheKey: `case:${resolvedLibraryCaseId || ""}:u${currentUserId || ""}`,
+          fetcher: async () => {
+            const [libraryData, caseReferences, legalReferences, legalStudies] =
+              await Promise.all([
+                fetchTaskLibraryData(currentUserId),
+                fetchLibraryRelationRows(resolvedLibraryCaseId, "caseReferences"),
+                fetchLibraryRelationRows(resolvedLibraryCaseId, "legalReference"),
+                fetchLibraryRelationRows(resolvedLibraryCaseId, "legalStudy"),
+              ]);
+            return { ...libraryData, caseReferences, legalReferences, legalStudies };
+          },
+          build: (data) =>
+            buildTaskLibraryTree({
+              ...data,
+              currentUser,
+              currentLawyerId: safeCurrentLawyerId,
+              currentCaseId: resolvedLibraryCaseId,
+            }),
+        };
+      };
+
+      const resetLibraryPickers = () => {
+        setLibraryTrees({});
+        setLibraryLoadingTabs({});
+        setLibraryLoadedTabs({});
+        setLibraryExpandedKeys([]);
+        setSelectedLibDocs([]);
+      };
 
       useEffect(() => {
         if (!open) return;
-        setTreeData([]);
-        setLibraryExpandedKeys([]);
-        setLibraryLoaded(false);
-        setSelectedLibDocs([]);
+        resetLibraryPickers();
         if (isEdit && editDoc) {
           const initialTitle = editDoc.title || editDoc.name || "";
           initialEditTitleRef.current = initialTitle;
@@ -9750,205 +11032,78 @@
 
       useEffect(() => {
         if (!open) return;
-        setTreeData([]);
-        setLibraryExpandedKeys([]);
-        setSelectedLibDocs([]);
-        setLibraryLoaded(false);
+        resetLibraryPickers();
       }, [
         open,
         currentUserId,
         safeCurrentLawyerId,
         currentRoleSignature,
         resolvedLibraryCaseId,
+        safeProjectInternalId,
       ]);
 
+      // Prefetch every picker tab's data as soon as the modal opens, so it's
+      // usually already cached by the time the user clicks the tab.
       useEffect(() => {
-        if (open && activeTab === "library" && !libraryLoaded) {
-          let cancelled = false;
-          const fetchLibraryData = async () => {
-            setLibraryLoading(true);
-            try {
-              if (isProjectInternalContext) {
-                // No Case/Reference to browse for a ProjectInternal task —
-                // skip the 3 case-relation fetches entirely and build the
-                // Knowledge/My Documents tree instead (see
-                // buildTaskWorkspaceLibraryTree).
-                const libraryData = await fetchTaskLibraryData(currentUserId);
-                if (cancelled) return;
-                setTreeData(
-                  buildTaskWorkspaceLibraryTree({
-                    ...libraryData,
-                    currentUser,
-                    currentLawyerId: safeCurrentLawyerId,
-                  }),
-                );
-              } else {
-                const [libraryData, caseReferences, legalReferences, legalStudies] =
-                  await Promise.all([
-                    fetchTaskLibraryData(currentUserId),
-                    fetchLibraryRelationRows(resolvedLibraryCaseId, "caseReferences"),
-                    fetchLibraryRelationRows(resolvedLibraryCaseId, "legalReference"),
-                    fetchLibraryRelationRows(resolvedLibraryCaseId, "legalStudy"),
-                  ]);
-                if (cancelled) return;
-                setTreeData(
-                  buildTaskLibraryTree({
-                    ...libraryData,
-                    currentUser,
-                    currentLawyerId: safeCurrentLawyerId,
-                    currentCaseId: resolvedLibraryCaseId,
-                    caseReferences,
-                    legalReferences,
-                    legalStudies,
-                  }),
-                );
-              }
-            } catch (e) {
-              console.error("Cannot load document library", e);
-              if (!cancelled) setTreeData([]);
-            } finally {
-              if (!cancelled) {
-                setLibraryLoaded(true);
-                setLibraryLoading(false);
-              }
-            }
-          };
-          fetchLibraryData();
-          return () => {
-            cancelled = true;
-          };
+        if (!open || !currentUserId) return;
+        ["internalDocs", "library"].forEach((tabKey) => {
+          const mode = getLibraryPickerMode(tabKey);
+          if (mode) loadTaskLibraryData(mode.cacheKey, mode.fetcher).catch(() => {});
+        });
+      }, [open, currentUserId, resolvedLibraryCaseId, safeProjectInternalId, isProjectInternalContext]);
+
+      useEffect(() => {
+        if (!open || !isPickingFromLibrary || libraryLoadedTabs[activeTab]) return;
+        const tabKey = activeTab;
+        const mode = getLibraryPickerMode(tabKey);
+        if (!mode) return;
+        let cancelled = false;
+        const setTree = (tree) =>
+          setLibraryTrees((prev) => ({ ...prev, [tabKey]: tree }));
+        const setTabLoading = (value) =>
+          setLibraryLoadingTabs((prev) => ({ ...prev, [tabKey]: value }));
+
+        // Cached data renders instantly; loadTaskLibraryData then either
+        // returns that same (fresh) data or refetches a stale entry in the
+        // background and the tree is swapped in place when it lands.
+        const cached = peekTaskLibraryData(mode.cacheKey);
+        if (cached) {
+          try {
+            setTree(mode.build(cached));
+          } catch (e) {
+            console.error("Cannot build document library", e);
+          }
+        } else {
+          setTabLoading(true);
         }
+        loadTaskLibraryData(mode.cacheKey, mode.fetcher)
+          .then((data) => {
+            if (cancelled || data === cached) return;
+            setTree(mode.build(data));
+          })
+          .catch((e) => {
+            console.error("Cannot load document library", e);
+            if (!cancelled && !cached) setTree([]);
+          })
+          .finally(() => {
+            if (cancelled) return;
+            setTabLoading(false);
+            setLibraryLoadedTabs((prev) => ({ ...prev, [tabKey]: true }));
+          });
+        return () => {
+          cancelled = true;
+        };
       }, [
         activeTab,
         open,
-        libraryLoaded,
+        libraryLoadedTabs,
         currentUserId,
         safeCurrentLawyerId,
         currentRoleSignature,
         resolvedLibraryCaseId,
         isProjectInternalContext,
+        safeProjectInternalId,
       ]);
-
-      useEffect(() => {
-        return;
-        if (
-          open &&
-          activeTab === "library" &&
-          treeData.length === 0 &&
-          !libraryLoading
-        ) {
-          const fetchLibraryData = async () => {
-            setLibraryLoading(true);
-            try {
-              const [fRes, allD] = await Promise.all([
-                ctx.api.request({
-                  url: "folders:list",
-                  params: {
-                    pageSize: 1000,
-                    page: 1,
-                    appends: ["folderMember", "folderManager"],
-                  },
-                }),
-                listDocumentsWithFieldFallback({
-                  pageSize: 1000,
-                  page: 1,
-                  filter: JSON.stringify({ isDeleted: { $ne: true } }),
-                  fields: "id,title,documentCode,folderId,createdById,isDeleted",
-                  appends: ["fileAttachment", "createdBy"],
-                }),
-              ]);
-              const allF = fRes?.data?.data || [];
-
-              const { accessible } = getVisibleFolderIds(
-                allF,
-                currentUser,
-                currentLawyerId,
-              );
-
-              const allowedF = allF.filter((f) => accessible.has(extractId(f.id)));
-
-              const generateTree = () => {
-                const currentUid = extractId(currentUser?.id);
-                const nodeMap = {};
-                allowedF.forEach((f) => {
-                  nodeMap[extractId(f.id)] = {
-                    title: `📁 ${f.name}`,
-                    value: `folder_${f.id}`,
-                    key: `folder_${f.id}`,
-                    selectable: false,
-                    children: [],
-                  };
-                });
-
-                allD.forEach((d) => {
-                  if (
-                    !d.fileAttachment ||
-                    (Array.isArray(d.fileAttachment) &&
-                      d.fileAttachment.length === 0)
-                  )
-                    return;
-                  const fId = extractId(d.folderId);
-                  if (!fId || !nodeMap[fId]) return;
-
-                  // 🌟 LOGIC: Chỉ hiện file do chính currentUser upload
-                  if (extractId(d.createdById) !== currentUid) return;
-
-                  const fileId = extractId(d.id);
-                  const att = Array.isArray(d.fileAttachment)
-                    ? d.fileAttachment[0]
-                    : d.fileAttachment;
-                  nodeMap[fId].children.push({
-                    title: `📄 ${d.title || d.documentCode || "Untitled"} (${att.title || att.filename})`,
-                    value: `doc_${fileId}`,
-                    key: `doc_${fileId}`,
-                    isLeaf: true,
-                    docData: d,
-                    attData: att,
-                  });
-                });
-
-                const rootNodes = [];
-                allowedF.forEach((f) => {
-                  const pId = extractId(f.parentId);
-                  if (pId && nodeMap[pId]) {
-                    nodeMap[pId].children.push(nodeMap[extractId(f.id)]);
-                  } else {
-                    rootNodes.push(nodeMap[extractId(f.id)]);
-                  }
-                });
-
-                // Clean up empty folders (optional, but better UX)
-                const pruneEmpty = (nodes) => {
-                  return nodes.filter((n) => {
-                    if (n.isLeaf) return true;
-                    n.children = pruneEmpty(n.children || []);
-                    return n.children.length > 0;
-                  });
-                };
-
-                return pruneEmpty(rootNodes);
-              };
-
-              setTreeData(generateTree());
-            } catch (e) {
-              console.error(e);
-            }
-            setLibraryLoading(false);
-          };
-          fetchLibraryData();
-        }
-      }, [
-        activeTab,
-        open,
-        treeData.length,
-        libraryLoading,
-        currentUser,
-        currentLawyerId,
-      ]);
-
-      // 🌟 Effect để re-filter tree khi filter thay đổi mà không cần fetch lại API (nếu đã có data)
-      // Tuy nhiên ở đây fetchLibraryData đang nằm trong useEffect và setTreeData trực tiếp.
-      // Để tối ưu, ta có thể tách allF/allD ra state riêng. Nhưng hiện tại làm đơn giản trước.
 
       const findTreeDoc = (nodes, val) => {
         for (const node of nodes || []) {
@@ -10040,12 +11195,70 @@
       const handleClose = () => {
         form.resetFields();
         setFileList([]);
-        setSelectedLibDocs([]);
-        setTreeData([]);
-        setLibraryExpandedKeys([]);
-        setLibraryLoaded(false);
+        resetLibraryPickers();
         onClose();
       };
+
+      // Tab label with its full meaning kept in a native tooltip.
+      const renderTabLabel = (text, tooltip) =>
+        React.createElement("span", { title: tooltip, style: { whiteSpace: "nowrap" } }, text);
+
+      // Shared body of the "Choose from ..." tabs. Only the active tab
+      // renders its TreeSelect — treeData/selection belong to activeTab, so a
+      // hidden pane would otherwise mirror the visible one's tree.
+      const renderLibraryPicker = ({ tabKey, loadingText, placeholder, notFoundContent }) =>
+        React.createElement(
+          "div",
+          { style: { padding: "8px 0" } },
+          activeTab !== tabKey
+            ? null
+            : libraryLoading
+              ? React.createElement(
+                  "div",
+                  { style: { textAlign: "center", padding: 20 } },
+                  React.createElement(ctx.antd.Spin, { size: "small" }),
+                  React.createElement(
+                    "div",
+                    { style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" } },
+                    loadingText,
+                  ),
+                )
+              : React.createElement(
+                  "div",
+                  { className: "task-library-treeselect" },
+                  React.createElement("style", null, LIBRARY_TREESELECT_CSS),
+                  React.createElement(TreeSelect, {
+                    style: { width: "100%" },
+                    treeData: interactiveLibraryTreeData,
+                    placeholder,
+                    treeDefaultExpandAll: false,
+                    treeExpandedKeys: libraryExpandedKeys,
+                    onTreeExpand: (expandedKeys) =>
+                      setLibraryExpandedKeys(
+                        (expandedKeys || []).map((key) => String(key)),
+                      ),
+                    allowClear: true,
+                    showSearch: true,
+                    filterTreeNode: (input, node) => {
+                      const searchText =
+                        node?.searchText || node?.props?.searchText || "";
+                      return normalizeLookupText(searchText).includes(
+                        normalizeLookupText(input),
+                      );
+                    },
+                    notFoundContent,
+                    multiple: !isEdit,
+                    onChange: handleTreeSelect,
+                    value: !isEdit
+                      ? selectedLibDocs.map((doc) => doc.value)
+                      : selectedLibDocs[0]?.value,
+                    listHeight: 500,
+                    dropdownStyle: { maxHeight: 560, minWidth: 460, overflow: "auto" },
+                    dropdownMatchSelectWidth: false,
+                    popupMatchSelectWidth: false,
+                  }),
+                ),
+        );
 
       const getSelectedUploadItems = () =>
         (fileList || [])
@@ -10191,7 +11404,7 @@
             if (activeTab === "local" && hasLocalFile) {
               attIds = await uploadFile();
               fileName = fileList[0].name;
-            } else if (activeTab === "library" && hasLibFile) {
+            } else if (isPickingFromLibrary && hasLibFile) {
               attIds = await cloneLibraryFile(selectedLibDocs[0].attData);
               const attData = selectedLibDocs[0].attData;
               const ext = attData.extname
@@ -10264,6 +11477,7 @@
             });
             message.success("✅ Upload successful!");
           }
+          invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
@@ -10295,7 +11509,7 @@
           message.warning("Updating a document only supports replacing 1 file.");
           return;
         }
-        if (isEdit && activeTab === "library" && selectedLibDocs.length > 1) {
+        if (isEdit && isPickingFromLibrary && selectedLibDocs.length > 1) {
           message.warning("Updating a document only supports replacing 1 file.");
           return;
         }
@@ -10351,7 +11565,7 @@
           if ((activeTab === "local" || activeTab === "folder") && hasSelectedUpload) {
             return buildUploadEntries(values);
           }
-          if (activeTab === "library" && hasLibFile) return buildLibraryEntries();
+          if (isPickingFromLibrary && hasLibFile) return buildLibraryEntries();
           if (hasDrive) return [buildDriveEntry()];
           return [];
         };
@@ -10438,6 +11652,7 @@
                 : "Upload successful!",
             );
           }
+          invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
@@ -10662,6 +11877,10 @@
             ),
           divider("Attached file"),
           React.createElement(ctx.antd.Tabs, {
+            // Short labels + tighter gutter so all tabs fit the modal width
+            // without antd collapsing the last ones into a "..." overflow menu.
+            size: "small",
+            tabBarGutter: 16,
             activeKey: activeTab,
             onChange: (key) => {
               setActiveTab(key);
@@ -10671,7 +11890,7 @@
             items: [
               {
                 key: "local",
-                label: "Upload from computer",
+                label: renderTabLabel("Upload files", "Upload files from your computer"),
                 children: React.createElement(
                   Form.Item,
                   {
@@ -10729,7 +11948,7 @@
               },
               !isEdit && {
                 key: "folder",
-                label: "Upload folder",
+                label: renderTabLabel("Upload folder", "Upload a whole folder, keeping its structure"),
                 children: React.createElement(
                   Form.Item,
                   {
@@ -10767,67 +11986,31 @@
                   ),
                 ),
               },
+              showInternalDocsTab && {
+                key: "internalDocs",
+                label: renderTabLabel("Internal Docs", "Choose from this Internal Work's documents"),
+                children: renderLibraryPicker({
+                  tabKey: "internalDocs",
+                  loadingText: "Loading Internal Work documents...",
+                  placeholder: "Search this Internal Work's documents...",
+                  notFoundContent: "No accessible documents in this Internal Work",
+                }),
+              },
               {
                 key: "library",
                 label: isProjectInternalContext
-                  ? "Choose from Library"
-                  : "Choose from Case's Document",
-                children: React.createElement(
-                  "div",
-                  { style: { padding: "8px 0" } },
-                  libraryLoading
-                    ? React.createElement(
-                        "div",
-                        { style: { textAlign: "center", padding: 20 } },
-                        React.createElement(ctx.antd.Spin, { size: "small" }),
-                        React.createElement(
-                          "div",
-                          {
-                            style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
-                          },
-                          "Loading library...",
-                        ),
-                      )
-                    : React.createElement(
-                        "div",
-                        { className: "task-library-treeselect" },
-                        React.createElement("style", null, LIBRARY_TREESELECT_CSS),
-                        React.createElement(TreeSelect, {
-                          style: { width: "100%" },
-                          treeData: interactiveLibraryTreeData,
-                          placeholder: isProjectInternalContext
-                            ? "Search and select a file from Knowledge or My Documents..."
-                            : "Search and select a file from this case, linked cases, or reference material...",
-                          treeDefaultExpandAll: false,
-                          treeExpandedKeys: libraryExpandedKeys,
-                          onTreeExpand: (expandedKeys) =>
-                            setLibraryExpandedKeys(
-                              (expandedKeys || []).map((key) => String(key)),
-                            ),
-                          allowClear: true,
-                          showSearch: true,
-                          filterTreeNode: (input, node) => {
-                            const searchText =
-                              node?.searchText || node?.props?.searchText || "";
-                            return normalizeLookupText(searchText).includes(
-                              normalizeLookupText(input),
-                            );
-                          },
-                          notFoundContent: isProjectInternalContext
-                            ? "No accessible Knowledge or My Documents files found"
-                            : "No accessible documents found",
-                          multiple: !isEdit,
-                          onChange: handleTreeSelect,
-                          value: !isEdit
-                            ? selectedLibDocs.map((doc) => doc.value)
-                            : selectedLibDocs[0]?.value,
-                          listHeight: 500,
-                          dropdownStyle: { maxHeight: 560, minWidth: 460, overflow: "auto" },
-                          dropdownMatchSelectWidth: false,
-                          popupMatchSelectWidth: false,
-                        }),
-                      ),
-                ),
+                  ? renderTabLabel("Library", "Choose from Knowledge or My Documents")
+                  : renderTabLabel("Case Docs", "Choose from this case, linked cases or reference material"),
+                children: renderLibraryPicker({
+                  tabKey: "library",
+                  loadingText: "Loading library...",
+                  placeholder: isProjectInternalContext
+                    ? "Search Knowledge or My Documents..."
+                    : "Search case, linked cases or references...",
+                  notFoundContent: isProjectInternalContext
+                    ? "No accessible Knowledge or My Documents files found"
+                    : "No accessible documents found",
+                }),
               },
             ].filter(Boolean),
           }),
@@ -14200,6 +15383,9 @@
       services,
       projectManagerId,
       caseInfo,
+      linkablePaymentRequests = [],
+      contractServiceIdByProjectServiceId = {},
+      paymentRequestServiceIdsByPrId = {},
       internalProjectInfo,
       onClose,
       onUpdate,
@@ -14211,6 +15397,16 @@
       onOpenAddSubModal,
       standaloneMode = false,
     }) => {
+      // By Case's own "which installment" selector below the unified
+      // trigger checkbox — a purely-local reveal flag, not written to the
+      // DB (the actual data lives in item.linkedPaymentRequestId once a
+      // choice is made). Must be declared before the `if (!item) return
+      // null` below, per Rules of Hooks — this component re-renders with
+      // item alternating null/non-null as different rows open.
+      const [byCaseSelectorOpen, setByCaseSelectorOpen] = useState(false);
+      useEffect(() => {
+        setByCaseSelectorOpen(false);
+      }, [item?.id]);
       if (!item) return null;
       const name = type === "subTask" ? item.subTaskName : item.title;
       const collectionName = type === "subTask" ? "SubTask" : "Task";
@@ -14294,6 +15490,15 @@
 
       const [editName, setEditName] = useState(false);
       const [nameVal, setNameVal] = useState(name);
+      // Inline rename for a subtask title shown under the parent task's
+      // title (see subtaskTitlesRow below) — only one row editable at a
+      // time, so a single id+value pair (not per-row useState, which would
+      // break the rules of hooks inside a .map()).
+      const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+      const [editingSubtaskValue, setEditingSubtaskValue] = useState("");
+      // More than 3 subtasks starts collapsed — "view N more..." expands
+      // the rest inline instead of listing every subtask under the title.
+      const [showAllSubtasks, setShowAllSubtasks] = useState(false);
       const [estDurVal, setEstDurVal] = useState(item.estimatedDuration || "");
       const [openTimesheet, setOpenTimesheet] = useState(false);
       const [openActivity, setOpenActivity] = useState(false);
@@ -14302,12 +15507,37 @@
       const [editFileTitle, setEditFileTitle] = useState("");
       const [expandedPreviews, setExpandedPreviews] = useState({});
       const [cmtRefreshTrigger, setCmtRefreshTrigger] = useState(0);
-      const [commentSortOrder, setCommentSortOrder] = useState("oldest");
+      const [commentSortOrder, setCommentSortOrder] = useState("newest");
+      // "list" (default) = flat chronological chat-style timeline (2026-09-04
+      // Zalo-style redesign); "tree" = the original nested-reply thread view.
+      // Session-only — resets to "list" on reopen, never persisted.
+      const [commentViewMode, setCommentViewMode] = useState("list");
+      // Content filter box in the header — applies to both list & tree.
+      const [commentSearchText, setCommentSearchText] = useState("");
+      // Reported up by UnifiedNoteThread's onCountChange (its feed length),
+      // shown in the "Comments & Reports" header title.
+      const [commentCount, setCommentCount] = useState(0);
       const [libraryMoveTarget, setLibraryMoveTarget] = useState(null);
       const [generateTarget, setGenerateTarget] = useState(null);
       const [configureTarget, setConfigureTarget] = useState(null);
       const [detailFolderLookup, setDetailFolderLookup] = useState({});
       const [expandedAttachmentFolders, setExpandedAttachmentFolders] = useState({});
+      // Bulk-download select mode for the Attachments section — one flat
+      // set of selected document ids spanning every folder group AND the
+      // top-level "Documents" list (renderFileList is shared by both), not
+      // scoped per-group like the comment attachments' bulkSelectState.
+      const [attachmentSelectMode, setAttachmentSelectMode] = useState(false);
+      const [selectedAttachmentIds, setSelectedAttachmentIds] = useState(
+        () => new Set(),
+      );
+      const toggleAttachmentSelected = (fileId) => {
+        setSelectedAttachmentIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(fileId)) next.delete(fileId);
+          else next.add(fileId);
+          return next;
+        });
+      };
 
       const handleSaveFileTitle = async (f) => {
         const newTitle = editFileTitle.trim();
@@ -14608,6 +15838,74 @@
         }
       };
 
+      // Freshest subtask list for this task — _pool (=projectTasks from the
+      // root component) gets its _subs entries patched by handleDetailUpdate
+      // whenever a subtask is edited (including via saveSubtaskTitle below),
+      // while item._subs itself is a snapshot that never gets that patch.
+      const liveSubtasks =
+        type === "task"
+          ? _pool.find((t) => extractId(t.id) === extractId(item.id))?._subs ||
+            item._subs ||
+            []
+          : [];
+
+      const myLawyerId = lawyers.find(
+        (l) => (extractId(l.userId) || extractId(l.user)) === extractId(currentUser?.id),
+      )?.id;
+      const canEditSubtaskTitle = (subtask) =>
+        canManage || extractId(myLawyerId) === extractId(subtask.lawyerId);
+
+      const saveSubtaskTitle = async (subtask) => {
+        const subtaskId = extractId(subtask.id);
+        const newVal = editingSubtaskValue.trim();
+        setEditingSubtaskId(null);
+        if (!newVal || newVal === subtask.subTaskName) return;
+        onUpdate({ id: subtaskId, subTaskName: newVal });
+        try {
+          await apiReq(`subTasks:update?filterByTk=${subtaskId}`, "POST", {
+            subTaskName: newVal,
+          });
+          message.success("Subtask title updated");
+        } catch (e) {
+          message.error("Backend error: No permission to update");
+          onUpdate({ id: subtaskId, subTaskName: subtask.subTaskName });
+        }
+      };
+
+      // Opens the subtask in the dedicated subTasks-collection-bound
+      // NocoBase View (dialog popup) — mirrors TaskManagement.js's
+      // handleOpen sharedIdKeys shape so ctx.record resolves the same way,
+      // but filterByTk targets the subtask's own id (not the parent task's)
+      // since that View is bound directly to `subTasks`, matching the
+      // ctx.record.taskId detection branch in getTaskDetailIdsFromContext.
+      const openSubtaskPopup = (subtask) => {
+        const subtaskId = extractId(subtask.id);
+        if (!subtaskId) return;
+        const parentTaskId = extractId(subtask.taskId) || extractId(item.id);
+        const sharedIdKeys = {
+          filterByTk: subtaskId,
+          filterbytk: subtaskId,
+          id: subtaskId,
+          recordId: subtaskId,
+          taskId: parentTaskId,
+          parentTaskId,
+          subTaskId: subtaskId,
+          sourceSubTaskId: subtaskId,
+          selectedSubTaskId: subtaskId,
+          recordType: "subTask",
+          collectionName: "subTasks",
+        };
+        ctx.openView(SUBTASK_DETAIL_POPUP_UID, {
+          mode: "dialog",
+          size: "large",
+          title: ctx.t ? ctx.t("Subtask detail") : "Subtask detail",
+          navigation: false,
+          ...sharedIdKeys,
+          inputArgs: sharedIdKeys,
+          params: sharedIdKeys,
+        });
+      };
+
       const saveEstDur = async () => {
         if (!canEdit) return;
         const newVal = parseFloat(estDurVal) || null;
@@ -14628,107 +15926,228 @@
         }
       };
 
-      const modalTitle = React.createElement(
-        "div",
-        {
-          style: {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexWrap: "wrap",
-            paddingRight: 20,
-          },
-        },
+      const titleEditIcon = (onClick) =>
         React.createElement(
           "span",
-          { style: { fontSize: 18, marginRight: 4 } },
-          type === "subTask" ? "↳" : "📋",
-        ),
-        canEdit && editName
-          ? React.createElement("input", {
-              value: nameVal,
-              onChange: (e) => setNameVal(e.target.value),
-              autoFocus: true,
-              onKeyDown: (e) => {
-                if (e.key === "Enter") saveName();
-                if (e.key === "Escape") setEditName(false);
-              },
-              onBlur: saveName,
-              style: {
-                fontSize: 16,
-                fontWeight: 600,
-                fontFamily: FONT,
-                border: "none",
-                borderBottom: "2px solid #1890ff",
-                outline: "none",
-                background: "transparent",
-                padding: "2px 4px",
-                minWidth: 300,
-              },
-            })
-          : React.createElement(
-              "span",
-              {
-                onClick: canEdit ? () => setEditName(true) : undefined,
+          {
+            onClick,
+            title: "Edit title",
+            style: {
+              cursor: "pointer",
+              color: "#8c8c8c",
+              display: "inline-flex",
+              alignItems: "center",
+            },
+            onMouseEnter: (e) => (e.currentTarget.style.color = "#1890ff"),
+            onMouseLeave: (e) => (e.currentTarget.style.color = "#8c8c8c"),
+          },
+          TASK_FILE_ACTION_ICONS.edit,
+        );
+
+      const modalTitle = React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+              paddingRight: 20,
+            },
+          },
+          React.createElement(
+            "span",
+            { style: { fontSize: 18, marginRight: 4 } },
+            type === "subTask" ? "↳" : "📋",
+          ),
+          canEdit && editName
+            ? React.createElement("input", {
+                value: nameVal,
+                onChange: (e) => setNameVal(e.target.value),
+                autoFocus: true,
+                onKeyDown: (e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") setEditName(false);
+                },
+                onBlur: saveName,
                 style: {
                   fontSize: 16,
                   fontWeight: 600,
                   fontFamily: FONT,
-                  color: "#1a1a1a",
-                  cursor: canEdit ? "text" : "default",
+                  border: "none",
+                  borderBottom: "2px solid #1890ff",
+                  outline: "none",
+                  background: "transparent",
+                  padding: "2px 4px",
+                  minWidth: 300,
+                },
+              })
+            : React.createElement(
+                "span",
+                {
+                  onClick: canEdit ? () => setEditName(true) : undefined,
+                  style: {
+                    fontSize: 16,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    color: "#1a1a1a",
+                    cursor: canEdit ? "text" : "default",
+                  },
+                },
+                nameVal || name,
+              ),
+          canEdit && !editName && titleEditIcon(() => setEditName(true)),
+          type === "subTask" &&
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 12,
+                  color: "#6b7280",
+                  background: "#f3f4f6",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 4,
+                  padding: "2px 6px",
                 },
               },
-              nameVal || name,
+              `Subtask of: ${
+                parentTaskForSubtask?.title ||
+                item._parentTaskTitle ||
+                `Task #${extractId(item.taskId) || ""}`
+              }`,
             ),
-        type === "subTask" &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 12,
-                color: "#6b7280",
-                background: "#f3f4f6",
-                border: "1px solid #e5e7eb",
-                borderRadius: 4,
-                padding: "2px 6px",
-              },
-            },
-            `Subtask of: ${
-              parentTaskForSubtask?.title ||
-              item._parentTaskTitle ||
-              `Task #${extractId(item.taskId) || ""}`
-            }`,
-          ),
 
-        item.isRequiredApproval &&
+          item.isRequiredApproval &&
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 11,
+                  padding: "2px 6px",
+                  borderRadius: 3,
+                  background: "#fff7e6",
+                  color: "#d46b08",
+                  border: "1px solid #ffd591",
+                },
+              },
+              "Requires approval",
+            ),
+          item._od &&
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 11,
+                  padding: "2px 6px",
+                  borderRadius: 3,
+                  background: "#fff1f0",
+                  color: "#cf1322",
+                  border: "1px solid #ffa39e",
+                },
+              },
+              "Overdue",
+            ),
+        ),
+        // Subtask titles listed directly under the parent task's title —
+        // click the name to open it in the subTasks-collection popup View
+        // (openSubtaskPopup) without leaving this page; click the pencil to
+        // rename it inline right here instead.
+        type === "task" &&
+          liveSubtasks.length > 0 &&
           React.createElement(
-            "span",
+            "div",
             {
               style: {
-                fontSize: 11,
-                padding: "2px 6px",
-                borderRadius: 3,
-                background: "#fff7e6",
-                color: "#d46b08",
-                border: "1px solid #ffd591",
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 6,
+                marginTop: 6,
+                paddingRight: 20,
               },
             },
-            "Requires approval",
-          ),
-        item._od &&
-          React.createElement(
-            "span",
-            {
-              style: {
-                fontSize: 11,
-                padding: "2px 6px",
-                borderRadius: 3,
-                background: "#fff1f0",
-                color: "#cf1322",
-                border: "1px solid #ffa39e",
-              },
-            },
-            "Overdue",
+            ...(showAllSubtasks ? liveSubtasks : liveSubtasks.slice(0, 3)).map((subtask) => {
+              const subtaskId = extractId(subtask.id);
+              const isEditingThis = editingSubtaskId === subtaskId;
+              return React.createElement(
+                "div",
+                {
+                  key: subtaskId,
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 12,
+                    color: "#595959",
+                    background: "#f5f5f5",
+                    border: "1px solid #e8e8e8",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                  },
+                },
+                React.createElement("span", { style: { color: "#bfbfbf" } }, "↳"),
+                isEditingThis
+                  ? React.createElement("input", {
+                      value: editingSubtaskValue,
+                      onChange: (e) => setEditingSubtaskValue(e.target.value),
+                      autoFocus: true,
+                      onKeyDown: (e) => {
+                        if (e.key === "Enter") saveSubtaskTitle(subtask);
+                        if (e.key === "Escape") setEditingSubtaskId(null);
+                      },
+                      onBlur: () => saveSubtaskTitle(subtask),
+                      style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        border: "none",
+                        borderBottom: "1px solid #1890ff",
+                        outline: "none",
+                        background: "transparent",
+                        minWidth: 120,
+                      },
+                    })
+                  : React.createElement(
+                      "span",
+                      {
+                        onClick: () => openSubtaskPopup(subtask),
+                        title: "Open subtask",
+                        style: { cursor: "pointer", color: "#1890ff" },
+                        onMouseEnter: (e) =>
+                          (e.currentTarget.style.textDecoration = "underline"),
+                        onMouseLeave: (e) =>
+                          (e.currentTarget.style.textDecoration = "none"),
+                      },
+                      subtask.subTaskName,
+                    ),
+                canEditSubtaskTitle(subtask) &&
+                  !isEditingThis &&
+                  titleEditIcon(() => {
+                    setEditingSubtaskId(subtaskId);
+                    setEditingSubtaskValue(subtask.subTaskName || "");
+                  }),
+              );
+            }),
+            liveSubtasks.length > 3 &&
+              React.createElement(
+                "span",
+                {
+                  onClick: () => setShowAllSubtasks((prev) => !prev),
+                  title: showAllSubtasks ? "Show fewer subtasks" : "Show all subtasks",
+                  style: {
+                    cursor: "pointer",
+                    fontSize: 12,
+                    color: "#1890ff",
+                    fontWeight: 500,
+                    padding: "2px 4px",
+                  },
+                  onMouseEnter: (e) => (e.currentTarget.style.textDecoration = "underline"),
+                  onMouseLeave: (e) => (e.currentTarget.style.textDecoration = "none"),
+                },
+                showAllSubtasks ? "Show less" : `View ${liveSubtasks.length - 3} more...`,
+              ),
           ),
       );
 
@@ -14808,8 +16227,19 @@
             }
             const currentUser = context?.user;
             const now = new Date().toISOString();
+            // Auto-version tên trùng với tài liệu đã có trong task này (vd
+            // "report.docx" -> "report (1).docx") — cùng thuật toán/khoanh
+            // vùng theo record với fetchExistingFileNames trong
+            // FileUploadModal.
+            const existingTitles = new Set(
+              (await fetchFiles("Task", task?.id))
+                .map((d) => d.title)
+                .filter(Boolean)
+                .map((t) => String(t).trim().toLowerCase()),
+            );
+            const title = getUniqueFileName(fileName, existingTitles);
             await apiReq("documents:create", "POST", {
-              title: fileName,
+              title,
               documentType: "Generated",
               folderId: extractId(projectFolderId),
               fileAttachment: { id: attId },
@@ -15140,7 +16570,6 @@
             const displayTitle = f.title || f.name || att?.title || finalFileName;
             const isEditingThisFile = editingFileId === f.id;
             const fullUrl = getFullUrl(att?.url || att?.preview);
-            const linkedLegalStudy = isLinkedToLegalStudy(f);
             const movedBadge = getMovedDestinationBadge(f, detailFolderLookup);
             const effectiveVariableConfig = getEffectiveVariableConfig(f);
             const fileActionItems = [
@@ -15169,11 +16598,6 @@
                   icon: TASK_FILE_ACTION_ICONS.preview,
                   label: "Điền biến & Generate",
                 },
-              canEdit && !linkedLegalStudy && {
-                key: "move_legal_study",
-                icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
-                label: "Move to Reference",
-              },
               // Replaces the old "Move to Legal Reference" action — moving
               // into the current case's own Document tree is what's actually
               // used; the org-wide Legal Reference library move stays
@@ -15192,12 +16616,9 @@
                 icon: TASK_FILE_ACTION_ICONS.folder,
                 label: "Move to Internal Work's Document",
               },
-              canEdit && !!detailProjectInternalId && {
-                key: "move_to_customer_document",
-                icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-                label: "Move to Customer",
-              },
-              canEdit && !!detailProjectInternalId && {
+              // Single umbrella entry for every destination outside the
+              // current workspace — see getLibraryMoveCategories.
+              canEdit && {
                 key: "move_to_library",
                 icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
                 label: "Move to Library",
@@ -15218,13 +16639,6 @@
                 if (fullUrl) window.open(fullUrl, "_blank");
                 return;
               }
-              if (key === "move_legal_study") {
-                setLibraryMoveTarget({
-                  record: f,
-                  destinationType: LIBRARY_DESTINATION.LEGAL_STUDY,
-                });
-                return;
-              }
               if (key === "move_to_document") {
                 setLibraryMoveTarget({
                   record: f,
@@ -15239,17 +16653,14 @@
                 });
                 return;
               }
-              if (key === "move_to_customer_document") {
-                setLibraryMoveTarget({
-                  record: f,
-                  destinationType: LIBRARY_DESTINATION.CUSTOMER_DOCUMENT,
-                });
-                return;
-              }
               if (key === "move_to_library") {
+                const availableDestinationTypes = getLibraryMoveCategories(
+                  !!detailProjectInternalId,
+                );
                 setLibraryMoveTarget({
                   record: f,
-                  destinationType: LIBRARY_DESTINATION.KNOWLEDGE,
+                  destinationType: availableDestinationTypes[0],
+                  availableDestinationTypes,
                 });
                 return;
               }
@@ -15266,34 +16677,47 @@
                 setGenerateTarget(f);
               }
             };
+            const isSelectedForDownload = selectedAttachmentIds.has(f.id);
             return React.createElement(
               "div",
               {
                 key: f.id,
                 onClick: isEditingThisFile
                   ? null
-                  : fullUrl
-                    ? () => setPreviewDoc(f)
-                    : undefined,
+                  : attachmentSelectMode
+                    ? () => toggleAttachmentSelected(f.id)
+                    : fullUrl
+                      ? () => setPreviewDoc(f)
+                      : undefined,
                 style: {
                   display: "flex",
                   flexDirection: "column",
                   gap: 6,
                   padding: "10px 12px",
-                  background: "#fafafa",
-                  border: "1px solid #e8e8e8",
+                  background: isSelectedForDownload ? "#e6f4ff" : "#fafafa",
+                  border: isSelectedForDownload
+                    ? "1px solid #1890ff"
+                    : "1px solid #e8e8e8",
                   borderRadius: 6,
-                  cursor: fullUrl ? "pointer" : "default",
+                  cursor: attachmentSelectMode || fullUrl ? "pointer" : "default",
                   transition: "all 0.2s",
                 },
                 onMouseEnter: (e) =>
                   (e.currentTarget.style.borderColor = "#1890ff"),
                 onMouseLeave: (e) =>
-                  (e.currentTarget.style.borderColor = "#e8e8e8"),
+                  (e.currentTarget.style.borderColor = isSelectedForDownload
+                    ? "#1890ff"
+                    : "#e8e8e8"),
               },
               React.createElement(
                 "div",
                 { style: { display: "flex", alignItems: "center", gap: 8 } },
+                attachmentSelectMode &&
+                  React.createElement(Checkbox, {
+                    checked: isSelectedForDownload,
+                    onClick: (e) => e.stopPropagation(),
+                    onChange: () => toggleAttachmentSelected(f.id),
+                  }),
                 getFileIcon(ext),
                 React.createElement(
                   "div",
@@ -15412,6 +16836,14 @@
       const renderAttachmentSection = () => {
         const folderGroups = attachmentTree.folders || [];
         const documentFiles = attachmentTree.documents || [];
+        // Flat list across both the folder groups AND the top-level
+        // "Documents" list — selectedAttachmentIds is a single set spanning
+        // both, so resolving a download URL for a selected id needs to look
+        // in either place.
+        const allAttachmentFiles = [
+          ...documentFiles,
+          ...folderGroups.flatMap((g) => g.files || []),
+        ];
         return React.createElement(
           "div",
           null,
@@ -15439,8 +16871,96 @@
                 `(${folderGroups.length} folders - ${documentFiles.length} documents)`,
               ),
             ),
-            React.createElement(ReloadButton, { onReload: reloadAttachments, size: "small" }),
+            React.createElement(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 8 } },
+              attachmentSelectMode
+                ? React.createElement(
+                    "span",
+                    {
+                      onClick: () => {
+                        setAttachmentSelectMode(false);
+                        setSelectedAttachmentIds(new Set());
+                      },
+                      style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        color: "#8c8c8c",
+                        cursor: "pointer",
+                      },
+                    },
+                    "Cancel",
+                  )
+                : React.createElement(
+                    "span",
+                    {
+                      onClick: () => setAttachmentSelectMode(true),
+                      style: {
+                        fontSize: 12,
+                        fontFamily: FONT,
+                        color: "#1890ff",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        textUnderlineOffset: "2px",
+                      },
+                    },
+                    "Select files",
+                  ),
+              React.createElement(ReloadButton, { onReload: reloadAttachments, size: "small" }),
+            ),
           ),
+          attachmentSelectMode &&
+            React.createElement(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 12,
+                  padding: "6px 10px",
+                  background: "#f0f8ff",
+                  border: "1px dashed #91caff",
+                  borderRadius: 6,
+                },
+              },
+              React.createElement(
+                "span",
+                {
+                  style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 },
+                },
+                `${selectedAttachmentIds.size} selected`,
+              ),
+              React.createElement(
+                Button,
+                {
+                  size: "small",
+                  disabled: selectedAttachmentIds.size === 0,
+                  onClick: () => {
+                    const selectedFiles = allAttachmentFiles.filter((f) =>
+                      selectedAttachmentIds.has(f.id),
+                    );
+                    downloadFilesAsZip(
+                      selectedFiles.map((f) => {
+                        const att = getPrimaryAttachment(f);
+                        return {
+                          url: getFullUrl(att?.url || att?.preview),
+                          rawUrl: att?.url || att?.preview,
+                          filename:
+                            // att?.filename first — it's the raw uploaded name
+                        // and always has the real extension; a user-set
+                        // title can be extension-less and would otherwise
+                        // save without one.
+                        att?.filename || f.title || f.name || att?.title,
+                        };
+                      }),
+                      "attachments.zip",
+                    );
+                  },
+                },
+                "Download",
+              ),
+            ),
           React.createElement(
             "div",
             { style: { display: "flex", flexDirection: "column", gap: 14 } },
@@ -16457,6 +17977,146 @@
                             : () => {},
                         }),
                       ),
+                    // Unified trigger checkbox (2026-09-21 revision) — one
+                    // control for both contract types instead of 2 separate
+                    // ones shown side by side, which was confusing (each
+                    // type's control had zero effect on the other type's
+                    // data). onChange branches on caseInfo.contractType:
+                    //   - byService: writes isPaymentTrigger directly, same
+                    //     as before — grouping is automatic via
+                    //     item.caseService (projectServiceId).
+                    //   - byCase: the checkbox itself never writes
+                    //     isPaymentTrigger (meaningless for By Case). Ticking
+                    //     it only reveals the "which installment" Select
+                    //     below (a local-only reveal flag, byCaseSelectorOpen
+                    //     — nothing is written until an installment is
+                    //     actually chosen there). Unticking an ALREADY-linked
+                    //     task clears linkedPaymentRequestId immediately (at
+                    //     the user's explicit request — unticking means
+                    //     removing the existing link, not just hiding the
+                    //     selector).
+                    // See docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
+                    type === "task" &&
+                      (() => {
+                        // Retainer billing runs entirely off contractBillingPlans
+                        // + its own scheduled workflow — no SQL trigger reads a
+                        // task's isPaymentTrigger/linkedPaymentRequestId for this
+                        // contract type, so neither control below would do
+                        // anything. Plain informational text instead (2026-09-22
+                        // finding, mirrors the same fix in TaskManagement.js).
+                        if (caseInfo?.contractType === "retainer") {
+                          return React.createElement(
+                            "div",
+                            {
+                              style: { fontSize: 12, color: "#bfbfbf" },
+                              title: "Retainer billing is fully automatic, on its own schedule — no task drives it.",
+                            },
+                            "Not applicable — Retainer billing runs automatically on its own schedule.",
+                          );
+                        }
+                        const isByCase = caseInfo?.contractType === "byCase";
+                        const hasLinkedInstallment = !!item.linkedPaymentRequestId;
+                        const checked = isByCase
+                          ? byCaseSelectorOpen || hasLinkedInstallment
+                          : !!item.isPaymentTrigger;
+                        return React.createElement(
+                          "div",
+                          null,
+                          React.createElement(
+                            Checkbox,
+                            {
+                              checked,
+                              disabled: !canManage,
+                              onChange: canManage
+                                ? async (e) => {
+                                    const next = e.target.checked;
+                                    if (isByCase) {
+                                      setByCaseSelectorOpen(next);
+                                      if (!next && hasLinkedInstallment) {
+                                        const payload = { linkedPaymentRequestId: null };
+                                        await apiReq(
+                                          `tasks:update?filterByTk=${extractId(item.id)}`,
+                                          "POST",
+                                          payload,
+                                        );
+                                        onUpdate({ ...item, ...payload });
+                                      }
+                                      return;
+                                    }
+                                    const payload = { isPaymentTrigger: next };
+                                    await apiReq(
+                                      `tasks:update?filterByTk=${extractId(item.id)}`,
+                                      "POST",
+                                      payload,
+                                    );
+                                    onUpdate({ ...item, ...payload });
+                                  }
+                                : () => {},
+                            },
+                            "Task này là điều kiện thanh toán",
+                          ),
+                          isByCase && checked &&
+                            React.createElement(Select, {
+                              allowClear: true,
+                              style: { width: "100%", marginTop: 8 },
+                              placeholder: "Chọn đợt thanh toán sẽ kích hoạt khi Done...",
+                              disabled: !canManage,
+                              value: extractId(item.linkedPaymentRequestId) || undefined,
+                              // §6h — an installment tagged with 1+ services
+                              // (paymentRequestServiceIdsByPrId, from the
+                              // paymentRequestServices junction collection)
+                              // only shows for a task whose own service (via
+                              // the projectServiceId -> contractServiceId
+                              // reverse link) is among them. The "untagged =
+                              // visible to everyone" fallback was removed
+                              // (2026-09-21, §6m) — Service is now required
+                              // when authoring the schedule (ContractCreateForm.js),
+                              // so an untagged PR here is stale data from
+                              // before that requirement existed, not a valid
+                              // "applies to everyone" state — it now shows for
+                              // no one rather than silently offering itself to
+                              // every task.
+                              options: (linkablePaymentRequests || [])
+                                .filter((pr) => {
+                                  // Always keep the already-linked one, even if
+                                  // it fails the filter below (e.g. the task's
+                                  // service changed since linking) — same
+                                  // "resolve a label for the current value"
+                                  // reasoning as the status-filter fix above.
+                                  if (extractId(pr.id) === extractId(item.linkedPaymentRequestId)) return true;
+                                  const taggedServiceIds = paymentRequestServiceIdsByPrId[extractId(pr.id)];
+                                  if (!taggedServiceIds || !taggedServiceIds.length) return false;
+                                  const taskContractServiceId =
+                                    contractServiceIdByProjectServiceId[extractId(item.projectServiceId)];
+                                  return (
+                                    taskContractServiceId != null &&
+                                    taggedServiceIds.some((id) => String(id) === String(taskContractServiceId))
+                                  );
+                                })
+                                .map((pr) => ({
+                                  value: extractId(pr.id),
+                                  label: pr.title || `Đợt ${pr.installmentNo || ""}`,
+                                })),
+                              onChange: canManage
+                                ? async (newId) => {
+                                    const payload = { linkedPaymentRequestId: newId || null };
+                                    await apiReq(
+                                      `tasks:update?filterByTk=${extractId(item.id)}`,
+                                      "POST",
+                                      payload,
+                                    );
+                                    onUpdate({ ...item, ...payload });
+                                  }
+                                : () => {},
+                            }),
+                          !isByCase && !item.caseService &&
+                            React.createElement(
+                              "div",
+                              { style: { fontSize: 12, color: "#8c8c8c", marginTop: 4 } },
+                              "Task chưa gắn với dịch vụ nào — tick vào đây sẽ không có tác dụng cho tới khi task được gắn dịch vụ.",
+                            ),
+                        );
+                      })(),
                     React.createElement(
                       "div",
                       null,
@@ -16497,10 +18157,33 @@
                   },
                 },
                 headerBar(
-                  "Comments & Reports",
+                  `Comments & Reports (${commentCount})`,
                   React.createElement(
                     "div",
                     { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement(Input, {
+                      size: "small",
+                      allowClear: true,
+                      placeholder: "Search comments...",
+                      style: { width: 160 },
+                      value: commentSearchText,
+                      onChange: (e) => setCommentSearchText(e.target.value),
+                    }),
+                    React.createElement(Segmented, {
+                      size: "small",
+                      value: commentViewMode,
+                      onChange: (value) => setCommentViewMode(value),
+                      options: [
+                        { label: "List", value: "list" },
+                        { label: "Tree", value: "tree" },
+                      ],
+                    }),
+                    // Newest/Oldest now applies to both List and Tree (List
+                    // used to hardcode oldest → newest like a real chat
+                    // thread — the composer sitting fixed at the top of the
+                    // panel in both modes now is what makes flipping this
+                    // safe: newest-first no longer fights with "new comment
+                    // appears far from the input").
                     React.createElement(Segmented, {
                       size: "small",
                       value: commentSortOrder,
@@ -16530,6 +18213,9 @@
                     caseId: detailCaseId,
                     taskContext: legalStudyTaskContext,
                     sortOrder: commentSortOrder,
+                    viewMode: commentViewMode,
+                    searchText: commentSearchText,
+                    onCountChange: setCommentCount,
                   }),
                 ),
               ),
@@ -16581,6 +18267,7 @@
               open: !!libraryMoveTarget,
               record: libraryMoveTarget.record,
               destinationType: libraryMoveTarget.destinationType,
+              availableDestinationTypes: libraryMoveTarget.availableDestinationTypes,
               sourceContext: legalStudyTaskContext,
               currentUser,
               onClose: () => setLibraryMoveTarget(null),
@@ -17552,6 +19239,22 @@
       const [projectTasks, setProjectTasks] = useState([]);
       const [projectManagerId, setProjectManagerId] = useState(null);
       const [caseInfo, setCaseInfo] = useState(null);
+      const [linkablePaymentRequests, setLinkablePaymentRequests] = useState([]);
+      // projectServiceId -> contractServiceId, for narrowing the By Case
+      // installment Select to the current task's own service (see §6h). A
+      // task's projectServiceId is a projectServices row; a PR's tagged
+      // service(s) (via paymentRequestServices) are contractServiceId values
+      // (tagged before any Case/project exists), so this reverse-link table
+      // is what bridges the two — same join path as by_case_schedule_row_
+      // creates_payment_request's own header comment: contractServices.
+      // projectServiceId = projectServices.id.
+      const [contractServiceIdByProjectServiceId, setContractServiceIdByProjectServiceId] = useState({});
+      // paymentRequestId -> [contractServiceId, ...], from the
+      // "paymentRequestServices" junction collection (not a JSON field —
+      // §6h uses 2 explicit junction collections, matching this codebase's
+      // existing serviceCombos/serviceComboItems pattern). A PR with no
+      // entry here is untagged — visible to every task.
+      const [paymentRequestServiceIdsByPrId, setPaymentRequestServiceIdsByPrId] = useState({});
       const [internalProjectInfo, setInternalProjectInfo] = useState(null);
       const [projectFolderId, setProjectFolderId] = useState(null);
       const [allProjectFolders, setAllProjectFolders] = useState([]);
@@ -17569,7 +19272,7 @@
         setLoading(true);
         try {
           const taskFields =
-            "id,title,status,updatedAt,priority,startDate,dueDate,closedDate,lawyerId,projectId,projectInternalId,serviceId,description,estimatedDuration,workRate,isRequiredApproval,rejectionReason,approvedById,approvedAt,acceptedAt,previousTaskId,blockedReason,nextStepDescription,linkedUrl";
+            "id,title,status,updatedAt,priority,startDate,dueDate,closedDate,lawyerId,projectId,projectInternalId,serviceId,description,estimatedDuration,workRate,isRequiredApproval,rejectionReason,approvedById,approvedAt,acceptedAt,previousTaskId,blockedReason,nextStepDescription,linkedUrl,linkedPaymentRequestId,isPaymentTrigger,caseService";
           const subTaskFields =
             "id,subTaskName,status,priority,date,deadline,closedDate,lawyerId,taskId,description,hourlyRate,estimatedDuration,isRequiredApproval,rejectionReason,approvedById,updatedAt,linkedUrl";
           const [user, lList, taskRows] = await Promise.all([
@@ -17640,7 +19343,7 @@
                       "projects:get",
                       {
                         filterByTk: safeProjectId,
-                        fields: "id,projectManagerId,caseCode,projectName,customerId,customer",
+                        fields: "id,projectManagerId,caseCode,projectName,customerId,customer,contractId",
                         appends: ["customer"],
                       },
                       { allowEmptyFilter: true },
@@ -17685,9 +19388,95 @@
                       projData?.customer?.customerName ||
                       projData?.customer?.name ||
                       "",
+                    contractId: extractId(projData?.contractId),
                   }
                 : null,
             );
+            // Payment Requests this case's contract already has "pending" and
+            // waiting on a specific task to be marked done (triggerType
+            // "on_task_done" — see docs/superpowers/specs/
+            // 2026-09-15-by-case-payment-request-automation-design.md §6).
+            // Fetched here (not inside DetailModal) because DetailModal does
+            // an early `if (!item) return null` before any hooks would run,
+            // so data it needs has to come in as a prop, not its own fetch.
+            const linkedContractId = extractId(projData?.contractId);
+            if (linkedContractId) {
+              // No status filter (removed 2026-09-21) — was `status: 'pending'`
+              // only, which correctly limited *new* selections to requests
+              // still awaiting a link, but also meant a task's own already-
+              // linked request dropped out of `options` the moment that
+              // request activated (e.g. via by_case_task_linked_activates_
+              // payment_request or the due-date trigger), leaving the Select
+              // with no matching option to resolve a label from — it fell
+              // back to rendering the raw numeric id instead of "Đợt N - ...".
+              // Selecting an already-active request again is harmless: by_
+              // case_activate_payment_request_if_ready() only acts on a
+              // 'pending' request, so re-picking a resolved one is a no-op.
+              fetchAll("paymentRequests:list", "id,title,installmentNo,requestedAmount,status", {
+                $and: [
+                  { contractId: { $eq: linkedContractId } },
+                  { triggerType: { $eq: "on_task_done" } },
+                ],
+              })
+                .then((rows) => {
+                  const prs = rows || [];
+                  setLinkablePaymentRequests(prs);
+                  const prIds = prs.map((pr) => extractId(pr.id)).filter(Boolean);
+                  if (!prIds.length) {
+                    setPaymentRequestServiceIdsByPrId({});
+                    return;
+                  }
+                  // §6h — junction collection (not a JSON field), see the
+                  // header comment on paymentRequestServiceIdsByPrId's own
+                  // useState above.
+                  fetchAll("paymentRequestServices:list", "id,paymentRequestId,contractServiceId", {
+                    paymentRequestId: { $in: prIds },
+                  })
+                    .then((tagRows) => {
+                      const map = {};
+                      (tagRows || []).forEach((row) => {
+                        const prId = extractId(row.paymentRequestId);
+                        const csId = extractId(row.contractServiceId);
+                        if (!prId || !csId) return;
+                        if (!map[prId]) map[prId] = [];
+                        map[prId].push(csId);
+                      });
+                      setPaymentRequestServiceIdsByPrId(map);
+                    })
+                    .catch(() => setPaymentRequestServiceIdsByPrId({}));
+                })
+                .catch(() => {
+                  setLinkablePaymentRequests([]);
+                  setPaymentRequestServiceIdsByPrId({});
+                });
+              // Gates the "isPaymentTrigger" checkbox (By Service only — see
+              // docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md)
+              // vs. the "Đợt thanh toán sẽ kích hoạt" selector above it (By
+              // Case only) — a task should only ever offer the one that
+              // actually matches how its case's contract bills.
+              fetchAll("contracts:list", "id,contractType", { id: { $eq: linkedContractId } })
+                .then((rows) => setCaseInfo((p) => (p ? { ...p, contractType: rows?.[0]?.contractType || "" } : p)))
+                .catch(() => {});
+              // §6h — reverse-link so a service-tagged installment
+              // (paymentRequestServiceIdsByPrId holds contractServiceId
+              // values) can be matched against a task's own projectServiceId.
+              fetchAll("contractServices:list", "id,projectServiceId", {
+                contractId: { $eq: linkedContractId },
+              })
+                .then((rows) => {
+                  const map = {};
+                  (rows || []).forEach((row) => {
+                    const psId = extractId(row.projectServiceId);
+                    if (psId) map[psId] = extractId(row.id);
+                  });
+                  setContractServiceIdByProjectServiceId(map);
+                })
+                .catch(() => setContractServiceIdByProjectServiceId({}));
+            } else {
+              setLinkablePaymentRequests([]);
+              setPaymentRequestServiceIdsByPrId({});
+              setContractServiceIdByProjectServiceId({});
+            }
             const projectInternalData =
               projectInternalRes?.data?.data || projectInternalRes?.data || null;
             setInternalProjectInfo(
@@ -17969,6 +19758,9 @@
           services,
           projectManagerId,
           caseInfo,
+          linkablePaymentRequests,
+          contractServiceIdByProjectServiceId,
+          paymentRequestServiceIdsByPrId,
           internalProjectInfo,
           onClose: () => {},
           onUpdate: handleDetailUpdate,
