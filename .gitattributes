@@ -1,0 +1,4 @@
+# Hook scripts must keep LF line endings, otherwise bash on Windows fails on
+# the carriage returns that core.autocrlf would add.
+.githooks/* text eol=lf
+*.sh text eol=lf

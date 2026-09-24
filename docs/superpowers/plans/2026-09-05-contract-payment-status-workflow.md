@@ -18,7 +18,7 @@
 - `payments`-table triggers must fire only when `paymentStatus` is the column that actually changed (`UPDATE OF "paymentStatus"` in the trigger definition, or an equivalent `NEW."paymentStatus" IS DISTINCT FROM OLD."paymentStatus"` guard on UPDATE) — touching an unrelated column like `internalNote` must not trigger recomputation. This was the exact gotcha hit repairing test data this session.
 - `projects`-table auto-Payment-Request trigger must fire only on the transition *into* `'done'` (`NEW.status = 'done' AND OLD.status IS DISTINCT FROM 'done'`), not on every save of an already-`done` case.
 - Auto-created `paymentRequests` rows leave `assignedToId` NULL — confirmed against the 3 existing rows in the restored data that there's no default-assignment convention to follow.
-- DB connection for all manual verification in this plan: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law` (matches `nocobase/.env` in this environment). If a different environment is used, substitute its own credentials — nothing in the SQL file itself is environment-specific.
+- DB connection for all manual verification in this plan: `psql -h localhost -p 5432 -U postgres -d nocobase-law` with `PGPASSWORD` exported from your own `nocobase/.env` (never write the password into this file). If a different environment is used, substitute its own credentials — nothing in the SQL file itself is environment-specific.
 
 ---
 
@@ -72,19 +72,19 @@
 
 - [ ] **Step 2: Apply it and verify the columns exist**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   Then verify:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "\d contracts" | grep -E "outStandingAmount|paymentStatus"
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "\d projects" | grep paymentStatus
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "\d contracts" | grep -E "outStandingAmount|paymentStatus"
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "\d projects" | grep paymentStatus
   ```
   Expected: both `outStandingAmount` and `paymentStatus` listed for `contracts`; `paymentStatus` listed for `projects`.
 
 - [ ] **Step 3: Verify the function against 3 fee-model shapes**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT contract_resolved_total(id), \"totalAmount\", \"feeModel\"
   FROM contracts ORDER BY id DESC LIMIT 3;
   "
@@ -93,14 +93,14 @@
 
   Then test the retainer fallback branch directly (no real retainer contract exists in this restored data yet):
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO contracts (\"contractName\", \"monthlyFee\", \"retainerDuration\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-retainer', 5000000, 4, now(), now()) RETURNING id;
   "
   ```
   Note the returned `id`, then:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "SELECT contract_resolved_total(<id>);"
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "SELECT contract_resolved_total(<id>);"
   ```
   Expected: `20000000` (5,000,000 × 4). Leave this row in place — Task 2 re-verifies it.
 
@@ -155,10 +155,10 @@
 
 - [ ] **Step 2: Apply and verify on a fresh insert**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO contracts (\"contractName\", \"totalAmount\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-fixed', 12345678, now(), now())
   RETURNING id, \"outStandingAmount\", \"paymentStatus\";
@@ -169,7 +169,7 @@
 - [ ] **Step 3: Re-verify the Task 1 retainer row now also self-corrects on a fresh insert of the same shape**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO contracts (\"contractName\", \"monthlyFee\", \"retainerDuration\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-retainer-2', 5000000, 4, now(), now())
   RETURNING id, \"outStandingAmount\", \"paymentStatus\";
@@ -246,15 +246,15 @@
 
 - [ ] **Step 2: Apply and verify partial payment**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   Using the retainer contract id from Task 2 Step 3 (`outStandingAmount = 20000000`):
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO payments (\"contractId\", amount, \"paymentStatus\", \"createdAt\", \"updatedAt\")
   VALUES (<retainer_id>, 8000000, 'received', now(), now());
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT \"outStandingAmount\", \"paymentStatus\" FROM contracts WHERE id = <retainer_id>;
   "
   ```
@@ -263,11 +263,11 @@
 - [ ] **Step 3: Verify full payment flips to paid**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO payments (\"contractId\", amount, \"paymentStatus\", \"createdAt\", \"updatedAt\")
   VALUES (<retainer_id>, 12000000, 'received', now(), now());
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT \"outStandingAmount\", \"paymentStatus\" FROM contracts WHERE id = <retainer_id>;
   "
   ```
@@ -276,7 +276,7 @@
 - [ ] **Step 4: Verify touching an unrelated column does NOT recompute**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   UPDATE payments SET \"internalNote\" = 'plan verification note'
   WHERE \"contractId\" = <retainer_id> AND amount = 8000000;
   "
@@ -326,11 +326,11 @@
 
 - [ ] **Step 2: Apply and verify against the retainer contract's linked case**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   Link a test case to the Task 2/3 retainer contract (already `paymentStatus = 'paid'` at this point) and confirm the cascade fires immediately on link... actually the cascade only fires on the *contract's* `paymentStatus` changing, not on `projects."contractId"` being set — so link first, then force a no-op recompute to trigger the cascade:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO projects (\"projectName\", status, \"contractId\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-case', 'toDo', <retainer_id>, now(), now())
   RETURNING id;
@@ -338,10 +338,10 @@
   ```
   Note the returned project id, then re-fire the contract's own status recompute so the freshly-linked case picks it up:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   UPDATE contracts SET \"paymentStatus\" = \"paymentStatus\" WHERE id = <retainer_id>;
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT \"paymentStatus\" FROM projects WHERE id = <project_id>;
   "
   ```
@@ -350,7 +350,7 @@
 - [ ] **Step 3: Verify a full realistic path — record a payment on a fresh contract that already has its case linked at creation time**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO contracts (\"contractName\", \"totalAmount\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-cascade-2', 5000000, now(), now())
   RETURNING id;
@@ -358,7 +358,7 @@
   ```
   Note the id (`<c2_id>`), then:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO projects (\"projectName\", status, \"contractId\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-case-2', 'toDo', <c2_id>, now(), now())
   RETURNING id;
@@ -366,11 +366,11 @@
   ```
   Note the id (`<p2_id>`), then pay it in full:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO payments (\"contractId\", amount, \"paymentStatus\", \"createdAt\", \"updatedAt\")
   VALUES (<c2_id>, 5000000, 'received', now(), now());
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT \"paymentStatus\" FROM projects WHERE id = <p2_id>;
   "
   ```
@@ -449,11 +449,11 @@
 
 - [ ] **Step 2: Apply and verify — unpaid case going done creates a request**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   Create a fresh unpaid contract + linked case:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO contracts (\"contractName\", \"totalAmount\", \"customerId\", \"internalCompanyId\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-autopr', 9000000, 382976883097602, 354546565513216, now(), now())
   RETURNING id;
@@ -461,7 +461,7 @@
   ```
   (Substitute a real `customerId`/`internalCompanyId` present in the target database if these ids don't exist there — any existing `customers`/`internalCompany` row's id works.) Note the id (`<c3_id>`), then:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   INSERT INTO projects (\"projectName\", status, \"contractId\", \"createdAt\", \"updatedAt\")
   VALUES ('plan-verify-case-autopr', 'toDo', <c3_id>, now(), now())
   RETURNING id;
@@ -469,10 +469,10 @@
   ```
   Note the id (`<p3_id>`), then mark it done:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   UPDATE projects SET status = 'done' WHERE id = <p3_id>;
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT title, status, \"contractId\", \"assignedToId\", \"requestedAmount\"
   FROM \"paymentRequests\" WHERE \"contractId\" = <c3_id>;
   "
@@ -483,10 +483,10 @@
 
   Reuse the Task 4 Step 3 fully-paid contract/case (`<c2_id>`/`<p2_id>`):
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   UPDATE projects SET status = 'done' WHERE id = <p2_id>;
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT COUNT(*) FROM \"paymentRequests\" WHERE \"contractId\" = <c2_id>;
   "
   ```
@@ -495,10 +495,10 @@
 - [ ] **Step 4: Verify re-saving an already-done case does not duplicate the request**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   UPDATE projects SET status = 'done' WHERE id = <p3_id>;
   "
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT COUNT(*) FROM \"paymentRequests\" WHERE \"contractId\" = <c3_id>;
   "
   ```
@@ -555,10 +555,10 @@
 
 - [ ] **Step 2: Apply and verify against real (non-test) data**
 
-  Run: `PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
+  Run: `psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql`
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT id, \"contractCode\", \"totalAmount\", \"outStandingAmount\", \"paymentStatus\"
   FROM contracts
   WHERE \"contractName\" NOT LIKE 'plan-verify-%'
@@ -570,7 +570,7 @@
 - [ ] **Step 3: Regression-check against the comparison done earlier this session**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   SELECT id, \"contractCode\", \"totalAmount\", contract_resolved_total(id) as resolved
   FROM contracts
   WHERE COALESCE(\"totalAmount\", 0) <> contract_resolved_total(id)
@@ -710,7 +710,7 @@
 
   These were left in place deliberately so each task could build on the previous one's data; remove them now that the full chain is verified end-to-end in Step 2 below with fresh rows:
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
   DELETE FROM payments WHERE \"contractId\" IN (SELECT id FROM contracts WHERE \"contractName\" LIKE 'plan-verify-%');
   DELETE FROM \"paymentRequests\" WHERE \"contractId\" IN (SELECT id FROM contracts WHERE \"contractName\" LIKE 'plan-verify-%');
   DELETE FROM projects WHERE \"contractId\" IN (SELECT id FROM contracts WHERE \"contractName\" LIKE 'plan-verify-%');
@@ -738,7 +738,7 @@
 - [ ] **Step 3: Confirm the whole migration file re-applies cleanly on top of itself one more time**
 
   ```bash
-  PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql
+  psql -h localhost -p 5432 -U postgres -d nocobase-law -f pgsql/contract_payment_status_workflow.sql
   ```
   Expected: exits 0, no errors — this is the same file that would be run against a freshly-restored database in any other dev environment.
 
@@ -757,7 +757,7 @@
 Per spec §10: everything this plan adds is additive (new columns, new functions, new triggers) and nothing pre-existing app logic reads yet, so rollback is only needed if the feature itself is being reverted, not as part of normal execution. If ever needed:
 
 ```bash
-PGPASSWORD=***REMOVED*** psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
+psql -h localhost -p 5432 -U postgres -d nocobase-law -c "
 DROP TRIGGER IF EXISTS trg_case_done_payment_request ON projects;
 DROP TRIGGER IF EXISTS trg_contract_cascade_case_status ON contracts;
 DROP TRIGGER IF EXISTS trg_payment_recompute_contract ON payments;

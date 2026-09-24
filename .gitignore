@@ -23,3 +23,21 @@ schema/
 
 # Node dependencies (local tooling only, not part of the Nocobase runtime)
 node_modules/
+
+# ── Never commit/push (repo is public) ─────────────────────────────
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.git-secret-denylist
+# Company document templates (client proposals, payment requests with bank
+# account details) — keep them local only
+Template 2026/
+Template_*.docx
+# Claude Code local settings & throwaway scratch scripts (these once held a
+# hardcoded DB password)
+.claude/
+scratch_*.js
+!scratch_list_legal_study_folders.js

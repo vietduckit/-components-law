@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Blocks a commit whose staged changes contain credentials (see secret-scan.sh).
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+git diff --cached --no-color -U0 --diff-filter=ACMR \
+  | bash "$HOOK_DIR/secret-scan.sh" "the staged changes"
