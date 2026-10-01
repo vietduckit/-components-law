@@ -1,6 +1,166 @@
 // ============================================================
 // §1 CONFIG & UTILS
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Comment + {0} files": "Bình luận + {0} tệp",
+  "Comment + mentions": "Bình luận + nhắc tên",
+  "Comment": "Bình luận",
+  "{0} files": "{0} tệp",
+  "Attached file": "Tệp đính kèm",
+  "Mention": "Nhắc tên",
+  "just now": "vừa xong",
+  "{0} min ago": "{0} phút trước",
+  "{0} hours ago": "{0} giờ trước",
+  "{0} days ago": "{0} ngày trước",
+  "Write a comment...": "Viết bình luận...",
+  "Attach document": "Đính kèm tài liệu",
+  "Could not load the editor. Check your network connection.": "Không thể tải editor. Vui lòng kiểm tra kết nối mạng.",
+  "Loading editor...": "Đang tải editor...",
+  "Search lawyer name...": "Tìm tên luật sư...",
+  "No results": "Không tìm thấy",
+  "Mention someone": "Nhắc đến ai",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "This format cannot be previewed — download it to open": "Không thể xem trước định dạng này — vui lòng tải về để mở",
+  "Upload failed: {0}": "Upload thất bại: {0}",
+  "Original attachment not found": "Không tìm thấy attachment gốc",
+  "Choose a file or enter a Drive URL": "Vui lòng chọn file hoặc nhập Drive URL",
+  "Upload error: {0}": "Lỗi upload: {0}",
+  "✏️ Update document": "✏️ Cập nhật tài liệu",
+  "📎 Attach document to comment": "📎 Đính kèm tài liệu vào bình luận",
+  "Cancel": "Hủy",
+  "Updating...": "Đang cập nhật...",
+  "Processing...": "Đang xử lý...",
+  "Update": "Cập nhật",
+  "Confirm attachment": "Xác nhận đính kèm",
+  "Upload": "Tải lên",
+  "Identification": "Định danh",
+  "Document type": "Loại văn bản",
+  "Enter the document type": "Vui lòng nhập loại văn bản",
+  "e.g. Hợp đồng, Biên bản...": "VD: Hợp đồng, Biên bản...",
+  "Document name": "Tên tài liệu",
+  "Full document name (the file name if left blank)": "Nhập tên đầy đủ của tài liệu (Sẽ lấy tên file nếu bỏ trống)",
+  "Document number": "Số hiệu",
+  "e.g. 123/2024/HĐ": "VD: 123/2024/HĐ",
+  "Issue date": "Ngày ban hành",
+  "Signing date": "Ngày ký",
+  "Effective date": "Ngày hiệu lực",
+  "Parties": "Bên liên quan",
+  "Sender": "Người gửi",
+  "Sending person / organisation": "Tên cá nhân / tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Receiving person / organisation": "Tên cá nhân / tổ chức nhận",
+  "Content summary": "Tóm tắt nội dung",
+  "A short description of the main content...": "Mô tả ngắn gọn nội dung chính...",
+  "Attachment": "File đính kèm",
+  "Upload from computer": "Upload từ máy tính",
+  "Replace file (optional)": "Thay file mới (tuỳ chọn)",
+  "Choose files (several allowed)": "Chọn file (có thể chọn nhiều)",
+  "Drag and drop or ": "Kéo thả hoặc ",
+  "click to choose": "click để chọn",
+  "Choose from Library": "Chọn từ Thư viện",
+  "Loading library...": "Đang tải thư viện...",
+  "Search and choose files from the library (several allowed)...": "Tìm kiếm và chọn file từ thư viện (có thể chọn nhiều)...",
+  "Google Drive URL (optional)": "Google Drive URL (tuỳ chọn)",
+  "Note (optional)": "Ghi chú (tuỳ chọn)",
+  "Note": "Ghi chú",
+  "Note for this document (if any)...": "Nhập ghi chú cho tài liệu này (nếu có)...",
+  "Upload failed": "Upload thất bại",
+  "File replaced": "Đã thay thế tệp",
+  "Could not replace the file: {0}": "Lỗi thay thế tệp: {0}",
+  "File moved to the Library (Reference)": "Đã chuyển tệp sang Library (Reference)",
+  "Could not move the file: {0}": "Lỗi chuyển tệp: {0}",
+  "File moved to the Case's Documents (root folder)": "Đã chuyển tệp sang Documents của Case (thư mục gốc)",
+  "Preparing {0} files...": "Đang chuẩn bị {0} tệp...",
+  "No file could be downloaded — see the console for details.": "Không tải được tệp nào — xem console để biết chi tiết.",
+  "Zip upload failed": "Upload zip thất bại",
+  "{0}: {1}/{2} files — the rest could not be downloaded (see the console).": "{0}: {1}/{2} tệp — số còn lại không tải được (xem console).",
+  "Could not create the zip file — see the console for details.": "Không tạo được file zip — xem console để biết chi tiết.",
+  "Select files": "Chọn nhiều tệp",
+  "{0} selected": "Đã chọn {0}",
+  "Download (zip)": "Tải về (zip)",
+  "Anonymous": "Ẩn danh",
+  "Enter the comment before mentioning anyone.": "Vui lòng nhập nội dung bình luận trước khi nhắc tên.",
+  "Comment posted": "Đã đăng bình luận",
+  "Could not post": "Lỗi đăng tải",
+  "Comment updated": "Đã cập nhật bình luận",
+  "Could not update": "Lỗi cập nhật",
+  "Confirm delete": "Xác nhận xóa",
+  "Delete this comment and its attachments?": "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?",
+  "Delete these files?": "Bạn có chắc chắn muốn xóa các tệp này không?",
+  "Delete": "Xóa",
+  "Deleted": "Đã xóa thành công",
+  "Could not delete": "Lỗi khi xóa",
+  "Document name updated": "Đã cập nhật tên tài liệu",
+  "Could not update the document name": "Lỗi cập nhật tên tài liệu",
+  "Original file: {0}": "File gốc: {0}",
+  "Save": "Lưu",
+  "Hide preview": "Ẩn preview",
+  "Xem preview": "Show preview",
+  "▲ Collapse": "▲ Thu nhỏ",
+  "▼ Preview": "▼ Preview",
+  "Download": "Tải về",
+  "Rename document": "Đổi tên tài liệu",
+  "Replace file": "Thay thế tệp",
+  "Move to the Case's Documents": "Chuyển sang Documents của Case",
+  "Move to the Library (Reference)": "Chuyển sang Library (Reference)",
+  "Summary:": "Tóm tắt:",
+  "Note:": "Nội dung ghi chú:",
+  "Today": "Hôm nay",
+  "Yesterday": "Hôm qua",
+  "Someone": "Ai đó",
+  "Attached document": "Tài liệu đính kèm",
+  "System": "Hệ thống",
+  "🔧 Task": "🔧 Task",
+  "Reply": "Phản hồi",
+  "Edit": "Chỉnh sửa",
+  "🔧 From task: {0}": "🔧 Từ Task: {0}",
+  "Save changes": "Lưu thay đổi",
+  "Quote:": "Trích dẫn:",
+  "▲ Hide edit history": "▲ Ẩn lịch sử chỉnh sửa",
+  "▼ Show edit history ({0})": "▼ Xem lịch sử chỉnh sửa ({0})",
+  "User": "Người dùng",
+  "Mentioned:": "Đã nhắc đến:",
+  "▲ Collapse replies": "▲ Thu gọn phản hồi",
+  "▼ Show {0} replies": "▼ Xem {0} phản hồi",
+  "Document": "Tài liệu",
+  "Pending": "Chờ gửi",
+  "✕ Cancel reply": "✕ Huỷ trả lời",
+  "Replying to ": "Đang trả lời ",
+  "Write a comment or internal note... (you can @mention a lawyer)": "Viết bình luận, ghi chú nội bộ... (Có thể tag @Luật sư)",
+  "Ctrl+Enter to send": "Ctrl+Enter để gửi",
+  "Sending...": "Đang gửi...",
+  "Post comment": "Đăng bình luận",
+  "Move": "Chuyển",
+  "Choose the target Reference for the file:": "Chọn Reference đích cho tệp:",
+  "Choose a Reference...": "Chọn Reference...",
+  "Reference #{0}": "Reference #{0}",
+  "List": "Danh sách",
+  "Chat": "Trò chuyện",
+  "This case has no comments or internal documents yet.": "Vụ việc này chưa có bình luận hay tài liệu nội bộ nào.",
+  "▲ Collapse (showing {0})": "▲ Thu gọn (đang hiện {0})",
+  "▼ Show all {0} comments & documents": "▼ Xem tất cả {0} bình luận & tài liệu",
+  "Case not found.": "Không tìm thấy thông tin vụ việc hiện tại.",
+  "💬 Discussion & internal files": "💬 Bàn luận & Hồ sơ nội bộ",
+  "👤 Updated by: ": "👤 Cập nhật bởi: ",
+  "👤 Attached by: ": "👤 Đính kèm bởi: ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const COLLECTION_NAME = "Project Internal";
 const RECORD_ID = ctx.record?.id;
 
@@ -207,12 +367,12 @@ const getCommentLayoutType = ({ body, assignees, files }) => {
 const getLayoutBadge = (layoutType, files) => {
     const fileCount = (files || []).length;
     if (layoutType === "commentGroup") {
-        return fileCount > 0 ? `Bình luận + ${fileCount} tệp` : "Bình luận + nhắc tên";
+        return fileCount > 0 ? tr("Comment + {0} files", { 0: fileCount }) : tr("Comment + mentions");
     }
-    if (layoutType === "commentOnly") return "Bình luận";
+    if (layoutType === "commentOnly") return tr("Comment");
     if (layoutType === "fileOnly")
-        return fileCount > 1 ? `${fileCount} tệp` : "Tệp đính kèm";
-    if (layoutType === "mentionOnly") return "Nhắc tên";
+        return fileCount > 1 ? tr("{0} files", { 0: fileCount }) : tr("Attached file");
+    if (layoutType === "mentionOnly") return tr("Mention");
     return null;
 };
 
@@ -233,10 +393,10 @@ const fmt = (iso, mode) => {
 const timeAgo = (iso) => {
     if (!iso) return "";
     const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-    if (diff < 60) return "vừa xong";
-    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} ngày trước`;
+    if (diff < 60) return tr("just now");
+    if (diff < 3600) return tr("{0} min ago", { 0: Math.floor(diff / 60) });
+    if (diff < 86400) return tr("{0} hours ago", { 0: Math.floor(diff / 3600) });
+    if (diff < 604800) return tr("{0} days ago", { 0: Math.floor(diff / 86400) });
     return fmt(iso, "date");
 };
 
@@ -528,7 +688,7 @@ const QuillEditor = ({
 
                 const q = new Quill(containerRef.current, {
                     theme: "snow",
-                    placeholder: placeholder || "Viết bình luận...",
+                    placeholder: placeholder || tr("Write a comment..."),
                     modules: {
                         toolbar: {
                             container: [
@@ -572,7 +732,7 @@ const QuillEditor = ({
                 if (uploadBtn) {
                     uploadBtn.innerHTML =
                         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>';
-                    uploadBtn.title = "Đính kèm tài liệu";
+                    uploadBtn.title = tr("Attach document");
                 }
 
                 if (value) {
@@ -689,7 +849,9 @@ const QuillEditor = ({
                     const MARGIN = 12;
                     const MIN_HEIGHT = 120;
                     const MAX_HEIGHT = 360;
-                    const spaceBelow = window.innerHeight - viewportCaretBottom - GAP - MARGIN;
+                    // window.innerHeight is blocked in the RunJS sandbox.
+                    const viewportHeight = document.querySelector("html")?.clientHeight || viewportCaretBottom + MAX_HEIGHT;
+                    const spaceBelow = viewportHeight - viewportCaretBottom - GAP - MARGIN;
                     const spaceAbove = viewportCaretTop - GAP - MARGIN;
                     const openUp = spaceBelow < MIN_HEIGHT && spaceAbove > spaceBelow;
                     const available = openUp ? spaceAbove : spaceBelow;
@@ -754,7 +916,7 @@ const QuillEditor = ({
             })
             .catch((e) => {
                 console.error("Quill load error:", e);
-                setError("Không thể tải editor. Vui lòng kiểm tra kết nối mạng.");
+                setError(tr("Could not load the editor. Check your network connection."));
             });
 
         return () => {
@@ -809,7 +971,7 @@ const QuillEditor = ({
                             fontFamily: FONT,
                         },
                     },
-                    "Đang tải editor...",
+                    tr("Loading editor..."),
                 )
                 : null,
         React.createElement("div", { ref: containerRef }),
@@ -984,7 +1146,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
                         autoFocus: true,
                         value: search,
                         onChange: (e) => setSearch(e.target.value),
-                        placeholder: "Tìm tên luật sư...",
+                        placeholder: tr("Search lawyer name..."),
                         style: {
                             width: "100%",
                             boxSizing: "border-box",
@@ -1009,7 +1171,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
                                 fontFamily: FONT,
                             },
                         },
-                        "Không tìm thấy",
+                        tr("No results"),
                     )
                     : filtered.map((l) => {
                         const lId = extractId(l.id);
@@ -1113,7 +1275,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
                     },
                 },
                 React.createElement("span", { style: { fontSize: 14, fontWeight: 700 } }, "@"),
-                "Nhắc đến ai",
+                tr("Mention someone"),
             ),
         ),
         dropdownLayer,
@@ -1285,9 +1447,9 @@ const PreviewModal = ({ doc, onClose }) => {
                 React.createElement(
                     Button,
                     { key: "dl", onClick: () => window.open(fullUrl, "_blank") },
-                    "⬇️ Tải về",
+                    tr("⬇️ Download"),
                 ),
-                React.createElement(Button, { key: "cl", onClick: onClose }, "Đóng"),
+                React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
             ].filter(Boolean),
         },
         isPdf &&
@@ -1340,7 +1502,7 @@ const PreviewModal = ({ doc, onClose }) => {
             { style: { padding: 32, textAlign: "center" } },
             React.createElement(Empty, {
                 description:
-                    "Không thể xem trước định dạng này — vui lòng tải về để mở",
+                    tr("This format cannot be previewed — download it to open"),
             }),
         ),
     );
@@ -1570,14 +1732,14 @@ const FileUploadModal = ({
                 data: formData,
             });
             const att = uploadRes?.data?.data;
-            if (!att?.id) throw new Error(`Upload thất bại: ${file.name}`);
+            if (!att?.id) throw new Error(tr("Upload failed: {0}", { 0: file.name }));
             results.push({ id: att.id });
         }
         return results;
     };
 
     const cloneLibraryFile = async (attData) => {
-        if (!attData?.id) throw new Error("Không tìm thấy attachment gốc");
+        if (!attData?.id) throw new Error(tr("Original attachment not found"));
         return [{ id: attData.id }];
     };
 
@@ -1610,7 +1772,7 @@ const FileUploadModal = ({
         const hasDrive = !!values.googleDriveUrl?.trim();
 
         if (!isEdit && !hasFile && !hasDrive) {
-            message.error("Vui lòng chọn file hoặc nhập Drive URL");
+            message.error(tr("Choose a file or enter a Drive URL"));
             return;
         }
 
@@ -1644,7 +1806,7 @@ const FileUploadModal = ({
                 onAddPending({ attIds, fileName, metadata: values });
                 handleClose();
             } catch (e) {
-                message.error(`Lỗi upload: ${e.message}`);
+                message.error(tr("Upload error: {0}", { 0: e.message }));
             } finally {
                 setUploading(false);
             }
@@ -1682,7 +1844,7 @@ const FileUploadModal = ({
             title: React.createElement(
                 Text,
                 { strong: true, style: { fontFamily: FONT, fontSize: 15 } },
-                isEdit ? "✏️ Cập nhật tài liệu" : "📎 Đính kèm tài liệu vào bình luận",
+                isEdit ? tr("✏️ Update document") : tr("📎 Attach document to comment"),
             ),
             footer: [
                 React.createElement(
@@ -1693,7 +1855,7 @@ const FileUploadModal = ({
                         disabled: uploading,
                         style: { fontFamily: FONT },
                     },
-                    "Huỷ",
+                    tr("Cancel"),
                 ),
                 React.createElement(
                     Button,
@@ -1706,13 +1868,13 @@ const FileUploadModal = ({
                     },
                     uploading
                         ? isEdit
-                            ? "Đang cập nhật..."
-                            : "Đang xử lý..."
+                            ? tr("Updating...")
+                            : tr("Processing...")
                         : isEdit
-                            ? "Cập nhật"
+                            ? tr("Update")
                             : onAddPending
-                                ? "Xác nhận đính kèm"
-                                : "Upload",
+                                ? tr("Confirm attachment")
+                                : tr("Upload"),
                 ),
             ],
         },
@@ -1731,7 +1893,7 @@ const FileUploadModal = ({
                     fontFamily: FONT,
                 },
             },
-            `👤 ${isEdit ? "Cập nhật" : "Đính kèm"} bởi: `,
+            isEdit ? tr("👤 Updated by: ") : tr("👤 Attached by: "),
             React.createElement(
                 "strong",
                 null,
@@ -1741,7 +1903,7 @@ const FileUploadModal = ({
         React.createElement(
             Form,
             { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
-            divider("Định danh"),
+            divider(tr("Identification")),
             React.createElement(
                 "div",
                 { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
@@ -1749,8 +1911,8 @@ const FileUploadModal = ({
                     Form.Item,
                     {
                         name: "documentType",
-                        label: "Loại văn bản",
-                        rules: [{ required: true, message: "Vui lòng nhập loại văn bản" }],
+                        label: tr("Document type"),
+                        rules: [{ required: true, message: tr("Enter the document type") }],
                     },
                     React.createElement(
                         "div",
@@ -1758,7 +1920,7 @@ const FileUploadModal = ({
                         React.createElement(Input, {
                             allowClear: true,
                             maxLength: 150,
-                            placeholder: "VD: Hợp đồng, Biên bản...",
+                            placeholder: tr("e.g. Hợp đồng, Biên bản..."),
                             list: "doc-type-list",
                             style: inpStyle,
                         }),
@@ -1773,11 +1935,11 @@ const FileUploadModal = ({
                 ),
                 React.createElement(
                     Form.Item,
-                    { name: "title", label: "Tên tài liệu" },
+                    { name: "title", label: tr("Document name") },
                     React.createElement(Input, {
                         allowClear: true,
                         placeholder:
-                            "Nhập tên đầy đủ của tài liệu (Sẽ lấy tên file nếu bỏ trống)",
+                            tr("Full document name (the file name if left blank)"),
                         style: inpStyle,
                     }),
                 ),
@@ -1787,16 +1949,16 @@ const FileUploadModal = ({
                 { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
                 React.createElement(
                     Form.Item,
-                    { name: "documentCode", label: "Số hiệu" },
+                    { name: "documentCode", label: tr("Document number") },
                     React.createElement(Input, {
                         allowClear: true,
-                        placeholder: "VD: 123/2024/HĐ",
+                        placeholder: tr("e.g. 123/2024/HĐ"),
                         style: inpStyle,
                     }),
                 ),
                 React.createElement(
                     Form.Item,
-                    { name: "openingDate", label: "Ngày ban hành" },
+                    { name: "openingDate", label: tr("Issue date") },
                     React.createElement(Input, {
                         type: "date",
                         style: { width: "100%", ...inpStyle },
@@ -1808,7 +1970,7 @@ const FileUploadModal = ({
                 { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
                 React.createElement(
                     Form.Item,
-                    { name: "signedAt", label: "Ngày ký" },
+                    { name: "signedAt", label: tr("Signing date") },
                     React.createElement(Input, {
                         type: "date",
                         style: { width: "100%", ...inpStyle },
@@ -1816,59 +1978,59 @@ const FileUploadModal = ({
                 ),
                 React.createElement(
                     Form.Item,
-                    { name: "effectiveAt", label: "Ngày hiệu lực" },
+                    { name: "effectiveAt", label: tr("Effective date") },
                     React.createElement(Input, {
                         type: "date",
                         style: { width: "100%", ...inpStyle },
                     }),
                 ),
             ),
-            divider("Bên liên quan"),
+            divider(tr("Parties")),
             React.createElement(
                 "div",
                 { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
                 React.createElement(
                     Form.Item,
-                    { name: "senderName", label: "Người gửi" },
+                    { name: "senderName", label: tr("Sender") },
                     React.createElement(Input, {
                         allowClear: true,
-                        placeholder: "Tên cá nhân / tổ chức gửi",
+                        placeholder: tr("Sending person / organisation"),
                         style: inpStyle,
                     }),
                 ),
                 React.createElement(
                     Form.Item,
-                    { name: "recipientName", label: "Người nhận" },
+                    { name: "recipientName", label: tr("Recipient") },
                     React.createElement(Input, {
                         allowClear: true,
-                        placeholder: "Tên cá nhân / tổ chức nhận",
+                        placeholder: tr("Receiving person / organisation"),
                         style: inpStyle,
                     }),
                 ),
             ),
             React.createElement(
                 Form.Item,
-                { name: "description", label: "Tóm tắt nội dung" },
+                { name: "description", label: tr("Content summary") },
                 React.createElement(Input.TextArea, {
                     rows: 3,
                     allowClear: true,
-                    placeholder: "Mô tả ngắn gọn nội dung chính...",
+                    placeholder: tr("A short description of the main content..."),
                 }),
             ),
-            divider("File đính kèm"),
+            divider(tr("Attachment")),
             React.createElement(ctx.antd.Tabs, {
                 activeKey: activeTab,
                 onChange: setActiveTab,
                 items: [
                     {
                         key: "local",
-                        label: "Upload từ máy tính",
+                        label: tr("Upload from computer"),
                         children: React.createElement(
                             Form.Item,
                             {
                                 label: isEdit
-                                    ? "Thay file mới (tuỳ chọn)"
-                                    : "Chọn file (có thể chọn nhiều)",
+                                    ? tr("Replace file (optional)")
+                                    : tr("Choose files (several allowed)"),
                                 style: { marginBottom: 0 },
                             },
                             React.createElement(
@@ -1900,11 +2062,11 @@ const FileUploadModal = ({
                                             fontFamily: FONT,
                                         },
                                     },
-                                    "Kéo thả hoặc ",
+                                    tr("Drag and drop or "),
                                     React.createElement(
                                         "span",
                                         { style: { color: "#1890ff" } },
-                                        "click để chọn",
+                                        tr("click to choose"),
                                     ),
                                 ),
                             ),
@@ -1912,7 +2074,7 @@ const FileUploadModal = ({
                     },
                     {
                         key: "library",
-                        label: "Chọn từ Thư viện",
+                        label: tr("Choose from Library"),
                         children: React.createElement(
                             "div",
                             { style: { padding: "8px 0" } },
@@ -1926,7 +2088,7 @@ const FileUploadModal = ({
                                         {
                                             style: { marginTop: 8, fontSize: 12, color: "#8c8c8c" },
                                         },
-                                        "Đang tải thư viện...",
+                                        tr("Loading library..."),
                                     ),
                                 )
                                 : React.createElement(
@@ -1935,7 +2097,7 @@ const FileUploadModal = ({
                                     React.createElement(TreeSelect, {
                                         style: { width: "100%" },
                                         treeData,
-                                        placeholder: "Tìm kiếm và chọn file từ thư viện (có thể chọn nhiều)...",
+                                        placeholder: tr("Search and choose files from the library (several allowed)..."),
                                         treeDefaultExpandAll: true,
                                         allowClear: true,
                                         showSearch: true,
@@ -1954,21 +2116,21 @@ const FileUploadModal = ({
             }),
             React.createElement(
                 Form.Item,
-                { name: "googleDriveUrl", label: "Google Drive URL (tuỳ chọn)" },
+                { name: "googleDriveUrl", label: tr("Google Drive URL (optional)") },
                 React.createElement(Input, {
                     placeholder: "https://docs.google.com/...",
                     allowClear: true,
                     style: inpStyle,
                 }),
             ),
-            divider("Ghi chú (tuỳ chọn)"),
+            divider(tr("Note (optional)")),
             React.createElement(
                 Form.Item,
-                { name: "note", label: "Ghi chú" },
+                { name: "note", label: tr("Note") },
                 React.createElement(Input.TextArea, {
                     rows: 2,
                     allowClear: true,
-                    placeholder: "Nhập ghi chú cho tài liệu này (nếu có)...",
+                    placeholder: tr("Note for this document (if any)..."),
                     style: inpStyle,
                 }),
             ),
@@ -2048,7 +2210,7 @@ const UnifiedNoteThread = ({
                 headers: { "Content-Type": "multipart/form-data" },
             });
             const att = uploadRes?.data?.data;
-            if (!att?.id) throw new Error("Upload thất bại");
+            if (!att?.id) throw new Error(tr("Upload failed"));
             const actionBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             await apiReq(`documents:update?filterByTk=${targetFile.id}`, "POST", {
                 fileAttachment: [{ id: att.id }],
@@ -2066,9 +2228,9 @@ const UnifiedNoteThread = ({
                     ),
                 })),
             );
-            message.success("Đã thay thế tệp");
+            message.success(tr("File replaced"));
         } catch (e) {
-            message.error(`Lỗi thay thế tệp: ${e.message}`);
+            message.error(tr("Could not replace the file: {0}", { 0: e.message }));
         }
         setReplacingFileId(null);
     };
@@ -2123,10 +2285,10 @@ const UnifiedNoteThread = ({
                     files: item.files.filter((file) => extractId(file.id) !== extractId(f.id)),
                 })),
             );
-            message.success("Đã chuyển tệp sang Library (Reference)");
+            message.success(tr("File moved to the Library (Reference)"));
             setMoveToLibraryTarget(null);
         } catch (e) {
-            message.error(`Lỗi chuyển tệp: ${e.message}`);
+            message.error(tr("Could not move the file: {0}", { 0: e.message }));
         }
     };
 
@@ -2162,9 +2324,9 @@ const UnifiedNoteThread = ({
                     files: item.files.filter((file) => extractId(file.id) !== extractId(f.id)),
                 })),
             );
-            message.success("Đã chuyển tệp sang Documents của Case (thư mục gốc)");
+            message.success(tr("File moved to the Case's Documents (root folder)"));
         } catch (e) {
-            message.error(`Lỗi chuyển tệp: ${e.message}`);
+            message.error(tr("Could not move the file: {0}", { 0: e.message }));
         }
     };
 
@@ -2218,7 +2380,7 @@ const UnifiedNoteThread = ({
             downloadSingleFile(list[0]);
             return;
         }
-        const hideLoading = message.loading(`Đang chuẩn bị ${list.length} tệp...`, 0);
+        const hideLoading = message.loading(tr("Preparing {0} files...", { 0: list.length }), 0);
         try {
             const PizZipModule = await ctx.importAsync("https://esm.sh/pizzip@3.1.4");
             const PizZip = PizZipModule.default || PizZipModule;
@@ -2255,7 +2417,7 @@ const UnifiedNoteThread = ({
                 fetched++;
             }
             if (fetched === 0) {
-                message.error("Không tải được tệp nào — xem console để biết chi tiết.");
+                message.error(tr("No file could be downloaded — see the console for details."));
                 return;
             }
             const blob = zip.generate({ type: "blob", compression: "DEFLATE" });
@@ -2268,14 +2430,14 @@ const UnifiedNoteThread = ({
                 data: formData,
             });
             const uploaded = uploadRes?.data?.data;
-            if (!uploaded?.id) throw new Error("Upload zip thất bại");
+            if (!uploaded?.id) throw new Error(tr("Zip upload failed"));
             downloadSingleFile({ url: getFullUrl(uploaded.url), filename: zipName });
             if (fetched < list.length) {
-                message.warning(`${zipName}: ${fetched}/${list.length} tệp — số còn lại không tải được (xem console).`);
+                message.warning(tr("{0}: {1}/{2} files — the rest could not be downloaded (see the console).", { 0: zipName, 1: fetched, 2: list.length }));
             }
         } catch (e) {
             console.error("[downloadFilesAsZip] failed", e);
-            message.error("Không tạo được file zip — xem console để biết chi tiết.");
+            message.error(tr("Could not create the zip file — see the console for details."));
         } finally {
             hideLoading();
         }
@@ -2302,7 +2464,7 @@ const UnifiedNoteThread = ({
                         textUnderlineOffset: "2px",
                     },
                 },
-                "Chọn nhiều tệp",
+                tr("Select files"),
             );
         }
         const selectedFiles = files.filter((f) => state.ids.has(f.id));
@@ -2324,7 +2486,7 @@ const UnifiedNoteThread = ({
             React.createElement(
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 } },
-                `Đã chọn ${selectedCount}`,
+                tr("{0} selected", { 0: selectedCount }),
             ),
             React.createElement(
                 "span",
@@ -2354,7 +2516,7 @@ const UnifiedNoteThread = ({
                         background: selectedCount ? "#1890ff" : "#f0f0f0",
                     },
                 },
-                "Tải về (zip)",
+                tr("Download (zip)"),
             ),
             React.createElement(
                 "span",
@@ -2368,7 +2530,7 @@ const UnifiedNoteThread = ({
                         marginLeft: "auto",
                     },
                 },
-                "Huỷ",
+                tr("Cancel"),
             ),
         );
     };
@@ -2616,10 +2778,10 @@ const UnifiedNoteThread = ({
         n.createdBy?.nickname ||
         n.createdBy?.username ||
         n.createdBy?.email ||
-        (n.createdById ? `User #${n.createdById}` : "Ẩn danh");
+        (n.createdById ? `User #${n.createdById}` : tr("Anonymous"));
 
     const warnMentionOnly = () => {
-        message.warning("Vui lòng nhập nội dung bình luận trước khi nhắc tên.");
+        message.warning(tr("Enter the comment before mentioning anyone."));
     };
 
     const handleSend = async () => {
@@ -2715,9 +2877,9 @@ const UnifiedNoteThread = ({
             setReplyingTo(null);
             setPendingDocs([]);
             await reload();
-            message.success("Đã đăng bình luận");
+            message.success(tr("Comment posted"));
         } catch (e) {
-            message.error("Lỗi đăng tải");
+            message.error(tr("Could not post"));
         }
         setSending(false);
     };
@@ -2761,21 +2923,21 @@ const UnifiedNoteThread = ({
             setEditingNoteId(null);
             setEditBody("");
             setEditAssignedIds([]);
-            message.success("Đã cập nhật bình luận");
+            message.success(tr("Comment updated"));
         } catch (e) {
-            message.error("Lỗi cập nhật");
+            message.error(tr("Could not update"));
         }
     };
 
     const handleDeleteNote = (item) => {
         const { note, files } = item;
         Modal.confirm({
-            title: "Xác nhận xóa",
+            title: tr("Confirm delete"),
             content: note
-                ? "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?"
-                : "Bạn có chắc chắn muốn xóa các tệp này không?",
-            okText: "Xóa",
-            cancelText: "Hủy",
+                ? tr("Delete this comment and its attachments?")
+                : tr("Delete these files?"),
+            okText: tr("Delete"),
+            cancelText: tr("Cancel"),
             okType: "danger",
             onOk: async () => {
                 try {
@@ -2801,9 +2963,9 @@ const UnifiedNoteThread = ({
                         setReplyingTo(null);
                     }
                     setFeed((prev) => prev.filter((i) => i !== item));
-                    message.success("Đã xóa thành công");
+                    message.success(tr("Deleted"));
                 } catch (e) {
-                    message.error("Lỗi khi xóa");
+                    message.error(tr("Could not delete"));
                 }
             },
         });
@@ -2830,9 +2992,9 @@ const UnifiedNoteThread = ({
                     ),
                 })),
             );
-            message.success("Đã cập nhật tên tài liệu");
+            message.success(tr("Document name updated"));
         } catch (e) {
-            message.error("Lỗi cập nhật tên tài liệu");
+            message.error(tr("Could not update the document name"));
         }
         setEditingFileId(null);
         setEditFileTitle("");
@@ -2928,7 +3090,7 @@ const UnifiedNoteThread = ({
                         "span",
                         {
                             onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
-                            title: `File gốc: ${rawFilename}`,
+                            title: tr("Original file: {0}", { 0: rawFilename }),
                             style: {
                                 fontSize: 13,
                                 fontFamily: FONT,
@@ -2964,7 +3126,7 @@ const UnifiedNoteThread = ({
                                     flexShrink: 0,
                                 },
                             },
-                            "Lưu",
+                            tr("Save"),
                         ),
                         React.createElement(
                             "span",
@@ -2983,7 +3145,7 @@ const UnifiedNoteThread = ({
                                     flexShrink: 0,
                                 },
                             },
-                            "Hủy",
+                            tr("Cancel"),
                         ),
                     )
                     : React.createElement(
@@ -2998,7 +3160,7 @@ const UnifiedNoteThread = ({
                                         ...prev,
                                         [f.id]: !prev[f.id],
                                     })),
-                                title: isExpanded ? "Ẩn preview" : "Xem preview",
+                                title: isExpanded ? tr("Hide preview") : tr("Xem preview"),
                                 style: {
                                     fontSize: 12,
                                     padding: "2px 8px",
@@ -3010,7 +3172,7 @@ const UnifiedNoteThread = ({
                                     fontWeight: 500,
                                 },
                             },
-                            isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
+                            isExpanded ? tr("▲ Collapse") : tr("▼ Preview"),
                         ),
                         fullUrl &&
                         React.createElement(
@@ -3032,7 +3194,7 @@ const UnifiedNoteThread = ({
                                     border: "1px solid #d3adf7",
                                 },
                             },
-                            "Tải về",
+                            tr("Download"),
                         ),
                         canRenameFile &&
                         React.createElement(
@@ -3042,7 +3204,7 @@ const UnifiedNoteThread = ({
                                     setEditingFileId(f.id);
                                     setEditFileTitle(displayTitle);
                                 },
-                                title: "Đổi tên tài liệu",
+                                title: tr("Rename document"),
                                 style: {
                                     fontSize: 12,
                                     padding: "2px 8px",
@@ -3060,7 +3222,7 @@ const UnifiedNoteThread = ({
                             "span",
                             {
                                 onClick: () => triggerReplaceFile(f),
-                                title: "Thay thế tệp",
+                                title: tr("Replace file"),
                                 style: {
                                     fontSize: 12,
                                     padding: "2px 8px",
@@ -3079,7 +3241,7 @@ const UnifiedNoteThread = ({
                             "span",
                             {
                                 onClick: () => handleMoveToCaseDocument(f),
-                                title: "Chuyển sang Documents của Case",
+                                title: tr("Move to the Case's Documents"),
                                 style: {
                                     fontSize: 12,
                                     padding: "2px 8px",
@@ -3097,7 +3259,7 @@ const UnifiedNoteThread = ({
                             "span",
                             {
                                 onClick: () => openMoveToLibrary(f),
-                                title: "Chuyển sang Library (Reference)",
+                                title: tr("Move to the Library (Reference)"),
                                 style: {
                                     fontSize: 12,
                                     padding: "2px 8px",
@@ -3133,7 +3295,7 @@ const UnifiedNoteThread = ({
                     React.createElement(
                         "span",
                         { style: { fontWeight: 600, color: "#8c8c8c", marginRight: 4 } },
-                        "Tóm tắt:",
+                        tr("Summary:"),
                     ),
                     f.description,
                 ),
@@ -3151,7 +3313,7 @@ const UnifiedNoteThread = ({
                     React.createElement(
                         "span",
                         { style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 } },
-                        "Nội dung ghi chú:",
+                        tr("Note:"),
                     ),
                     f.note,
                 ),
@@ -3215,8 +3377,8 @@ const UnifiedNoteThread = ({
             a.getFullYear() === b.getFullYear() &&
             a.getMonth() === b.getMonth() &&
             a.getDate() === b.getDate();
-        if (sameDay(d, now)) return "Hôm nay";
-        if (sameDay(d, yesterday)) return "Hôm qua";
+        if (sameDay(d, now)) return tr("Today");
+        if (sameDay(d, yesterday)) return tr("Yesterday");
         return fmt(date, "date");
     };
 
@@ -3260,12 +3422,12 @@ const UnifiedNoteThread = ({
         const targetAuthorName = targetNote
             ? authorName(targetNote)
             : targetFile
-                ? userName(targetFile.createdBy) || targetFile.createdBy?.email || "Ai đó"
-                : "Ai đó";
+                ? userName(targetFile.createdBy) || targetFile.createdBy?.email || tr("Someone")
+                : tr("Someone");
         const quotedSnippet = targetNote?.body
             ? getCommentText(stripLeadingQuoteHtml(targetNote.body), false).trim().substring(0, 150)
             : targetFile
-                ? `📎 ${targetFile.title || targetFile.name || "Tài liệu đính kèm"}`
+                ? `📎 ${targetFile.title || targetFile.name || tr("Attached document")}`
                 : "";
         const targetLawyer = targetNote ? findLawyerByUserId(targetNote.createdById) : null;
         const mentionHtml = targetLawyer
@@ -3290,7 +3452,7 @@ const UnifiedNoteThread = ({
             ? authorName(note)
             : firstFile?.createdBy
                 ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-                : "Hệ thống";
+                : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -3354,7 +3516,7 @@ const UnifiedNoteThread = ({
                         { style: { display: "flex", alignItems: "center", gap: 6, flexDirection: isMyItem ? "row-reverse" : "row" } },
                         React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: "#262626", fontFamily: FONT } }, creatorName),
                         badge && React.createElement("span", { style: { fontSize: 10, fontFamily: FONT, background: "#e6f4ff", color: "#096dd9", padding: "0 5px", borderRadius: 4 } }, badge),
-                        item._fromTask && React.createElement("span", { style: { fontSize: 10, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "0 5px", borderRadius: 4 } }, "🔧 Task"),
+                        item._fromTask && React.createElement("span", { style: { fontSize: 10, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "0 5px", borderRadius: 4 } }, tr("🔧 Task")),
                         React.createElement("span", { style: { fontSize: 10, color: "#bfbfbf", fontFamily: FONT } }, timeAgo(time)),
                     ),
                     isEditing
@@ -3372,8 +3534,8 @@ const UnifiedNoteThread = ({
                             React.createElement(
                                 "div",
                                 { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 } },
-                                React.createElement("span", { onClick: () => { setEditingNoteId(null); setEditBody(""); setEditAssignedIds([]); }, style: { fontSize: 12, padding: "4px 12px", cursor: "pointer", color: "#595959", border: "1px solid #d9d9d9", borderRadius: 4, fontFamily: FONT } }, "Hủy"),
-                                React.createElement("span", { onClick: () => handleSaveEdit(note.id), style: { fontSize: 12, padding: "4px 16px", cursor: "pointer", color: "#fff", background: "#1890ff", borderRadius: 4, fontWeight: 600, fontFamily: FONT } }, "Lưu"),
+                                React.createElement("span", { onClick: () => { setEditingNoteId(null); setEditBody(""); setEditAssignedIds([]); }, style: { fontSize: 12, padding: "4px 12px", cursor: "pointer", color: "#595959", border: "1px solid #d9d9d9", borderRadius: 4, fontFamily: FONT } }, tr("Cancel")),
+                                React.createElement("span", { onClick: () => handleSaveEdit(note.id), style: { fontSize: 12, padding: "4px 16px", cursor: "pointer", color: "#fff", background: "#1890ff", borderRadius: 4, fontWeight: 600, fontFamily: FONT } }, tr("Save")),
                             ),
                         )
                         : React.createElement(
@@ -3407,9 +3569,9 @@ const UnifiedNoteThread = ({
                             React.createElement(
                                 "div",
                                 { style: { display: "flex", gap: 10, flexDirection: isMyItem ? "row-reverse" : "row" } },
-                                React.createElement("span", { onClick: () => handleReplyClick(item), style: { fontSize: 11, fontFamily: FONT, color: "#52c41a", cursor: "pointer" } }, "Trả lời"),
-                                isMyItem && note && React.createElement("span", { onClick: () => { setEditingNoteId(note.id); setEditBody(note.body || ""); setEditAssignedIds((note.assignees || []).map((a) => typeof a === "object" ? extractId(a.id) : extractId(a)).filter(Boolean)); }, style: { fontSize: 11, fontFamily: FONT, color: "#8c8c8c", cursor: "pointer" } }, "Sửa"),
-                                isMyItem && React.createElement("span", { onClick: () => handleDeleteNote(item), style: { fontSize: 11, fontFamily: FONT, color: "#ff4d4f", cursor: "pointer" } }, "Xóa"),
+                                React.createElement("span", { onClick: () => handleReplyClick(item), style: { fontSize: 11, fontFamily: FONT, color: "#52c41a", cursor: "pointer" } }, tr("Reply")),
+                                isMyItem && note && React.createElement("span", { onClick: () => { setEditingNoteId(note.id); setEditBody(note.body || ""); setEditAssignedIds((note.assignees || []).map((a) => typeof a === "object" ? extractId(a.id) : extractId(a)).filter(Boolean)); }, style: { fontSize: 11, fontFamily: FONT, color: "#8c8c8c", cursor: "pointer" } }, tr("Edit")),
+                                isMyItem && React.createElement("span", { onClick: () => handleDeleteNote(item), style: { fontSize: 11, fontFamily: FONT, color: "#ff4d4f", cursor: "pointer" } }, tr("Delete")),
                             ),
                         ),
                 ),
@@ -3424,7 +3586,7 @@ const UnifiedNoteThread = ({
             ? authorName(note)
             : firstFile?.createdBy
                 ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-                : "Hệ thống";
+                : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -3500,7 +3662,7 @@ const UnifiedNoteThread = ({
                             creatorName,
                         ),
                         badge && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#e6f4ff", color: "#096dd9", padding: "1px 6px", borderRadius: 4, border: "1px solid #91caff" } }, badge),
-                        item._fromTask && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "1px 6px", borderRadius: 4, border: "1px solid #ffd591" } }, `🔧 Từ Task: ${item._fromTask}`),
+                        item._fromTask && React.createElement("span", { style: { fontSize: 11, fontFamily: FONT, background: "#fff7e6", color: "#d46b08", padding: "1px 6px", borderRadius: 4, border: "1px solid #ffd591" } }, tr("🔧 From task: {0}", { 0: item._fromTask })),
                         React.createElement(
                             "span",
                             {
@@ -3554,7 +3716,7 @@ const UnifiedNoteThread = ({
                                             fontFamily: FONT,
                                         },
                                     },
-                                    "Hủy",
+                                    tr("Cancel"),
                                 ),
                                 React.createElement(
                                     "span",
@@ -3571,7 +3733,7 @@ const UnifiedNoteThread = ({
                                             fontFamily: FONT,
                                         },
                                     },
-                                    "Lưu thay đổi",
+                                    tr("Save changes"),
                                 ),
                             ),
                         )
@@ -3618,7 +3780,7 @@ const UnifiedNoteThread = ({
                                     React.createElement(
                                         "b",
                                         { style: { color: "#8c8c8c", marginRight: 4 } },
-                                        "Trích dẫn:",
+                                        tr("Quote:"),
                                     ),
                                     " ",
                                     note.replyText,
@@ -3656,8 +3818,8 @@ const UnifiedNoteThread = ({
                                                 },
                                             },
                                             isHistoryOpen
-                                                ? "▲ Ẩn lịch sử chỉnh sửa"
-                                                : `▼ Xem lịch sử chỉnh sửa (${history.length})`,
+                                                ? tr("▲ Hide edit history")
+                                                : tr("▼ Show edit history ({0})", { 0: history.length }),
                                         ),
                                         isHistoryOpen &&
                                         React.createElement(
@@ -3680,7 +3842,7 @@ const UnifiedNoteThread = ({
                                                     React.createElement(
                                                         "div",
                                                         { style: { fontSize: 11, color: "#bfbfbf", marginBottom: 4 } },
-                                                        `${log.changedByName || "Người dùng"} · ${timeAgo(log.changedAt || log.createdAt)}`,
+                                                        `${log.changedByName || tr("User")} · ${timeAgo(log.changedAt || log.createdAt)}`,
                                                     ),
                                                     log.oldValue &&
                                                     React.createElement(
@@ -3721,7 +3883,7 @@ const UnifiedNoteThread = ({
                                                 fontFamily: FONT,
                                             },
                                         },
-                                        "Đã nhắc đến:",
+                                        tr("Mentioned:"),
                                     ),
                                     renderAssigneeTags(note?.assignees),
                                 ),
@@ -3766,7 +3928,7 @@ const UnifiedNoteThread = ({
                                         onMouseLeave: (e) =>
                                             (e.currentTarget.style.color = "#52c41a"),
                                     },
-                                    "Phản hồi",
+                                    tr("Reply"),
                                 ),
                                 isMyItem &&
                                 note &&
@@ -3799,7 +3961,7 @@ const UnifiedNoteThread = ({
                                         onMouseLeave: (e) =>
                                             (e.currentTarget.style.color = "#595959"),
                                     },
-                                    "Chỉnh sửa",
+                                    tr("Edit"),
                                 ),
                                 isMyItem &&
                                 React.createElement(
@@ -3819,7 +3981,7 @@ const UnifiedNoteThread = ({
                                         onMouseLeave: (e) =>
                                             (e.currentTarget.style.color = "#ff4d4f"),
                                     },
-                                    "Xóa",
+                                    tr("Delete"),
                                 ),
                             ),
                         ),
@@ -3853,8 +4015,8 @@ const UnifiedNoteThread = ({
                         },
                     },
                     isExpanded
-                        ? "▲ Thu gọn phản hồi"
-                        : `▼ Xem ${replies.length} phản hồi`,
+                        ? tr("▲ Collapse replies")
+                        : tr("▼ Show {0} replies", { 0: replies.length }),
                     !isExpanded &&
                     Avatar &&
                     React.createElement(
@@ -3863,7 +4025,7 @@ const UnifiedNoteThread = ({
                         replies.map((r, i) =>
                             React.createElement(Av, {
                                 key: i,
-                                name: r.note ? authorName(r.note) : "Ẩn danh",
+                                name: r.note ? authorName(r.note) : tr("Anonymous"),
                                 size: 16,
                             }),
                         ),
@@ -3894,7 +4056,7 @@ const UnifiedNoteThread = ({
                 },
             },
             ...pendingDocs.map((doc, i) => {
-                const name = doc.metadata.title || doc.fileName || "Tài liệu";
+                const name = doc.metadata.title || doc.fileName || tr("Document");
                 return React.createElement(
                     "div",
                     {
@@ -3940,7 +4102,7 @@ const UnifiedNoteThread = ({
                                     fontWeight: 600,
                                 },
                             },
-                            "Chờ gửi",
+                            tr("Pending"),
                         ),
                         React.createElement(
                             "span",
@@ -3966,7 +4128,7 @@ const UnifiedNoteThread = ({
                         React.createElement(
                             "span",
                             { style: { fontWeight: 600, color: "#8c8c8c" } },
-                            "Tóm tắt:",
+                            tr("Summary:"),
                         ),
                         ` ${doc.metadata.description}`,
                     ),
@@ -4030,7 +4192,7 @@ const UnifiedNoteThread = ({
                         marginBottom: 6,
                     },
                 },
-                "✕ Huỷ trả lời",
+                tr("✕ Cancel reply"),
             ),
             replyingTo &&
             viewMode === "tree" &&
@@ -4061,8 +4223,8 @@ const UnifiedNoteThread = ({
                                 fontFamily: FONT,
                             },
                         },
-                        "Đang trả lời ",
-                        replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
+                        tr("Replying to "),
+                        replyingTo.note ? authorName(replyingTo.note) : tr("Document"),
                     ),
                     React.createElement(
                         "div",
@@ -4081,7 +4243,7 @@ const UnifiedNoteThread = ({
                         },
                         replyingTo.note?.body
                             ? getCommentText(replyingTo.note.body)
-                            : "Tài liệu đính kèm",
+                            : tr("Attached document"),
                     ),
                 ),
                 React.createElement(
@@ -4116,7 +4278,7 @@ const UnifiedNoteThread = ({
                 onAssignMultiple: (ids) => setAssignedIds(ids),
                 assignedIds,
                 lawyers,
-                placeholder: "Viết bình luận, ghi chú nội bộ... (Có thể tag @Luật sư)",
+                placeholder: tr("Write a comment or internal note... (you can @mention a lawyer)"),
                 onSubmit: canSend
                     ? handleSend
                     : isMentionOnly
@@ -4147,7 +4309,7 @@ const UnifiedNoteThread = ({
                             marginLeft: "auto",
                         },
                     },
-                    "Ctrl+Enter để gửi",
+                    tr("Ctrl+Enter to send"),
                 ),
                 React.createElement(
                     "div",
@@ -4170,7 +4332,7 @@ const UnifiedNoteThread = ({
                             transition: "all 0.2s",
                         },
                     },
-                    sending ? "Đang gửi..." : isInline ? "Phản hồi" : "Đăng bình luận",
+                    sending ? tr("Sending...") : isInline ? tr("Reply") : tr("Post comment"),
                 ),
             ),
         );
@@ -4200,12 +4362,12 @@ const UnifiedNoteThread = ({
             Modal,
             {
                 open: !!moveToLibraryTarget,
-                title: "Chuyển sang Library (Reference)",
+                title: tr("Move to the Library (Reference)"),
                 onCancel: () => setMoveToLibraryTarget(null),
                 onOk: handleConfirmMoveToLibrary,
                 okButtonProps: { disabled: !selectedLegalStudyId },
-                okText: "Chuyển",
-                cancelText: "Huỷ",
+                okText: tr("Move"),
+                cancelText: tr("Cancel"),
             },
             React.createElement(
                 "div",
@@ -4213,19 +4375,19 @@ const UnifiedNoteThread = ({
                 React.createElement(
                     "div",
                     { style: { fontSize: 13, color: "#595959" } },
-                    "Chọn Reference đích cho tệp:",
+                    tr("Choose the target Reference for the file:"),
                 ),
                 React.createElement(ctx.antd.Select, {
                     style: { width: "100%" },
                     loading: legalStudyLoading,
                     showSearch: true,
                     optionFilterProp: "label",
-                    placeholder: "Chọn Reference...",
+                    placeholder: tr("Choose a Reference..."),
                     value: selectedLegalStudyId || undefined,
                     onChange: setSelectedLegalStudyId,
                     options: legalStudyOptions.map((r) => ({
                         value: extractId(r.id),
-                        label: r.title || `Reference #${r.id}`,
+                        label: r.title || tr("Reference #{0}", { 0: r.id }),
                     })),
                 }),
             ),
@@ -4244,7 +4406,7 @@ const UnifiedNoteThread = ({
                         fontWeight: 600,
                     },
                 },
-                "Danh sách",
+                tr("List"),
             ),
             React.createElement(
                 "span",
@@ -4257,7 +4419,7 @@ const UnifiedNoteThread = ({
                         fontWeight: 600,
                     },
                 },
-                "Trò chuyện",
+                tr("Chat"),
             ),
         ),
         (viewMode === "list" || !replyingTo) && canEdit ? renderComposerBlock(false) : null,
@@ -4282,7 +4444,7 @@ const UnifiedNoteThread = ({
                                 color: "#bfbfbf",
                             },
                         },
-                        "Vụ việc này chưa có bình luận hay tài liệu nội bộ nào.",
+                        tr("This case has no comments or internal documents yet."),
                     )
                     : viewMode === "list"
                     ? React.createElement(
@@ -4330,8 +4492,8 @@ const UnifiedNoteThread = ({
                                     (e.currentTarget.style.background = "#f0f8ff"),
                             },
                             showAll
-                                ? `▲ Thu gọn (đang hiện ${feed.length})`
-                                : `▼ Xem tất cả ${feed.length} bình luận & tài liệu`,
+                                ? tr("▲ Collapse (showing {0})", { 0: feed.length })
+                                : tr("▼ Show all {0} comments & documents", { 0: feed.length }),
                         ),
                     ),
         ),
@@ -4427,7 +4589,7 @@ const ProjectNotesEcosystem = () => {
                 type: "secondary",
                 style: { padding: 16, display: "block", fontFamily: FONT },
             },
-            "Không tìm thấy thông tin vụ việc hiện tại.",
+            tr("Case not found."),
         );
 
     if (loadingContext)
@@ -4443,7 +4605,7 @@ const ProjectNotesEcosystem = () => {
             label: React.createElement(
                 "span",
                 { style: { fontSize: 14, fontWeight: 600, fontFamily: FONT } },
-                "💬 Bàn luận & Hồ sơ nội bộ",
+                tr("💬 Discussion & internal files"),
             ),
             // 🌟 PATCH 1: Đã thay đổi maxWidth: 900 thành width: '100%'
             children: React.createElement(

@@ -1,6 +1,27 @@
 // NocoBase JS Block / RunJS snippet: render one button that opens a configured view.
 // Edit OPEN_VIEW_CONFIG only, then paste/run this file content in your JS block.
 
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Please configure OPEN_VIEW_CONFIG.viewUid first.": "Vui lòng cấu hình OPEN_VIEW_CONFIG.viewUid trước.",
+  "ctx.openView is not available in this runtime.": "ctx.openView không khả dụng trong môi trường này.",
+  "Cannot open configured view.": "Không thể mở view đã cấu hình.",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const React = ctx.React;
 const { Button } = ctx.antd;
 const message = ctx.message || ctx.antd?.message;
@@ -69,12 +90,12 @@ function OpenViewButton() {
   const handleClick = async () => {
     const viewUid = String(OPEN_VIEW_CONFIG.viewUid || "").trim();
     if (!viewUid) {
-      message?.warning?.("Please configure OPEN_VIEW_CONFIG.viewUid first.");
+      message?.warning?.(tr("Please configure OPEN_VIEW_CONFIG.viewUid first."));
       return;
     }
 
     if (typeof ctx.openView !== "function") {
-      message?.error?.("ctx.openView is not available in this runtime.");
+      message?.error?.(tr("ctx.openView is not available in this runtime."));
       return;
     }
 
@@ -123,7 +144,7 @@ function OpenViewButton() {
       if (result?.then) await result;
     } catch (error) {
       console.warn("[OpenViewButton] ctx.openView failed", error);
-      message?.error?.("Cannot open configured view.");
+      message?.error?.(tr("Cannot open configured view."));
     } finally {
       setLoading(false);
     }

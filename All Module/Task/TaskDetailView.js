@@ -1,7 +1,578 @@
     // ============================================================
     // §1 CONFIG — không import, không side-effect
     // ============================================================
-    const { React } = ctx;
+    // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Reference": "Reference",
+  "Legal Reference": "Legal Reference",
+  "Document": "Tài liệu",
+  "Library": "Library",
+  "Internal Work Document": "Tài liệu Internal Work",
+  "Customer": "Khách hàng",
+  "Not Start": "Chưa bắt đầu",
+  "In Progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Title": "Tiêu đề",
+  "Priority": "Ưu tiên",
+  "Lawyer": "Luật sư",
+  "Deadline": "Hạn",
+  "Start date": "Ngày bắt đầu",
+  "Completion date": "Ngày hoàn thành",
+  "Progress details": "Chi tiết tiến độ",
+  "Note content": "Nội dung ghi chú",
+  "Estimated duration": "Thời lượng dự kiến",
+  "Pending Issue": "Vấn đề tồn đọng",
+  "Next Step": "Bước tiếp theo",
+  "Approver": "Người duyệt",
+  "Approval assigned date": "Ngày giao duyệt",
+  "Approval date": "Ngày duyệt",
+  "Approval required": "Cần duyệt",
+  "Comments": "Bình luận",
+  "Documents": "Tài liệu",
+  "Deleted status": "Trạng thái xóa",
+  "Assignee": "Người phụ trách",
+  "Notes": "Ghi chú",
+  "Content": "Nội dung",
+  "Assignees": "Người phụ trách",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Partner": "Luật sư đối tác",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "just now": "vừa xong",
+  "{0} minutes ago": "{0} phút trước",
+  "{0} hours ago": "{0} giờ trước",
+  "{0} days ago": "{0} ngày trước",
+  "Preparing {0} files...": "Đang chuẩn bị {0} tệp...",
+  "Could not fetch any of the selected files — see console for details.": "Không tải được tệp nào đã chọn — xem console để biết chi tiết.",
+  "{0}: {1}/{2} files included — the rest couldn't be fetched (see console).": "{0}: đã gồm {1}/{2} tệp — số còn lại không tải được (xem console).",
+  "Could not build the zip — see console for details.": "Không tạo được file zip — xem console để biết chi tiết.",
+  "Not started": "Chưa bắt đầu",
+  "In progress": "Đang làm",
+  "Waiting": "Đang chờ",
+  "{0}% Excellent": "{0}% Xuất sắc",
+  "{0}% On track": "{0}% Đúng tiến độ",
+  "{0}% Slow": "{0}% Chậm",
+  "{0}% Poor": "{0}% Kém",
+  "Case": "Hồ sơ",
+  "Case code": "Mã hồ sơ",
+  "Case name": "Tên hồ sơ",
+  "Case opening date": "Ngày mở hồ sơ",
+  "Case deadline": "Hạn hồ sơ",
+  "Customer full name": "Tên đầy đủ khách hàng",
+  "Customer short name": "Tên viết tắt khách hàng",
+  "Address": "Địa chỉ",
+  "Phone number": "Số điện thoại",
+  "Tax code": "Mã số thuế",
+  "ID card number": "Số CCCD",
+  "ID card issue date": "Ngày cấp CCCD",
+  "ID card issue place": "Nơi cấp CCCD",
+  "Legal representative": "Người đại diện pháp luật",
+  "Quotation": "Báo giá",
+  "Quotation number": "Số báo giá",
+  "Quotation status": "Trạng thái báo giá",
+  "Quotation description": "Mô tả báo giá",
+  "Subtotal (before VAT)": "Tạm tính (trước VAT)",
+  "VAT amount": "Tiền VAT",
+  "Total (after VAT)": "Tổng (sau VAT)",
+  "VAT applied": "VAT áp dụng",
+  "Contract": "Hợp đồng",
+  "Contract number": "Số hợp đồng",
+  "Contract language": "Ngôn ngữ hợp đồng",
+  "Contract status": "Trạng thái hợp đồng",
+  "Contract effective date": "Ngày hiệu lực hợp đồng",
+  "Invoice": "Hóa đơn",
+  "Invoice number": "Số hóa đơn",
+  "Invoice issue date": "Ngày xuất hóa đơn",
+  "Invoice due date": "Hạn hóa đơn",
+  "Invoice total": "Tổng hóa đơn",
+  "Amount paid": "Đã thanh toán",
+  "Outstanding balance": "Còn nợ",
+  "Invoice status": "Trạng thái hóa đơn",
+  "Payment": "Thanh toán",
+  "Payment number": "Số thanh toán",
+  "Payment date": "Ngày thanh toán",
+  "Payment method": "Phương thức thanh toán",
+  "Payment status": "Trạng thái thanh toán",
+  "Task": "Công việc",
+  "Task name": "Tên công việc",
+  "Task due date": "Hạn công việc",
+  "User": "Người dùng",
+  "Lawyer name (nickname)": "Tên luật sư (nickname)",
+  "Username": "Tên đăng nhập",
+  "Date": "Ngày",
+  "Today's date": "Ngày hôm nay",
+  "Day (dd)": "Ngày (dd)",
+  "Month (mm)": "Tháng (mm)",
+  "Year (yyyy)": "Năm (yyyy)",
+  "This document has no attached file.": "Tài liệu này không có tệp đính kèm.",
+  "Unknown error": "Lỗi không xác định",
+  "Generate failed": "Tạo tệp thất bại",
+  "Upload file failed": "Tải tệp lên thất bại",
+  "Folder #{0}": "Thư mục #{0}",
+  "Moved to": "Đã chuyển sang",
+  "Moved to Legal Study": "Đã chuyển sang Reference",
+  "Moved to Legal Reference": "Đã chuyển sang Legal Reference",
+  "Root": "Thư mục gốc",
+  "Moved to Document:": "Đã chuyển sang Tài liệu:",
+  "Moved to Document / {0}": "Đã chuyển sang Tài liệu / {0}",
+  "Moved to Library:": "Đã chuyển sang Library:",
+  "Moved to Library / {0}": "Đã chuyển sang Library / {0}",
+  "Moved to Internal Work:": "Đã chuyển sang Internal Work:",
+  "Moved to Internal Work's Document / {0}": "Đã chuyển sang Tài liệu Internal Work / {0}",
+  "Moved to Customer:": "Đã chuyển sang Khách hàng:",
+  "Moved to Customer / {0}": "Đã chuyển sang Khách hàng / {0}",
+  "Document #{0}": "Tài liệu #{0}",
+  "Shared directly": "Được chia sẻ trực tiếp",
+  "Current case": "Hồ sơ hiện tại",
+  "Linked cases": "Hồ sơ liên kết",
+  "Knowledge": "Knowledge",
+  "My Documents": "My Documents",
+  "Refresh": "Làm mới",
+  "Collapse": "Thu gọn",
+  "View more": "Xem thêm",
+  "🔒 Only managers or the assignee can change the status": "🔒 Chỉ quản lý hoặc người phụ trách mới đổi được trạng thái",
+  "No edit permission": "Không có quyền chỉnh sửa",
+  "Task is blocked by a previous task": "Công việc đang bị chặn bởi công việc trước",
+  "No.": "STT",
+  "Updated date": "Ngày cập nhật",
+  "Progress Details": "Chi tiết tiến độ",
+  "Start": "Bắt đầu",
+  "{0} ₫/hr": "{0} ₫/giờ",
+  "Search lawyer...": "Tìm luật sư...",
+  "Unassign": "Bỏ phân công",
+  "Other": "Khác",
+  "Assign lawyer": "Phân công luật sư",
+  "No service assigned": "Chưa gắn dịch vụ",
+  "Service #": "Dịch vụ #",
+  "Search tasks by name...": "Tìm công việc theo tên...",
+  "No tasks found": "Không tìm thấy công việc nào",
+  "Select a prerequisite task...": "Chọn công việc tiên quyết...",
+  "User #{0}": "Người dùng #{0}",
+  "Anonymous": "Ẩn danh",
+  "You do not have permission to view this task's history.": "Bạn không có quyền xem lịch sử của công việc này.",
+  "System": "Hệ thống",
+  " added a note": " đã thêm ghi chú",
+  " uploaded a document": " đã tải lên tài liệu",
+  "(Untitled)": "(Không có tiêu đề)",
+  "No activity yet": "Chưa có hoạt động nào",
+  "Write a comment... (@ to mention someone)": "Viết bình luận... (gõ @ để nhắc tên)",
+  "Attach document": "Đính kèm tài liệu",
+  "Bold (Ctrl+B)": "In đậm (Ctrl+B)",
+  "Italic (Ctrl+I)": "In nghiêng (Ctrl+I)",
+  "Underline (Ctrl+U)": "Gạch chân (Ctrl+U)",
+  "Strikethrough": "Gạch ngang",
+  "Decrease indent": "Giảm thụt lề",
+  "Increase indent": "Tăng thụt lề",
+  "Blockquote": "Trích dẫn",
+  "Code block": "Khối mã",
+  "Numbered list": "Danh sách đánh số",
+  "Bullet list": "Danh sách gạch đầu dòng",
+  "Insert link": "Chèn liên kết",
+  "Clear formatting": "Xóa định dạng",
+  "Could not load editor. Please check your network connection.": "Không thể tải editor. Vui lòng kiểm tra kết nối mạng.",
+  "Loading editor...": "Đang tải editor...",
+  "Ctrl+Enter to send": "Ctrl+Enter để gửi",
+  "Sending...": "Đang gửi...",
+  "Comment": "Bình luận",
+  "B": "B",
+  "I": "I",
+  "U": "U",
+  "S": "S",
+  "Large heading": "Tiêu đề lớn",
+  "Medium heading": "Tiêu đề vừa",
+  "Horizontal rule": "Đường kẻ ngang",
+  "Attach file": "Đính kèm tệp",
+  "@ mention · Ctrl+Enter to send": "@ nhắc tên · Ctrl+Enter để gửi",
+  "Search lawyer: \"{0}\"": "Tìm luật sư: \"{0}\"",
+  "Mention a lawyer": "Nhắc tên luật sư",
+  "Mentioned:": "Đã nhắc đến:",
+  "Please enter a comment before mentioning someone.": "Vui lòng nhập nội dung bình luận trước khi nhắc tên.",
+  "Comment posted": "Đã đăng bình luận",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Vui lòng thử lại",
+  "Comment updated": "Đã cập nhật bình luận",
+  "Update failed": "Cập nhật thất bại",
+  "Confirm deletion": "Xác nhận xóa",
+  "Are you sure you want to delete this comment and its attached files?": "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?",
+  "Are you sure you want to delete these files?": "Bạn có chắc chắn muốn xóa các tệp này không?",
+  "Delete": "Xóa",
+  "Cancel": "Hủy",
+  "Deleted successfully": "Đã xóa thành công",
+  "Delete failed": "Xóa thất bại",
+  "Document name updated": "Đã cập nhật tên tài liệu",
+  "Failed to update name": "Cập nhật tên thất bại",
+  "File": "Tệp",
+  "Hide preview": "Ẩn xem trước",
+  "Preview": "Xem trước",
+  "Download": "Tải về",
+  "Move to Case's Document": "Chuyển sang Tài liệu của hồ sơ",
+  "Move to Internal Work's Document": "Chuyển sang Tài liệu Internal Work",
+  "Move to Library": "Chuyển sang Library",
+  "Rename": "Đổi tên",
+  "Replace file": "Thay thế tệp",
+  "Original file: {0}": "Tệp gốc: {0}",
+  "Save": "Lưu",
+  "Actions": "Thao tác",
+  "Select files": "Chọn tệp",
+  "{0} selected": "Đã chọn {0}",
+  "Move to Document": "Chuyển sang Tài liệu",
+  "Save changes": "Lưu thay đổi",
+  "Quote:": "Trích dẫn:",
+  "Reply": "Phản hồi",
+  "Edit": "Chỉnh sửa",
+  "▲ Collapse replies": "▲ Thu gọn phản hồi",
+  "▼ View {0} replies": "▼ Xem {0} phản hồi",
+  "File replaced": "Đã thay thế tệp",
+  "Failed to replace file: ": "Thay thế tệp thất bại: ",
+  "Pending": "Chờ gửi",
+  "Note content:": "Nội dung ghi chú:",
+  "Folder": "Thư mục",
+  "Folder: {0}": "Thư mục: {0}",
+  "{0} attached files": "{0} tệp đính kèm",
+  "+{0} more files": "+{0} tệp khác",
+  "Replying to ": "Đang trả lời ",
+  "Attached document": "Tài liệu đính kèm",
+  "✕ Cancel reply": "✕ Hủy trả lời",
+  "Today": "Hôm nay",
+  "Yesterday": "Hôm qua",
+  "Someone": "Ai đó",
+  "{0} files": "{0} tệp",
+  "Download all files in this folder": "Tải về tất cả tệp trong thư mục này",
+  "No comments or documents yet": "Chưa có bình luận hay tài liệu nào",
+  "No comments match your search": "Không có bình luận nào khớp tìm kiếm",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "Cannot preview this file format — please download to open": "Không thể xem trước định dạng này — vui lòng tải về để mở",
+  "{0} / Folder #{1}": "{0} / Thư mục #{1}",
+  "No file selected": "Chưa chọn tệp nào",
+  "Cannot determine the current case": "Không xác định được hồ sơ hiện tại",
+  "Cannot determine the current Internal Work item": "Không xác định được mục Internal Work hiện tại",
+  "Please select a {0} record": "Vui lòng chọn một bản ghi {0}",
+  "Moved {0} files to {1}": "Đã chuyển {0} tệp sang {1}",
+  "Moved to {0}": "Đã chuyển sang {0}",
+  "Cannot move to {0}": "Không thể chuyển sang {0}",
+  "Move {0} files to {1}": "Chuyển {0} tệp sang {1}",
+  "Move to {0}": "Chuyển sang {0}",
+  "{0} files selected": "Đã chọn {0} tệp",
+  "Source: ": "Nguồn: ",
+  "Category": "Danh mục",
+  "Select {0}": "Chọn {0}",
+  "Select {0} record...": "Chọn bản ghi {0}...",
+  "Destination folder": "Thư mục đích",
+  "Root level (no subfolder)": "Cấp gốc (không có thư mục con)",
+  "Files remain traceable from Task Notes after this move.": "Sau khi chuyển, các tệp vẫn truy vết được từ Ghi chú của công việc.",
+  "{0} remains traceable from Task Notes after this move.": "Sau khi chuyển, {0} vẫn truy vết được từ Ghi chú của công việc.",
+  "Folder and child documents": "Thư mục và tài liệu con",
+  "Click to expand or collapse": "Bấm để mở rộng hoặc thu gọn",
+  "Upload failed": "Tải lên thất bại",
+  "Original attachment not found": "Không tìm thấy tệp đính kèm gốc",
+  "Please select a file or enter a Drive URL": "Vui lòng chọn tệp hoặc nhập Drive URL",
+  "Upload error: {0}": "Lỗi tải lên: {0}",
+  "✅ Updated successfully!": "✅ Cập nhật thành công!",
+  "✅ Upload successful!": "✅ Tải lên thành công!",
+  "Updating a document only supports replacing 1 file, folder upload is not supported.": "Cập nhật tài liệu chỉ cho thay 1 tệp, không hỗ trợ tải lên thư mục.",
+  "Updating a document only supports replacing 1 file.": "Cập nhật tài liệu chỉ cho thay 1 tệp.",
+  "Updated successfully!": "Cập nhật thành công!",
+  "Uploaded {0} files successfully!": "Đã tải lên {0} tệp thành công!",
+  "Upload successful!": "Tải lên thành công!",
+  "Document type": "Loại văn bản",
+  "Please enter the document type": "Vui lòng nhập loại văn bản",
+  "e.g.: Contract, Minutes...": "VD: Hợp đồng, Biên bản...",
+  "✏️ Update document": "✏️ Cập nhật tài liệu",
+  "📎 Attach document": "📎 Đính kèm tài liệu",
+  "Updating...": "Đang cập nhật...",
+  "Processing...": "Đang xử lý...",
+  "Update": "Cập nhật",
+  "Submit": "Gửi",
+  "Upload": "Tải lên",
+  "Identification": "Định danh",
+  "Document name": "Tên tài liệu",
+  "Enter the full document name (uses the file name if left blank)": "Nhập tên đầy đủ của tài liệu (để trống sẽ lấy tên tệp)",
+  "Reference number": "Số hiệu",
+  "VD: 123/2024/HĐ": "e.g.: 123/2024/HĐ",
+  "Issue date": "Ngày ban hành",
+  "Signed date": "Ngày ký",
+  "Effective date": "Ngày hiệu lực",
+  "Related parties": "Bên liên quan",
+  "Sender": "Người gửi",
+  "Name of sending person / organization": "Tên cá nhân / tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Name of receiving person / organization": "Tên cá nhân / tổ chức nhận",
+  "Content summary": "Tóm tắt nội dung",
+  "Briefly describe the main content...": "Mô tả ngắn gọn nội dung chính...",
+  "Attached file": "Tệp đính kèm",
+  "Upload files": "Tải tệp lên",
+  "Upload files from your computer": "Tải tệp lên từ máy tính",
+  "Replace with new file (optional)": "Thay bằng tệp mới (tùy chọn)",
+  "Choose file": "Chọn tệp",
+  "Drag & drop or ": "Kéo thả hoặc ",
+  "click to select": "bấm để chọn",
+  "Upload folder": "Tải thư mục lên",
+  "Upload a whole folder, keeping its structure": "Tải cả thư mục lên, giữ nguyên cấu trúc",
+  "Choose folder": "Chọn thư mục",
+  "Choose a folder to preserve the folder structure when rendered in Task Notes": "Chọn thư mục để giữ cấu trúc thư mục khi hiển thị trong Ghi chú của công việc",
+  "Internal Docs": "Tài liệu Internal Work",
+  "Choose from this Internal Work's documents": "Chọn từ tài liệu của Internal Work này",
+  "Loading Internal Work documents...": "Đang tải tài liệu Internal Work...",
+  "Search this Internal Work's documents...": "Tìm trong tài liệu của Internal Work này...",
+  "No accessible documents in this Internal Work": "Không có tài liệu nào bạn được truy cập trong Internal Work này",
+  "Choose from Knowledge or My Documents": "Chọn từ Knowledge hoặc My Documents",
+  "Case Docs": "Tài liệu hồ sơ",
+  "Choose from this case, linked cases or reference material": "Chọn từ hồ sơ này, hồ sơ liên kết hoặc tài liệu tham khảo",
+  "Loading library...": "Đang tải thư viện...",
+  "Search Knowledge or My Documents...": "Tìm trong Knowledge hoặc My Documents...",
+  "Search case, linked cases or references...": "Tìm trong hồ sơ, hồ sơ liên kết hoặc tài liệu tham khảo...",
+  "No accessible Knowledge or My Documents files found": "Không tìm thấy tệp Knowledge hoặc My Documents nào bạn được truy cập",
+  "No accessible documents found": "Không tìm thấy tài liệu nào bạn được truy cập",
+  "Google Drive URL (optional)": "Google Drive URL (tùy chọn)",
+  "Note": "Ghi chú",
+  "Enter a note...": "Nhập ghi chú...",
+  "(No name yet)": "(Chưa có tên)",
+  "💾 Save": "💾 Lưu",
+  "✏️ Edit": "✏️ Chỉnh sửa",
+  "(None yet)": "(Chưa có)",
+  "Google Drive": "Google Drive",
+  "🔗 Open link": "🔗 Mở liên kết",
+  "Created date": "Ngày tạo",
+  "Created by": "Người tạo",
+  "👁 Preview": "👁 Xem trước",
+  "Task has not been assigned a lawyer": "Công việc chưa được phân công luật sư",
+  "Please enter the number of hours worked": "Vui lòng nhập số giờ làm",
+  "Hours must not exceed 24 hours": "Số giờ không được vượt quá 24",
+  "Please select the date/time worked": "Vui lòng chọn ngày/giờ làm",
+  "Invalid date/time": "Ngày/giờ không hợp lệ",
+  "✅ Updated": "✅ Đã cập nhật",
+  "✅ Timesheet saved": "✅ Đã lưu Timesheet",
+  "✏️ Update work hours": "✏️ Cập nhật giờ làm",
+  "⏱ Log work hours": "⏱ Ghi giờ làm",
+  "This work has not been assigned a lawyer": "Công việc này chưa được phân công luật sư",
+  "👨‍⚖️ Lawyer": "👨‍⚖️ Luật sư",
+  "📅 Date/time worked *": "📅 Ngày/giờ làm *",
+  "⏱ Hours worked *": "⏱ Số giờ làm *",
+  "e.g.: 2": "VD: 2",
+  "🕐 Expected end time": "🕐 Giờ kết thúc dự kiến",
+  "⏱ Total": "⏱ Tổng",
+  "⚡ Productivity:": "⚡ Năng suất:",
+  "💵 Rate / hour (₫)": "💵 Đơn giá / giờ (₫)",
+  "Rate/hour": "Đơn giá/giờ",
+  "📝 Work description": "📝 Mô tả công việc",
+  "Briefly describe the work performed...": "Mô tả ngắn gọn công việc đã làm...",
+  "Saving...": "Đang lưu...",
+  "+ Log hours": "+ Ghi giờ",
+  "Only the assignee or manager can view this.": "Chỉ người phụ trách hoặc quản lý mới xem được.",
+  "Deleted": "Đã xóa",
+  "Estimated: {0}": "Dự kiến: {0}",
+  "⚠ Not assigned": "⚠ Chưa phân công",
+  "＋ Add": "＋ Thêm",
+  "⏱ Total hours": "⏱ Tổng giờ",
+  "⚡ Productivity": "⚡ Năng suất",
+  "💰 Amount": "💰 Số tiền",
+  "No work hour entries yet": "Chưa có giờ làm nào",
+  "Assign a lawyer first": "Hãy phân công luật sư trước",
+  "🗑 Delete": "🗑 Xóa",
+  "N/A": "N/A",
+  "In charge: {0}": "Phụ trách: {0}",
+  "Not assigned": "Chưa phân công",
+  "Status: {0}": "Trạng thái: {0}",
+  "✅ Next step saved": "✅ Đã lưu bước tiếp theo",
+  "Save failed": "Lưu thất bại",
+  "(No next step yet)": "(Chưa có bước tiếp theo)",
+  "e.g.: Draft the LoA per the Detailed outline, send to client for review...": "VD: Soạn LoA theo dàn ý chi tiết, gửi khách hàng duyệt...",
+  "Unsaved": "Chưa lưu",
+  "✓ Saved": "✓ Đã lưu",
+  "✅ Saved": "✅ Đã lưu",
+  "(No content yet)": "(Chưa có nội dung)",
+  "Enter progress details...": "Nhập chi tiết tiến độ...",
+  "edited a comment": "đã chỉnh sửa bình luận",
+  "deleted a comment": "đã xóa bình luận",
+  "uploaded files": "đã tải lên tệp",
+  "commented": "đã bình luận",
+  "edited": "đã chỉnh sửa",
+  "deleted": "đã xóa bỏ",
+  "uploaded": "đã tải lên",
+  "acted": "đã thực hiện",
+  "Comment + {0} files": "Bình luận + {0} tệp",
+  "Comment + mentions": "Bình luận + nhắc tên",
+  "Mention": "Nhắc tên",
+  "replied to {0}:": "đã phản hồi {0}:",
+  "Comment content:": "Nội dung bình luận:",
+  "↓ changed to ↓": "↓ đổi thành ↓",
+  "(Note mentions someone)": "(Ghi chú có nhắc tên)",
+  "Attached file:": "Tệp đính kèm:",
+  "DOWNLOAD": "TẢI VỀ",
+  "created {0}": "đã tạo {0}",
+  "deleted {0}": "đã xóa {0}",
+  "updated {0}": "đã cập nhật {0}",
+  " {0} at ": " {0} lúc ",
+  "Value:": "Giá trị:",
+  "Edited the comment and its mentions": "Sửa nội dung bình luận và cập nhật người được nhắc",
+  "Edited the comment": "Sửa nội dung bình luận",
+  "Updated the comment's mentions": "Cập nhật người được nhắc trong bình luận",
+  "Deleted the comment": "Xóa bình luận",
+  "Replied to {0}'s comment": "Phản hồi bình luận của {0}",
+  "Uploaded {0} attached files": "Tải lên {0} tệp đính kèm",
+  "Uploaded an attached file": "Tải lên tệp đính kèm",
+  "Created a comment with related details": "Tạo bình luận kèm thông tin liên quan",
+  "Created a comment": "Tạo bình luận",
+  "Action:": "Hành động:",
+  "{0} at {1}": "{0} lúc {1}",
+  "updated [{0}]": "đã cập nhật [{0}]",
+  "deleted [{0}]": "đã xóa [{0}]",
+  "Activity history": "Lịch sử hoạt động",
+  "▲ Collapse (showing {0} of {1})": "▲ Thu gọn (đang hiện {0}/{1})",
+  "▼ View {0} more activities ({1} total)": "▼ Xem thêm {0} hoạt động (tổng {1})",
+  "Must complete \"{0}\" first": "Phải hoàn thành \"{0}\" trước",
+  "Backend error: Account has not been granted permission to edit this field!": "Lỗi máy chủ: tài khoản chưa được cấp quyền sửa trường này!",
+  "Priority updated": "Đã cập nhật ưu tiên",
+  "Backend error: No permission to update": "Lỗi máy chủ: không có quyền cập nhật",
+  "Task name updated": "Đã cập nhật tên công việc",
+  "Subtask title updated": "Đã cập nhật tiêu đề công việc con",
+  "Subtask detail": "Chi tiết công việc con",
+  "Estimated duration updated": "Đã cập nhật thời lượng dự kiến",
+  "Edit title": "Sửa tiêu đề",
+  "Subtask of: {0}": "Công việc con của: {0}",
+  "Task #{0}": "Công việc #{0}",
+  "Requires approval": "Cần duyệt",
+  "Overdue": "Quá hạn",
+  "Open subtask": "Mở công việc con",
+  "Show fewer subtasks": "Ẩn bớt công việc con",
+  "Show all subtasks": "Hiện tất cả công việc con",
+  "Show less": "Thu gọn",
+  "View {0} more...": "Xem thêm {0}...",
+  "Document saved to task": "Đã lưu tài liệu vào công việc",
+  "Fill variables & Generate — {0}": "Điền biến & Tạo tệp — {0}",
+  "Save to Documents": "Lưu vào Tài liệu",
+  "Generate & Preview": "Tạo tệp & Xem trước",
+  "Missing system data for: {0} — these variables will be left blank in the file.": "Thiếu dữ liệu hệ thống cho: {0} — các biến này sẽ để trống trong tệp.",
+  "Financial variables left blank because this case has no contract yet: {0}.": "Các biến tài chính để trống vì hồ sơ chưa có hợp đồng: {0}.",
+  "All variables are filled automatically from the system.": "Tất cả biến được điền tự động từ hệ thống.",
+  "No {{...}} variables found in the file.": "Không tìm thấy biến {{...}} nào trong tệp.",
+  "All variables in the file are already configured.": "Tất cả biến trong tệp đã được cấu hình.",
+  "Found {0} unconfigured variable(s): {1}. Please choose a data source for each variable below.": "Tìm thấy {0} biến chưa cấu hình: {1}. Vui lòng chọn nguồn dữ liệu cho từng biến bên dưới.",
+  "File scan failed: ": "Quét tệp thất bại: ",
+  "Variable configuration saved": "Đã lưu cấu hình biến",
+  "Save failed: ": "Lưu thất bại: ",
+  "Configure variables — {0}": "Cấu hình biến — {0}",
+  "Mode:": "Chế độ:",
+  "Inherit from Task Template": "Kế thừa từ mẫu công việc",
+  "Customize for this task": "Tùy chỉnh cho công việc này",
+  "Inheriting configuration from Task Template (read-only) — switch to \"Customize\" to edit it for this task only.": "Đang kế thừa cấu hình từ mẫu công việc (chỉ đọc) — chuyển sang \"Tùy chỉnh\" để sửa riêng cho công việc này.",
+  "Financial fields (quotation amounts, invoice, payment) are unavailable until this case has a contract.": "Các trường tài chính (số tiền báo giá, hóa đơn, thanh toán) chưa dùng được khi hồ sơ chưa có hợp đồng.",
+  "No variables yet": "Chưa có biến nào",
+  "Variable name (e.g. customer_name)": "Tên biến (VD: customer_name)",
+  "Manual input": "Nhập tay",
+  "Select a system field": "Chọn trường hệ thống",
+  "Financial field (hidden — no contract)": "Trường tài chính (ẩn — chưa có hợp đồng)",
+  "Label shown for manual input": "Nhãn hiển thị khi nhập tay",
+  "+ Add variable": "+ Thêm biến",
+  "Scan file for variables": "Quét biến trong tệp",
+  "No attached files yet.": "Chưa có tệp đính kèm nào.",
+  "Configure variables": "Cấu hình biến",
+  "Fill variables & Generate": "Điền biến & Tạo tệp",
+  "Attachments ": "Tệp đính kèm ",
+  "({0} folders - {1} documents)": "({0} thư mục - {1} tài liệu)",
+  "Folders": "Thư mục",
+  "No folders.": "Không có thư mục nào.",
+  "Move folder to Legal Study": "Chuyển thư mục sang Reference",
+  "Move folder to Legal Reference": "Chuyển thư mục sang Legal Reference",
+  "{0} documents": "{0} tài liệu",
+  "This folder has no documents.": "Thư mục này không có tài liệu nào.",
+  "No attached documents.": "Không có tài liệu đính kèm.",
+  "Log Timesheet": "Ghi Timesheet",
+  "＋ Create subtask": "＋ Tạo công việc con",
+  "💳 Create payment request": "💳 Tạo yêu cầu thanh toán",
+  "General information": "Thông tin chung",
+  "Linked case": "Hồ sơ liên kết",
+  "View case details": "Xem chi tiết hồ sơ",
+  "Linked internal work": "Internal Work liên kết",
+  "View internal project": "Xem dự án nội bộ",
+  "Status": "Trạng thái",
+  "Number of hours...": "Số giờ...",
+  "Not required": "Không bắt buộc",
+  "Select...": "Chọn...",
+  "Time worked": "Thời gian làm",
+  "Time updated": "Đã cập nhật thời gian",
+  "Error: Unable to update": "Lỗi: không thể cập nhật",
+  "Work description": "Mô tả công việc",
+  "Dependent task (Pending Issue)": "Công việc phụ thuộc (Vấn đề tồn đọng)",
+  "Retainer billing is fully automatic, on its own schedule — no task drives it.": "Retainer thu tiền hoàn toàn tự động theo lịch riêng — không công việc nào kích hoạt.",
+  "Not applicable — Retainer billing runs automatically on its own schedule.": "Không áp dụng — Retainer tự động thu tiền theo lịch riêng.",
+  "Loading payment settings…": "Đang tải thiết lập thanh toán…",
+  "The contract bills per combo / standalone service item.": "Hợp đồng thu tiền theo từng mục combo / dịch vụ lẻ.",
+  "Not billed — this service isn't part of any Payment Request item of the contract.": "Không thu tiền — dịch vụ này không thuộc mục yêu cầu thanh toán nào của hợp đồng.",
+  "This task is a payment condition": "Công việc này là điều kiện thanh toán",
+  "Select the payment to activate when Done...": "Chọn khoản thanh toán sẽ kích hoạt khi Hoàn thành...",
+  "Select the payment installment to activate when Done...": "Chọn đợt thanh toán sẽ kích hoạt khi Hoàn thành...",
+  "Installment {0}": "Đợt thanh toán {0}",
+  "This task is not linked to any service — ticking this has no effect until the task is linked to a service.": "Công việc chưa gắn dịch vụ nào — tích chọn chưa có tác dụng cho đến khi công việc được gắn dịch vụ.",
+  "Next step": "Bước tiếp theo",
+  "Comments & Reports ({0})": "Bình luận & Báo cáo ({0})",
+  "Search comments...": "Tìm bình luận...",
+  "List": "Danh sách",
+  "Tree": "Cây",
+  "Newest": "Mới nhất",
+  "Oldest": "Cũ nhất",
+  "Manage Timesheet": "Quản lý Timesheet",
+  "Please enter a task name": "Vui lòng nhập tên công việc",
+  "✅ Task created": "✅ Đã tạo công việc",
+  "Creation failed": "Tạo thất bại",
+  "📋 Create new task": "📋 Tạo công việc mới",
+  "Task name *": "Tên công việc *",
+  "Enter task name...": "Nhập tên công việc...",
+  "👨‍⚖️ Assigned lawyer": "👨‍⚖️ Luật sư phụ trách",
+  "-- Assign --": "-- Phân công --",
+  "🗂 Service": "🗂 Dịch vụ",
+  "⚠ No service yet": "⚠ Chưa có dịch vụ",
+  "-- Select service --": "-- Chọn dịch vụ --",
+  "📅 Start date": "📅 Ngày bắt đầu",
+  "🏁 Deadline": "🏁 Hạn",
+  "⏱ Estimated duration (hours)": "⏱ Thời lượng dự kiến (giờ)",
+  "⛓ Pending Issue (optional)": "⛓ Vấn đề tồn đọng (tùy chọn)",
+  "✓ Done": "✓ Xong",
+  "⏸ New task → \"Blocked\"": "⏸ Công việc mới → \"Bị chặn\"",
+  "⚡ Priority": "⚡ Ưu tiên",
+  "🔐 Requires approval": "🔐 Cần duyệt",
+  "🔐 On — requires approval": "🔐 Bật — cần duyệt",
+  "Requires approval before completion": "Cần duyệt trước khi hoàn thành",
+  "👤 Approver": "👤 Người duyệt",
+  "Select an approver...": "Chọn người duyệt...",
+  "📝 Progress details": "📝 Chi tiết tiến độ",
+  "Progress details...": "Chi tiết tiến độ...",
+  "👣 Next Step": "👣 Bước tiếp theo",
+  "Next step after completion...": "Bước tiếp theo sau khi hoàn thành...",
+  "Please enter a subtask name": "Vui lòng nhập tên công việc con",
+  "✅ Subtask created": "✅ Đã tạo công việc con",
+  "📋 New subtask": "📋 Công việc con mới",
+  "Subtask name *": "Tên công việc con *",
+  "📝 Detailed description": "📝 Mô tả chi tiết",
+  "Detailed description of the subtask...": "Mô tả chi tiết công việc con...",
+  "Error loading data: ": "Lỗi tải dữ liệu: ",
+  "Task not found": "Không tìm thấy công việc",
+  "👤 Updated by: ": "👤 Cập nhật bởi: ",
+  "👤 Attached by: ": "👤 Đính kèm bởi: ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React } = ctx;
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
     const {
       Spin,
@@ -42,10 +613,10 @@
     const PROJECT_INTERNAL_MODULE_SCOPE = "project_internal";
     const LEGAL_STUDY_MODULE_SCOPE = "legal_study";
     const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
-    const LEGAL_STUDY_LABEL = "Reference";
+    const LEGAL_STUDY_LABEL = tr("Reference");
     const LEGAL_REFERENCE_MODULE_SCOPE = "legal_reference";
     const LEGAL_REFERENCE_STORAGE_TYPE = "legal_reference";
-    const LEGAL_REFERENCE_LABEL = "Legal Reference";
+    const LEGAL_REFERENCE_LABEL = tr("Legal Reference");
     const MY_DOCUMENT_STORAGE_TYPE = "personal";
     const KNOWLEDGE_STORAGE_TYPE = "knowledge";
     const LIBRARY_DESTINATION = {
@@ -87,7 +658,7 @@
       // No "parent record" picker step — the parent is always the current
       // case (sourceContext.caseId). Only the folder-tree picker applies.
       [LIBRARY_DESTINATION.CASE_DOCUMENT]: {
-        label: "Document",
+        label: tr("Document"),
         moduleScope: CASE_DOCUMENT_SCOPE,
         storageType: "cases",
         relationField: "folderId",
@@ -100,7 +671,7 @@
       // tree lists every Knowledge folder directly and internalCompanyId is
       // inherited from whichever folder gets picked (see LibraryMoveModal).
       [LIBRARY_DESTINATION.KNOWLEDGE]: {
-        label: "Library",
+        label: tr("Library"),
         moduleScope: "knowledge",
         storageType: "knowledge",
         relationField: "folderId",
@@ -110,7 +681,7 @@
       // always the current Internal Work item (sourceContext.projectInternalId).
       // Matches ProjectDocument.js's own DASHBOARD_CONFIG scope for this space.
       [LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT]: {
-        label: "Internal Work Document",
+        label: tr("Internal Work Document"),
         moduleScope: PROJECT_INTERNAL_MODULE_SCOPE,
         storageType: "project_internal",
         relationField: "folderId",
@@ -123,7 +694,7 @@
       // moduleScope filter there either, since Customer folders share
       // moduleScope with Case folders — see fetchCustomerDocumentFolders).
       [LIBRARY_DESTINATION.CUSTOMER_DOCUMENT]: {
-        label: "Customer",
+        label: tr("Customer"),
         // Matches CustomerDocument.js's own DASHBOARD_CONFIG.moduleScope —
         // Customer folders/documents are written under the same scope Case
         // folders use; only folders.customerId actually distinguishes them
@@ -272,43 +843,43 @@
 
     const STATUS_CFG = {
       toDo: {
-        label: "Not Start",
+        label: tr("Not Start"),
         color: "#595959",
         bg: "#f5f5f5",
         border: "#d9d9d9",
       },
       inProgress: {
-        label: "In Progress",
+        label: tr("In Progress"),
         color: "#1890ff",
         bg: "#e6f4ff",
         border: "#91caff",
       },
       blocked: {
-        label: "Blocked",
+        label: tr("Blocked"),
         color: "#722ed1",
         bg: "#f9f0ff",
         border: "#d3adf7",
       },
       pending: {
-        label: "Pending approval",
+        label: tr("Pending approval"),
         color: "#d46b08",
         bg: "#fff7e6",
         border: "#ffd591",
       },
       approval: {
-        label: "Approved",
+        label: tr("Approved"),
         color: "#389e0d",
         bg: "#f6ffed",
         border: "#b7eb8f",
       },
       done: {
-        label: "Done",
+        label: tr("Done"),
         color: "#389e0d",
         bg: "#f6ffed",
         border: "#b7eb8f",
       },
       cancelled: {
-        label: "Cancelled",
+        label: tr("Cancelled"),
         color: "#cf1322",
         bg: "#fff1f0",
         border: "#ffa39e",
@@ -316,36 +887,36 @@
     };
 
     const FIELD_LABEL = {
-      title: "Title",
+      title: tr("Title"),
       status: "Status",
-      priority: "Priority",
-      lawyerId: "Lawyer",
-      dueDate: "Deadline",
-      startDate: "Start date",
-      closedDate: "Completion date",
-      description: "Progress details",
-      body: "Note content",
-      estimatedDuration: "Estimated duration",
-      previousTaskId: "Pending Issue",
-      nextStepDescription: "Next Step",
-      approvedById: "Approver",
-      approvedAt: "Approval assigned date",
-      acceptedAt: "Approval date",
-      isRequiredApproval: "Approval required",
-      notes: "Comments",
-      documents: "Documents",
-      isDeleted: "Deleted status",
-      assignedLawyerId: "Assignee",
+      priority: tr("Priority"),
+      lawyerId: tr("Lawyer"),
+      dueDate: tr("Deadline"),
+      startDate: tr("Start date"),
+      closedDate: tr("Completion date"),
+      description: tr("Progress details"),
+      body: tr("Note content"),
+      estimatedDuration: tr("Estimated duration"),
+      previousTaskId: tr("Pending Issue"),
+      nextStepDescription: tr("Next Step"),
+      approvedById: tr("Approver"),
+      approvedAt: tr("Approval assigned date"),
+      acceptedAt: tr("Approval date"),
+      isRequiredApproval: tr("Approval required"),
+      notes: tr("Comments"),
+      documents: tr("Documents"),
+      isDeleted: tr("Deleted status"),
+      assignedLawyerId: tr("Assignee"),
     };
 
     const ACTIVITY_FIELD_LABELS = {
-      notes: "Notes",
-      body: "Content",
-      documents: "Documents",
-      title: "Title",
+      notes: tr("Notes"),
+      body: tr("Content"),
+      documents: tr("Documents"),
+      title: tr("Title"),
       status: "Status",
-      assignedLawyerId: "Assignee",
-      assignees: "Assignees",
+      assignedLawyerId: tr("Assignee"),
+      assignees: tr("Assignees"),
     };
 
     const tF = (f) => FIELD_LABEL[f] || f;
@@ -368,9 +939,9 @@
     const getStatusKeys = (isRequiredApproval) =>
       isRequiredApproval ? STATUS_KEYS_WITH_APPROVAL : STATUS_KEYS_WITHOUT_APPROVAL;
     const PRIORITY_CFG = {
-      high: { label: "High", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-      medium: { label: "Medium", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-      low: { label: "Low", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+      high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+      medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+      low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
     };
 
     const LAWYER_COLORS = [
@@ -384,10 +955,10 @@
       "#003a8c",
     ];
     const LAWYER_TYPE_CFG = {
-      partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
-      lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
-      associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
-      suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
+      partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+      lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+      associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+      suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
     };
 
     const DOC_TYPE_SUGGESTIONS = [
@@ -785,7 +1356,8 @@
       extractId(ctx.record?.projectId);
 
     const getCurrentPathUrl = () =>
-      `${window.location.origin}${window.location.pathname}${window.location.search || ""}`;
+      // location.search is blocked in the RunJS sandbox.
+      `${window.location.origin}${window.location.pathname}`;
 
     const buildTaskLinkedUrl = (item, type = "task", fallbackCaseId = null) => {
       const taskId =
@@ -881,10 +1453,10 @@
     const timeAgo = (iso) => {
       if (!iso) return "";
       const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-      if (diff < 60) return "just now";
-      if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
-      if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
+      if (diff < 60) return tr("just now");
+      if (diff < 3600) return tr("{0} minutes ago", { 0: Math.floor(diff / 60) });
+      if (diff < 86400) return tr("{0} hours ago", { 0: Math.floor(diff / 3600) });
+      if (diff < 604800) return tr("{0} days ago", { 0: Math.floor(diff / 86400) });
       return fmt(iso, "date");
     };
 
@@ -929,7 +1501,7 @@
         return;
       }
       const hideLoading = message.loading(
-        `Preparing ${list.length} files...`,
+        tr("Preparing {0} files...", { 0: list.length }),
         0,
       );
       try {
@@ -982,7 +1554,7 @@
         }
         if (fetched === 0) {
           message.error(
-            "Could not fetch any of the selected files — see console for details.",
+            tr("Could not fetch any of the selected files — see console for details."),
           );
           return;
         }
@@ -1000,12 +1572,12 @@
         });
         if (fetched < list.length) {
           message.warning(
-            `${zipName}: ${fetched}/${list.length} files included — the rest couldn't be fetched (see console).`,
+            tr("{0}: {1}/{2} files included — the rest couldn't be fetched (see console).", { 0: zipName, 1: fetched, 2: list.length }),
           );
         }
       } catch (e) {
         console.error("[downloadFilesAsZip] failed", e);
-        message.error("Could not build the zip — see console for details.");
+        message.error(tr("Could not build the zip — see console for details."));
       } finally {
         hideLoading();
       }
@@ -1227,16 +1799,16 @@
     const formatActivityValue = (val) => {
       if (!val) return val;
       const statusMap = {
-        toDo: "Not started",
-        inProgress: "In progress",
-        blocked: "Waiting",
-        pending: "Pending approval",
-        approval: "Approved",
-        done: "Done",
-        cancelled: "Cancelled",
+        toDo: tr("Not started"),
+        inProgress: tr("In progress"),
+        blocked: tr("Waiting"),
+        pending: tr("Pending approval"),
+        approval: tr("Approved"),
+        done: tr("Done"),
+        cancelled: tr("Cancelled"),
       };
       if (statusMap[val]) return statusMap[val];
-      const priorityMap = { high: "High", medium: "Medium", low: "Low" };
+      const priorityMap = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
       if (priorityMap[val]) return priorityMap[val];
       if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
         try {
@@ -1256,12 +1828,12 @@
       if (rate === null || rate === undefined)
         return { label: "—", color: "#8c8c8c", bg: "#f5f5f5" };
       if (rate >= 120)
-        return { label: `${rate}% Excellent`, color: "#389e0d", bg: "#f6ffed" };
+        return { label: tr("{0}% Excellent", { 0: rate }), color: "#389e0d", bg: "#f6ffed" };
       if (rate >= 90)
-        return { label: `${rate}% On track`, color: "#096dd9", bg: "#e6f4ff" };
+        return { label: tr("{0}% On track", { 0: rate }), color: "#096dd9", bg: "#e6f4ff" };
       if (rate >= 70)
-        return { label: `${rate}% Slow`, color: "#d46b08", bg: "#fff7e6" };
-      return { label: `${rate}% Poor`, color: "#cf1322", bg: "#fff1f0" };
+        return { label: tr("{0}% Slow", { 0: rate }), color: "#d46b08", bg: "#fff7e6" };
+      return { label: tr("{0}% Poor", { 0: rate }), color: "#cf1322", bg: "#fff1f0" };
     };
 
     // ============================================================
@@ -1279,95 +1851,95 @@
     // changes.
     const VARIABLE_CATALOG = {
       case: {
-        label: "Vụ việc",
+        label: tr("Case"),
         fields: [
-          { key: "case.caseCode", label: "Số vụ việc", format: "text" },
-          { key: "case.projectName", label: "Tên vụ việc", format: "text" },
-          { key: "case.date", label: "Ngày mở vụ việc", format: "date" },
-          { key: "case.deadline", label: "Hạn vụ việc", format: "date" },
+          { key: "case.caseCode", label: tr("Case code"), format: "text" },
+          { key: "case.projectName", label: tr("Case name"), format: "text" },
+          { key: "case.date", label: tr("Case opening date"), format: "date" },
+          { key: "case.deadline", label: tr("Case deadline"), format: "date" },
         ],
       },
       customer: {
-        label: "Khách hàng",
+        label: tr("Customer"),
         fields: [
-          { key: "customer.fullName", label: "Tên đầy đủ khách hàng", format: "text" },
-          { key: "customer.shortName", label: "Tên ngắn khách hàng", format: "text" },
-          { key: "customer.address", label: "Địa chỉ", format: "text" },
-          { key: "customer.phone", label: "Số điện thoại", format: "text" },
-          { key: "customer.taxCode", label: "Mã số thuế", format: "text" },
-          { key: "customer.identityNumber", label: "Số CCCD/CMND", format: "text" },
-          { key: "customer.identityIssuedDate", label: "Ngày cấp CCCD/CMND", format: "date" },
-          { key: "customer.identityIssuedPlace", label: "Nơi cấp CCCD/CMND", format: "text" },
-          { key: "customer.corporateRepresentative", label: "Người đại diện pháp luật", format: "text" },
+          { key: "customer.fullName", label: tr("Customer full name"), format: "text" },
+          { key: "customer.shortName", label: tr("Customer short name"), format: "text" },
+          { key: "customer.address", label: tr("Address"), format: "text" },
+          { key: "customer.phone", label: tr("Phone number"), format: "text" },
+          { key: "customer.taxCode", label: tr("Tax code"), format: "text" },
+          { key: "customer.identityNumber", label: tr("ID card number"), format: "text" },
+          { key: "customer.identityIssuedDate", label: tr("ID card issue date"), format: "date" },
+          { key: "customer.identityIssuedPlace", label: tr("ID card issue place"), format: "text" },
+          { key: "customer.corporateRepresentative", label: tr("Legal representative"), format: "text" },
         ],
       },
       quotation: {
-        label: "Báo giá",
+        label: tr("Quotation"),
         fields: [
-          { key: "quotation.quotationNumber", label: "Số báo giá", format: "text" },
-          { key: "quotation.status", label: "Trạng thái báo giá", format: "text" },
-          { key: "quotation.description", label: "Mô tả báo giá", format: "text" },
-          { key: "quotation.subTotal", label: "Tổng trước VAT", format: "currency" },
-          { key: "quotation.vatAmount", label: "Tổng VAT", format: "currency" },
-          { key: "quotation.totalAmount", label: "Tổng sau VAT", format: "currency" },
+          { key: "quotation.quotationNumber", label: tr("Quotation number"), format: "text" },
+          { key: "quotation.status", label: tr("Quotation status"), format: "text" },
+          { key: "quotation.description", label: tr("Quotation description"), format: "text" },
+          { key: "quotation.subTotal", label: tr("Subtotal (before VAT)"), format: "currency" },
+          { key: "quotation.vatAmount", label: tr("VAT amount"), format: "currency" },
+          { key: "quotation.totalAmount", label: tr("Total (after VAT)"), format: "currency" },
           // Computed below in fetchGenerateContext as vatAmount > 0.
-          { key: "quotation.isTaxed", label: "Có tính VAT", format: "boolean" },
+          { key: "quotation.isTaxed", label: tr("VAT applied"), format: "boolean" },
         ],
       },
       contract: {
-        label: "Hợp đồng",
+        label: tr("Contract"),
         fields: [
-          { key: "contract.contractCode", label: "Số hợp đồng", format: "text" },
-          { key: "contract.language", label: "Ngôn ngữ hợp đồng", format: "text" },
-          { key: "contract.status", label: "Trạng thái hợp đồng", format: "text" },
-          { key: "contract.executedAt", label: "Ngày hiệu lực hợp đồng", format: "date" },
+          { key: "contract.contractCode", label: tr("Contract number"), format: "text" },
+          { key: "contract.language", label: tr("Contract language"), format: "text" },
+          { key: "contract.status", label: tr("Contract status"), format: "text" },
+          { key: "contract.executedAt", label: tr("Contract effective date"), format: "date" },
         ],
       },
       invoice: {
-        label: "Hoá đơn",
+        label: tr("Invoice"),
         fields: [
-          { key: "invoice.invoiceNumber", label: "Số hoá đơn", format: "text" },
-          { key: "invoice.issuedDate", label: "Ngày phát hành hoá đơn", format: "date" },
-          { key: "invoice.deadline", label: "Hạn thanh toán hoá đơn", format: "date" },
-          { key: "invoice.totalAmount", label: "Tổng tiền hoá đơn", format: "currency" },
-          { key: "invoice.amountPaid", label: "Đã thanh toán", format: "currency" },
-          { key: "invoice.outStandingAmount", label: "Còn lại phải thu", format: "currency" },
-          { key: "invoice.status", label: "Trạng thái hoá đơn", format: "text" },
+          { key: "invoice.invoiceNumber", label: tr("Invoice number"), format: "text" },
+          { key: "invoice.issuedDate", label: tr("Invoice issue date"), format: "date" },
+          { key: "invoice.deadline", label: tr("Invoice due date"), format: "date" },
+          { key: "invoice.totalAmount", label: tr("Invoice total"), format: "currency" },
+          { key: "invoice.amountPaid", label: tr("Amount paid"), format: "currency" },
+          { key: "invoice.outStandingAmount", label: tr("Outstanding balance"), format: "currency" },
+          { key: "invoice.status", label: tr("Invoice status"), format: "text" },
         ],
       },
       payment: {
-        label: "Thanh toán",
+        label: tr("Payment"),
         fields: [
-          { key: "payment.paymentNumber", label: "Số phiếu thanh toán", format: "text" },
-          { key: "payment.paymentDate", label: "Ngày thanh toán", format: "date" },
-          { key: "payment.amount", label: "Số tiền đã thanh toán", format: "currency" },
-          { key: "payment.paymentMethod", label: "Hình thức thanh toán", format: "text" },
-          { key: "payment.paymentStatus", label: "Trạng thái thanh toán", format: "text" },
+          { key: "payment.paymentNumber", label: tr("Payment number"), format: "text" },
+          { key: "payment.paymentDate", label: tr("Payment date"), format: "date" },
+          { key: "payment.amount", label: tr("Amount paid"), format: "currency" },
+          { key: "payment.paymentMethod", label: tr("Payment method"), format: "text" },
+          { key: "payment.paymentStatus", label: tr("Payment status"), format: "text" },
         ],
       },
       task: {
-        label: "Công việc",
+        label: tr("Task"),
         fields: [
-          { key: "task.title", label: "Tên công việc", format: "text" },
-          { key: "task.startDate", label: "Ngày bắt đầu", format: "date" },
-          { key: "task.dueDate", label: "Hạn công việc", format: "date" },
-          { key: "task.description", label: "Nội dung diễn biến", format: "text" },
+          { key: "task.title", label: tr("Task name"), format: "text" },
+          { key: "task.startDate", label: tr("Start date"), format: "date" },
+          { key: "task.dueDate", label: tr("Task due date"), format: "date" },
+          { key: "task.description", label: tr("Progress details"), format: "text" },
         ],
       },
       user: {
-        label: "Người dùng",
+        label: tr("User"),
         fields: [
-          { key: "user.nickname", label: "Tên luật sư (nickname)", format: "text" },
-          { key: "user.username", label: "Tên đăng nhập", format: "text" },
+          { key: "user.nickname", label: tr("Lawyer name (nickname)"), format: "text" },
+          { key: "user.username", label: tr("Username"), format: "text" },
         ],
       },
       date: {
-        label: "Ngày tháng",
+        label: tr("Date"),
         fields: [
-          { key: "date.today", label: "Ngày hiện tại", format: "date" },
-          { key: "date.day", label: "Ngày (dd)", format: "text" },
-          { key: "date.month", label: "Tháng (mm)", format: "text" },
-          { key: "date.year", label: "Năm (yyyy)", format: "text" },
+          { key: "date.today", label: tr("Today's date"), format: "date" },
+          { key: "date.day", label: tr("Day (dd)"), format: "text" },
+          { key: "date.month", label: tr("Month (mm)"), format: "text" },
+          { key: "date.year", label: tr("Year (yyyy)"), format: "text" },
         ],
       },
     };
@@ -1376,6 +1948,18 @@
       const groupKey = String(sourceKey || "").split(".")[0];
       const group = VARIABLE_CATALOG[groupKey];
       return group?.fields.find((f) => f.key === sourceKey) || null;
+    }
+
+    // Financial variables — every invoice/payment field, plus any money
+    // amount or VAT flag elsewhere (quotation totals). A case with no
+    // contract linked yet must not expose any of these: they're dropped
+    // from the config dropdown and blanked out of the Generate context.
+    const FINANCE_VARIABLE_GROUPS = ["invoice", "payment"];
+    function isFinanceVariableKey(sourceKey) {
+      const groupKey = String(sourceKey || "").split(".")[0];
+      if (FINANCE_VARIABLE_GROUPS.includes(groupKey)) return true;
+      const field = getVariableCatalogField(sourceKey);
+      return field?.format === "currency" || sourceKey === "quotation.isTaxed";
     }
 
     // Flat "group — field" option list for the system-field dropdown in
@@ -1387,6 +1971,9 @@
           value: f.key,
           label: `${group.label} — ${f.label}`,
         })),
+    );
+    const VARIABLE_SYSTEM_FIELD_OPTIONS_NO_FINANCE = VARIABLE_SYSTEM_FIELD_OPTIONS.filter(
+      (opt) => !isFinanceVariableKey(opt.value),
     );
 
     // A document's effective variable list: "custom" reads its own variableConfig; "inherited"
@@ -1468,8 +2055,18 @@
       // "quotation.isTaxed" catalog entry has something to resolve.
       if (quotation) quotation.isTaxed = Number(quotation.vatAmount) > 0;
 
+      // No contract linked yet → no financial data at all (see
+      // isFinanceVariableKey). Checked before the invoice lookup below, which
+      // would otherwise still find an invoice via quotationId alone.
+      const financeHidden = !project?.contractId;
+      if (quotation && financeHidden) {
+        VARIABLE_CATALOG.quotation.fields.forEach((f) => {
+          if (isFinanceVariableKey(f.key)) delete quotation[f.key.split(".")[1]];
+        });
+      }
+
       let invoice = null;
-      if (project?.contractId || project?.quotationId) {
+      if (!financeHidden && (project?.contractId || project?.quotationId)) {
         const filterOr = [];
         if (project.contractId) filterOr.push({ contractId: { $eq: project.contractId } });
         if (project.quotationId) filterOr.push({ quotationId: { $eq: project.quotationId } });
@@ -1505,6 +2102,7 @@
       const now = new Date();
 
       return {
+        financeHidden,
         case: project || {},
         customer: project?.customer || {},
         quotation: quotation || {},
@@ -1532,9 +2130,18 @@
       const resolved = {};
       const missing = [];
       const manualDefs = [];
+      // Financial variables blanked because the case has no contract yet —
+      // reported separately from `missing` (the data isn't absent, it's
+      // withheld on purpose).
+      const financeHiddenKeys = [];
       (variableConfig || []).forEach((def) => {
         if (def.source === "manual") {
           manualDefs.push(def);
+          return;
+        }
+        if (context?.financeHidden && isFinanceVariableKey(def.sourceKey)) {
+          financeHiddenKeys.push(def.key);
+          resolved[def.key] = " ____ ";
           return;
         }
         const catalogField = getVariableCatalogField(def.sourceKey);
@@ -1543,7 +2150,7 @@
         if (!formatted) missing.push(def.key);
         resolved[def.key] = formatted || " ____ ";
       });
-      return { resolved, missing, manualDefs };
+      return { resolved, missing, manualDefs, financeHiddenKeys };
     }
 
     // Fetches the task's own attached .docx (never the projectTemplates source file — see this
@@ -1557,7 +2164,7 @@
 
       const attachmentObj = doc?.fileAttachment;
       const sourceUrl = Array.isArray(attachmentObj) ? attachmentObj[0]?.url : attachmentObj?.url;
-      if (!sourceUrl) throw new Error("Tài liệu này chưa có file đính kèm.");
+      if (!sourceUrl) throw new Error(tr("This document has no attached file."));
 
       const response = await ctx.api.request({
         url: sourceUrl,
@@ -1599,7 +2206,7 @@
 
       const attachmentObj = doc?.fileAttachment;
       const sourceUrl = Array.isArray(attachmentObj) ? attachmentObj[0]?.url : attachmentObj?.url;
-      if (!sourceUrl) throw new Error("Tài liệu này chưa có file đính kèm.");
+      if (!sourceUrl) throw new Error(tr("This document has no attached file."));
 
       const response = await ctx.api.request({
         url: sourceUrl,
@@ -1629,7 +2236,7 @@
     // generic message. Duplicated here rather than shared, per this repo's single-file
     // constraint.
     function showGenerateError(error) {
-      let errorMsg = error?.message || "Unknown error";
+      let errorMsg = error?.message || tr("Unknown error");
       let errorDetails = "";
       if (error?.properties?.errors) {
         errorDetails = error.properties.errors
@@ -1637,7 +2244,7 @@
           .join("\n\n");
       }
       Modal.error({
-        title: "Generate thất bại",
+        title: tr("Generate failed"),
         content: React.createElement(
           "div",
           { style: { whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 400, overflowY: "auto", fontSize: 13 } },
@@ -1655,6 +2262,24 @@
     async function apiReq(url, method, data) {
       return ctx.api.request({ url, method: method || "POST", data });
     }
+    // ---- by-case one-time contract check (pure; tested by scripts/tests/task-trigger-visibility.test.js) ----
+    // By Case + One time (billingCycle not "multiple_payments") bills through
+    // a single payment that waits for the Case to be Done — or, once tasks are
+    // linked to it, for ALL of them (by_case_one_time_sync_trigger_mode,
+    // 2026-09-29). Its tasks get the installment Select, offering that payment.
+    const isByCaseOneTimeContract = (contract) =>
+      contract?.contractType === "byCase" &&
+      String(contract?.billingCycle || "one_time") !== "multiple_payments";
+    // Requests loaded for the Select; a One time payment with no task linked
+    // yet is still "on_case_done".
+    const LINKABLE_TRIGGER_TYPES = ["on_task_done", "on_case_done"];
+    const linkableTriggerRequests = (prs, contract) => {
+      const oneTime = isByCaseOneTimeContract(contract);
+      return (prs || []).filter(
+        (pr) => pr?.triggerType === "on_task_done" || (oneTime && pr?.triggerType === "on_case_done"),
+      );
+    };
+    // ---- end by-case one-time contract check ----
     async function fetchAll(url, fields, filter) {
       try {
         const params = { pageSize: 500, page: 1 };
@@ -2193,7 +2818,7 @@
         data: formData,
       });
       const attachment = uploadRes?.data?.data;
-      if (!attachment?.id) throw new Error("Upload file failed");
+      if (!attachment?.id) throw new Error(tr("Upload file failed"));
       return attachment;
     }
 
@@ -2417,7 +3042,7 @@
       while (currentId && folderLookup[String(currentId)] && !seen.has(String(currentId))) {
         seen.add(String(currentId));
         const folder = folderLookup[String(currentId)];
-        parts.unshift(folder.name || folder.title || `Folder #${currentId}`);
+        parts.unshift(folder.name || folder.title || tr("Folder #{0}", { 0: currentId }));
         currentId = extractId(folder.parentId);
       }
       return parts;
@@ -2513,18 +3138,18 @@
       if (isLinkedToLegalStudy(record)) {
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
-          prefix: "Moved to",
+          prefix: tr("Moved to"),
           value: "Legal Study",
-          tooltip: "Moved to Legal Study",
+          tooltip: tr("Moved to Legal Study"),
           accent: "#9254de",
         };
       }
       if (isLinkedToLegalReference(record)) {
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-          prefix: "Moved to",
+          prefix: tr("Moved to"),
           value: "Legal Reference",
-          tooltip: "Moved to Legal Reference",
+          tooltip: tr("Moved to Legal Reference"),
           accent: "#36cfc9",
         };
       }
@@ -2532,14 +3157,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Document:",
+          prefix: tr("Moved to Document:"),
           value: folderName,
-          tooltip: `Moved to Document / ${fullPath}`,
+          tooltip: tr("Moved to Document / {0}", { 0: fullPath }),
           accent: "#4096ff",
         };
       }
@@ -2551,7 +3176,7 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
@@ -2559,9 +3184,9 @@
           // not a fixed category placeholder like "Legal Study"/"Legal
           // Reference" — use the folder icon so it reads the same way.
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Library:",
+          prefix: tr("Moved to Library:"),
           value: folderName,
-          tooltip: `Moved to Library / ${fullPath}`,
+          tooltip: tr("Moved to Library / {0}", { 0: fullPath }),
           accent: "#fa8c16",
         };
       }
@@ -2569,14 +3194,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Internal Work:",
+          prefix: tr("Moved to Internal Work:"),
           value: folderName,
-          tooltip: `Moved to Internal Work's Document / ${fullPath}`,
+          tooltip: tr("Moved to Internal Work's Document / {0}", { 0: fullPath }),
           accent: "#4096ff",
         };
       }
@@ -2584,14 +3209,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-          prefix: "Moved to Customer:",
+          prefix: tr("Moved to Customer:"),
           value: folderName,
-          tooltip: `Moved to Customer / ${fullPath}`,
+          tooltip: tr("Moved to Customer / {0}", { 0: fullPath }),
           accent: "#36cfc9",
         };
       }
@@ -2745,7 +3370,7 @@
       folders.forEach((folder) => {
         const id = extractId(folder.id || folder);
         if (!id) return;
-        const folderTitle = folder.name || folder.title || `Folder #${id}`;
+        const folderTitle = folder.name || folder.title || tr("Folder #{0}", { 0: id });
         nodeMap[String(id)] = {
           title: renderLibraryTreeTitle(folderTitle),
           searchText: folderTitle,
@@ -3670,7 +4295,7 @@
       document?.documentCode ||
       attachment?.title ||
       attachment?.filename ||
-      `Document #${extractId(document) || ""}`;
+      tr("Document #{0}", { 0: extractId(document) || "" });
 
     const getLibraryDocumentExtension = (document, attachment) => {
       const explicitExtension = String(attachment?.extname || "").trim();
@@ -3903,7 +4528,7 @@
         );
         sortedFolders.forEach((folder) => {
           const folderId = extractId(folder);
-          const folderTitle = folder?.name || folder?.title || `Folder #${folderId}`;
+          const folderTitle = folder?.name || folder?.title || tr("Folder #{0}", { 0: folderId });
           nodeMap.set(String(folderId), {
             title: renderLibraryTreeTitle(folderTitle),
             searchText: folderTitle,
@@ -3969,7 +4594,7 @@
 
         const children = [...rootDocuments, ...pruneEmptyFolderNodes(flattenedRoots)];
         if (directShareDocuments.length > 0) {
-          const sharedTitle = "Shared directly";
+          const sharedTitle = tr("Shared directly");
           children.push({
             title: renderLibraryTreeTitle(sharedTitle),
             searchText: sharedTitle,
@@ -4054,7 +4679,7 @@
         const currentCaseLabel =
           currentCaseRootFolder?.name ||
           currentCaseRootFolder?.title ||
-          "Current case";
+          tr("Current case");
         groups.push({
           title: renderLibraryTreeTitle(currentCaseLabel),
           searchText: currentCaseLabel,
@@ -4071,8 +4696,8 @@
       );
       if (linkedCaseChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Linked cases"),
-          searchText: "Linked cases",
+          title: renderLibraryTreeTitle(tr("Linked cases")),
+          searchText: tr("Linked cases"),
           value: "library_group_linked_cases",
           key: "library_group_linked_cases",
           selectable: false,
@@ -4098,8 +4723,8 @@
       );
       if (referenceChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Reference"),
-          searchText: "Reference",
+          title: renderLibraryTreeTitle(tr("Reference")),
+          searchText: tr("Reference"),
           value: "library_group_reference",
           key: "library_group_reference",
           selectable: false,
@@ -4165,8 +4790,8 @@
       );
       if (knowledgeChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Knowledge"),
-          searchText: "Knowledge",
+          title: renderLibraryTreeTitle(tr("Knowledge")),
+          searchText: tr("Knowledge"),
           value: "library_group_knowledge",
           key: "library_group_knowledge",
           selectable: false,
@@ -4183,8 +4808,8 @@
       );
       if (myDocumentsChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("My Documents"),
-          searchText: "My Documents",
+          title: renderLibraryTreeTitle(tr("My Documents")),
+          searchText: tr("My Documents"),
           value: "library_group_my_documents",
           key: "library_group_my_documents",
           selectable: false,
@@ -4261,7 +4886,7 @@
     // §5 ATOMS
     // ============================================================
 
-    const ReloadButton = ({ onReload, loading, text = "Refresh", style = {} }) => {
+    const ReloadButton = ({ onReload, loading, text = tr("Refresh"), style = {} }) => {
       return React.createElement(
         Button,
         {
@@ -4341,7 +4966,7 @@
             alignItems: "center",
             justifyContent: "center",
           },
-          title: "Approval required",
+          title: tr("Approval required"),
         },
         React.createElement("span", { style: { fontSize: 12 } }, "🔐"),
       );
@@ -4395,7 +5020,7 @@
                 marginLeft: 4,
               },
             },
-            expanded ? "Collapse" : "View more",
+            expanded ? tr("Collapse") : tr("View more"),
           ),
       );
       if (showTooltip && needTruncate)
@@ -4429,16 +5054,16 @@
               // 🌟 NẾU BỊ CHẶN QUYỀN SẼ BÁO LỖI NGAY TẠI ĐÂY
               if (readOnly) {
                 message.warning(
-                  "🔒 Only managers or the assignee can change the status",
+                  tr("🔒 Only managers or the assignee can change the status"),
                 );
                 return;
               }
               setOpen((v) => !v);
             },
             title: readOnly
-              ? "No edit permission"
+              ? tr("No edit permission")
               : isBlocked
-                ? "Task is blocked by a previous task"
+                ? tr("Task is blocked by a previous task")
                 : cfg.label,
             style: {
               width: size,
@@ -4566,54 +5191,54 @@
         React.createElement(
           "div",
           { style: { width: COL.stt, flexShrink: 0, textAlign: "center" } },
-          "STT",
+          tr("No."),
         ),
         React.createElement("div", { style: { width: COL.toggle, flexShrink: 0 } }),
         React.createElement("div", { style: { width: 22, flexShrink: 0 } }),
         React.createElement(
           "div",
           { style: { flex: 1, padding: "0 10px", minWidth: 120 } },
-          "Title",
+          tr("Title"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.updatedAt, textAlign: "center", flexShrink: 0 } },
-          "Updated date",
+          tr("Updated date"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.assign, textAlign: "center", flexShrink: 0 } },
-          "Assignee",
+          tr("Assignee"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.desc, flexShrink: 0, padding: "0 8px" } },
-          "Progress Details",
+          tr("Progress Details"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.start, textAlign: "center", flexShrink: 0 } },
-          "Start",
+          tr("Start"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.deadline, textAlign: "center", flexShrink: 0 } },
-          "Deadline",
+          tr("Deadline"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.pendingIssue, flexShrink: 0, padding: "0 8px" } },
-          "Pending Issue",
+          tr("Pending Issue"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.nextStep, flexShrink: 0, padding: "0 8px" } },
-          "Next Step",
+          tr("Next Step"),
         ),
         React.createElement(
           "div",
           { style: { width: COL.files, textAlign: "center", flexShrink: 0 } },
-          "Documents",
+          tr("Documents"),
         ),
         React.createElement("div", {
           style: { width: COL.approval, flexShrink: 0 },
@@ -4679,6 +5304,9 @@
       onChange,
       size = 20,
       readOnly = false,
+      // Hourly rate under each name is financial info — shown only when the
+      // caller confirms the case has a contract (hidden by default).
+      showRate = false,
     }) => {
       const [open, setOpen] = useState(false);
       const [q, setQ] = useState("");
@@ -4747,11 +5375,12 @@
               },
               l.lawyerName,
             ),
-            l.unitPrice > 0 &&
+            showRate &&
+              l.unitPrice > 0 &&
               React.createElement(
                 "div",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-                `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/hr`,
+                tr("{0} ₫/hr", { 0: Number(l.unitPrice).toLocaleString("vi-VN") }),
               ),
           ),
         );
@@ -4766,7 +5395,7 @@
             autoFocus: true,
             value: q,
             onChange: (e) => setQ(e.target.value),
-            placeholder: "Search lawyer...",
+            placeholder: tr("Search lawyer..."),
             style: {
               width: "100%",
               border: "1px solid #e8e8e8",
@@ -4808,7 +5437,7 @@
                   (e.currentTarget.style.background = "transparent"),
               },
               React.createElement("span", null, "×"),
-              React.createElement("span", null, "Unassign"),
+              React.createElement("span", null, tr("Unassign")),
             ),
           ...grouped.map(({ type, cfg, items }) =>
             React.createElement(
@@ -4854,7 +5483,7 @@
                     borderTop: "1px solid #f0f0f0",
                   },
                 },
-                "Other",
+                tr("Other"),
               ),
               ...others.map(renderLawyerRow),
             ),
@@ -4924,7 +5553,7 @@
               : React.createElement(
                   "div",
                   {
-                    title: "Assign lawyer",
+                    title: tr("Assign lawyer"),
                     style: {
                       width: size,
                       height: size,
@@ -4963,7 +5592,7 @@
         [allTasks, value],
       );
       const serviceMap = useMemo(() => {
-        const m = { __none__: "No service assigned" };
+        const m = { __none__: tr("No service assigned") };
         services.forEach((s) => {
           m[String(s.id)] = s.serviceName;
         });
@@ -4992,7 +5621,7 @@
         const noneKey = map["__none__"] ? ["__none__"] : [];
         return [...serviceKeys, ...noneKey].map((k) => ({
           key: k,
-          label: serviceMap[k] || "Service #" + k,
+          label: serviceMap[k] || tr("Service #") + k,
           tasks: map[k],
         }));
       }, [filtered, services, serviceMap]);
@@ -5162,7 +5791,7 @@
               autoFocus: true,
               value: q,
               onChange: (e) => setQ(e.target.value),
-              placeholder: "Search tasks by name...",
+              placeholder: tr("Search tasks by name..."),
               style: {
                 width: "100%",
                 border: "1px solid #e8e8e8",
@@ -5190,7 +5819,7 @@
                       textAlign: "center",
                     },
                   },
-                  "No tasks found",
+                  tr("No tasks found"),
                 )
               : grouped.map((g) =>
                   React.createElement(
@@ -5328,7 +5957,7 @@
                     flex: 1,
                   },
                 },
-                "Select a prerequisite task...",
+                tr("Select a prerequisite task..."),
               ),
         ),
         renderDropdown(),
@@ -5393,7 +6022,7 @@
         n.createdBy?.nickname ||
         n.createdBy?.username ||
         n.createdBy?.email ||
-        (n.createdById ? `User #${n.createdById}` : "Anonymous");
+        (n.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
       if (!canAccess)
         return React.createElement(
           "div",
@@ -5413,7 +6042,7 @@
           React.createElement(
             Text,
             { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-            "You do not have permission to view this task's history.",
+            tr("You do not have permission to view this task's history."),
           ),
         );
 
@@ -5460,7 +6089,7 @@
               React.createElement(
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#262626" } },
-                React.createElement("b", null, a.changedByName || "System"),
+                React.createElement("b", null, a.changedByName || tr("System")),
                 ` ${isCreate ? "created" : "edited"} [${tF(a.fieldName || "")}]`,
               ),
               React.createElement(
@@ -5572,7 +6201,7 @@
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#262626" } },
                 React.createElement("b", null, authorName(n)),
-                " added a note",
+                tr(" added a note"),
               ),
               React.createElement(
                 "span",
@@ -5687,9 +6316,9 @@
                   null,
                   f.createdBy
                     ? userName(f.createdBy) || f.createdBy?.email
-                    : "System",
+                    : tr("System"),
                 ),
-                " uploaded a document",
+                tr(" uploaded a document"),
               ),
               React.createElement(
                 "span",
@@ -5733,7 +6362,7 @@
                     whiteSpace: "nowrap",
                   },
                 },
-                (f.title || att?.title || att?.filename || "(Untitled)") +
+                (f.title || att?.title || att?.filename || tr("(Untitled)")) +
                   fileExt,
               ),
               fullUrl &&
@@ -5792,7 +6421,7 @@
                     fontFamily: FONT,
                   },
                 },
-                "No activity yet",
+                tr("No activity yet"),
               )
             : React.createElement(
                 "div",
@@ -6102,7 +6731,7 @@
 
             const q = new Quill(containerRef.current, {
               theme: "snow",
-              placeholder: placeholder || "Write a comment... (@ to mention someone)",
+              placeholder: placeholder || tr("Write a comment... (@ to mention someone)"),
               modules: {
                 toolbar: {
                   container: [
@@ -6147,23 +6776,23 @@
             if (uploadBtn) {
               uploadBtn.innerHTML =
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>';
-              uploadBtn.title = "Attach document";
+              uploadBtn.title = tr("Attach document");
             }
 
             // Add Tooltips to Quill toolbar buttons
             const tooltipMap = {
-              ".ql-bold": "Bold (Ctrl+B)",
-              ".ql-italic": "Italic (Ctrl+I)",
-              ".ql-underline": "Underline (Ctrl+U)",
-              ".ql-strike": "Strikethrough",
-              '.ql-indent[value="-1"]': "Decrease indent",
-              '.ql-indent[value="+1"]': "Increase indent",
-              ".ql-blockquote": "Blockquote",
-              ".ql-code-block": "Code block",
-              '.ql-list[value="ordered"]': "Numbered list",
-              '.ql-list[value="bullet"]': "Bullet list",
-              ".ql-link": "Insert link",
-              ".ql-clean": "Clear formatting",
+              ".ql-bold": tr("Bold (Ctrl+B)"),
+              ".ql-italic": tr("Italic (Ctrl+I)"),
+              ".ql-underline": tr("Underline (Ctrl+U)"),
+              ".ql-strike": tr("Strikethrough"),
+              '.ql-indent[value="-1"]': tr("Decrease indent"),
+              '.ql-indent[value="+1"]': tr("Increase indent"),
+              ".ql-blockquote": tr("Blockquote"),
+              ".ql-code-block": tr("Code block"),
+              '.ql-list[value="ordered"]': tr("Numbered list"),
+              '.ql-list[value="bullet"]': tr("Bullet list"),
+              ".ql-link": tr("Insert link"),
+              ".ql-clean": tr("Clear formatting"),
             };
             Object.entries(tooltipMap).forEach(([selector, title]) => {
               const el = containerRef.current.parentElement.querySelector(selector);
@@ -6328,7 +6957,9 @@
               const MARGIN = 12;
               const MIN_HEIGHT = 120;
               const MAX_HEIGHT = 360;
-              const spaceBelow = window.innerHeight - viewportCaretBottom - GAP - MARGIN;
+              // window.innerHeight is blocked in the RunJS sandbox (JS item).
+              const viewportHeight = document.querySelector("html")?.clientHeight || viewportCaretBottom + MAX_HEIGHT;
+              const spaceBelow = viewportHeight - viewportCaretBottom - GAP - MARGIN;
               const spaceAbove = viewportCaretTop - GAP - MARGIN;
               // Prefer opening below (matches where the user is typing); only
               // flip upward when below doesn't even fit the minimum useful
@@ -6402,7 +7033,7 @@
           })
           .catch((e) => {
             console.error("Quill load error:", e);
-            setError("Could not load editor. Please check your network connection.");
+            setError(tr("Could not load editor. Please check your network connection."));
           });
 
         return () => {
@@ -6463,7 +7094,7 @@
                     fontFamily: FONT,
                   },
                 },
-                "Loading editor...",
+                tr("Loading editor..."),
               )
             : null,
         React.createElement("div", { ref: containerRef }),
@@ -6624,7 +7255,7 @@
                   whiteSpace: "nowrap",
                 },
               },
-              "Ctrl+Enter to send",
+              tr("Ctrl+Enter to send"),
             ),
             React.createElement(
               "div",
@@ -6642,7 +7273,7 @@
                   border: "none",
                 },
               },
-              sending ? "Sending..." : "Comment",
+              sending ? tr("Sending...") : tr("Comment"),
             ),
           ),
       );
@@ -6790,11 +7421,14 @@
         if (
           editorRef.current &&
           value !== editorRef.current.innerHTML &&
-          document.activeElement !== editorRef.current
+          editorRef.current.ownerDocument.activeElement !== editorRef.current
         ) {
           editorRef.current.innerHTML = value || "";
         }
       }, [value]);
+
+      // Node.TEXT_NODE — the Node global doesn't exist in the RunJS sandbox.
+      const TEXT_NODE_TYPE = 3;
 
       // ── Handle Input Change ──────────────────────────────────
       const handleInput = () => {
@@ -6802,14 +7436,16 @@
         if (!el) return;
         onChange(el.innerHTML);
 
-        const selection = window.getSelection();
+        // The RunJS sandbox blocks window.getSelection / document.execCommand
+        // & co. (JS item) — use the editor's own (real) document instead.
+        const selection = el.ownerDocument.getSelection();
         if (!selection.rangeCount) return;
 
         const range = selection.getRangeAt(0);
         const textNode = range.startContainer;
 
         // Only detect @ in text nodes
-        if (textNode.nodeType === Node.TEXT_NODE) {
+        if (textNode.nodeType === TEXT_NODE_TYPE) {
           const textBeforeCaret = textNode.textContent.slice(0, range.startOffset);
           const match = textBeforeCaret.match(/@([^\s@]{0,30})$/);
 
@@ -6846,16 +7482,18 @@
       // ── Execute Format Commands ──────────────────────────────
       const executeCommand = (e, cmd, value = null) => {
         e.preventDefault();
-        if (editorRef.current) editorRef.current.focus();
+        if (!editorRef.current) return;
+        editorRef.current.focus();
+        const editorDoc = editorRef.current.ownerDocument;
 
         if (cmd === "h1" || cmd === "h2") {
-          document.execCommand("formatBlock", false, cmd.toUpperCase());
+          editorDoc.execCommand("formatBlock", false, cmd.toUpperCase());
         } else if (cmd === "quote") {
-          document.execCommand("formatBlock", false, "BLOCKQUOTE");
+          editorDoc.execCommand("formatBlock", false, "BLOCKQUOTE");
         } else if (cmd === "code") {
-          document.execCommand("formatBlock", false, "PRE");
+          editorDoc.execCommand("formatBlock", false, "PRE");
         } else {
-          document.execCommand(cmd, false, value);
+          editorDoc.execCommand(cmd, false, value);
         }
 
         handleInput(); // Trigger sync
@@ -6863,13 +7501,15 @@
 
       // ── Select Mention from Dropdown ──────────────────────────
       const selectLawyer = (lawyer) => {
-        const selection = window.getSelection();
+        const editorDoc = editorRef.current?.ownerDocument;
+        if (!editorDoc) return;
+        const selection = editorDoc.getSelection();
         if (!selection.rangeCount) return;
 
         const range = selection.getRangeAt(0);
         const textNode = range.startContainer;
 
-        if (textNode.nodeType === Node.TEXT_NODE) {
+        if (textNode.nodeType === TEXT_NODE_TYPE) {
           const textBeforeCaret = textNode.textContent.slice(0, range.startOffset);
           const match = textBeforeCaret.match(/@([^\s@]{0,30})$/);
 
@@ -6879,7 +7519,7 @@
             range.deleteContents();
 
             // Insert Mention Tag
-            const mentionNode = document.createElement("span");
+            const mentionNode = editorDoc.createElement("span");
             mentionNode.contentEditable = "false";
             mentionNode.className = "mention-tag";
             mentionNode.setAttribute("data-id", lawyer.id);
@@ -6887,7 +7527,7 @@
               "color: #096dd9; background: #e6f4ff; border-radius: 4px; padding: 0 4px; font-weight: 600; font-size: 13px; border: 1px solid #91caff; margin: 0 2px; display: inline-block; user-select: all;";
             mentionNode.innerText = `@${lawyer.lawyerName}`;
 
-            const spaceNode = document.createTextNode("\u00A0"); // Non-breaking space
+            const spaceNode = editorDoc.createTextNode("\u00A0"); // Non-breaking space
 
             range.insertNode(spaceNode);
             range.insertNode(mentionNode);
@@ -6966,48 +7606,48 @@
       const FMT = [
         {
           key: "bold",
-          title: "Bold (Ctrl+B)",
+          title: tr("Bold (Ctrl+B)"),
           cmd: "bold",
-          el: React.createElement("b", null, "B"),
+          el: React.createElement("b", null, tr("B")),
         },
         {
           key: "italic",
-          title: "Italic (Ctrl+I)",
+          title: tr("Italic (Ctrl+I)"),
           cmd: "italic",
-          el: React.createElement("i", null, "I"),
+          el: React.createElement("i", null, tr("I")),
         },
         {
           key: "underline",
-          title: "Underline (Ctrl+U)",
+          title: tr("Underline (Ctrl+U)"),
           cmd: "underline",
-          el: React.createElement("u", null, "U"),
+          el: React.createElement("u", null, tr("U")),
         },
         {
           key: "strikeThrough",
-          title: "Strikethrough",
+          title: tr("Strikethrough"),
           cmd: "strikeThrough",
-          el: React.createElement("s", null, "S"),
+          el: React.createElement("s", null, tr("S")),
         },
         { key: "sep1" },
-        { key: "h1", title: "Large heading", cmd: "h1", el: "H1" },
-        { key: "h2", title: "Medium heading", cmd: "h2", el: "H2" },
+        { key: "h1", title: tr("Large heading"), cmd: "h1", el: "H1" },
+        { key: "h2", title: tr("Medium heading"), cmd: "h2", el: "H2" },
         { key: "sep2" },
-        { key: "quote", title: "Blockquote", cmd: "quote", el: "❝" },
+        { key: "quote", title: tr("Blockquote"), cmd: "quote", el: "❝" },
         {
           key: "insertUnorderedList",
-          title: "Bullet list",
+          title: tr("Bullet list"),
           cmd: "insertUnorderedList",
           el: "• —",
         },
         {
           key: "insertOrderedList",
-          title: "Numbered list",
+          title: tr("Numbered list"),
           cmd: "insertOrderedList",
           el: "1.—",
         },
         {
           key: "insertHorizontalRule",
-          title: "Horizontal rule",
+          title: tr("Horizontal rule"),
           cmd: "insertHorizontalRule",
           el: "─",
         },
@@ -7096,7 +7736,7 @@
           onUploadClick &&
             React.createElement(
               Tooltip,
-              { title: "Attach file", placement: "top" },
+              { title: tr("Attach file"), placement: "top" },
               React.createElement(
                 "button",
                 {
@@ -7140,7 +7780,7 @@
                 fontFamily: FONT,
               },
             },
-            "@ mention · Ctrl+Enter to send",
+            tr("@ mention · Ctrl+Enter to send"),
           ),
         ),
         // ContentEditable Editor
@@ -7164,7 +7804,7 @@
             boxSizing: "border-box",
             background: "transparent",
           },
-          "data-placeholder": placeholder || "Write a comment... (@ to mention someone)",
+          "data-placeholder": placeholder || tr("Write a comment... (@ to mention someone)"),
         }),
         // Dropdown Mentions
         showDD &&
@@ -7198,7 +7838,7 @@
                   borderBottom: "1px solid #f0f0f0",
                 },
               },
-              query ? `Search lawyer: "${query}"` : "Mention a lawyer",
+              query ? tr("Search lawyer: \"{0}\"", { 0: query }) : tr("Mention a lawyer"),
             ),
             React.createElement(
               "div",
@@ -7272,7 +7912,7 @@
             React.createElement(
               "span",
               { style: { fontSize: 11, color: "#888", fontFamily: FONT } },
-              "Mentioned:",
+              tr("Mentioned:"),
             ),
             assignedIds.map((id) => {
               const lawyer = lawyers.find((l) => l.id === id);
@@ -7430,9 +8070,9 @@
         n.createdBy?.nickname ||
         n.createdBy?.username ||
         n.createdBy?.email ||
-        (n.createdById ? `User #${n.createdById}` : "Anonymous");
+        (n.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
       const warnMentionOnly = () => {
-        message.warning("Please enter a comment before mentioning someone.");
+        message.warning(tr("Please enter a comment before mentioning someone."));
       };
       const handleSend = async () => {
         if (sendingRef.current) return;
@@ -7602,9 +8242,9 @@
           // open refetches instead of serving a list without them.
           if (hasFiles) invalidateTaskLibraryData();
           reload();
-          message.success("Comment posted");
+          message.success(tr("Comment posted"));
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         }
         sendingRef.current = false;
         setSending(false);
@@ -7698,21 +8338,21 @@
           setEditingNoteId(null);
           setEditBody("");
           setEditAssignedIds([]);
-          message.success("Comment updated");
+          message.success(tr("Comment updated"));
         } catch (e) {
-          message.error("Update failed");
+          message.error(tr("Update failed"));
         }
       };
 
       const handleDeleteNote = (item) => {
         const { note, files } = item;
         Modal.confirm({
-          title: "Confirm deletion",
+          title: tr("Confirm deletion"),
           content: note
-            ? "Are you sure you want to delete this comment and its attached files?"
-            : "Are you sure you want to delete these files?",
-          okText: "Delete",
-          cancelText: "Cancel",
+            ? tr("Are you sure you want to delete this comment and its attached files?")
+            : tr("Are you sure you want to delete these files?"),
+          okText: tr("Delete"),
+          cancelText: tr("Cancel"),
           okType: "danger",
           onOk: async () => {
             try {
@@ -7775,9 +8415,9 @@
                 }
               }
               setFeed((prev) => prev.filter((i) => i !== item));
-              message.success("Deleted successfully");
+              message.success(tr("Deleted successfully"));
             } catch (e) {
-              message.error("Delete failed");
+              message.error(tr("Delete failed"));
             }
           },
         });
@@ -7870,9 +8510,9 @@
               ),
             })),
           );
-          message.success("Document name updated");
+          message.success(tr("Document name updated"));
         } catch (e) {
-          message.error("Failed to update name");
+          message.error(tr("Failed to update name"));
         }
         setEditingFileId(null);
         setEditFileTitle("");
@@ -7895,7 +8535,7 @@
             ? att.extname.toLowerCase()
             : "." + att.extname.toLowerCase()
           : "";
-        const rawFilename = att?.filename || "File";
+        const rawFilename = att?.filename || tr("File");
         const displayTitle = f.title || f.name || att?.title || rawFilename;
         const fullUrl = getFullUrl(att?.url || att?.preview);
         const isPdf = ext === ".pdf";
@@ -7924,13 +8564,13 @@
           {
             key: "preview",
             icon: TASK_FILE_ACTION_ICONS.preview,
-            label: isExpanded ? "Hide preview" : "Preview",
+            label: isExpanded ? tr("Hide preview") : tr("Preview"),
             disabled: !fullUrl,
           },
           {
             key: "download",
             icon: TASK_FILE_ACTION_ICONS.download,
-            label: "Download",
+            label: tr("Download"),
             disabled: !fullUrl,
           },
           // Replaces the old "Move to Legal Reference" action — moving into
@@ -7941,14 +8581,14 @@
           canEdit && !isProjectInternalContext && {
             key: "move_to_document",
             icon: TASK_FILE_ACTION_ICONS.folder,
-            label: "Move to Case's Document",
+            label: tr("Move to Case's Document"),
           },
           // Internal Work equivalent of "Move to Case's Document" above —
           // moves into the current Internal Work item's own Document tree.
           canEdit && isProjectInternalContext && {
             key: "move_to_project_internal_document",
             icon: TASK_FILE_ACTION_ICONS.folder,
-            label: "Move to Internal Work's Document",
+            label: tr("Move to Internal Work's Document"),
           },
           // Single umbrella entry for every destination that lives outside
           // the current workspace (Reference, and — for Internal Work tasks
@@ -7959,17 +8599,17 @@
           canEdit && {
             key: "move_to_library",
             icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-            label: "Move to Library",
+            label: tr("Move to Library"),
           },
           isMine && canEdit && {
             key: "edit",
             icon: TASK_FILE_ACTION_ICONS.edit,
-            label: "Rename",
+            label: tr("Rename"),
           },
           isMine && canEdit && {
             key: "replace_file",
             icon: TASK_FILE_ACTION_ICONS.replace,
-            label: "Replace file",
+            label: tr("Replace file"),
           },
         ].filter(Boolean);
         const handleFileActionClick = ({ key, domEvent }) => {
@@ -8095,7 +8735,7 @@
                       : fullUrl
                         ? () => setPreviewDoc(f)
                         : undefined,
-                    title: `Original file: ${rawFilename}`,
+                    title: tr("Original file: {0}", { 0: rawFilename }),
                     style: {
                       fontSize: 13,
                       fontFamily: FONT,
@@ -8132,7 +8772,7 @@
                         flexShrink: 0,
                       },
                     },
-                    "Save",
+                    tr("Save"),
                   ),
                   React.createElement(
                     "span",
@@ -8148,7 +8788,7 @@
                         flexShrink: 0,
                       },
                     },
-                    "Cancel",
+                    tr("Cancel"),
                   ),
                 )
               : bulkSelectActive
@@ -8167,7 +8807,7 @@
                     "button",
                     {
                       type: "button",
-                      title: "Actions",
+                      title: tr("Actions"),
                       onClick: (e) => e.stopPropagation(),
                       style: {
                         width: 28,
@@ -8231,7 +8871,7 @@
                 textUnderlineOffset: "2px",
               },
             },
-            "Select files",
+            tr("Select files"),
           );
         }
         const selectedFiles = files.filter((f) => state.ids.has(f.id));
@@ -8253,7 +8893,7 @@
           React.createElement(
             "span",
             { style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 } },
-            `${selectedCount} selected`,
+            tr("{0} selected", { 0: selectedCount }),
           ),
           React.createElement(
             Button,
@@ -8282,7 +8922,7 @@
                 );
               },
             },
-            "Download",
+            tr("Download"),
           ),
           ...(isProjectInternalContext
             ? [
@@ -8299,7 +8939,7 @@
                         itemKey,
                       }),
                   },
-                  "Move to Internal Work's Document",
+                  tr("Move to Internal Work's Document"),
                 ),
               ]
             : [
@@ -8316,7 +8956,7 @@
                         itemKey,
                       }),
                   },
-                  "Move to Document",
+                  tr("Move to Document"),
                 ),
               ]),
           React.createElement(
@@ -8337,7 +8977,7 @@
                 });
               },
             },
-            "Move to Library",
+            tr("Move to Library"),
           ),
           React.createElement(
             "span",
@@ -8350,7 +8990,7 @@
                 cursor: "pointer",
               },
             },
-            "Cancel",
+            tr("Cancel"),
           ),
         );
       };
@@ -8362,7 +9002,7 @@
           ? authorName(note)
           : firstFile?.createdBy
             ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-            : "System";
+            : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -8489,7 +9129,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Cancel",
+                        tr("Cancel"),
                       ),
                       React.createElement(
                         "span",
@@ -8506,7 +9146,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Save changes",
+                        tr("Save changes"),
                       ),
                     ),
                   )
@@ -8553,7 +9193,7 @@
                             React.createElement(
                               "b",
                               { style: { color: "#8c8c8c", marginRight: 4 } },
-                              "Quote:",
+                              tr("Quote:"),
                             ),
                             " ",
                             note.replyText,
@@ -8602,7 +9242,7 @@
                               onMouseLeave: (e) =>
                                 (e.currentTarget.style.color = "#52c41a"),
                             },
-                            "Reply",
+                            tr("Reply"),
                           ),
                           isMyItem &&
                             note &&
@@ -8631,7 +9271,7 @@
                                 onMouseLeave: (e) =>
                                   (e.currentTarget.style.color = "#595959"),
                               },
-                              "Edit",
+                              tr("Edit"),
                             ),
                           isMyItem &&
                             React.createElement(
@@ -8651,7 +9291,7 @@
                                 onMouseLeave: (e) =>
                                   (e.currentTarget.style.color = "#ff4d4f"),
                               },
-                              "Delete",
+                              tr("Delete"),
                             ),
                         ),
                     ),
@@ -8685,8 +9325,8 @@
                   },
                 },
                 isExpanded
-                  ? "▲ Collapse replies"
-                  : `▼ View ${replies.length} replies`,
+                  ? tr("▲ Collapse replies")
+                  : tr("▼ View {0} replies", { 0: replies.length }),
                 !isExpanded &&
                   React.createElement(
                     Avatar.Group,
@@ -8746,9 +9386,9 @@
               };
             }),
           );
-          message.success("File replaced");
+          message.success(tr("File replaced"));
         } catch (e) {
-          message.error("Failed to replace file: " + (e?.message || "Please try again"));
+          message.error(tr("Failed to replace file: ") + (e?.message || tr("Please try again")));
         } finally {
           setReplacingPendingIndex(null);
         }
@@ -8767,7 +9407,7 @@
             },
           },
           ...pendingDocs.map((doc, i) => {
-            const name = doc.metadata.title || doc.fileName || "Document";
+            const name = doc.metadata.title || doc.fileName || tr("Document");
             return React.createElement(
               "div",
               {
@@ -8813,13 +9453,13 @@
                       fontWeight: 600,
                     },
                   },
-                  "Pending",
+                  tr("Pending"),
                 ),
                 React.createElement(
                   "button",
                   {
                     type: "button",
-                    title: "Replace file",
+                    title: tr("Replace file"),
                     disabled: replacingPendingIndex === i,
                     onClick: () => triggerReplacePendingFile(i),
                     style: {
@@ -8870,7 +9510,7 @@
                     {
                       style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
                     },
-                    "Note content:",
+                    tr("Note content:"),
                   ),
                   doc.metadata.note,
                 ),
@@ -8912,10 +9552,10 @@
             const isFolder = first.uploadKind === "folder";
             const folderName =
               String(first.relativePath || "").split("/").filter(Boolean)[0] ||
-              "Folder";
+              tr("Folder");
             const groupTitle = isFolder
-              ? `Folder: ${folderName}`
-              : `${group.items.length} attached files`;
+              ? tr("Folder: {0}", { 0: folderName })
+              : tr("{0} attached files", { 0: group.items.length });
             const totalSize = group.items.reduce(
               (sum, item) => sum + (Number(item.fileSize) || 0),
               0,
@@ -8991,7 +9631,7 @@
                       fontWeight: 600,
                     },
                   },
-                  "Pending",
+                  tr("Pending"),
                 ),
                 React.createElement(
                   "button",
@@ -9050,13 +9690,13 @@
                           whiteSpace: "nowrap",
                         },
                       },
-                      item.docTitle || item.fileName || "Document",
+                      item.docTitle || item.fileName || tr("Document"),
                     ),
                     React.createElement(
                       "button",
                       {
                         type: "button",
-                        title: "Replace file",
+                        title: tr("Replace file"),
                         disabled: replacingPendingIndex === item._index,
                         onClick: () => triggerReplacePendingFile(item._index),
                         style: {
@@ -9082,7 +9722,7 @@
                   React.createElement(
                     "div",
                     { style: { color: "#6B7280" } },
-                    `+${group.items.length - 4} more files`,
+                    tr("+{0} more files", { 0: group.items.length - 4 }),
                   ),
               ),
             );
@@ -9182,8 +9822,8 @@
                       fontFamily: FONT,
                     },
                   },
-                  "Replying to ",
-                  replyingTo.note ? authorName(replyingTo.note) : "Document",
+                  tr("Replying to "),
+                  replyingTo.note ? authorName(replyingTo.note) : tr("Document"),
                 ),
                 React.createElement(
                   "div",
@@ -9202,7 +9842,7 @@
                   },
                   replyingTo.note?.body
                     ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
-                    : "Attached document",
+                    : tr("Attached document"),
                 ),
               ),
               React.createElement(
@@ -9240,7 +9880,7 @@
                   marginBottom: 6,
                 },
               },
-              "✕ Cancel reply",
+              tr("✕ Cancel reply"),
             ),
           React.createElement(CommentComposer, {
             // List mode keeps this composer permanently mounted (see the
@@ -9300,8 +9940,8 @@
           a.getFullYear() === b.getFullYear() &&
           a.getMonth() === b.getMonth() &&
           a.getDate() === b.getDate();
-        if (sameDay(d, now)) return "Today";
-        if (sameDay(d, yesterday)) return "Yesterday";
+        if (sameDay(d, now)) return tr("Today");
+        if (sameDay(d, yesterday)) return tr("Yesterday");
         return fmt(date, "date");
       };
 
@@ -9357,8 +9997,8 @@
           : targetFile
             ? userName(targetFile.createdBy) ||
               targetFile.createdBy?.email ||
-              "Someone"
-            : "Someone";
+              tr("Someone")
+            : tr("Someone");
         const quotedSnippet = targetNote?.body
           ? getCommentText(stripLeadingQuoteHtml(targetNote.body), false)
               .trim()
@@ -9421,7 +10061,7 @@
           ? authorName(note)
           : firstFile?.createdBy
             ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-            : "System";
+            : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -9552,7 +10192,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Cancel",
+                        tr("Cancel"),
                       ),
                       React.createElement(
                         "span",
@@ -9569,7 +10209,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Save changes",
+                        tr("Save changes"),
                       ),
                     ),
                   )
@@ -9630,7 +10270,7 @@
                           React.createElement(
                             "b",
                             { style: { color: "#8c8c8c", marginRight: 4 } },
-                            "Quote:",
+                            tr("Quote:"),
                           ),
                           " ",
                           note.replyText,
@@ -9666,7 +10306,7 @@
                               const folderName =
                                 folderLookup[group.folderId]?.name ||
                                 folderLookup[group.folderId]?.title ||
-                                "Folder";
+                                tr("Folder");
                               return React.createElement(
                                 "div",
                                 { key: groupKey },
@@ -9731,13 +10371,13 @@
                                         flexShrink: 0,
                                       },
                                     },
-                                    `${group.files.length} files`,
+                                    tr("{0} files", { 0: group.files.length }),
                                   ),
                                   React.createElement(
                                     "button",
                                     {
                                       type: "button",
-                                      title: "Download all files in this folder",
+                                      title: tr("Download all files in this folder"),
                                       onClick: (e) => {
                                         e.stopPropagation();
                                         downloadFilesAsZip(
@@ -9859,7 +10499,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Reply",
+                      tr("Reply"),
                     ),
                   isMyItem &&
                     note &&
@@ -9881,7 +10521,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Edit",
+                      tr("Edit"),
                     ),
                   isMyItem &&
                     React.createElement(
@@ -9895,7 +10535,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Delete",
+                      tr("Delete"),
                     ),
                 ),
             ),
@@ -9988,7 +10628,7 @@
                         color: "#bfbfbf",
                       },
                     },
-                    "No comments or documents yet",
+                    tr("No comments or documents yet"),
                   )
                 : visibleFeed.length === 0
                   ? React.createElement(
@@ -10002,7 +10642,7 @@
                           color: "#bfbfbf",
                         },
                       },
-                      "No comments match your search",
+                      tr("No comments match your search"),
                     )
                   : React.createElement("div", null, ...feedBodyNodes),
           ),
@@ -10114,7 +10754,7 @@
       const fileUrl = attachment?.url || attachment?.preview;
       const fullUrl = getFullUrl(fileUrl);
       const rawName =
-        doc.title || attachment?.title || attachment?.filename || "File";
+        doc.title || attachment?.title || attachment?.filename || tr("File");
       const extFromAtt = attachment?.extname
         ? attachment.extname.startsWith(".")
           ? attachment.extname.toLowerCase()
@@ -10127,7 +10767,7 @@
       const baseName = rawName.toLowerCase().endsWith(fileExt)
         ? rawName.slice(0, rawName.length - fileExt.length)
         : rawName;
-      const displayName = (baseName || "File") + fileExt;
+      const displayName = (baseName || tr("File")) + fileExt;
       const isPdf = fileExt === ".pdf";
       const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
       const isOffice = [
@@ -10171,9 +10811,9 @@
                   key: "dl",
                   onClick: () => window.open(fullUrl, "_blank"),
                 },
-                "⬇️ Download",
+                tr("⬇️ Download"),
               ),
-            React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
+            React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
           ].filter(Boolean),
         },
         renderTaskFilePreviewFrame({
@@ -10197,7 +10837,7 @@
             },
             React.createElement(Empty, {
               description:
-                "Cannot preview this file format — please download to open",
+                tr("Cannot preview this file format — please download to open"),
             }),
           ),
       );
@@ -10270,7 +10910,7 @@
         primaryRecord?.name ||
         primaryAtt?.title ||
         primaryAtt?.filename ||
-        (primaryIsFolder ? "Folder" : "Document");
+        (primaryIsFolder ? tr("Folder") : tr("Document"));
       const selectedParentRecord = hasImplicitScope
         ? null
         : parentRecords.find(
@@ -10388,8 +11028,8 @@
                     // Plain category label, not a folder icon — "Knowledge" is
                     // the space/category these folders live under, not a
                     // folder itself. The real folders are rawTree's children.
-                    title: renderLibraryCategoryTitle("Knowledge"),
-                    searchText: "Knowledge",
+                    title: renderLibraryCategoryTitle(tr("Knowledge")),
+                    searchText: tr("Knowledge"),
                     value: "__knowledge_root__",
                     key: "__knowledge_root__",
                     selectable: false,
@@ -10434,18 +11074,18 @@
                 config.label;
         }
         const folder = folders.find((item) => String(extractId(item.id)) === id);
-        return folder?.name || folder?.title || `${config.label} / Folder #${id}`;
+        return folder?.name || folder?.title || tr("{0} / Folder #{1}", { 0: config.label, 1: id });
       };
 
       const handleSubmit = async () => {
         if (targetRecords.length === 0) {
-          message.warning("No file selected");
+          message.warning(tr("No file selected"));
           return;
         }
         const parentRecordId = extractId(selectedRecordId);
         if (isCaseDocument) {
           if (!parentRecordId) {
-            message.warning("Cannot determine the current case");
+            message.warning(tr("Cannot determine the current case"));
             return;
           }
         } else if (isKnowledge) {
@@ -10453,11 +11093,11 @@
           // is a valid target.
         } else if (isProjectInternalDoc) {
           if (!parentRecordId) {
-            message.warning("Cannot determine the current Internal Work item");
+            message.warning(tr("Cannot determine the current Internal Work item"));
             return;
           }
         } else if (!parentRecordId || !selectedParentRecord) {
-          message.warning(`Please select a ${config.label} record`);
+          message.warning(tr("Please select a {0} record", { 0: config.label }));
           return;
         }
         setSaving(true);
@@ -10659,14 +11299,14 @@
 
           message.success(
             targetRecords.length > 1
-              ? `Moved ${targetRecords.length} files to ${config.label}`
-              : `Moved to ${config.label}`,
+              ? tr("Moved {0} files to {1}", { 0: targetRecords.length, 1: config.label })
+              : tr("Moved to {0}", { 0: config.label }),
           );
           onSuccess?.(isBulk ? updatedRecords : updatedRecords[0]);
           onClose?.();
         } catch (e) {
           console.error(`Cannot move record(s) to ${config.label}`, e);
-          message.error(`Cannot move to ${config.label}`);
+          message.error(tr("Cannot move to {0}", { 0: config.label }));
         } finally {
           setSaving(false);
         }
@@ -10677,8 +11317,8 @@
         {
           open,
           title: isBulk
-            ? `Move ${targetRecords.length} files to ${config.label}`
-            : `Move to ${config.label}`,
+            ? tr("Move {0} files to {1}", { 0: targetRecords.length, 1: config.label })
+            : tr("Move to {0}", { 0: config.label }),
           onCancel: saving ? undefined : onClose,
           width: 520,
           destroyOnClose: true,
@@ -10686,7 +11326,7 @@
             React.createElement(
               Button,
               { key: "cancel", onClick: onClose, disabled: saving },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               Button,
@@ -10697,7 +11337,7 @@
                 onClick: handleSubmit,
                 disabled: !selectedRecordId || targetRecords.length === 0,
               },
-              `Move to ${config.label}`,
+              tr("Move to {0}", { 0: config.label }),
             ),
           ],
         },
@@ -10711,7 +11351,7 @@
                 React.createElement(
                   "div",
                   { style: { fontWeight: 700, marginBottom: 4 } },
-                  `${targetRecords.length} files selected`,
+                  tr("{0} files selected", { 0: targetRecords.length }),
                 ),
                 React.createElement(
                   "div",
@@ -10728,7 +11368,7 @@
                   ...targetRecords.map((rec, idx) => {
                     const recAtt = getPrimaryAttachment(rec);
                     const recName =
-                      rec?.title || rec?.name || recAtt?.title || recAtt?.filename || "Document";
+                      rec?.title || rec?.name || recAtt?.title || recAtt?.filename || tr("Document");
                     return React.createElement("div", { key: idx }, `• ${recName}`);
                   }),
                 ),
@@ -10742,7 +11382,7 @@
                   primaryRecordName,
                 ),
                 sourceLabel &&
-                  React.createElement("div", { style: { color: "#6B7280" } }, "Source: ", sourceLabel),
+                  React.createElement("div", { style: { color: "#6B7280" } }, tr("Source: "), sourceLabel),
               ),
           // Category switch — only rendered when "Move to Library" bundles
           // more than one destination for this context (see
@@ -10756,7 +11396,7 @@
               React.createElement(
                 "div",
                 { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-                "Category",
+                tr("Category"),
               ),
               React.createElement(Segmented, {
                 block: true,
@@ -10775,7 +11415,7 @@
               React.createElement(
                 "div",
                 { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-                `Select ${config.label}`,
+                tr("Select {0}", { 0: config.label }),
               ),
               React.createElement(Select, {
                 value: selectedRecordId,
@@ -10783,7 +11423,7 @@
                 showSearch: true,
                 optionFilterProp: "label",
                 style: { width: "100%" },
-                placeholder: `Select ${config.label} record...`,
+                placeholder: tr("Select {0} record...", { 0: config.label }),
                 options: parentRecords.map((item) => ({
                   value: String(getLibraryRecordId(item, destinationType)),
                   label: getLibraryRecordDisplayName(item, destinationType),
@@ -10800,7 +11440,7 @@
             React.createElement(
               "div",
               { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-              `Destination folder`,
+              tr("Destination folder"),
             ),
             React.createElement(TreeSelect, {
               value: targetFolderId === "root" ? undefined : targetFolderId,
@@ -10819,7 +11459,7 @@
               },
               style: { width: "100%" },
               dropdownStyle: { maxHeight: 360, overflow: "auto" },
-              placeholder: `Root level (no subfolder)`,
+              placeholder: tr("Root level (no subfolder)"),
               onChange: (value) => setTargetFolderId(value || "root"),
             }),
           ),
@@ -10836,8 +11476,8 @@
               },
             },
             isBulk
-              ? "Files remain traceable from Task Notes after this move."
-              : `${primaryIsFolder ? "Folder and child documents" : "File"} remains traceable from Task Notes after this move.`,
+              ? tr("Files remain traceable from Task Notes after this move.")
+              : tr("{0} remains traceable from Task Notes after this move.", { 0: primaryIsFolder ? tr("Folder and child documents") : tr("File") }),
           ),
         ),
       );
@@ -11155,7 +11795,7 @@
                       toggleNode(event);
                     }
                   },
-                  title: "Click to expand or collapse",
+                  title: tr("Click to expand or collapse"),
                   style: {
                     display: "inline-flex",
                     alignItems: "center",
@@ -11303,7 +11943,7 @@
         const pathParts = String(relativePath || file?.name || "")
           .split("/")
           .filter(Boolean);
-        let fileName = pathParts[pathParts.length - 1] || file?.name || "File";
+        let fileName = pathParts[pathParts.length - 1] || file?.name || tr("File");
         if (usedNames) {
           fileName = getUniqueFileName(fileName, usedNames);
           usedNames.add(fileName.toLowerCase());
@@ -11361,7 +12001,7 @@
           // headers: { "Content-Type": "multipart/form-data" }, // Để trình duyệt tự set kèm boundary
         });
         const att = uploadRes?.data?.data;
-        if (!att?.id) throw new Error("Upload failed");
+        if (!att?.id) throw new Error(tr("Upload failed"));
         return [{ id: att.id }];
       };
 
@@ -11369,7 +12009,7 @@
         // Reference the existing attachment directly — no re-upload needed
         // This avoids FormData restrictions and is equally valid since the
         // document record created is independent from the library document record.
-        if (!attData?.id) throw new Error("Original attachment not found");
+        if (!attData?.id) throw new Error(tr("Original attachment not found"));
         return [{ id: attData.id }];
       };
 
@@ -11392,7 +12032,7 @@
         const hasDrive = !!values.googleDriveUrl?.trim();
 
         if (!isEdit && !hasFile && !hasDrive) {
-          message.error("Please select a file or enter a Drive URL");
+          message.error(tr("Please select a file or enter a Drive URL"));
           return;
         }
 
@@ -11419,7 +12059,7 @@
             onAddPending({ attIds, fileName, metadata: values });
             handleClose();
           } catch (e) {
-            message.error(`Upload error: ${e.message}`);
+            message.error(tr("Upload error: {0}", { 0: e.message }));
           } finally {
             setUploading(false);
           }
@@ -11464,7 +12104,7 @@
               params: { filterByTk: editDoc.id },
               data: payload,
             });
-            message.success("✅ Updated successfully!");
+            message.success(tr("✅ Updated successfully!"));
           } else {
             await apiReq("documents:create", "POST", {
               ...payload,
@@ -11475,13 +12115,13 @@
               createdAt: now,
               batchId: `upd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             });
-            message.success("✅ Upload successful!");
+            message.success(tr("✅ Upload successful!"));
           }
           invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         }
         setUploading(false);
       };
@@ -11502,19 +12142,19 @@
         const hasDrive = !!values.googleDriveUrl?.trim();
 
         if (isEdit && activeTab === "folder" && hasSelectedUpload) {
-          message.warning("Updating a document only supports replacing 1 file, folder upload is not supported.");
+          message.warning(tr("Updating a document only supports replacing 1 file, folder upload is not supported."));
           return;
         }
         if (isEdit && activeTab === "local" && fileList.length > 1) {
-          message.warning("Updating a document only supports replacing 1 file.");
+          message.warning(tr("Updating a document only supports replacing 1 file."));
           return;
         }
         if (isEdit && isPickingFromLibrary && selectedLibDocs.length > 1) {
-          message.warning("Updating a document only supports replacing 1 file.");
+          message.warning(tr("Updating a document only supports replacing 1 file."));
           return;
         }
         if (!isEdit && !hasUploadFile && !hasDrive) {
-          message.error("Please select a file or enter a Drive URL");
+          message.error(tr("Please select a file or enter a Drive URL"));
           return;
         }
 
@@ -11623,7 +12263,7 @@
               params: { filterByTk: editDoc.id },
               data: payload,
             });
-            message.success("Updated successfully!");
+            message.success(tr("Updated successfully!"));
           } else {
             const batchId = createTaskUploadBatchId("upd");
             const folderIdMap = await createTaskUploadFoldersFromEntries(
@@ -11648,15 +12288,15 @@
             }
             message.success(
               uploadEntries.length > 1
-                ? `Uploaded ${uploadEntries.length} files successfully!`
-                : "Upload successful!",
+                ? tr("Uploaded {0} files successfully!", { 0: uploadEntries.length })
+                : tr("Upload successful!"),
             );
           }
           invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         } finally {
           setUploading(false);
         }
@@ -11667,10 +12307,10 @@
         Form.Item,
         {
           name: "documentType",
-          label: "Document type",
+          label: tr("Document type"),
           rules: isCompact
             ? []
-            : [{ required: true, message: "Please enter the document type" }],
+            : [{ required: true, message: tr("Please enter the document type") }],
         },
         React.createElement(
           "div",
@@ -11678,7 +12318,7 @@
           React.createElement(Input, {
             allowClear: true,
             maxLength: 150,
-            placeholder: "e.g.: Contract, Minutes...",
+            placeholder: tr("e.g.: Contract, Minutes..."),
             list: "doc-type-list",
             style: inpStyle,
           }),
@@ -11720,7 +12360,7 @@
           title: React.createElement(
             Text,
             { strong: true, style: { fontFamily: FONT, fontSize: 14 } },
-            isEdit ? "✏️ Update document" : "📎 Attach document",
+            isEdit ? tr("✏️ Update document") : tr("📎 Attach document"),
           ),
           footer: [
             React.createElement(
@@ -11731,7 +12371,7 @@
                 disabled: uploading,
                 style: { fontFamily: FONT },
               },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               Button,
@@ -11744,13 +12384,13 @@
               },
               uploading
                 ? isEdit
-                  ? "Updating..."
-                  : "Processing..."
+                  ? tr("Updating...")
+                  : tr("Processing...")
                 : isEdit
-                  ? "Update"
+                  ? tr("Update")
                   : onAddPending
-                    ? "Submit"
-                    : "Upload",
+                    ? tr("Submit")
+                    : tr("Upload"),
             ),
           ],
         },
@@ -11770,7 +12410,7 @@
                 fontFamily: FONT,
               },
             },
-            `👤 ${isEdit ? "Updated" : "Attached"} by: `,
+            isEdit ? tr("👤 Updated by: ") : tr("👤 Attached by: "),
             React.createElement(
               "strong",
               null,
@@ -11780,7 +12420,7 @@
         React.createElement(
           Form,
           { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
-          !isCompact && divider("Identification"),
+          !isCompact && divider(tr("Identification")),
           !isCompact &&
             React.createElement(
                 "div",
@@ -11788,11 +12428,11 @@
                 documentTypeField,
                 React.createElement(
                   Form.Item,
-                  { name: "title", label: "Document name" },
+                  { name: "title", label: tr("Document name") },
                   React.createElement(Input, {
                     allowClear: true,
                     placeholder:
-                      "Enter the full document name (uses the file name if left blank)",
+                      tr("Enter the full document name (uses the file name if left blank)"),
                     style: inpStyle,
                   }),
                 ),
@@ -11803,16 +12443,16 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "documentCode", label: "Reference number" },
+                { name: "documentCode", label: tr("Reference number") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "e.g.: 123/2024/HĐ",
+                  placeholder: tr("VD: 123/2024/HĐ"),
                   style: inpStyle,
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { name: "openingDate", label: "Issue date" },
+                { name: "openingDate", label: tr("Issue date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
@@ -11825,7 +12465,7 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "signedAt", label: "Signed date" },
+                { name: "signedAt", label: tr("Signed date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
@@ -11833,33 +12473,33 @@
               ),
               React.createElement(
                 Form.Item,
-                { name: "effectiveAt", label: "Effective date" },
+                { name: "effectiveAt", label: tr("Effective date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
                 }),
               ),
             ),
-          !isCompact && divider("Related parties"),
+          !isCompact && divider(tr("Related parties")),
           !isCompact &&
             React.createElement(
               "div",
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "senderName", label: "Sender" },
+                { name: "senderName", label: tr("Sender") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "Name of sending person / organization",
+                  placeholder: tr("Name of sending person / organization"),
                   style: inpStyle,
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { name: "recipientName", label: "Recipient" },
+                { name: "recipientName", label: tr("Recipient") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "Name of receiving person / organization",
+                  placeholder: tr("Name of receiving person / organization"),
                   style: inpStyle,
                 }),
               ),
@@ -11868,14 +12508,14 @@
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "description", label: "Content summary" },
+              { name: "description", label: tr("Content summary") },
               React.createElement(Input.TextArea, {
                 rows: 3,
                 allowClear: true,
-                placeholder: "Briefly describe the main content...",
+                placeholder: tr("Briefly describe the main content..."),
               }),
             ),
-          divider("Attached file"),
+          divider(tr("Attached file")),
           React.createElement(ctx.antd.Tabs, {
             // Short labels + tighter gutter so all tabs fit the modal width
             // without antd collapsing the last ones into a "..." overflow menu.
@@ -11890,11 +12530,11 @@
             items: [
               {
                 key: "local",
-                label: renderTabLabel("Upload files", "Upload files from your computer"),
+                label: renderTabLabel(tr("Upload files"), tr("Upload files from your computer")),
                 children: React.createElement(
                   Form.Item,
                   {
-                    label: isEdit ? "Replace with new file (optional)" : "Choose file",
+                    label: isEdit ? tr("Replace with new file (optional)") : tr("Choose file"),
                     style: { marginBottom: 0 },
                   },
                   React.createElement(
@@ -11936,11 +12576,11 @@
                           fontFamily: FONT,
                         },
                       },
-                      "Drag & drop or ",
+                      tr("Drag & drop or "),
                       React.createElement(
                         "span",
                         { style: { color: "#1890ff" } },
-                        "click to select",
+                        tr("click to select"),
                       ),
                     ),
                   ),
@@ -11948,11 +12588,11 @@
               },
               !isEdit && {
                 key: "folder",
-                label: renderTabLabel("Upload folder", "Upload a whole folder, keeping its structure"),
+                label: renderTabLabel(tr("Upload folder"), tr("Upload a whole folder, keeping its structure")),
                 children: React.createElement(
                   Form.Item,
                   {
-                    label: "Choose folder",
+                    label: tr("Choose folder"),
                     style: { marginBottom: 0 },
                   },
                   React.createElement(
@@ -11981,35 +12621,35 @@
                           fontFamily: FONT,
                         },
                       },
-                      "Choose a folder to preserve the folder structure when rendered in Task Notes",
+                      tr("Choose a folder to preserve the folder structure when rendered in Task Notes"),
                     ),
                   ),
                 ),
               },
               showInternalDocsTab && {
                 key: "internalDocs",
-                label: renderTabLabel("Internal Docs", "Choose from this Internal Work's documents"),
+                label: renderTabLabel(tr("Internal Docs"), tr("Choose from this Internal Work's documents")),
                 children: renderLibraryPicker({
                   tabKey: "internalDocs",
-                  loadingText: "Loading Internal Work documents...",
-                  placeholder: "Search this Internal Work's documents...",
-                  notFoundContent: "No accessible documents in this Internal Work",
+                  loadingText: tr("Loading Internal Work documents..."),
+                  placeholder: tr("Search this Internal Work's documents..."),
+                  notFoundContent: tr("No accessible documents in this Internal Work"),
                 }),
               },
               {
                 key: "library",
                 label: isProjectInternalContext
-                  ? renderTabLabel("Library", "Choose from Knowledge or My Documents")
-                  : renderTabLabel("Case Docs", "Choose from this case, linked cases or reference material"),
+                  ? renderTabLabel(tr("Library"), tr("Choose from Knowledge or My Documents"))
+                  : renderTabLabel(tr("Case Docs"), tr("Choose from this case, linked cases or reference material")),
                 children: renderLibraryPicker({
                   tabKey: "library",
-                  loadingText: "Loading library...",
+                  loadingText: tr("Loading library..."),
                   placeholder: isProjectInternalContext
-                    ? "Search Knowledge or My Documents..."
-                    : "Search case, linked cases or references...",
+                    ? tr("Search Knowledge or My Documents...")
+                    : tr("Search case, linked cases or references..."),
                   notFoundContent: isProjectInternalContext
-                    ? "No accessible Knowledge or My Documents files found"
-                    : "No accessible documents found",
+                    ? tr("No accessible Knowledge or My Documents files found")
+                    : tr("No accessible documents found"),
                 }),
               },
             ].filter(Boolean),
@@ -12017,22 +12657,22 @@
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "googleDriveUrl", label: "Google Drive URL (optional)" },
+              { name: "googleDriveUrl", label: tr("Google Drive URL (optional)") },
               React.createElement(Input, {
                 placeholder: "https://docs.google.com/...",
                 allowClear: true,
                 style: inpStyle,
               }),
             ),
-          !isCompact && divider("Note"),
+          !isCompact && divider(tr("Note")),
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "note", label: "Note" },
+              { name: "note", label: tr("Note") },
               React.createElement(Input.TextArea, {
                 rows: 2,
                 allowClear: true,
-                placeholder: "Enter a note...",
+                placeholder: tr("Enter a note..."),
                 style: inpStyle,
               }),
             ),
@@ -12095,11 +12735,11 @@
               updatedAt: new Date().toISOString(),
             },
           });
-          message.success("✅ Updated successfully!");
+          message.success(tr("✅ Updated successfully!"));
           setEditing(false);
           onSuccess();
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         }
         setSaving(false);
       };
@@ -12142,7 +12782,7 @@
                 doc.title ||
                   attachment?.title ||
                   attachment?.filename ||
-                  "(No name yet)",
+                  tr("(No name yet)"),
               ),
               doc.documentType &&
                 React.createElement(
@@ -12166,7 +12806,7 @@
                 React.createElement(
                   Button,
                   { size: "small", onClick: () => setEditing(false) },
-                  "Cancel",
+                  tr("Cancel"),
                 ),
                 React.createElement(
                   Button,
@@ -12176,7 +12816,7 @@
                     loading: saving,
                     onClick: handleSave,
                   },
-                  "💾 Save",
+                  tr("💾 Save"),
                 ),
               )
             : React.createElement(
@@ -12187,7 +12827,7 @@
                   ghost: true,
                   onClick: () => setEditing(true),
                 },
-                "✏️ Edit",
+                tr("✏️ Edit"),
               ),
         },
         React.createElement(
@@ -12206,12 +12846,12 @@
           },
           React.createElement(
             Descriptions.Item,
-            { label: "Document type" },
+            { label: tr("Document type") },
             doc.documentType || "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Reference number" },
+            { label: tr("Reference number") },
             React.createElement(
               "span",
               { style: { fontFamily: "monospace", fontSize: 12 } },
@@ -12220,17 +12860,17 @@
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Issue date" },
+            { label: tr("Issue date") },
             doc.openingDate ? formatDate(doc.openingDate) : "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Signed date" },
+            { label: tr("Signed date") },
             doc.signedAt ? formatDate(doc.signedAt) : "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Effective date" },
+            { label: tr("Effective date") },
             doc.effectiveAt
               ? React.createElement(
                   Text,
@@ -12241,22 +12881,22 @@
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Document name" },
-            React.createElement(Text, { strong: true }, doc.title || "(None yet)"),
+            { label: tr("Document name") },
+            React.createElement(Text, { strong: true }, doc.title || tr("(None yet)")),
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Sender" },
+            { label: tr("Sender") },
             doc.senderName || "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Recipient" },
+            { label: tr("Recipient") },
             doc.recipientName || "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Google Drive" },
+            { label: tr("Google Drive") },
             doc.googleDriveUrl
               ? React.createElement(
                   Button,
@@ -12266,13 +12906,13 @@
                     style: { padding: 0 },
                     onClick: () => window.open(doc.googleDriveUrl, "_blank"),
                   },
-                  "🔗 Open link",
+                  tr("🔗 Open link"),
                 )
               : "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Note" },
+            { label: tr("Note") },
             React.createElement(
               Text,
               { style: { whiteSpace: "pre-wrap", fontSize: 12 } },
@@ -12281,12 +12921,12 @@
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Created date" },
+            { label: tr("Created date") },
             doc.createdAt ? fmt(doc.createdAt, "full") : "—",
           ),
           React.createElement(
             Descriptions.Item,
-            { label: "Created by" },
+            { label: tr("Created by") },
             doc.createdBy ? userName(doc.createdBy) || doc.createdBy?.email : "—",
           ),
         ),
@@ -12305,7 +12945,7 @@
               React.createElement(
                 Button,
                 { size: "small", onClick: () => window.open(fullUrl, "_blank") },
-                "👁 Preview",
+                tr("👁 Preview"),
               ),
           ),
       );
@@ -12321,6 +12961,9 @@
       currentUser,
       projectManagerId,
       editEntry = null,
+      // false → the rate input is hidden (case has no contract); the saved
+      // rate then falls back to form's default (entry's own / lawyer's).
+      showFinance = false,
     }) => {
       const isEdit = !!editEntry;
       const isAdmin = isAdminUser(currentUser);
@@ -12367,25 +13010,25 @@
       const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
       const handleSave = async () => {
         if (!hasLawyer) {
-          message.warning("Task has not been assigned a lawyer");
+          message.warning(tr("Task has not been assigned a lawyer"));
           return;
         }
         const finalDuration = parseFloat(form.duration || 0);
         if (!finalDuration || finalDuration <= 0) {
-          message.warning("Please enter the number of hours worked");
+          message.warning(tr("Please enter the number of hours worked"));
           return;
         }
         if (finalDuration > 24) {
-          message.warning("Hours must not exceed 24 hours");
+          message.warning(tr("Hours must not exceed 24 hours"));
           return;
         }
         if (!form.workingDay) {
-          message.warning("Please select the date/time worked");
+          message.warning(tr("Please select the date/time worked"));
           return;
         }
         const startDT = new Date(form.workingDay);
         if (isNaN(startDT.getTime())) {
-          message.warning("Invalid date/time");
+          message.warning(tr("Invalid date/time"));
           return;
         }
         const endDT = new Date(startDT.getTime() + finalDuration * 3600000);
@@ -12420,7 +13063,7 @@
         try {
           if (isEdit) {
             await updateTimesheet(extractId(editEntry.id), payload);
-            message.success("✅ Updated");
+            message.success(tr("✅ Updated"));
           } else {
             // 🌟 ĐÃ BỎ status: 'draft', ĐỂ BACKEND TỰ QUYẾT ĐỊNH
             await createTimesheet(payload);
@@ -12432,12 +13075,12 @@
                   : `tasks:update?filterByTk=${extractId(item.id)}`;
               await apiReq(updateUrl, "POST", { workRate });
             }
-            message.success("✅ Timesheet saved");
+            message.success(tr("✅ Timesheet saved"));
           }
           onClose();
           onSuccess();
         } catch (err) {
-          message.error("Error: " + (err?.message || "Please try again"));
+          message.error(tr("Error: ") + (err?.message || tr("Please try again")));
         }
         setSaving(false);
       };
@@ -12498,7 +13141,7 @@
           title: React.createElement(
             Text,
             { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-            isEdit ? "✏️ Update work hours" : "⏱ Log work hours",
+            isEdit ? tr("✏️ Update work hours") : tr("⏱ Log work hours"),
           ),
         },
         !hasLawyer
@@ -12520,7 +13163,7 @@
                     display: "block",
                   },
                 },
-                "This work has not been assigned a lawyer",
+                tr("This work has not been assigned a lawyer"),
               ),
             )
           : React.createElement(
@@ -12529,7 +13172,7 @@
 
               /* Luật sư (read-only) */
               fld(
-                "👨‍⚖️ Lawyer",
+                tr("👨‍⚖️ Lawyer"),
                 React.createElement(
                   "div",
                   {
@@ -12561,7 +13204,7 @@
               ),
               /* Ngày giờ thực hiện */
               fld(
-                "📅 Date/time worked *",
+                tr("📅 Date/time worked *"),
                 React.createElement("input", {
                   type: "datetime-local",
                   value: form.workingDay,
@@ -12575,7 +13218,7 @@
               React.createElement(
                 "div",
                 { style: { marginBottom: 14 } },
-                lbl("⏱ Hours worked *"),
+                lbl(tr("⏱ Hours worked *")),
                 React.createElement(
                   "div",
                   { style: { position: "relative" } },
@@ -12584,7 +13227,7 @@
                     step: "0.5",
                     min: "0.5",
                     max: "24",
-                    placeholder: "e.g.: 2",
+                    placeholder: tr("e.g.: 2"),
                     value: form.duration,
                     onChange: (e) => set("duration", e.target.value),
                     style: {
@@ -12651,7 +13294,7 @@
                               marginBottom: 2,
                             },
                           },
-                          "🕐 Expected end time",
+                          tr("🕐 Expected end time"),
                         ),
                         React.createElement(
                           "div",
@@ -12686,7 +13329,7 @@
                               marginBottom: 2,
                             },
                           },
-                          "⏱ Total",
+                          tr("⏱ Total"),
                         ),
                         React.createElement(
                           "div",
@@ -12723,7 +13366,7 @@
                               color: "#8c8c8c",
                             },
                           },
-                          "⚡ Productivity:",
+                          tr("⚡ Productivity:"),
                         ),
                         React.createElement(
                           "span",
@@ -12744,11 +13387,12 @@
                   ),
               ),
               isManager &&
+                showFinance &&
                 fld(
-                  "💵 Rate / hour (₫)",
+                  tr("💵 Rate / hour (₫)"),
                   React.createElement("input", {
                     type: "number",
-                    placeholder: "Rate/hour",
+                    placeholder: tr("Rate/hour"),
                     value: form.hourlyRate,
                     onChange: (e) => set("hourlyRate", e.target.value),
                     style: inpS,
@@ -12758,11 +13402,11 @@
                 ),
               /* Mô tả */
               fld(
-                "📝 Work description",
+                tr("📝 Work description"),
                 React.createElement("textarea", {
                   value: form.description,
                   onChange: (e) => set("description", e.target.value),
-                  placeholder: "Briefly describe the work performed...",
+                  placeholder: tr("Briefly describe the work performed..."),
                   rows: 3,
                   style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
                   onFocus: focusB,
@@ -12796,7 +13440,7 @@
                       color: "#595959",
                     },
                   },
-                  "Cancel",
+                  tr("Cancel"),
                 ),
                 React.createElement(
                   "div",
@@ -12813,7 +13457,7 @@
                       fontWeight: 700,
                     },
                   },
-                  saving ? "Saving..." : isEdit ? "Update" : "+ Log hours",
+                  saving ? tr("Saving...") : isEdit ? tr("Update") : tr("+ Log hours"),
                 ),
               ),
             ),
@@ -12828,7 +13472,11 @@
       projectManagerId,
       isManager = false,
       canAccess = true,
+      // Case has a contract → show rates and amounts. Hidden by default.
+      showFinance = false,
     }) => {
+      // Money is shown to managers only, and only once a contract exists.
+      const showMoney = isManager && showFinance;
       const [sheets, setSheets] = useState([]);
       const [loading, setLoading] = useState(true);
       const [modal, setModal] = useState(false);
@@ -12847,7 +13495,7 @@
           React.createElement(
             Text,
             { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-            "Only the assignee or manager can view this.",
+            tr("Only the assignee or manager can view this."),
           ),
         );
 
@@ -12894,10 +13542,10 @@
         setDeleting(id);
         try {
           await deleteTimesheet(extractId(id));
-          message.success("Deleted");
+          message.success(tr("Deleted"));
           reload();
         } catch {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
         setDeleting(null);
       };
@@ -12941,14 +13589,19 @@
                   React.createElement(
                     Text,
                     { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-                    `${fmtVND(assignedLawyer.unitPrice || 0)}/hr${estDur > 0 ? `  ·  Estimated: ${fmtHours(estDur)}` : ""}`,
+                    [
+                      showFinance ? `${fmtVND(assignedLawyer.unitPrice || 0)}/hr` : "",
+                      estDur > 0 ? tr("Estimated: {0}", { 0: fmtHours(estDur) }) : "",
+                    ]
+                      .filter(Boolean)
+                      .join("  ·  "),
                   ),
                 ),
               )
             : React.createElement(
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#cf1322" } },
-                "⚠ Not assigned",
+                tr("⚠ Not assigned"),
               ),
 
           // 🌟 HEADER BUTTONS (Thêm nút Reload ở đây)
@@ -12980,7 +13633,7 @@
                     fontWeight: 600,
                   },
                 },
-                "＋ Add",
+                tr("＋ Add"),
               ),
           ),
         ),
@@ -12991,7 +13644,7 @@
             {
               style: {
                 display: "grid",
-                gridTemplateColumns: isManager ? "1fr 1fr 1fr" : "1fr 1fr",
+                gridTemplateColumns: showMoney ? "1fr 1fr 1fr" : "1fr 1fr",
                 gap: 8,
               },
             },
@@ -13017,7 +13670,7 @@
                     marginBottom: 2,
                   },
                 },
-                "⏱ Total hours",
+                tr("⏱ Total hours"),
               ),
               React.createElement(
                 Text,
@@ -13057,7 +13710,7 @@
                     marginBottom: 2,
                   },
                 },
-                "⚡ Productivity",
+                tr("⚡ Productivity"),
               ),
               React.createElement(
                 Text,
@@ -13075,7 +13728,7 @@
                 item.workRate ? workRateCfg(item.workRate).label : "—",
               ),
             ),
-            isManager &&
+            showMoney &&
               React.createElement(
                 "div",
                 {
@@ -13098,7 +13751,7 @@
                       marginBottom: 2,
                     },
                   },
-                  "💰 Amount",
+                  tr("💰 Amount"),
                 ),
                 React.createElement(
                   Text,
@@ -13137,8 +13790,8 @@
                   },
                 },
                 hasLawyer
-                  ? "No work hour entries yet"
-                  : "Assign a lawyer first",
+                  ? tr("No work hour entries yet")
+                  : tr("Assign a lawyer first"),
               )
             : React.createElement(
                 "div",
@@ -13218,7 +13871,7 @@
                         { style: { fontWeight: 700, color: "#096dd9" } },
                         fmtHours(parseFloat(s.duration) || 0),
                       ),
-                      isManager &&
+                      showMoney &&
                         s.amount > 0 &&
                         React.createElement(
                           "span",
@@ -13272,7 +13925,7 @@
                             background: "#fafafa",
                           },
                         },
-                        "✏️ Edit",
+                        tr("✏️ Edit"),
                       ),
                       React.createElement(
                         "div",
@@ -13289,7 +13942,7 @@
                             background: "#fff1f0",
                           },
                         },
-                        deleting === s.id ? "..." : "🗑 Delete",
+                        deleting === s.id ? "..." : tr("🗑 Delete"),
                       ),
                     ),
                   );
@@ -13313,6 +13966,7 @@
           currentUser,
           projectManagerId,
           editEntry,
+          showFinance,
         }),
       );
     };
@@ -13356,7 +14010,7 @@
         color: "#8c8c8c",
         bg: "#f5f5f5",
         border: "#d9d9d9",
-        label: "N/A",
+        label: tr("N/A"),
       };
       const assignedLawyer = lawyers?.find((l) => l.id === prevTask.lawyerId);
       const lawyerName = assignedLawyer ? assignedLawyer.lawyerName : null;
@@ -13371,9 +14025,9 @@
         React.createElement(
           "div",
           null,
-          `In charge: ${lawyerName || "Not assigned"}`,
+          tr("In charge: {0}", { 0: lawyerName || tr("Not assigned") }),
         ),
-        React.createElement("div", null, `Status: ${statusInfo.label}`),
+        React.createElement("div", null, tr("Status: {0}", { 0: statusInfo.label })),
       );
       return React.createElement(
         "div",
@@ -13485,9 +14139,9 @@
             nextStepDescription: val || null,
           });
           onUpdate({ ...item, nextStepDescription: val || null });
-          message.success("✅ Next step saved");
+          message.success(tr("✅ Next step saved"));
         } catch {
-          message.error("Save failed");
+          message.error(tr("Save failed"));
         }
         setSaving(false);
       };
@@ -13509,7 +14163,7 @@
               minHeight: 40,
             },
           },
-          val ? `→ ${val}` : "(No next step yet)",
+          val ? `→ ${val}` : tr("(No next step yet)"),
         );
       }
       return React.createElement(
@@ -13519,7 +14173,7 @@
           value: val,
           onChange: (e) => setVal(e.target.value),
           placeholder:
-            "e.g.: Draft the LoA per the Detailed outline, send to client for review...",
+            tr("e.g.: Draft the LoA per the Detailed outline, send to client for review..."),
           rows: 3,
           style: {
             width: "100%",
@@ -13564,7 +14218,7 @@
                   padding: "1px 8px",
                 },
               },
-              "Unsaved",
+              tr("Unsaved"),
             ),
           React.createElement(
             "div",
@@ -13581,7 +14235,7 @@
                 cursor: saving ? "not-allowed" : isDirty ? "pointer" : "default",
               },
             },
-            saving ? "Saving..." : isDirty ? "💾 Save" : "✓ Saved",
+            saving ? tr("Saving...") : isDirty ? tr("💾 Save") : tr("✓ Saved"),
           ),
         ),
       );
@@ -13610,9 +14264,9 @@
               : `tasks:update?filterByTk=${item.id}`;
           await apiReq(url, "POST", { description: val || null });
           onUpdate({ ...item, description: val || null });
-          message.success("✅ Saved");
+          message.success(tr("✅ Saved"));
         } catch {
-          message.error("Save failed");
+          message.error(tr("Save failed"));
         }
         setSaving(false);
       };
@@ -13634,7 +14288,7 @@
               minHeight: 64,
             },
           },
-          val || "(No content yet)",
+          val || tr("(No content yet)"),
         );
       }
 
@@ -13644,7 +14298,7 @@
         React.createElement("textarea", {
           value: val,
           onChange: (e) => setVal(e.target.value),
-          placeholder: "Enter progress details...",
+          placeholder: tr("Enter progress details..."),
           rows: 4,
           style: {
             width: "100%",
@@ -13688,7 +14342,7 @@
                   padding: "1px 8px",
                 },
               },
-              "Unsaved",
+              tr("Unsaved"),
             ),
           React.createElement(
             "div",
@@ -13705,7 +14359,7 @@
                 cursor: saving ? "not-allowed" : isDirty ? "pointer" : "default",
               },
             },
-            saving ? "Saving..." : isDirty ? "💾 Save" : "✓ Saved",
+            saving ? tr("Saving...") : isDirty ? tr("💾 Save") : tr("✓ Saved"),
           ),
         ),
       );
@@ -13731,7 +14385,7 @@
         n?.createdBy?.nickname ||
         n?.createdBy?.username ||
         n?.createdBy?.email ||
-        (n?.createdById ? `User #${n.createdById}` : "Anonymous");
+        (n?.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
 
       const getActivityTime = (a) =>
         new Date(
@@ -13866,27 +14520,27 @@
           collection === "Note";
 
         if (isCommentLayout && action === "updated")
-          return "\u0111\u00e3 ch\u1ec9nh s\u1eeda b\u00ecnh lu\u1eadn";
+          return tr("edited a comment");
         if (isCommentLayout && action === "deleted")
-          return "\u0111\u00e3 x\u00f3a b\u00ecnh lu\u1eadn";
+          return tr("deleted a comment");
 
         const layoutLabels = {
-          fileOnly: "\u0111\u00e3 t\u1ea3i l\u00ean t\u1ec7p",
-          commentGroup: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-          commentOnly: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-          mentionOnly: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
+          fileOnly: tr("uploaded files"),
+          commentGroup: tr("commented"),
+          commentOnly: tr("commented"),
+          mentionOnly: tr("commented"),
         };
         const actionLabels = {
-          created: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-          commented: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-          updated: "\u0111\u00e3 ch\u1ec9nh s\u1eeda",
-          deleted: "\u0111\u00e3 x\u00f3a b\u1ecf",
-          uploaded: "\u0111\u00e3 t\u1ea3i l\u00ean",
+          created: tr("commented"),
+          commented: tr("commented"),
+          updated: tr("edited"),
+          deleted: tr("deleted"),
+          uploaded: tr("uploaded"),
         };
         return (
           layoutLabels[layoutType] ||
           actionLabels[action] ||
-          "\u0111\u00e3 th\u1ef1c hi\u1ec7n"
+          tr("acted")
         );
       };
 
@@ -13894,15 +14548,15 @@
         const fileCount = (files || []).length;
         if (layoutType === "commentGroup") {
           return fileCount > 0
-            ? `B\u00ecnh lu\u1eadn + ${fileCount} t\u1ec7p`
-            : "B\u00ecnh lu\u1eadn + nh\u1eafc t\u00ean";
+            ? tr("Comment + {0} files", { 0: fileCount })
+            : tr("Comment + mentions");
         }
-        if (layoutType === "commentOnly") return "B\u00ecnh lu\u1eadn";
+        if (layoutType === "commentOnly") return tr("Comment");
         if (layoutType === "fileOnly")
           return fileCount > 1
-            ? `${fileCount} t\u1ec7p`
-            : "T\u1ec7p \u0111\u00ednh k\u00e8m";
-        if (layoutType === "mentionOnly") return "Nh\u1eafc t\u00ean";
+            ? tr("{0} files", { 0: fileCount })
+            : tr("Attached file");
+        if (layoutType === "mentionOnly") return tr("Mention");
         return null;
       };
 
@@ -14373,7 +15027,7 @@
                   fontStyle: "italic",
                 },
               },
-              `replied to ${parentAuthor}:`,
+              tr("replied to {0}:", { 0: parentAuthor }),
             ),
 
           // ── Nội dung bình luận ─────────────────────────────────────────────
@@ -14393,7 +15047,7 @@
                     display: showBodyLabel ? "block" : "none",
                   },
                 },
-                "Comment content:",
+                tr("Comment content:"),
               ),
               React.createElement(
                 "div",
@@ -14458,7 +15112,7 @@
                   React.createElement(
                     "div",
                     { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
-                    "↓ changed to ↓",
+                    tr("↓ changed to ↓"),
                   ),
 
                 // Nội dung hiện tại
@@ -14488,7 +15142,7 @@
                     : React.createElement(
                         "span",
                         { style: { color: "#8c8c8c", fontStyle: "italic" } },
-                        "(Note mentions someone)",
+                        tr("(Note mentions someone)"),
                       ),
               ),
             ),
@@ -14509,7 +15163,7 @@
                     fontFamily: FONT,
                   },
                 },
-                "Mentioned:",
+                tr("Mentioned:"),
               ),
               React.createElement(
                 "div",
@@ -14571,14 +15225,14 @@
                     display: showFileLabel ? "block" : "none",
                   },
                 },
-                "Attached file:",
+                tr("Attached file:"),
               ),
               files.map((f) => {
                 const att = Array.isArray(f.fileAttachment)
                   ? f.fileAttachment[0]
                   : f.fileAttachment;
                 const rawName =
-                  f.title || att?.title || att?.filename || "(No name yet)";
+                  f.title || att?.title || att?.filename || tr("(No name yet)");
                 const fExt = att?.extname || "";
                 const displayName = rawName
                   .toLowerCase()
@@ -14642,7 +15296,7 @@
                       {
                         style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
                       },
-                      "DOWNLOAD",
+                      tr("DOWNLOAD"),
                     ),
                 );
               }),
@@ -14657,13 +15311,13 @@
             ? a.createdAt || a.changedAt || a.updatedAt
             : a.changedAt || a.updatedAt || a.createdAt;
         const fieldLabel = tF(a.fieldName || "data");
-        const user = a.changedByName || "System";
+        const user = a.changedByName || tr("System");
         const actionLabel =
           a.action === "created"
-            ? `created ${fieldLabel}`
+            ? tr("created {0}", { 0: fieldLabel })
             : a.action === "deleted"
-              ? `deleted ${fieldLabel}`
-              : `updated ${fieldLabel}`;
+              ? tr("deleted {0}", { 0: fieldLabel })
+              : tr("updated {0}", { 0: fieldLabel });
         const oldVal = a.oldValue ? formatActivityValue(a.oldValue) : "—";
         const newVal = a.newValue ? formatActivityValue(a.newValue) : "—";
         const showOldValue = a.action !== "created";
@@ -14706,7 +15360,7 @@
               React.createElement(
                 "span",
                 { style: { fontSize: 13, color: "#595959" } },
-                ` ${actionLabel} at `,
+                tr(" {0} at ", { 0: actionLabel }),
               ),
               React.createElement(
                 "span",
@@ -14731,7 +15385,7 @@
             React.createElement(
               "span",
               { style: { color: "#8c8c8c", fontWeight: 700 } },
-              "Value:",
+              tr("Value:"),
             ),
             showOldValue &&
               React.createElement(
@@ -14793,27 +15447,27 @@
 
         if (collectionName === "Note" && action === "updated") {
           if (hasBodyLog && hasAssigneeLog)
-            return "S\u1eeda n\u1ed9i dung b\u00ecnh lu\u1eadn v\u00e0 c\u1eadp nh\u1eadt ng\u01b0\u1eddi \u0111\u01b0\u1ee3c nh\u1eafc";
-          if (hasBodyLog) return "S\u1eeda n\u1ed9i dung b\u00ecnh lu\u1eadn";
+            return tr("Edited the comment and its mentions");
+          if (hasBodyLog) return tr("Edited the comment");
           if (hasAssigneeLog)
-            return "C\u1eadp nh\u1eadt ng\u01b0\u1eddi \u0111\u01b0\u1ee3c nh\u1eafc trong b\u00ecnh lu\u1eadn";
+            return tr("Updated the comment's mentions");
         }
 
         if (collectionName === "Note" && action === "deleted")
-          return "X\u00f3a b\u00ecnh lu\u1eadn";
+          return tr("Deleted the comment");
 
         if (firstUnified?.parentAuthor)
-          return `Ph\u1ea3n h\u1ed3i b\u00ecnh lu\u1eadn c\u1ee7a ${firstUnified.parentAuthor}`;
+          return tr("Replied to {0}'s comment", { 0: firstUnified.parentAuthor });
 
         if (layoutType === "fileOnly")
           return fileCount > 1
-            ? `T\u1ea3i l\u00ean ${fileCount} t\u1ec7p \u0111\u00ednh k\u00e8m`
-            : "T\u1ea3i l\u00ean t\u1ec7p \u0111\u00ednh k\u00e8m";
+            ? tr("Uploaded {0} attached files", { 0: fileCount })
+            : tr("Uploaded an attached file");
 
         if (layoutType === "commentGroup")
-          return "T\u1ea1o b\u00ecnh lu\u1eadn k\u00e8m th\u00f4ng tin li\u00ean quan";
+          return tr("Created a comment with related details");
 
-        if (layoutType === "commentOnly") return "T\u1ea1o b\u00ecnh lu\u1eadn";
+        if (layoutType === "commentOnly") return tr("Created a comment");
 
         return null;
       };
@@ -14839,7 +15493,7 @@
           React.createElement(
             "span",
             { style: { color: "#8c8c8c", fontWeight: 700 } },
-            "H\u00e0nh \u0111\u1ed9ng:",
+            tr("Action:"),
           ),
           React.createElement("span", null, text),
         );
@@ -14925,10 +15579,10 @@
         // Tên user hiển thị
         const user =
           firstIt._kind === "log"
-            ? firstIt.data.changedByName || "System"
+            ? firstIt.data.changedByName || tr("System")
             : firstIt.note
               ? authorName(firstIt.note)
-              : "System";
+              : tr("System");
 
         const actionLabel = getLayoutActionLabel(
           layoutType,
@@ -14996,7 +15650,7 @@
               React.createElement(
                 "span",
                 { style: { color: "#8c8c8c", fontSize: 12, fontFamily: FONT } },
-                `${actionLabel} l\u00fac ${fmt(latestTime, "full") || "\u2014"}`,
+                tr("{0} at {1}", { 0: actionLabel, 1: fmt(latestTime, "full") || "\u2014" }),
               ),
               badge &&
                 React.createElement(
@@ -15097,7 +15751,7 @@
                   fontFamily: FONT,
                 },
               },
-              "Attached file:",
+              tr("Attached file:"),
             ),
             React.createElement(
               "div",
@@ -15190,7 +15844,7 @@
                 fontFamily: FONT,
               },
             },
-            isUpd ? `updated [${label}]` : `deleted [${label}]`,
+            isUpd ? tr("updated [{0}]", { 0: label }) : tr("deleted [{0}]", { 0: label }),
           ),
           (a.oldValue || a.newValue) &&
             React.createElement(
@@ -15299,7 +15953,7 @@
                 color: "#262626",
               },
             },
-            "Activity history",
+            tr("Activity history"),
           ),
           React.createElement(ReloadButton, {
             onReload: reloadData,
@@ -15330,7 +15984,7 @@
                       fontFamily: FONT,
                     },
                   },
-                  "No activity yet",
+                  tr("No activity yet"),
                 )
               : React.createElement(
                   "div",
@@ -15366,8 +16020,8 @@
                           (e.currentTarget.style.background = "#f0f8ff"),
                       },
                       showAll
-                        ? `▲ Collapse (showing ${INITIAL_COUNT} of ${items.length})`
-                        : `▼ View ${items.length - INITIAL_COUNT} more activities (${items.length} total)`,
+                        ? tr("▲ Collapse (showing {0} of {1})", { 0: INITIAL_COUNT, 1: items.length })
+                        : tr("▼ View {0} more activities ({1} total)", { 0: items.length - INITIAL_COUNT, 1: items.length }),
                     ),
                 ),
         ),
@@ -15408,6 +16062,12 @@
         setByCaseSelectorOpen(false);
       }, [item?.id]);
       if (!item) return null;
+      // Every financial control/figure in this modal (payment trigger,
+      // lawyer hourly rates, timesheet amounts, money variables in docx
+      // Generate) stays hidden until the task's case has a contract linked.
+      // caseInfo is null while still loading and for non-case tasks, so
+      // this defaults to hidden.
+      const hasContract = !!caseInfo?.contractId;
       const name = type === "subTask" ? item.subTaskName : item.title;
       const collectionName = type === "subTask" ? "SubTask" : "Task";
       const detailCaseId =
@@ -15564,9 +16224,9 @@
             );
             onUpdate({ ...item, _files: updatedFiles });
           }
-          message.success("Document name updated");
+          message.success(tr("Document name updated"));
         } catch (e) {
-          message.error("Failed to update name");
+          message.error(tr("Failed to update name"));
         }
         setEditingFileId(null);
         setEditFileTitle("");
@@ -15750,7 +16410,7 @@
             prevTask.status !== "cancelled"
           ) {
             if (!["cancelled", "blocked"].includes(newSt)) {
-              message.warning(`Must complete "${prevTask.title}" first`);
+              message.warning(tr("Must complete \"{0}\" first", { 0: prevTask.title }));
               return;
             }
           }
@@ -15774,16 +16434,17 @@
             extractId(item.id),
             "updated",
             "status",
-            st.label,
-            STATUS_CFG[resolvedSt]?.label,
+            // the log keeps the English labels, whatever the UI language
+            Object.keys(VI).find((key) => VI[key] === st.label) || st.label,
+            Object.keys(VI).find((key) => VI[key] === STATUS_CFG[resolvedSt]?.label) || STATUS_CFG[resolvedSt]?.label,
             userName(currentUser),
           );
           if (onStatusChange)
             onStatusChange(extractId(item.id), resolvedSt, type, data);
-          message.success(`Status: ${STATUS_CFG[resolvedSt]?.label}`);
+          message.success(tr("Status: {0}", { 0: STATUS_CFG[resolvedSt]?.label }));
         } catch (error) {
           message.error(
-            "Backend error: Account has not been granted permission to edit this field!",
+            tr("Backend error: Account has not been granted permission to edit this field!"),
           );
           onUpdate({ ...item });
         }
@@ -15808,9 +16469,9 @@
         onUpdate({ ...item, priority: newPr });
         try {
           await apiReq(url, "POST", { priority: newPr });
-          message.success("Priority updated");
+          message.success(tr("Priority updated"));
         } catch (e) {
-          message.error("Backend error: No permission to update");
+          message.error(tr("Backend error: No permission to update"));
           onUpdate({ ...item });
         }
       };
@@ -15830,9 +16491,9 @@
         onUpdate({ ...item, [field]: nameVal.trim() });
         try {
           await apiReq(url, "POST", { [field]: nameVal.trim() });
-          message.success("Task name updated");
+          message.success(tr("Task name updated"));
         } catch (e) {
-          message.error("Backend error: No permission to update");
+          message.error(tr("Backend error: No permission to update"));
           onUpdate({ ...item });
           setNameVal(name);
         }
@@ -15865,9 +16526,9 @@
           await apiReq(`subTasks:update?filterByTk=${subtaskId}`, "POST", {
             subTaskName: newVal,
           });
-          message.success("Subtask title updated");
+          message.success(tr("Subtask title updated"));
         } catch (e) {
-          message.error("Backend error: No permission to update");
+          message.error(tr("Backend error: No permission to update"));
           onUpdate({ id: subtaskId, subTaskName: subtask.subTaskName });
         }
       };
@@ -15898,7 +16559,7 @@
         ctx.openView(SUBTASK_DETAIL_POPUP_UID, {
           mode: "dialog",
           size: "large",
-          title: ctx.t ? ctx.t("Subtask detail") : "Subtask detail",
+          title: ctx.t ? ctx.t(tr("Subtask detail")) : tr("Subtask detail"),
           navigation: false,
           ...sharedIdKeys,
           inputArgs: sharedIdKeys,
@@ -15918,9 +16579,9 @@
               ? `subTasks:update?filterByTk=${extractId(item.id)}`
               : `tasks:update?filterByTk=${extractId(item.id)}`;
           await apiReq(url, "POST", { estimatedDuration: newVal });
-          message.success("Estimated duration updated");
+          message.success(tr("Estimated duration updated"));
         } catch (e) {
-          message.error("Backend error: No permission to update");
+          message.error(tr("Backend error: No permission to update"));
           onUpdate({ ...item });
           setEstDurVal(oldVal || "");
         }
@@ -15931,7 +16592,7 @@
           "span",
           {
             onClick,
-            title: "Edit title",
+            title: tr("Edit title"),
             style: {
               cursor: "pointer",
               color: "#8c8c8c",
@@ -16013,11 +16674,9 @@
                   padding: "2px 6px",
                 },
               },
-              `Subtask of: ${
-                parentTaskForSubtask?.title ||
+              tr("Subtask of: {0}", { 0: parentTaskForSubtask?.title ||
                 item._parentTaskTitle ||
-                `Task #${extractId(item.taskId) || ""}`
-              }`,
+                tr("Task #{0}", { 0: extractId(item.taskId) || "" }) }),
             ),
 
           item.isRequiredApproval &&
@@ -16033,7 +16692,7 @@
                   border: "1px solid #ffd591",
                 },
               },
-              "Requires approval",
+              tr("Requires approval"),
             ),
           item._od &&
             React.createElement(
@@ -16048,7 +16707,7 @@
                   border: "1px solid #ffa39e",
                 },
               },
-              "Overdue",
+              tr("Overdue"),
             ),
         ),
         // Subtask titles listed directly under the parent task's title —
@@ -16113,7 +16772,7 @@
                       "span",
                       {
                         onClick: () => openSubtaskPopup(subtask),
-                        title: "Open subtask",
+                        title: tr("Open subtask"),
                         style: { cursor: "pointer", color: "#1890ff" },
                         onMouseEnter: (e) =>
                           (e.currentTarget.style.textDecoration = "underline"),
@@ -16135,7 +16794,7 @@
                 "span",
                 {
                   onClick: () => setShowAllSubtasks((prev) => !prev),
-                  title: showAllSubtasks ? "Show fewer subtasks" : "Show all subtasks",
+                  title: showAllSubtasks ? tr("Show fewer subtasks") : tr("Show all subtasks"),
                   style: {
                     cursor: "pointer",
                     fontSize: 12,
@@ -16146,7 +16805,7 @@
                   onMouseEnter: (e) => (e.currentTarget.style.textDecoration = "underline"),
                   onMouseLeave: (e) => (e.currentTarget.style.textDecoration = "none"),
                 },
-                showAllSubtasks ? "Show less" : `View ${liveSubtasks.length - 3} more...`,
+                showAllSubtasks ? tr("Show less") : tr("View {0} more...", { 0: liveSubtasks.length - 3 }),
               ),
           ),
       );
@@ -16157,6 +16816,7 @@
         const [manualDefs, setManualDefs] = useState([]);
         const [manualValues, setManualValues] = useState({});
         const [missingKeys, setMissingKeys] = useState([]);
+        const [financeHiddenKeys, setFinanceHiddenKeys] = useState([]);
         const [generating, setGenerating] = useState(false);
         const [saving, setSaving] = useState(false);
         const [previewUrl, setPreviewUrl] = useState(null);
@@ -16171,9 +16831,14 @@
             const ctxData = await fetchGenerateContext(task);
             if (cancelled) return;
             const variableConfig = getEffectiveVariableConfig(doc);
-            const { missing, manualDefs: defs } = resolveVariables(variableConfig, ctxData);
+            const {
+              missing,
+              manualDefs: defs,
+              financeHiddenKeys: hiddenKeys,
+            } = resolveVariables(variableConfig, ctxData);
             setContext(ctxData);
             setMissingKeys(missing);
+            setFinanceHiddenKeys(hiddenKeys);
             setManualDefs(defs);
             setManualValues(Object.fromEntries(defs.map((d) => [d.key, ""])));
             setLoading(false);
@@ -16250,7 +16915,7 @@
               updatedAt: now,
               ...buildTaskUploadDocumentLink("Task", task?.id, { folderId: projectFolderId }),
             });
-            message.success("Đã lưu tài liệu vào task");
+            message.success(tr("Document saved to task"));
             if (onSaved) onSaved();
             onClose();
           } catch (error) {
@@ -16263,7 +16928,7 @@
         return React.createElement(
           Modal,
           {
-            title: `Điền biến & Generate — ${doc?.title || ""}`,
+            title: tr("Fill variables & Generate — {0}", { 0: doc?.title || "" }),
             open: true,
             onCancel: onClose,
             centered: true,
@@ -16276,19 +16941,19 @@
                   React.createElement(
                     Button,
                     { key: "close", onClick: onClose },
-                    "Đóng",
+                    tr("Close"),
                   ),
                   React.createElement(
                     Button,
                     { key: "save", type: "primary", loading: saving, onClick: handleSave },
-                    "Lưu vào Documents",
+                    tr("Save to Documents"),
                   ),
                 ]
               : [
                   React.createElement(
                     Button,
                     { key: "cancel", onClick: onClose },
-                    "Huỷ",
+                    tr("Cancel"),
                   ),
                   React.createElement(
                     Button,
@@ -16299,7 +16964,7 @@
                       disabled: loading,
                       onClick: handleGenerate,
                     },
-                    "Generate & Preview",
+                    tr("Generate & Preview"),
                   ),
                 ],
           },
@@ -16318,13 +16983,19 @@
                     React.createElement(
                       "div",
                       { style: { color: "#d46b08", fontSize: 12 } },
-                      `Thiếu dữ liệu hệ thống cho: ${missingKeys.join(", ")} — các biến này sẽ để trống trong file.`,
+                      tr("Missing system data for: {0} — these variables will be left blank in the file.", { 0: missingKeys.join(", ") }),
+                    ),
+                  financeHiddenKeys.length > 0 &&
+                    React.createElement(
+                      "div",
+                      { style: { color: "#8c8c8c", fontSize: 12 } },
+                      tr("Financial variables left blank because this case has no contract yet: {0}.", { 0: financeHiddenKeys.join(", ") }),
                     ),
                   manualDefs.length === 0
                     ? React.createElement(
                         "div",
                         { style: { color: "#8c8c8c", fontSize: 12 } },
-                        "Toàn bộ biến đều lấy tự động từ hệ thống.",
+                        tr("All variables are filled automatically from the system."),
                       )
                     : manualDefs.map((def) =>
                         React.createElement(
@@ -16378,8 +17049,8 @@
             if (missingTags.length === 0) {
               message.info(
                 tags.length === 0
-                  ? "Không tìm thấy biến {{...}} nào trong file."
-                  : "Mọi biến trong file đã được cấu hình.",
+                  ? tr("No {{...}} variables found in the file.")
+                  : tr("All variables in the file are already configured."),
               );
               return;
             }
@@ -16393,10 +17064,10 @@
               })),
             ]);
             message.success(
-              `Tìm thấy ${missingTags.length} biến chưa cấu hình: ${missingTags.join(", ")}. Vui lòng chọn nguồn dữ liệu cho từng biến bên dưới.`,
+              tr("Found {0} unconfigured variable(s): {1}. Please choose a data source for each variable below.", { 0: missingTags.length, 1: missingTags.join(", ") }),
             );
           } catch (error) {
-            message.error("Quét file thất bại: " + (error?.message || "Vui lòng thử lại"));
+            message.error(tr("File scan failed: ") + (error?.message || tr("Please try again")));
           } finally {
             setScanning(false);
           }
@@ -16411,11 +17082,11 @@
               variableConfig: mode === "inherited" ? doc?.variableConfig || [] : rows,
               variableConfigMode: mode,
             });
-            message.success("Đã lưu cấu hình biến");
+            message.success(tr("Variable configuration saved"));
             if (onSaved) onSaved();
             onClose();
           } catch (error) {
-            message.error("Lưu thất bại: " + (error?.message || "Vui lòng thử lại"));
+            message.error(tr("Save failed: ") + (error?.message || tr("Please try again")));
           } finally {
             setSaving(false);
           }
@@ -16424,16 +17095,16 @@
         return React.createElement(
           Modal,
           {
-            title: `Cấu hình biến — ${doc?.title || ""}`,
+            title: tr("Configure variables — {0}", { 0: doc?.title || "" }),
             open: true,
             onCancel: onClose,
             width: 760,
             footer: [
-              React.createElement(Button, { key: "cancel", onClick: onClose }, "Huỷ"),
+              React.createElement(Button, { key: "cancel", onClick: onClose }, tr("Cancel")),
               React.createElement(
                 Button,
                 { key: "save", type: "primary", loading: saving, onClick: handleSave },
-                "Lưu",
+                tr("Save"),
               ),
             ],
           },
@@ -16444,13 +17115,13 @@
               React.createElement(
                 "div",
                 { style: { display: "flex", alignItems: "center", gap: 8 } },
-                React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, "Chế độ:"),
+                React.createElement("span", { style: { fontSize: 12, fontWeight: 600 } }, tr("Mode:")),
                 React.createElement(Select, {
                   value: mode,
                   style: { width: 260 },
                   options: [
-                    { value: "inherited", label: "Kế thừa từ Task Template" },
-                    { value: "custom", label: "Tuỳ chỉnh riêng cho task này" },
+                    { value: "inherited", label: tr("Inherit from Task Template") },
+                    { value: "custom", label: tr("Customize for this task") },
                   ],
                   onChange: (value) => setMode(value),
                 }),
@@ -16459,11 +17130,17 @@
               React.createElement(
                 "div",
                 { style: { fontSize: 12, color: "#8c8c8c" } },
-                "Đang kế thừa cấu hình từ Task Template (chỉ xem) — chuyển sang \"Tuỳ chỉnh\" để sửa riêng cho task này.",
+                tr("Inheriting configuration from Task Template (read-only) — switch to \"Customize\" to edit it for this task only."),
+              ),
+            !hasContract &&
+              React.createElement(
+                "div",
+                { style: { fontSize: 12, color: "#8c8c8c" } },
+                tr("Financial fields (quotation amounts, invoice, payment) are unavailable until this case has a contract."),
               ),
             displayRows.length === 0
               ? React.createElement(Empty, {
-                  description: "Chưa có biến nào",
+                  description: tr("No variables yet"),
                   image: Empty.PRESENTED_IMAGE_SIMPLE,
                 })
               : displayRows.map((row, index) =>
@@ -16471,7 +17148,7 @@
                     Space.Compact,
                     { key: index, style: { width: "100%" } },
                     React.createElement(Input, {
-                      placeholder: "Tên biến (VD: customer_name)",
+                      placeholder: tr("Variable name (e.g. customer_name)"),
                       value: row.key,
                       disabled: mode === "inherited",
                       style: { width: "22%" },
@@ -16482,24 +17159,40 @@
                       disabled: mode === "inherited",
                       style: { width: "18%" },
                       options: [
-                        { value: "system", label: "Hệ thống" },
-                        { value: "manual", label: "Nhập tay" },
+                        { value: "system", label: tr("System") },
+                        { value: "manual", label: tr("Manual input") },
                       ],
                       onChange: (value) => updateRow(index, { source: value }),
                     }),
                     row.source === "system"
                       ? React.createElement(Select, {
-                          placeholder: "Chọn field hệ thống",
+                          placeholder: tr("Select a system field"),
                           value: row.sourceKey || undefined,
                           disabled: mode === "inherited",
                           style: { width: "45%" },
                           showSearch: true,
                           optionFilterProp: "label",
-                          options: VARIABLE_SYSTEM_FIELD_OPTIONS,
+                          // No contract → financial fields can't be picked.
+                          // A row already mapped to one keeps a disabled
+                          // placeholder option so its label still resolves
+                          // (instead of the raw key) without exposing the
+                          // field's real name as selectable.
+                          options: hasContract
+                            ? VARIABLE_SYSTEM_FIELD_OPTIONS
+                            : isFinanceVariableKey(row.sourceKey)
+                              ? [
+                                  {
+                                    value: row.sourceKey,
+                                    label: tr("Financial field (hidden — no contract)"),
+                                    disabled: true,
+                                  },
+                                  ...VARIABLE_SYSTEM_FIELD_OPTIONS_NO_FINANCE,
+                                ]
+                              : VARIABLE_SYSTEM_FIELD_OPTIONS_NO_FINANCE,
                           onChange: (value) => updateRow(index, { sourceKey: value }),
                         })
                       : React.createElement(Input, {
-                          placeholder: "Nhãn hiển thị khi nhập tay",
+                          placeholder: tr("Label shown for manual input"),
                           value: row.label,
                           disabled: mode === "inherited",
                           style: { width: "45%" },
@@ -16510,7 +17203,7 @@
                       disabled: mode === "inherited",
                       onClick: () => removeRow(index),
                       style: { width: "15%" },
-                      children: "Xoá",
+                      children: tr("Delete"),
                     }),
                   ),
                 ),
@@ -16518,11 +17211,11 @@
               React.createElement(
                 Space,
                 null,
-                React.createElement(Button, { type: "dashed", onClick: addRow }, "+ Thêm biến"),
+                React.createElement(Button, { type: "dashed", onClick: addRow }, tr("+ Add variable")),
                 React.createElement(
                   Button,
                   { onClick: handleScan, loading: scanning },
-                  "Quét file tìm biến",
+                  tr("Scan file for variables"),
                 ),
               ),
           ),
@@ -16531,7 +17224,7 @@
 
       const renderFileList = (
         files,
-        emptyMsg = "No attached files yet.",
+        emptyMsg = tr("No attached files yet."),
         hideTime = false,
       ) => {
         if (files.length === 0)
@@ -16558,7 +17251,7 @@
           },
           ...files.map((f) => {
             const att = getPrimaryAttachment(f);
-            let originalName = att?.filename || "File";
+            let originalName = att?.filename || tr("File");
             let ext = att?.extname
               ? att.extname.startsWith(".")
                 ? att.extname.toLowerCase()
@@ -16576,27 +17269,27 @@
               {
                 key: "preview",
                 icon: TASK_FILE_ACTION_ICONS.preview,
-                label: "Preview",
+                label: tr("Preview"),
                 disabled: !fullUrl,
               },
               {
                 key: "download",
                 icon: TASK_FILE_ACTION_ICONS.download,
-                label: "Download",
+                label: tr("Download"),
                 disabled: !fullUrl,
               },
               canEdit &&
                 ext === ".docx" && {
                   key: "configure_variables",
                   icon: TASK_FILE_ACTION_ICONS.edit,
-                  label: "Cấu hình biến",
+                  label: tr("Configure variables"),
                 },
               canEdit &&
                 ext === ".docx" &&
                 effectiveVariableConfig.length > 0 && {
                   key: "generate_variables",
                   icon: TASK_FILE_ACTION_ICONS.preview,
-                  label: "Điền biến & Generate",
+                  label: tr("Fill variables & Generate"),
                 },
               // Replaces the old "Move to Legal Reference" action — moving
               // into the current case's own Document tree is what's actually
@@ -16607,26 +17300,26 @@
               canEdit && !detailProjectInternalId && {
                 key: "move_to_document",
                 icon: TASK_FILE_ACTION_ICONS.folder,
-                label: "Move to Case's Document",
+                label: tr("Move to Case's Document"),
               },
               // Internal Work equivalent of "Move to Case's Document" above —
               // moves into the current Internal Work item's own Document tree.
               canEdit && !!detailProjectInternalId && {
                 key: "move_to_project_internal_document",
                 icon: TASK_FILE_ACTION_ICONS.folder,
-                label: "Move to Internal Work's Document",
+                label: tr("Move to Internal Work's Document"),
               },
               // Single umbrella entry for every destination outside the
               // current workspace — see getLibraryMoveCategories.
               canEdit && {
                 key: "move_to_library",
                 icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-                label: "Move to Library",
+                label: tr("Move to Library"),
               },
               canEdit && {
                 key: "edit",
                 icon: TASK_FILE_ACTION_ICONS.edit,
-                label: "Rename",
+                label: tr("Rename"),
               },
             ].filter(Boolean);
             const handleFileActionClick = ({ key, domEvent }) => {
@@ -16811,7 +17504,7 @@
                     {
                       style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
                     },
-                    "Note content:",
+                    tr("Note content:"),
                   ),
                   f.note,
                 ),
@@ -16864,11 +17557,11 @@
             React.createElement(
               "span",
               null,
-              "Attachments ",
+              tr("Attachments "),
               React.createElement(
                 "span",
                 { style: { color: "#6B7280", fontWeight: 500 } },
-                `(${folderGroups.length} folders - ${documentFiles.length} documents)`,
+                tr("({0} folders - {1} documents)", { 0: folderGroups.length, 1: documentFiles.length }),
               ),
             ),
             React.createElement(
@@ -16889,7 +17582,7 @@
                         cursor: "pointer",
                       },
                     },
-                    "Cancel",
+                    tr("Cancel"),
                   )
                 : React.createElement(
                     "span",
@@ -16904,7 +17597,7 @@
                         textUnderlineOffset: "2px",
                       },
                     },
-                    "Select files",
+                    tr("Select files"),
                   ),
               React.createElement(ReloadButton, { onReload: reloadAttachments, size: "small" }),
             ),
@@ -16929,7 +17622,7 @@
                 {
                   style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 },
                 },
-                `${selectedAttachmentIds.size} selected`,
+                tr("{0} selected", { 0: selectedAttachmentIds.size }),
               ),
               React.createElement(
                 Button,
@@ -16958,7 +17651,7 @@
                     );
                   },
                 },
-                "Download",
+                tr("Download"),
               ),
             ),
           React.createElement(
@@ -16979,7 +17672,7 @@
                     marginBottom: 8,
                   },
                 },
-                "Folders",
+                tr("Folders"),
               ),
               folderGroups.length === 0
                 ? React.createElement(
@@ -16992,7 +17685,7 @@
                         fontFamily: FONT,
                       },
                     },
-                    "No folders.",
+                    tr("No folders."),
                   )
                 : React.createElement(
                     "div",
@@ -17005,12 +17698,12 @@
                         canEdit && !linkedLegalStudy && {
                           key: "move_legal_study",
                           icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
-                          label: "Move folder to Legal Study",
+                          label: tr("Move folder to Legal Study"),
                         },
                         canEdit && !linkedLegalReference && {
                           key: "move_legal_reference",
                           icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-                          label: "Move folder to Legal Reference",
+                          label: tr("Move folder to Legal Reference"),
                         },
                       ].filter(Boolean);
                       return React.createElement(
@@ -17101,7 +17794,7 @@
                                 flexShrink: 0,
                               },
                             },
-                            `${group.files.length} documents`,
+                            tr("{0} documents", { 0: group.files.length }),
                           ),
                           folderActionItems.length > 0 &&
                             React.createElement(
@@ -17149,7 +17842,7 @@
                             { style: { padding: 8 } },
                             renderScrollableFileList(
                               group.files,
-                              "This folder has no documents.",
+                              tr("This folder has no documents."),
                             ),
                           ),
                       );
@@ -17171,9 +17864,9 @@
                     marginBottom: 8,
                   },
                 },
-                "Documents",
+                tr("Documents"),
               ),
-              renderScrollableFileList(documentFiles, "No attached documents."),
+              renderScrollableFileList(documentFiles, tr("No attached documents.")),
             ),
           ),
         );
@@ -17277,7 +17970,7 @@
                   onMouseLeave: (e) =>
                     (e.currentTarget.style.background = "#e6f4ff"),
                 },
-                "Log Timesheet",
+                tr("Log Timesheet"),
               ),
               isManager &&
                 React.createElement(
@@ -17303,7 +17996,7 @@
                     onMouseLeave: (e) =>
                       (e.currentTarget.style.background = "#f5f5f5"),
                   },
-                  "Activity history",
+                  tr("Activity history"),
                 ),
               type === "task" &&
                 canEdit &&
@@ -17330,7 +18023,7 @@
                     onMouseLeave: (e) =>
                       (e.currentTarget.style.background = "#f6ffed"),
                   },
-                  "＋ Create subtask",
+                  tr("＋ Create subtask"),
                 ),
               isLastTask &&
                 canManage &&
@@ -17357,7 +18050,7 @@
                     onMouseLeave: (e) =>
                       (e.currentTarget.style.background = "#fff7e6"),
                   },
-                  "💳 Create payment request",
+                  tr("💳 Create payment request"),
                 ),
             ),
 
@@ -17385,7 +18078,7 @@
                     minWidth: 0,
                   },
                 },
-                headerBar("General information"),
+                headerBar(tr("General information")),
                 React.createElement(
                   "div",
                   { style: { padding: "16px 18px", overflowY: "auto", flex: 1 } },
@@ -17423,7 +18116,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Linked case",
+                          tr("Linked case"),
                         ),
                         React.createElement(
                           "span",
@@ -17431,7 +18124,7 @@
                             onClick: linkedCaseUrl
                               ? () => window.open(linkedCaseUrl, "_blank")
                               : undefined,
-                            title: linkedCaseUrl ? "View case details" : undefined,
+                            title: linkedCaseUrl ? tr("View case details") : undefined,
                             style: {
                               fontSize: 13,
                               fontWeight: 600,
@@ -17471,7 +18164,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Linked internal work",
+                          tr("Linked internal work"),
                         ),
                         React.createElement(
                           "span",
@@ -17480,7 +18173,7 @@
                               ? () => window.open(linkedInternalProjectUrl, "_blank")
                               : undefined,
                             title: linkedInternalProjectUrl
-                              ? "View internal project"
+                              ? tr("View internal project")
                               : undefined,
                             style: {
                               fontSize: 13,
@@ -17519,7 +18212,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Status",
+                          tr("Status"),
                         ),
                         React.createElement(Select, {
                           value: item.status,
@@ -17566,7 +18259,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Priority",
+                          tr("Priority"),
                         ),
                         React.createElement(Select, {
                           value: item.priority || "medium",
@@ -17600,7 +18293,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Estimated duration",
+                          tr("Estimated duration"),
                         ),
                         React.createElement(
                           "div",
@@ -17616,7 +18309,7 @@
                               ? (e) => setEstDurVal(e.target.value)
                               : undefined,
                             readOnly: !canEdit,
-                            placeholder: "Number of hours...",
+                            placeholder: tr("Number of hours..."),
                             style: detailInlineInputStyle(canEdit),
                             onBlur: canEdit ? saveEstDur : undefined,
                           }),
@@ -17648,7 +18341,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Assignee",
+                          tr("Assignee"),
                         ),
                         React.createElement(
                           "div",
@@ -17660,6 +18353,7 @@
                             value: extractId(item.lawyerId),
                             size: 20,
                             readOnly: !canManage,
+                            showRate: hasContract,
                             onChange: handleAssign,
                           }),
                         ),
@@ -17686,7 +18380,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Requires approval",
+                          tr("Requires approval"),
                         ),
                         React.createElement(
                           "label",
@@ -17737,8 +18431,8 @@
                               },
                             },
                             item.isRequiredApproval
-                              ? "Requires approval"
-                              : "Not required",
+                              ? tr("Requires approval")
+                              : tr("Not required"),
                           ),
                         ),
                       ),
@@ -17756,7 +18450,7 @@
                               marginBottom: 4,
                             },
                           },
-                          "Approver",
+                          tr("Approver"),
                         ),
                         React.createElement(
                           "div",
@@ -17773,6 +18467,7 @@
                             value: extractId(item.approvedById),
                             size: 20,
                             readOnly: !canManage || !item.isRequiredApproval,
+                            showRate: hasContract,
                             onChange:
                               canManage && item.isRequiredApproval
                                 ? async (id, n, c) => {
@@ -17797,7 +18492,7 @@
                                   marginLeft: 4,
                                 },
                               },
-                              "Select...",
+                              tr("Select..."),
                             ),
                         ),
                       ),
@@ -17818,7 +18513,7 @@
                             marginBottom: 4,
                           },
                         },
-                        "Time worked",
+                        tr("Time worked"),
                       ),
                       React.createElement(
                         "div",
@@ -17845,9 +18540,9 @@
                                     : `tasks:update?filterByTk=${extractId(item.id)}`;
                                 try {
                                   await apiReq(apiUrl, "POST", { [field]: val });
-                                  message.success("Time updated");
+                                  message.success(tr("Time updated"));
                                 } catch (e) {
-                                  message.error("Error: Unable to update");
+                                  message.error(tr("Error: Unable to update"));
                                 }
                               }
                             : undefined,
@@ -17882,9 +18577,9 @@
                                     : `tasks:update?filterByTk=${extractId(item.id)}`;
                                 try {
                                   await apiReq(apiUrl, "POST", { [field]: val });
-                                  message.success("Time updated");
+                                  message.success(tr("Time updated"));
                                 } catch (e) {
-                                  message.error("Error: Unable to update");
+                                  message.error(tr("Error: Unable to update"));
                                 }
                               }
                             : undefined,
@@ -17917,7 +18612,7 @@
                             marginBottom: 12,
                           },
                         },
-                        "Work description",
+                        tr("Work description"),
                       ),
                       React.createElement(DescriptionInlineEditor, {
                         item,
@@ -17940,7 +18635,7 @@
                               marginBottom: 12,
                             },
                           },
-                          "Dependent task (Pending Issue)",
+                          tr("Dependent task (Pending Issue)"),
                         ),
                         React.createElement(TaskPicker, {
                           allTasks: _pool,
@@ -17996,7 +18691,10 @@
                     //     removing the existing link, not just hiding the
                     //     selector).
                     // See docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
+                    // Hidden entirely until the case has a contract — see
+                    // hasContract.
                     type === "task" &&
+                      hasContract &&
                       (() => {
                         // Retainer billing runs entirely off contractBillingPlans
                         // + its own scheduled workflow — no SQL trigger reads a
@@ -18009,12 +18707,50 @@
                             "div",
                             {
                               style: { fontSize: 12, color: "#bfbfbf" },
-                              title: "Retainer billing is fully automatic, on its own schedule — no task drives it.",
+                              title: tr("Retainer billing is fully automatic, on its own schedule — no task drives it."),
                             },
-                            "Not applicable — Retainer billing runs automatically on its own schedule.",
+                            tr("Not applicable — Retainer billing runs automatically on its own schedule."),
                           );
                         }
-                        const isByCase = caseInfo?.contractType === "byCase";
+                        // By Service + Combo pricing (2026-09-25): a task whose
+                        // service belongs to a billing item (combo / standalone
+                        // service) links to that item's pending Payment Request
+                        // — tagged with the service in paymentRequestServices —
+                        // exactly like a By Case installment.
+                        const itemContractServiceId =
+                          contractServiceIdByProjectServiceId[extractId(item.projectServiceId)];
+                        const coveredByItem =
+                          caseInfo?.contractType === "byService" &&
+                          itemContractServiceId !== undefined &&
+                          itemContractServiceId !== null &&
+                          Object.values(paymentRequestServiceIdsByPrId || {}).some((ids) =>
+                            (ids || []).some((id) => String(id) === String(itemContractServiceId)),
+                          );
+                        if (caseInfo?.contractType === "byService" && linkablePaymentRequests === null) {
+                          return React.createElement(
+                            "div",
+                            { style: { fontSize: 12, color: "#bfbfbf" } },
+                            tr("Loading payment settings…"),
+                          );
+                        }
+                        // Combo pricing contract billed per item, but this
+                        // task's service belongs to no item: nothing can bill it.
+                        if (
+                          caseInfo?.contractType === "byService" &&
+                          !coveredByItem &&
+                          Object.keys(paymentRequestServiceIdsByPrId || {}).length > 0
+                        ) {
+                          return React.createElement(
+                            "div",
+                            {
+                              style: { fontSize: 12, color: "#8c8c8c" },
+                              title: tr("The contract bills per combo / standalone service item."),
+                            },
+                            tr("Not billed — this service isn't part of any Payment Request item of the contract."),
+                          );
+                        }
+                        const isByCase = caseInfo?.contractType === "byCase" || coveredByItem;
+                        const oneTime = isByCaseOneTimeContract(caseInfo);
                         const hasLinkedInstallment = !!item.linkedPaymentRequestId;
                         const checked = isByCase
                           ? byCaseSelectorOpen || hasLinkedInstallment
@@ -18053,13 +18789,15 @@
                                   }
                                 : () => {},
                             },
-                            "Task này là điều kiện thanh toán",
+                            tr("This task is a payment condition"),
                           ),
                           isByCase && checked &&
                             React.createElement(Select, {
                               allowClear: true,
                               style: { width: "100%", marginTop: 8 },
-                              placeholder: "Chọn đợt thanh toán sẽ kích hoạt khi Done...",
+                              placeholder: oneTime
+                                ? tr("Select the payment to activate when Done...")
+                                : tr("Select the payment installment to activate when Done..."),
                               disabled: !canManage,
                               value: extractId(item.linkedPaymentRequestId) || undefined,
                               // §6h — an installment tagged with 1+ services
@@ -18084,6 +18822,9 @@
                                   // "resolve a label for the current value"
                                   // reasoning as the status-filter fix above.
                                   if (extractId(pr.id) === extractId(item.linkedPaymentRequestId)) return true;
+                                  // One time: its single payment is tagged
+                                  // with no service — offered to every task.
+                                  if (oneTime) return true;
                                   const taggedServiceIds = paymentRequestServiceIdsByPrId[extractId(pr.id)];
                                   if (!taggedServiceIds || !taggedServiceIds.length) return false;
                                   const taskContractServiceId =
@@ -18095,7 +18836,7 @@
                                 })
                                 .map((pr) => ({
                                   value: extractId(pr.id),
-                                  label: pr.title || `Đợt ${pr.installmentNo || ""}`,
+                                  label: pr.title || tr("Installment {0}", { 0: pr.installmentNo || "" }),
                                 })),
                               onChange: canManage
                                 ? async (newId) => {
@@ -18113,7 +18854,7 @@
                             React.createElement(
                               "div",
                               { style: { fontSize: 12, color: "#8c8c8c", marginTop: 4 } },
-                              "Task chưa gắn với dịch vụ nào — tick vào đây sẽ không có tác dụng cho tới khi task được gắn dịch vụ.",
+                              tr("This task is not linked to any service — ticking this has no effect until the task is linked to a service."),
                             ),
                         );
                       })(),
@@ -18130,7 +18871,7 @@
                             marginBottom: 12,
                           },
                         },
-                        "Next step",
+                        tr("Next step"),
                       ),
                       React.createElement(NextStepInlineEditor, {
                         item,
@@ -18157,14 +18898,14 @@
                   },
                 },
                 headerBar(
-                  `Comments & Reports (${commentCount})`,
+                  tr("Comments & Reports ({0})", { 0: commentCount }),
                   React.createElement(
                     "div",
                     { style: { display: "flex", alignItems: "center", gap: 8 } },
                     React.createElement(Input, {
                       size: "small",
                       allowClear: true,
-                      placeholder: "Search comments...",
+                      placeholder: tr("Search comments..."),
                       style: { width: 160 },
                       value: commentSearchText,
                       onChange: (e) => setCommentSearchText(e.target.value),
@@ -18174,8 +18915,8 @@
                       value: commentViewMode,
                       onChange: (value) => setCommentViewMode(value),
                       options: [
-                        { label: "List", value: "list" },
-                        { label: "Tree", value: "tree" },
+                        { label: tr("List"), value: "list" },
+                        { label: tr("Tree"), value: "tree" },
                       ],
                     }),
                     // Newest/Oldest now applies to both List and Tree (List
@@ -18189,8 +18930,8 @@
                       value: commentSortOrder,
                       onChange: (value) => setCommentSortOrder(value),
                       options: [
-                        { label: "Newest", value: "newest" },
-                        { label: "Oldest", value: "oldest" },
+                        { label: tr("Newest"), value: "newest" },
+                        { label: tr("Oldest"), value: "oldest" },
                       ],
                     }),
                     React.createElement(ReloadButton, {
@@ -18224,7 +18965,7 @@
           React.createElement(
             Drawer,
             {
-              title: "Manage Timesheet",
+              title: tr("Manage Timesheet"),
               placement: "right",
               width: 550,
               onClose: () => setOpenTimesheet(false),
@@ -18239,12 +18980,13 @@
               projectManagerId,
               isManager: canManage,
               canAccess: canAccessFilesAndTimesheet,
+              showFinance: hasContract,
             }),
           ),
           React.createElement(
             Drawer,
             {
-              title: "Activity history",
+              title: tr("Activity history"),
               placement: "right",
               width: 700,
               onClose: () => setOpenActivity(false),
@@ -18320,6 +19062,7 @@
       onSave,
       onClose,
       currentUser,
+      hasContract = false,
     }) => {
       const INIT_FORM = {
         title: "",
@@ -18364,7 +19107,7 @@
 
       const handleSave = async () => {
         if (!form.title.trim()) {
-          message.warning("Please enter a task name");
+          message.warning(tr("Please enter a task name"));
           return;
         }
         setSaving(true);
@@ -18396,12 +19139,12 @@
           if (form.nextStepDescription)
             payload.nextStepDescription = form.nextStepDescription;
           await apiReq("tasks:create", "POST", payload);
-          message.success("✅ Task created");
+          message.success(tr("✅ Task created"));
           onSave();
           onClose();
           setForm(INIT_FORM);
         } catch {
-          message.error("Creation failed");
+          message.error(tr("Creation failed"));
         }
         setSaving(false);
       };
@@ -18489,23 +19232,23 @@
           title: React.createElement(
             Text,
             { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-            "📋 Create new task",
+            tr("📋 Create new task"),
           ),
         },
         React.createElement(
           "div",
           { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
           fld(
-            "Task name *",
-            inp("Enter task name...", form.title, (v) => set("title", v)),
+            tr("Task name *"),
+            inp(tr("Enter task name..."), form.title, (v) => set("title", v)),
           ),
           React.createElement(
             "div",
             { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
             fld(
-              "👨‍⚖️ Assigned lawyer",
+              tr("👨‍⚖️ Assigned lawyer"),
               sel(
-                "-- Assign --",
+                tr("-- Assign --"),
                 form.lawyerId,
                 (v) => set("lawyerId", v ? Number(v) : null),
                 lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
@@ -18514,7 +19257,7 @@
             React.createElement(
               "div",
               { style: { marginBottom: 12 } },
-              lbl("🗂 Service"),
+              lbl(tr("🗂 Service")),
               services.length === 0
                 ? React.createElement(
                     "div",
@@ -18529,25 +19272,25 @@
                         background: "#fffbe6",
                       },
                     },
-                    "⚠ No service yet",
+                    tr("⚠ No service yet"),
                   )
                 : sel(
-                    "-- Select service --",
+                    tr("-- Select service --"),
                     form.serviceId,
                     (v) => set("serviceId", v ? Number(v) : null),
                     services.map((s) => ({ value: s.id, label: s.serviceName })),
                   ),
             ),
             fld(
-              "📅 Start date",
+              tr("📅 Start date"),
               inp("", form.startDate, (v) => set("startDate", v), "date"),
             ),
             fld(
-              "🏁 Deadline",
+              tr("🏁 Deadline"),
               inp("", form.dueDate, (v) => set("dueDate", v), "date"),
             ),
             fld(
-              "⏱ Estimated duration (hours)",
+              tr("⏱ Estimated duration (hours)"),
               inp(
                 "e.g.: 4",
                 form.estimatedDuration,
@@ -18559,7 +19302,7 @@
           React.createElement(
             "div",
             { style: { marginBottom: 12 } },
-            lbl("⛓ Pending Issue (optional)"),
+            lbl(tr("⛓ Pending Issue (optional)")),
             React.createElement(TaskPicker, {
               allTasks: tasksForDependency,
               currentTaskId: null,
@@ -18610,7 +19353,7 @@
                           fontWeight: 600,
                         },
                       },
-                      "✓ Done",
+                      tr("✓ Done"),
                     )
                   : React.createElement(
                       "span",
@@ -18622,12 +19365,12 @@
                           fontWeight: 600,
                         },
                       },
-                      '⏸ New task → "Blocked"',
+                      tr("⏸ New task → \"Blocked\""),
                     ),
               ),
           ),
           fld(
-            "⚡ Priority",
+            tr("⚡ Priority"),
             React.createElement(
               "div",
               { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -18655,7 +19398,7 @@
             ),
           ),
           fld(
-            "🔐 Requires approval",
+            tr("🔐 Requires approval"),
             React.createElement(
               "label",
               {
@@ -18701,14 +19444,14 @@
                   },
                 },
                 form.isRequiredApproval
-                  ? "🔐 On — requires approval"
-                  : "Requires approval before completion",
+                  ? tr("🔐 On — requires approval")
+                  : tr("Requires approval before completion"),
               ),
             ),
           ),
           form.isRequiredApproval &&
             fld(
-              "👤 Approver",
+              tr("👤 Approver"),
               React.createElement(
                 "div",
                 {
@@ -18731,22 +19474,23 @@
                   lawyers,
                   value: form.approvedById,
                   size: 22,
+                  showRate: hasContract,
                   onChange: (id) => set("approvedById", id),
                 }),
                 !form.approvedById &&
                   React.createElement(
                     "span",
                     { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                    "Select an approver...",
+                    tr("Select an approver..."),
                   ),
               ),
             ),
           fld(
-            "📝 Progress details",
+            tr("📝 Progress details"),
             React.createElement("textarea", {
               value: form.description,
               onChange: (e) => set("description", e.target.value),
-              placeholder: "Progress details...",
+              placeholder: tr("Progress details..."),
               rows: 3,
               style: {
                 width: "100%",
@@ -18765,11 +19509,11 @@
             }),
           ),
           fld(
-            "👣 Next Step",
+            tr("👣 Next Step"),
             React.createElement("textarea", {
               value: form.nextStepDescription,
               onChange: (e) => set("nextStepDescription", e.target.value),
-              placeholder: "Next step after completion...",
+              placeholder: tr("Next step after completion..."),
               rows: 2,
               style: {
                 width: "100%",
@@ -18813,7 +19557,7 @@
                   color: "#595959",
                 },
               },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               "div",
@@ -18830,7 +19574,7 @@
                   fontWeight: 600,
                 },
               },
-              saving ? "Saving..." : "Submit",
+              saving ? tr("Saving...") : tr("Submit"),
             ),
           ),
         ),
@@ -18844,6 +19588,7 @@
       onSave,
       onClose,
       currentUser,
+      hasContract = false,
     }) => {
       const INIT_FORM = {
         title: "",
@@ -18864,7 +19609,7 @@
 
       const handleSave = async () => {
         if (!form.title.trim()) {
-          message.warning("Please enter a subtask name");
+          message.warning(tr("Please enter a subtask name"));
           return;
         }
         setSaving(true);
@@ -18888,12 +19633,12 @@
           if (form.nextStepDescription)
             payload.nextStepDescription = form.nextStepDescription;
           await apiReq("subTasks:create", "POST", payload);
-          message.success("✅ Subtask created");
+          message.success(tr("✅ Subtask created"));
           onSave();
           onClose();
           setForm(INIT_FORM);
         } catch {
-          message.error("Creation failed");
+          message.error(tr("Creation failed"));
         }
         setSaving(false);
       };
@@ -18977,30 +19722,30 @@
           title: React.createElement(
             Text,
             { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-            "📋 New subtask",
+            tr("📋 New subtask"),
           ),
         },
         React.createElement(
           "div",
           { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
           fld(
-            "Subtask name *",
-            inp("Enter task name...", form.title, (v) => set("title", v)),
+            tr("Subtask name *"),
+            inp(tr("Enter task name..."), form.title, (v) => set("title", v)),
           ),
           React.createElement(
             "div",
             { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
             fld(
-              "👨‍⚖️ Assigned lawyer",
+              tr("👨‍⚖️ Assigned lawyer"),
               sel(
-                "-- Assign --",
+                tr("-- Assign --"),
                 form.lawyerId,
                 (v) => set("lawyerId", v ? Number(v) : null),
                 lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
               ),
             ),
             fld(
-              "⏱ Estimated duration (hours)",
+              tr("⏱ Estimated duration (hours)"),
               inp(
                 "e.g.: 4",
                 form.estimatedDuration,
@@ -19009,16 +19754,16 @@
               ),
             ),
             fld(
-              "📅 Start date",
+              tr("📅 Start date"),
               inp("", form.startDate, (v) => set("startDate", v), "date"),
             ),
             fld(
-              "🏁 Deadline",
+              tr("🏁 Deadline"),
               inp("", form.deadline, (v) => set("deadline", v), "date"),
             ),
           ),
           fld(
-            "⚡ Priority",
+            tr("⚡ Priority"),
             React.createElement(
               "div",
               { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -19046,7 +19791,7 @@
             ),
           ),
           fld(
-            "🔐 Requires approval",
+            tr("🔐 Requires approval"),
             React.createElement(
               "label",
               {
@@ -19092,14 +19837,14 @@
                   },
                 },
                 form.isRequiredApproval
-                  ? "🔐 On — requires approval"
-                  : "Requires approval before completion",
+                  ? tr("🔐 On — requires approval")
+                  : tr("Requires approval before completion"),
               ),
             ),
           ),
           form.isRequiredApproval &&
             fld(
-              "👤 Approver",
+              tr("👤 Approver"),
               React.createElement(
                 "div",
                 {
@@ -19122,22 +19867,23 @@
                   lawyers,
                   value: form.approvedById,
                   size: 22,
+                  showRate: hasContract,
                   onChange: (id) => set("approvedById", id),
                 }),
                 !form.approvedById &&
                   React.createElement(
                     "span",
                     { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                    "Select an approver...",
+                    tr("Select an approver..."),
                   ),
               ),
             ),
           fld(
-            "📝 Detailed description",
+            tr("📝 Detailed description"),
             React.createElement("textarea", {
               value: form.description,
               onChange: (e) => set("description", e.target.value),
-              placeholder: "Detailed description of the subtask...",
+              placeholder: tr("Detailed description of the subtask..."),
               rows: 3,
               style: {
                 width: "100%",
@@ -19156,11 +19902,11 @@
             }),
           ),
           fld(
-            "👣 Next Step",
+            tr("👣 Next Step"),
             React.createElement("textarea", {
               value: form.nextStepDescription,
               onChange: (e) => set("nextStepDescription", e.target.value),
-              placeholder: "Next step after completion...",
+              placeholder: tr("Next step after completion..."),
               rows: 2,
               style: {
                 width: "100%",
@@ -19204,7 +19950,7 @@
                   color: "#595959",
                 },
               },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               "div",
@@ -19221,7 +19967,7 @@
                   fontWeight: 600,
                 },
               },
-              saving ? "Saving..." : "Submit",
+              saving ? tr("Saving...") : tr("Submit"),
             ),
           ),
         ),
@@ -19239,7 +19985,8 @@
       const [projectTasks, setProjectTasks] = useState([]);
       const [projectManagerId, setProjectManagerId] = useState(null);
       const [caseInfo, setCaseInfo] = useState(null);
-      const [linkablePaymentRequests, setLinkablePaymentRequests] = useState([]);
+      // null = not loaded yet (published together with its tags map).
+      const [linkablePaymentRequests, setLinkablePaymentRequests] = useState(null);
       // projectServiceId -> contractServiceId, for narrowing the By Case
       // installment Select to the current task's own service (see §6h). A
       // task's projectServiceId is a projectServices row; a PR's tagged
@@ -19395,7 +20142,9 @@
             // Payment Requests this case's contract already has "pending" and
             // waiting on a specific task to be marked done (triggerType
             // "on_task_done" — see docs/superpowers/specs/
-            // 2026-09-15-by-case-payment-request-automation-design.md §6).
+            // 2026-09-15-by-case-payment-request-automation-design.md §6),
+            // plus a By Case One time payment still waiting for the Case
+            // (linkableTriggerRequests).
             // Fetched here (not inside DetailModal) because DetailModal does
             // an early `if (!item) return null` before any hooks would run,
             // so data it needs has to come in as a prop, not its own fetch.
@@ -19412,18 +20161,27 @@
               // Selecting an already-active request again is harmless: by_
               // case_activate_payment_request_if_ready() only acts on a
               // 'pending' request, so re-picking a resolved one is a no-op.
-              fetchAll("paymentRequests:list", "id,title,installmentNo,requestedAmount,status", {
-                $and: [
-                  { contractId: { $eq: linkedContractId } },
-                  { triggerType: { $eq: "on_task_done" } },
-                ],
-              })
-                .then((rows) => {
-                  const prs = rows || [];
-                  setLinkablePaymentRequests(prs);
+              const contractRowsPromise = fetchAll("contracts:list", "id,contractType,billingCycle", {
+                id: { $eq: linkedContractId },
+              });
+              Promise.all([
+                fetchAll("paymentRequests:list", "id,title,installmentNo,requestedAmount,status,triggerType", {
+                  $and: [
+                    { contractId: { $eq: linkedContractId } },
+                    { triggerType: { $in: LINKABLE_TRIGGER_TYPES } },
+                  ],
+                }),
+                contractRowsPromise.catch(() => []),
+              ])
+                .then(([rows, contractRows]) => {
+                  const prs = linkableTriggerRequests(rows, contractRows?.[0]);
                   const prIds = prs.map((pr) => extractId(pr.id)).filter(Boolean);
+                  // Published together with its tags map (null until then),
+                  // so the payment-trigger control doesn't flash the wrong
+                  // mode for a Combo pricing item service (2026-09-25).
                   if (!prIds.length) {
                     setPaymentRequestServiceIdsByPrId({});
+                    setLinkablePaymentRequests(prs);
                     return;
                   }
                   // §6h — junction collection (not a JSON field), see the
@@ -19442,8 +20200,12 @@
                         map[prId].push(csId);
                       });
                       setPaymentRequestServiceIdsByPrId(map);
+                      setLinkablePaymentRequests(prs);
                     })
-                    .catch(() => setPaymentRequestServiceIdsByPrId({}));
+                    .catch(() => {
+                      setPaymentRequestServiceIdsByPrId({});
+                      setLinkablePaymentRequests(prs);
+                    });
                 })
                 .catch(() => {
                   setLinkablePaymentRequests([]);
@@ -19454,8 +20216,18 @@
               // vs. the "Đợt thanh toán sẽ kích hoạt" selector above it (By
               // Case only) — a task should only ever offer the one that
               // actually matches how its case's contract bills.
-              fetchAll("contracts:list", "id,contractType", { id: { $eq: linkedContractId } })
-                .then((rows) => setCaseInfo((p) => (p ? { ...p, contractType: rows?.[0]?.contractType || "" } : p)))
+              contractRowsPromise
+                .then((rows) =>
+                  setCaseInfo((p) =>
+                    p
+                      ? {
+                          ...p,
+                          contractType: rows?.[0]?.contractType || "",
+                          billingCycle: rows?.[0]?.billingCycle || "",
+                        }
+                      : p,
+                  ),
+                )
                 .catch(() => {});
               // §6h — reverse-link so a service-tagged installment
               // (paymentRequestServiceIdsByPrId holds contractServiceId
@@ -19638,7 +20410,7 @@
             : null;
           setTask(selectedSubTask || parentTask);
         } catch (e) {
-          message.error("Error loading data: " + (e?.message || ""));
+          message.error(tr("Error loading data: ") + (e?.message || ""));
         }
         setLoading(false);
       }, [ids.taskId, ids.subTaskId, ids.caseId]);
@@ -19664,7 +20436,7 @@
               fontFamily: FONT,
             },
           },
-          "Task not found",
+          tr("Task not found"),
         );
 
       const isAdmin = isAdminUser(currentUser);
@@ -19781,6 +20553,7 @@
             onSave: handleSubtaskSaved,
             onClose: () => setShowAddSub(false),
             currentUser,
+            hasContract: !!caseInfo?.contractId,
           }),
       );
     };

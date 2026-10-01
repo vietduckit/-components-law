@@ -1,4 +1,11 @@
 // ============================================================
+// SUPERSEDED (2026-09-24) — kept for history, do not run.
+// Replaced by pgsql/retainer_billing_run_due.sql (all billing logic, SQL)
+// + JsField/Workflow/CreateRetainerBillingCronWorkflow.js (hourly cron
+// Workflow: one SQL node + notification loop), which also DELETES this
+// workflow. Running both would bill the same plans twice.
+// ============================================================
+//
 // ONE-TIME SETUP SCRIPT — NOT a reusable field/action block.
 //
 // Rebuilds JsField/CreateRetainerBillingWorkflow.js's already-verified
@@ -83,7 +90,13 @@ const periodAmountNodePayload = () => ({
   branchIndex: null,
   config: {
     engine: "math.js",
-    expression: "{{$context.data.totalAmount}} / {{$context.data.retainerTotalCycles}}",
+    // 2026-09-24: open-ended retainer (no retainerTotalCycles) bills
+    // totalAmount itself every cycle — for those plans ContractCreateForm.js
+    // labels it "Amount per cycle". Ternary (not `and`/`or`) so the division
+    // is never evaluated with a null divisor. Verified against NocoBase's
+    // own mathjs 15.1 with the evaluator's {{ }} → scope-variable substitution.
+    expression:
+      "{{$context.data.retainerTotalCycles}} == null ? {{$context.data.totalAmount}} : {{$context.data.totalAmount}} / {{$context.data.retainerTotalCycles}}",
   },
 });
 
@@ -111,7 +124,7 @@ const createPaymentRequestNodePayload = (upstreamId) => ({
       values: {
         title:
           "Payment request - {{$context.data.contracts.contractCode}} - {{$context.data.contracts.contractName}} - Retainer period {{$jobsMapByNodeKey.nextPeriodsBilledCalc}}",
-        status: "submitted",
+        status: "active",
         contractId: "{{$context.data.contractId}}",
         customerId: "{{$context.data.contracts.customerId}}",
         internalCompanyId: "{{$context.data.contracts.internalCompanyId}}",
@@ -202,8 +215,13 @@ const stopConditionNodePayload = (upstreamId) => ({
   branchIndex: null,
   config: {
     engine: "math.js",
+    // 2026-09-24: the cycle-count check only applies when there IS a cycle
+    // count — mathjs's largerEq throws on null ("Unexpected type of
+    // argument"), which would have failed every open-ended run. Open-ended
+    // plans stop only once the next billing date passes endDate, and never
+    // stop when there's no endDate either (user decision).
     expression:
-      "{{$jobsMapByNodeKey.nextPeriodsBilledCalc}} >= {{$context.data.retainerTotalCycles}} or ({{$context.data.endDate}} != null and {{$jobsMapByNodeKey.nextDateTsCalc}} > {{$jobsMapByNodeKey.endDateTsCalc}})",
+      "({{$context.data.retainerTotalCycles}} == null ? false : {{$jobsMapByNodeKey.nextPeriodsBilledCalc}} >= {{$context.data.retainerTotalCycles}}) or ({{$context.data.endDate}} != null and {{$jobsMapByNodeKey.nextDateTsCalc}} > {{$jobsMapByNodeKey.endDateTsCalc}})",
     rejectOnFalse: false,
   },
 });

@@ -1,6 +1,276 @@
 // ============================================================
 // §1 CONFIG & SETUP
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Refresh": "Làm mới",
+  "Case documents": "Tài liệu hồ sơ",
+  "Internal template files": "Tệp mẫu nội bộ",
+  "Legal reference": "Tham chiếu pháp lý",
+  "Project internal files": "Tệp nội bộ dự án",
+  "Legal Study": "Legal Study",
+  "Customer": "Khách hàng",
+  "Records": "Hồ sơ",
+  "References": "Tham chiếu",
+  "Legal study": "Nghiên cứu pháp lý",
+  "Study": "Nghiên cứu",
+  "Task": "Công việc",
+  "Quotation": "Báo giá",
+  "Contract": "Hợp đồng",
+  "Just now": "Vừa xong",
+  "{0} min ago": "{0} phút trước",
+  "{0} hours ago": "{0} giờ trước",
+  "{0} days ago": "{0} ngày trước",
+  "Created": "Tạo mới",
+  "Update": "Cập nhật",
+  "Deleted": "Xoá",
+  "Upload": "Tải lên",
+  "Other": "Khác",
+  "Document name": "Tên văn bản",
+  "Document type": "Loại văn bản",
+  "Document number": "Số hiệu",
+  "Issue date": "Ngày ban hành",
+  "Sender": "Người gửi",
+  "Recipient": "Người nhận",
+  "Content summary": "Tóm tắt nội dung",
+  "Language": "Ngôn ngữ",
+  "Document form": "Hình thức tài liệu",
+  "Google Drive URL": "Google Drive URL",
+  "Attachment": "File đính kèm",
+  "Signed date": "Ngày ký",
+  "Effective date": "Ngày có hiệu lực",
+  "Note": "Ghi chú",
+  "Status": "Trạng thái",
+  "Lawyer": "Luật sư",
+  "Administrator": "Quản trị viên",
+  "Owner": "Chủ sở hữu",
+  "Manager": "Quản lý",
+  "Edit": "Chỉnh sửa",
+  "View only": "Chỉ xem",
+  "Shared": "Được chia sẻ",
+  "Permissions updated": "Cập nhật phân quyền thành công",
+  "An error occurred": "Có lỗi xảy ra",
+  "Folder permissions": "Phân quyền thư mục",
+  "Cancel": "Hủy",
+  "Save": "Lưu",
+  "Add people": "Thêm người",
+  "Search and add people...": "Tìm và thêm người...",
+  "People with access": "Những người có quyền truy cập",
+  "Not shared with anyone yet": "Chưa chia sẻ cho ai",
+  "Unknown name": "Không rõ tên",
+  "Editor": "Người chỉnh sửa",
+  "Viewer": "Người xem",
+  "Show less": "Thu gọn",
+  "Show more": "Xem thêm",
+  "File": "Tệp",
+  "Download": "Tải về",
+  "Close": "Đóng",
+  "Loading preview...": "Đang tải bản xem trước...",
+  "This format cannot be previewed in the browser": "Không thể xem trước định dạng này trên trình duyệt",
+  "Download to view": "Tải xuống để xem",
+  "Note saved": "Đã lưu ghi chú",
+  "Could not save the note": "Lỗi lưu ghi chú",
+  "Document notes": "Ghi chú tài liệu",
+  "Enter a note for this document... (Ctrl+Enter to save)": "Nhập ghi chú cho tài liệu này... (Ctrl+Enter để lưu)",
+  "Unsaved": "Chưa lưu",
+  "Save note": "Lưu ghi chú",
+  "System": "Hệ thống",
+  "folder": "thư mục",
+  "document": "tài liệu",
+  " uploaded {0} ": " đã tải lên {0} ",
+  " at ": " lúc ",
+  " created {0} ": " đã tạo {0} ",
+  " moved {0} to folder ": " đã di chuyển {0} sang thư mục ",
+  " deleted {0} ": " đã xóa {0} ",
+  "title": "tiêu đề",
+  " updated {0} from ": " đã cập nhật {0} từ ",
+  " to ": " thành ",
+  "No activity yet": "Chưa có hoạt động",
+  "Updated!": "Cập nhật thành công!",
+  "Error: ": "Có lỗi: ",
+  "Please try again": "Vui lòng thử lại",
+  "Title updated": "Đã cập nhật tiêu đề",
+  "Could not update": "Lỗi cập nhật",
+  "No.": "STT",
+  "(None)": "(Chưa có)",
+  "Google Drive": "Google Drive",
+  "Open link": "Mở link",
+  "Upload date": "Ngày upload",
+  "Uploaded by": "Người upload",
+  "Enter the document type": "Vui lòng nhập loại văn bản",
+  "e.g. Hợp đồng, Biên bản...": "VD: Hợp đồng, Biên bản...",
+  "Enter the document's full name": "Nhập tên đầy đủ của tài liệu",
+  "e.g. 123/2024/HĐ-SAMSET": "VD: 123/2024/HĐ-SAMSET",
+  "Sender person or organization": "Tên cá nhân hoặc tổ chức gửi",
+  "Recipient person or organization": "Tên cá nhân hoặc tổ chức nhận",
+  "e.g. Vietnamese, EN...": "VD: Tiếng Việt, EN...",
+  "e.g. Original, Scan...": "VD: Bản gốc, Bản scan...",
+  "A short description of the main content...": "Mô tả ngắn gọn nội dung chính...",
+  "Save changes": "Lưu cập nhật",
+  "(No name yet)": "(Chưa có tên)",
+  "Info & Notes": "Thông tin & Ghi chú",
+  "History": "Lịch sử",
+  "Failed to load data": "Lỗi tải dữ liệu",
+  "Company {0}": "Công ty {0}",
+  "Legal Reference": "Legal Reference",
+  "Folder updated!": "Cập nhật thư mục thành công!",
+  "Folder created!": "Tạo thư mục thành công!",
+  "Update folder": "Cập nhật thư mục",
+  "Create new folder": "Tạo thư mục mới",
+  "Folder name": "Tên thư mục",
+  "Please enter a folder name": "Vui lòng nhập tên thư mục",
+  "Enter folder name...": "Nhập tên thư mục...",
+  "Enter a summary of the folder...": "Nhập tóm tắt nội dung thư mục...",
+  "Add people with access": "Thêm người truy cập",
+  "File upload failed": "Upload file thất bại",
+  "Please choose a file or enter a URL": "Vui lòng chọn file hoặc nhập URL",
+  "Uploaded!": "Upload thành công!",
+  "An error occurred while uploading.": "Có lỗi xảy ra khi upload.",
+  "Upload document": "Upload tài liệu",
+  "Uploading...": "Đang upload...",
+  "Identification": "Định danh",
+  "Internal company": "Công ty nội bộ",
+  "Please select an internal company": "Vui lòng chọn công ty nội bộ",
+  "Select internal company": "Chọn công ty nội bộ",
+  "Parties": "Bên liên quan",
+  "Sending person / organisation": "Tên cá nhân / tổ chức gửi",
+  "Receiving person / organisation": "Tên cá nhân / tổ chức nhận",
+  "e.g. Vietnamese, English...": "VD: Tiếng Việt, Tiếng Anh...",
+  "Briefly describe the document...": "Mô tả ngắn gọn nội dung tài liệu...",
+  "Choose file": "Chọn file",
+  "Drag and drop or click to choose": "Kéo thả hoặc click để chọn",
+  "Google Drive URL (optional)": "Google Drive URL (tuỳ chọn)",
+  "Enter a note...": "Nhập ghi chú...",
+  "Home": "Trang chủ",
+  "Confirm folder upload": "Xác nhận Upload Thư mục",
+  "Confirm upload": "Xác nhận Upload",
+  "You are about to upload the folder ": "Bạn đang chuẩn bị tải lên thư mục ",
+  " containing ": " chứa ",
+  " file(s).": " tệp tin.",
+  "Choose where to store:": "Chọn nơi lưu trữ:",
+  "No data": "Không có dữ liệu",
+  "You do not have permission to act on some selected items": "Bạn không có quyền thao tác với một số mục đã chọn",
+  "Selected items deleted": "Đã xoá các mục được chọn",
+  "An error occurred while deleting": "Có lỗi xảy ra khi xoá",
+  "Selected items moved": "Đã di chuyển các mục được chọn",
+  "An error occurred while moving": "Có lỗi xảy ra khi di chuyển",
+  "File moved": "Đã di chuyển file",
+  "Move failed": "Di chuyển thất bại",
+  "No Legal Study folder in this case": "Khong tim thay folder Legal Study trong case nay",
+  "File moved to Legal Study": "Da di chuyen file vao Legal Study",
+  "Move to Legal Study failed": "Di chuyen vao Legal Study that bai",
+  "File moved to Legal Reference": "Da di chuyen file vao Legal Reference",
+  "Move to Legal Reference failed": "Di chuyen vao Legal Reference that bai",
+  "File title updated": "Đã cập nhật tiêu đề file",
+  "Update failed": "Cập nhật thất bại",
+  "Folder moved": "Đã di chuyển thư mục",
+  "The folder order cannot be changed": "Khong the thay doi STT thu muc",
+  "Analyzing folder structure...": "Đang phân tích cấu trúc thư mục...",
+  "Creating {0} folder(s)...": "Đang khởi tạo {0} thư mục...",
+  "Uploading file {0}/{1}...": "Đang tải lên file {0}/{1}...",
+  "Folder upload complete!": "Upload thư mục hoàn tất!",
+  "An error occurred while processing!": "Có lỗi xảy ra trong quá trình xử lý!",
+  "Please select an internal company first": "Vui long chon cong ty noi bo truoc",
+  "Upload File": "Tải tệp lên",
+  "Upload folder": "Upload thư mục",
+  "User {0}": "Người dùng {0}",
+  "You do not have access to this folder": "Bạn không có quyền truy cập thư mục này",
+  "You cannot manage permissions of this folder": "Bạn không có quyền phân quyền thư mục này",
+  "Document": "Tài liệu",
+  "You do not have permission to move this folder": "Bạn không có quyền di chuyển thư mục này",
+  "You do not have permission to move this file": "Bạn không có quyền di chuyển file này",
+  "You do not have permission to view the activity history": "Bạn không có quyền xem lịch sử hoạt động",
+  "Open folder": "Mở thư mục",
+  "Details / permissions": "Chi tiết / phân quyền",
+  "No permission to manage access": "Không có quyền phân quyền",
+  "Move folder": "Di chuyển thư mục",
+  "No permission to move": "Không có quyền di chuyển",
+  "Delete folder": "Xóa thư mục",
+  "No permission to delete": "Không có quyền xóa",
+  "Activity history": "Lịch sử hoạt động",
+  "No permission to view history": "Không có quyền xem lịch sử",
+  "Preview": "Xem trước",
+  "Details / edit": "Chi tiết / chỉnh sửa",
+  "No permission to edit": "Không có quyền chỉnh sửa",
+  "Move file": "Di chuyển file",
+  "Move to Legal Study": "Chuyển vào Legal Study",
+  "Move to Legal Reference": "Chuyển vào Legal Reference",
+  "Delete file": "Xóa file",
+  "Delete this file?": "Xóa file này?",
+  "Delete": "Xóa",
+  "Actions": "Thao tác",
+  "- {0} subfolder(s)": "- {0} thư mục con",
+  "- {0} file(s)": "- {0} tệp tin",
+  "Confirm deleting folder \"{0}\"?": "Xác nhận xóa thư mục \"{0}\"?",
+  "You are about to permanently delete this folder. The following data will also be deleted:": "Bạn sắp xóa vĩnh viễn thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:",
+  "(Folder is empty)": "(Thư mục đang trống)",
+  "This cannot be undone. Are you sure you want to delete?": "Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa?",
+  "Delete permanently": "Xóa vĩnh viễn",
+  "Folder and its contents deleted": "Đã xóa thành công thư mục và các dữ liệu bên trong",
+  "Delete failed": "Xóa thất bại",
+  "File deleted": "Đã xóa file",
+  "Name / Title": "Tên / Tiêu đề",
+  "Folder detail / permissions": "Chi tiết / phân quyền thư mục",
+  "No permission to open folder detail": "Không có quyền mở chi tiết thư mục",
+  "Click to open details / permissions": "Click để mở chi tiết / phân quyền",
+  "You do not have access to the folder": "Bạn không có quyền truy cập thư mục",
+  "Click to open the folder": "Click để mở thư mục",
+  "User": "Người dùng",
+  "Form": "Hình thức",
+  "{0} note(s)": "{0} ghi chú",
+  "Size": "Dung lượng",
+  "CATEGORIES": "DANH MỤC",
+  "New folder": "Thư mục mới",
+  "Upload file": "Tải tệp lên",
+  "New": "Mới",
+  "Expand categories": "Mở rộng danh mục",
+  "Collapse categories": "Thu gọn danh mục",
+  "Search {0}...": "Tìm {0}...",
+  "({0} folder(s), {1} file(s))": "({0} thư mục, {1} tệp tin)",
+  "(You have {0} access)": "(Bạn có quyền {0})",
+  "(You cannot act in this folder)": "(Bạn không có quyền thao tác trong thư mục này)",
+  "Deselect": "Hủy chọn",
+  "Delete the selected items?": "Xóa các mục đã chọn?",
+  "Delete ({0})": "Xóa ({0})",
+  "Move ({0})": "Di chuyển ({0})",
+  "Search...": "Tìm kiếm...",
+  "Results: {0}": "Kết quả: {0}",
+  "You do not have permission to act on this item": "Bạn không có quyền thao tác mục này",
+  "The order cannot be changed": "Khong the thay doi STT",
+  "{0}-{1} / {2} items": "{0}-{1} / {2} mục",
+  "No matching data": "Không tìm thấy dữ liệu phù hợp",
+  "Folder is empty": "Thư mục trống",
+  "Activity history: {0}": "Lịch sử hoạt động: {0}",
+  "Moved": "Di chuyển",
+  "You are moving: ": "Bạn đang di chuyển: ",
+  "Folder/File": "Thư mục/File",
+  "You are moving {0} selected items.": "Bạn đang di chuyển {0} mục đã chọn.",
+  "Choose the destination folder:": "Chọn thư mục đích:",
+  "Choose folder": "Chọn thư mục",
+  "Move": "Di chuyển",
+  "File: ": "Tệp: ",
+  "Internal company:": "Công ty nội bộ:",
+  "Legal Reference:": "Legal Reference:",
+  "Select Legal Reference": "Chọn Legal Reference",
+  "Folder Legal Reference:": "Thư mục Legal Reference:",
+  "Legal Reference Home": "Trang chủ Legal Reference",
+  "Select a Legal Reference folder": "Chọn thư mục Legal Reference",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -189,7 +459,7 @@ const MoreIcon = makeIcon(
 const ReloadButton = ({
   onReload,
   loading,
-  text = "Làm mới",
+  text = tr("Refresh"),
   style = {},
   size,
 }) => {
@@ -230,13 +500,13 @@ const MODULE_SCOPE = {
 };
 
 const MODULE_SCOPE_LABEL = {
-  [MODULE_SCOPE.CASE_DOCUMENT]: "Case documents",
-  [MODULE_SCOPE.INTERNAL_TEMPLATE]: "Internal template files",
-  [MODULE_SCOPE.LEGAL_REFERENCE]: "Legal reference",
-  [MODULE_SCOPE.PROJECT_INTERNAL]: "Project internal files",
+  [MODULE_SCOPE.CASE_DOCUMENT]: tr("Case documents"),
+  [MODULE_SCOPE.INTERNAL_TEMPLATE]: tr("Internal template files"),
+  [MODULE_SCOPE.LEGAL_REFERENCE]: tr("Legal reference"),
+  [MODULE_SCOPE.PROJECT_INTERNAL]: tr("Project internal files"),
 };
 
-const LEGAL_STUDY_FOLDER_NAME = "Legal Study";
+const LEGAL_STUDY_FOLDER_NAME = tr("Legal Study");
 
 const DOCUMENT_DASHBOARD_CONFIG = {
   // auto | global | customers | cases | tasks | quotations | contracts | internal_templates | legal_reference | project_internal
@@ -252,8 +522,8 @@ const DOCUMENT_DASHBOARD_CONFIG = {
 const TAB_CONFIG = {
   customer: {
     key: "customer",
-    label: "Khách hàng",
-    tabLabel: "Khách hàng",
+    label: tr("Customer"),
+    tabLabel: tr("Customer"),
     collection: "customers",
     mode: "customers",
     entityField: "customerId",
@@ -262,8 +532,8 @@ const TAB_CONFIG = {
   },
   case_reference: {
     key: "case_reference",
-    label: "Hồ sơ",
-    tabLabel: "Hồ sơ",
+    label: tr("Records"),
+    tabLabel: tr("Records"),
     collection: "projects",
     mode: "cases",
     entityField: "caseId",
@@ -272,8 +542,8 @@ const TAB_CONFIG = {
   },
   legal_reference: {
     key: "legal_reference",
-    label: "Tham chiếu pháp lý",
-    tabLabel: "Tham chiếu",
+    label: tr("Legal reference"),
+    tabLabel: tr("References"),
     collection: "legalReference",
     mode: "legal_reference",
     entityField: "legalReferenceId",
@@ -282,8 +552,8 @@ const TAB_CONFIG = {
   },
   legal_study: {
     key: "legal_study",
-    label: "Nghiên cứu pháp lý",
-    tabLabel: "Nghiên cứu",
+    label: tr("Legal study"),
+    tabLabel: tr("Study"),
     collection: "legalStudy",
     mode: "legal_study",
     entityField: "legalStudyId",
@@ -782,7 +1052,7 @@ const getContext = () => {
       "customerCode" in recordObject
     ) {
       mode = "customers";
-      collection = "Customer";
+      collection = tr("Customer");
       customerId = recordId;
     } else if (
       "lawyerId" in recordObject &&
@@ -790,13 +1060,13 @@ const getContext = () => {
       !("projectManagerId" in recordObject)
     ) {
       mode = "tasks";
-      collection = "Task";
+      collection = tr("Task");
     } else if ("quotationNumber" in recordObject) {
       mode = "quotations";
-      collection = "Quotation";
+      collection = tr("Quotation");
     } else if ("contractCode" in recordObject || "signedDate" in recordObject) {
       mode = "contracts";
-      collection = "Contract";
+      collection = tr("Contract");
     } else {
       mode = "cases";
       collection = "Project";
@@ -1001,10 +1271,10 @@ const formatDate = (iso) => {
 const formatRelative = (iso) => {
   if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return "Vừa xong";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} phút trước`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} giờ trước`;
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)} ngày trước`;
+  if (diff < 60000) return tr("Just now");
+  if (diff < 3600000) return tr("{0} min ago", { 0: Math.floor(diff / 60000) });
+  if (diff < 86400000) return tr("{0} hours ago", { 0: Math.floor(diff / 3600000) });
+  if (diff < 604800000) return tr("{0} days ago", { 0: Math.floor(diff / 86400000) });
   return formatDateTime(iso);
 };
 
@@ -1800,20 +2070,20 @@ const reindexFiles = async (
 
 const ACTION_CONFIG = {
   created: {
-    label: "Tạo mới",
+    label: tr("Created"),
     color: "#52c41a",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   updated: {
-    label: "Cập nhật",
+    label: tr("Update"),
     color: "#1890ff",
     bg: "#e6f7ff",
     border: "#91d5ff",
   },
-  deleted: { label: "Xoá", color: "#ff4d4f", bg: "#fff2f0", border: "#ffccc7" },
+  deleted: { label: tr("Deleted"), color: "#ff4d4f", bg: "#fff2f0", border: "#ffccc7" },
   upload: {
-    label: "Upload",
+    label: tr("Upload"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
@@ -1821,27 +2091,27 @@ const ACTION_CONFIG = {
 };
 const getActionCfg = (action) =>
   ACTION_CONFIG[action?.toLowerCase()] || {
-    label: action || "Khác",
+    label: action || tr("Other"),
     color: "#8c8c8c",
     bg: "#fafafa",
     border: "#d9d9d9",
   };
 const FIELD_LABEL = {
-  title: "Tên văn bản",
-  documentType: "Loại văn bản",
-  documentCode: "Số hiệu",
-  openingDate: "Ngày ban hành",
-  senderName: "Người gửi",
-  recipientName: "Người nhận",
-  description: "Tóm tắt nội dung",
-  language: "Ngôn ngữ",
-  docFormat: "Hình thức tài liệu",
-  googleDriveUrl: "Google Drive URL",
-  fileAttachment: "File đính kèm",
-  signedAt: "Ngày ký",
-  effectiveAt: "Ngày có hiệu lực",
-  note: "Ghi chú",
-  status: "Trạng thái",
+  title: tr("Document name"),
+  documentType: tr("Document type"),
+  documentCode: tr("Document number"),
+  openingDate: tr("Issue date"),
+  senderName: tr("Sender"),
+  recipientName: tr("Recipient"),
+  description: tr("Content summary"),
+  language: tr("Language"),
+  docFormat: tr("Document form"),
+  googleDriveUrl: tr("Google Drive URL"),
+  fileAttachment: tr("Attachment"),
+  signedAt: tr("Signed date"),
+  effectiveAt: tr("Effective date"),
+  note: tr("Note"),
+  status: tr("Status"),
   collectionName: "Collection",
 };
 const getFieldLabel = (f) => FIELD_LABEL[f] || f;
@@ -1893,7 +2163,7 @@ const getPermissionRole = (row, fallback = "viewer") =>
   row?.role ||
   fallback;
 
-const getLawyerDisplayName = (record, fallback = "Lawyer") => {
+const getLawyerDisplayName = (record, fallback = tr("Lawyer")) => {
   const lawyer = getRelationLawyerRecord(record);
   return (
     lawyer.lawyerName ||
@@ -1911,12 +2181,12 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
 };
 
 const ROLE_LABEL = {
-  admin:   "Quản trị viên",
-  owner:   "Chủ sở hữu",
-  manager: "Quản lý",
-  editor:  "Chỉnh sửa",
-  viewer:  "Chỉ xem",
-  shared:  "Được chia sẻ",
+  admin:   tr("Administrator"),
+  owner:   tr("Owner"),
+  manager: tr("Manager"),
+  editor:  tr("Edit"),
+  viewer:  tr("View only"),
+  shared:  tr("Shared"),
 };
 
 const roleToPerms = (role) => ({
@@ -2160,11 +2430,11 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       });
 
       await Promise.all(createPromises);
-      message.success("Cập nhật phân quyền thành công");
+      message.success(tr("Permissions updated"));
       onSuccess();
       onClose();
     } catch (e) {
-      message.error("Có lỗi xảy ra");
+      message.error(tr("An error occurred"));
     }
     setSaving(false);
   };
@@ -2206,14 +2476,14 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Phân quyền thư mục",
+        tr("Folder permissions"),
       ),
       width: 500,
       footer: [
         React.createElement(
           Button,
           { key: "cancel", onClick: onClose, style: { fontFamily: FONT } },
-          "Hủy",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -2224,7 +2494,7 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
             onClick: handleSave,
             style: { fontFamily: FONT },
           },
-          "Lưu",
+          tr("Save"),
         ),
       ],
     },
@@ -2234,12 +2504,12 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       React.createElement(
         "div",
         { style: { marginBottom: 8, fontWeight: 600 } },
-        "Thêm người",
+        tr("Add people"),
       ),
       React.createElement(Select, {
         showSearch: true,
         style: { width: "100%", fontFamily: FONT },
-        placeholder: "Tìm và thêm người...",
+        placeholder: tr("Search and add people..."),
         options: availableOptions,
         value: null,
         onChange: handleAddShare,
@@ -2253,12 +2523,12 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
       React.createElement(
         "div",
         { style: { marginBottom: 12, fontWeight: 600 } },
-        "Những người có quyền truy cập",
+        tr("People with access"),
       ),
       shares.length === 0
         ? React.createElement(Empty, {
           image: Empty.PRESENTED_IMAGE_SIMPLE,
-          description: "Chưa chia sẻ cho ai",
+          description: tr("Not shared with anyone yet"),
         })
         : shares.map((s) => {
           const lw =
@@ -2269,7 +2539,7 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
             lw.nickname ||
             lw.username ||
             lw.email ||
-            (s.id && s.id !== "undefined" ? `ID: ${s.id}` : "Không rõ tên");
+            (s.id && s.id !== "undefined" ? `ID: ${s.id}` : tr("Unknown name"));
           const displayName = getLawyerDisplayName(
             lw.id ? lw : s.lawyerData || s,
           );
@@ -2318,10 +2588,10 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
                   "div",
                   { style: { fontSize: 12, color: "#8c8c8c" } },
                   s.role === "manager"
-                    ? "Quản lý"
+                    ? tr("Manager")
                     : s.role === "editor"
-                      ? "Người chỉnh sửa"
-                      : "Người xem",
+                      ? tr("Editor")
+                      : tr("Viewer"),
                 ),
               ),
             ),
@@ -2334,9 +2604,9 @@ const FolderPermissionsModal = ({ open, folder, onClose, onSuccess }) => {
                 style: { width: 140, fontFamily: FONT },
                 bordered: false,
                 options: [
-                  { value: "viewer", label: "Người xem" },
-                  { value: "editor", label: "Người chỉnh sửa" },
-                  { value: "manager", label: "Quản lý" },
+                  { value: "viewer", label: tr("Viewer") },
+                  { value: "editor", label: tr("Editor") },
+                  { value: "manager", label: tr("Manager") },
                 ],
               }),
               React.createElement(
@@ -2419,7 +2689,7 @@ const TruncatedText = ({ value, keyword, maxLen = 30, style = {} }) => {
           fontFamily: FONT,
         },
       },
-      expanded ? "Thu gọn" : "Xem thêm",
+      expanded ? tr("Show less") : tr("Show more"),
     ),
   );
 };
@@ -2470,7 +2740,7 @@ const ExpandableDescription = ({ value, keyword, maxLen = 35 }) => {
           fontFamily: FONT,
         },
       },
-      expanded ? "Thu gọn" : "Xem thêm",
+      expanded ? tr("Show less") : tr("Show more"),
     ),
   );
 };
@@ -2487,7 +2757,7 @@ const PreviewModal = ({ doc, onClose }) => {
       ? attachment.extname.toLowerCase()
       : "." + attachment.extname.toLowerCase()
     : "";
-  const rawName = attachment?.title || attachment?.filename || "File";
+  const rawName = attachment?.title || attachment?.filename || tr("File");
   if (!fileExt && rawName.includes("."))
     fileExt = "." + rawName.split(".").pop().toLowerCase();
 
@@ -2528,12 +2798,12 @@ const PreviewModal = ({ doc, onClose }) => {
             onClick: () => window.open(fullUrl, "_blank"),
             style: { fontFamily: FONT },
           },
-          iconLabel(DownloadIcon, "Tải về"),
+          iconLabel(DownloadIcon, tr("Download")),
         ),
         React.createElement(
           Button,
           { key: "cl", onClick: onClose, style: { fontFamily: FONT } },
-          "Đóng",
+          tr("Close"),
         ),
       ].filter(Boolean),
       width: isPdf || isHtml || isOffice ? "85%" : "auto",
@@ -2569,7 +2839,7 @@ const PreviewModal = ({ doc, onClose }) => {
           zIndex: 0,
         },
       },
-      React.createElement(Spin, { tip: "Đang tải bản xem trước..." }),
+      React.createElement(Spin, { tip: tr("Loading preview...") }),
     ),
     (isPdf || isHtml) &&
     fullUrl &&
@@ -2648,7 +2918,7 @@ const PreviewModal = ({ doc, onClose }) => {
         description: React.createElement(
           "span",
           { style: { fontFamily: FONT } },
-          "Không thể xem trước định dạng này trên trình duyệt",
+          tr("This format cannot be previewed in the browser"),
         ),
       }),
       fullUrl &&
@@ -2659,7 +2929,7 @@ const PreviewModal = ({ doc, onClose }) => {
           style: { marginTop: 16, fontFamily: FONT },
           onClick: () => window.open(fullUrl, "_blank"),
         },
-        "Tải xuống để xem",
+        tr("Download to view"),
       ),
     ),
   );
@@ -2690,9 +2960,9 @@ const InlineNoteEditor = ({ doc, currentUser, onNoteChange }) => {
       });
       setDirty(false);
       onNoteChange?.();
-      message.success("Đã lưu ghi chú");
+      message.success(tr("Note saved"));
     } catch (e) {
-      message.error("Lỗi lưu ghi chú");
+      message.error(tr("Could not save the note"));
     }
     setSaving(false);
   };
@@ -2720,7 +2990,7 @@ const InlineNoteEditor = ({ doc, currentUser, onNoteChange }) => {
           fontFamily: FONT,
         },
       },
-      "Ghi chú tài liệu",
+      tr("Document notes"),
     ),
     React.createElement(Input.TextArea, {
       value,
@@ -2728,7 +2998,7 @@ const InlineNoteEditor = ({ doc, currentUser, onNoteChange }) => {
         setValue(e.target.value);
         setDirty(e.target.value !== (doc?.note || ""));
       },
-      placeholder: "Nhập ghi chú cho tài liệu này... (Ctrl+Enter để lưu)",
+      placeholder: tr("Enter a note for this document... (Ctrl+Enter to save)"),
       rows: 4,
       style: {
         fontSize: 13,
@@ -2754,7 +3024,7 @@ const InlineNoteEditor = ({ doc, currentUser, onNoteChange }) => {
       React.createElement(
         Text,
         { style: { fontSize: 11, color: "#faad14", fontFamily: FONT } },
-        "Chưa lưu",
+        tr("Unsaved"),
       ),
       React.createElement(
         Button,
@@ -2766,7 +3036,7 @@ const InlineNoteEditor = ({ doc, currentUser, onNoteChange }) => {
           onClick: handleSave,
           style: { fontFamily: FONT },
         },
-        "Lưu ghi chú",
+        tr("Save note"),
       ),
     ),
   );
@@ -2822,22 +3092,22 @@ const DocumentActivityLog = ({
   };
 
   const renderSentence = (log) => {
-    const who = log.changedByName || "Hệ thống";
+    const who = log.changedByName || tr("System");
     const time = fmtDate(log.changedAt);
     const action = log.action;
     const field = log.fieldName;
     const oldV = log.oldValue;
     const newV = log.newValue;
-    const entityLabel = collectionName === "Folder" ? "thư mục" : "tài liệu";
+    const entityLabel = collectionName === "Folder" ? tr("folder") : tr("document");
 
     if (action === "uploaded") {
       return React.createElement(
         "span",
         null,
         React.createElement(Text, { strong: true }, who),
-        ` đã tải lên ${entityLabel} `,
+        tr(" uploaded {0} ", { 0: entityLabel }),
         React.createElement(Text, { code: true }, newV),
-        " lúc ",
+        tr(" at "),
         React.createElement(Text, { type: "secondary" }, time),
       );
     }
@@ -2847,9 +3117,9 @@ const DocumentActivityLog = ({
         "span",
         null,
         React.createElement(Text, { strong: true }, who),
-        ` đã tạo ${entityLabel} `,
+        tr(" created {0} ", { 0: entityLabel }),
         React.createElement(Text, { code: true }, newV || oldV || ""),
-        " lúc ",
+        tr(" at "),
         React.createElement(Text, { type: "secondary" }, time),
       );
     }
@@ -2859,9 +3129,9 @@ const DocumentActivityLog = ({
         "span",
         null,
         React.createElement(Text, { strong: true }, who),
-        ` đã di chuyển ${entityLabel} sang thư mục `,
+        tr(" moved {0} to folder ", { 0: entityLabel }),
         React.createElement(Text, { code: true }, newV),
-        " lúc ",
+        tr(" at "),
         React.createElement(Text, { type: "secondary" }, time),
       );
     }
@@ -2871,24 +3141,24 @@ const DocumentActivityLog = ({
         "span",
         null,
         React.createElement(Text, { strong: true }, who),
-        ` đã xóa ${entityLabel} `,
+        tr(" deleted {0} ", { 0: entityLabel }),
         React.createElement(Text, { code: true }, oldV),
-        " lúc ",
+        tr(" at "),
         React.createElement(Text, { type: "secondary" }, time),
       );
     }
 
     if (action === "updated") {
-      const fieldLabel = field === "title" ? "tiêu đề" : field;
+      const fieldLabel = field === "title" ? tr("title") : field;
       return React.createElement(
         "span",
         null,
         React.createElement(Text, { strong: true }, who),
-        ` đã cập nhật ${fieldLabel} từ `,
+        tr(" updated {0} from ", { 0: fieldLabel }),
         React.createElement(Text, { delete: true }, oldV),
-        " thành ",
+        tr(" to "),
         React.createElement(Text, { strong: true }, newV),
-        " lúc ",
+        tr(" at "),
         React.createElement(Text, { type: "secondary" }, time),
       );
     }
@@ -2901,7 +3171,7 @@ const DocumentActivityLog = ({
       oldV && React.createElement(Text, { delete: true }, oldV),
       " ",
       newV && React.createElement(Text, { strong: true }, newV),
-      " lúc ",
+      tr(" at "),
       React.createElement(Text, { type: "secondary" }, time),
     );
   };
@@ -2964,7 +3234,7 @@ const DocumentActivityLog = ({
       description: React.createElement(
         Text,
         { type: "secondary", style: { fontSize: 12 } },
-        "Chưa có hoạt động",
+        tr("No activity yet"),
       ),
       style: { marginTop: 40 },
     });
@@ -3107,11 +3377,11 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
           .catch(() => { });
       }
 
-      message.success("Cập nhật thành công!");
+      message.success(tr("Updated!"));
       setEditing(false);
       onSuccess();
     } catch (e) {
-      message.error("Có lỗi: " + (e?.message || "Vui lòng thử lại"));
+      message.error(tr("Error: ") + (e?.message || tr("Please try again")));
     }
     setSaving(false);
   };
@@ -3148,11 +3418,11 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
           .catch(() => { });
       }
 
-      message.success("Đã cập nhật tiêu đề");
+      message.success(tr("Title updated"));
       setInlineEditingTitle(false);
       onSuccess();
     } catch (e) {
-      message.error("Lỗi cập nhật");
+      message.error(tr("Could not update"));
     }
   };
 
@@ -3168,7 +3438,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
       ? attachment.extname.toLowerCase()
       : "." + attachment.extname.toLowerCase()
     : "";
-  const rawName = attachment?.title || attachment?.filename || "File";
+  const rawName = attachment?.title || attachment?.filename || tr("File");
   if (!fileExt && rawName.includes(".")) {
     fileExt = "." + rawName.split(".").pop().toLowerCase();
   }
@@ -3199,19 +3469,19 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         },
         React.createElement(
           Descriptions.Item,
-          { label: "STT" },
+          { label: tr("No.") },
           doc?.fileIndex ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Loại văn bản" },
+          { label: tr("Document type") },
           doc?.documentType ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Số hiệu" },
+          { label: tr("Document number") },
           React.createElement(
             Text,
             { style: { fontFamily: "monospace", fontSize: 12 } },
@@ -3221,21 +3491,21 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Ngày ban hành" },
+          { label: tr("Issue date") },
           doc?.openingDate
             ? formatDate(doc.openingDate)
             : React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Ngày ký" },
+          { label: tr("Signed date") },
           doc?.signedAt
             ? formatDate(doc.signedAt)
             : React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Tên văn bản", span: 2 },
+          { label: tr("Document name"), span: 2 },
           inlineEditingTitle
             ? React.createElement(
               "div",
@@ -3289,7 +3559,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
                 React.createElement(
                   Text,
                   { type: "secondary" },
-                  "(Chưa có)",
+                  tr("(None)"),
                 ),
               ),
               React.createElement(
@@ -3314,19 +3584,19 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Người gửi" },
+          { label: tr("Sender") },
           doc?.senderName ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Người nhận" },
+          { label: tr("Recipient") },
           doc?.recipientName ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Tóm tắt nội dung", span: 2 },
+          { label: tr("Content summary"), span: 2 },
           React.createElement(
             Text,
             {
@@ -3342,19 +3612,19 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Ngôn ngữ" },
+          { label: tr("Language") },
           doc?.language ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Hình thức tài liệu" },
+          { label: tr("Document form") },
           doc?.docFormat ||
           React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Ngày có hiệu lực" },
+          { label: tr("Effective date") },
           doc?.effectiveAt
             ? React.createElement(
               Text,
@@ -3372,7 +3642,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Google Drive" },
+          { label: tr("Google Drive") },
           doc?.googleDriveUrl
             ? React.createElement(
               Button,
@@ -3382,13 +3652,13 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
                 style: { padding: 0 },
                 onClick: () => window.open(doc.googleDriveUrl, "_blank"),
               },
-              "Mở link",
+              tr("Open link"),
             )
             : React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "File đính kèm", span: 2 },
+          { label: tr("Attachment"), span: 2 },
           attachment
             ? React.createElement(
               "div",
@@ -3464,21 +3734,21 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
                     window.open(fullUrl, "_blank");
                   },
                 },
-                "Tải về",
+                tr("Download"),
               ),
             )
             : React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Ngày upload" },
+          { label: tr("Upload date") },
           doc?.createdAt
             ? formatDateTime(doc.createdAt)
             : React.createElement(Text, { type: "secondary" }, "—"),
         ),
         React.createElement(
           Descriptions.Item,
-          { label: "Người upload" },
+          { label: tr("Uploaded by") },
           doc?.createdBy
             ? getUserName(doc.createdBy) || doc.createdBy.email
             : React.createElement(Text, { type: "secondary" }, "—"),
@@ -3508,21 +3778,21 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
           Form.Item,
           {
             name: "documentType",
-            label: "Loại văn bản",
-            rules: [{ required: true, message: "Vui lòng nhập loại văn bản" }],
+            label: tr("Document type"),
+            rules: [{ required: true, message: tr("Enter the document type") }],
           },
           React.createElement(Input, {
             allowClear: true,
             maxLength: 150,
-            placeholder: "VD: Hợp đồng, Biên bản...",
+            placeholder: tr("e.g. Hợp đồng, Biên bản..."),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "title", label: "Tên tài liệu" },
+          { name: "title", label: tr("Document name") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Nhập tên đầy đủ của tài liệu",
+            placeholder: tr("Enter the document's full name"),
           }),
         ),
       ),
@@ -3537,15 +3807,15 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         },
         React.createElement(
           Form.Item,
-          { name: "documentCode", label: "Số hiệu" },
+          { name: "documentCode", label: tr("Document number") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: 123/2024/HĐ-SAMSET",
+            placeholder: tr("e.g. 123/2024/HĐ-SAMSET"),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "openingDate", label: "Ngày ban hành" },
+          { name: "openingDate", label: tr("Issue date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -3563,7 +3833,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         },
         React.createElement(
           Form.Item,
-          { name: "signedAt", label: "Ngày ký" },
+          { name: "signedAt", label: tr("Signed date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -3571,7 +3841,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         ),
         React.createElement(
           Form.Item,
-          { name: "effectiveAt", label: "Ngày có hiệu lực" },
+          { name: "effectiveAt", label: tr("Effective date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -3589,18 +3859,18 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         },
         React.createElement(
           Form.Item,
-          { name: "senderName", label: "Người gửi" },
+          { name: "senderName", label: tr("Sender") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân hoặc tổ chức gửi",
+            placeholder: tr("Sender person or organization"),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "recipientName", label: "Người nhận" },
+          { name: "recipientName", label: tr("Recipient") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân hoặc tổ chức nhận",
+            placeholder: tr("Recipient person or organization"),
           }),
         ),
       ),
@@ -3615,33 +3885,33 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         },
         React.createElement(
           Form.Item,
-          { name: "language", label: "Ngôn ngữ" },
+          { name: "language", label: tr("Language") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: Tiếng Việt, EN...",
+            placeholder: tr("e.g. Vietnamese, EN..."),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "docFormat", label: "Hình thức tài liệu" },
+          { name: "docFormat", label: tr("Document form") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: Bản gốc, Bản scan...",
+            placeholder: tr("e.g. Original, Scan..."),
           }),
         ),
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Tóm tắt nội dung" },
+        { name: "description", label: tr("Content summary") },
         React.createElement(Input.TextArea, {
           rows: 3,
           allowClear: true,
-          placeholder: "Mô tả ngắn gọn nội dung chính...",
+          placeholder: tr("A short description of the main content..."),
         }),
       ),
       React.createElement(
         Form.Item,
-        { name: "googleDriveUrl", label: "Google Drive URL" },
+        { name: "googleDriveUrl", label: tr("Google Drive URL") },
         React.createElement(Input, {
           allowClear: true,
           placeholder: "https://docs.google.com/...",
@@ -3660,7 +3930,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
         React.createElement(
           Button,
           { onClick: cancelEdit, style: { fontFamily: FONT } },
-          "Hủy",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -3670,7 +3940,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
             onClick: handleSave,
             style: { fontFamily: FONT },
           },
-          "Lưu cập nhật",
+          tr("Save changes"),
         ),
       ),
     );
@@ -3713,7 +3983,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
             doc?.title ||
             attachment?.title ||
             attachment?.filename ||
-            "(Chưa có tên)",
+            tr("(No name yet)"),
           ),
           React.createElement(
             "div",
@@ -3750,7 +4020,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
             onClick: () => setEditing(true),
             style: { fontFamily: FONT, flexShrink: 0 },
           },
-          iconLabel(EditIcon, "Chỉnh sửa"),
+          iconLabel(EditIcon, tr("Edit")),
         ),
       ),
     },
@@ -3764,7 +4034,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
           label: React.createElement(
             "span",
             { style: { fontFamily: FONT } },
-            "Thông tin & Ghi chú",
+            tr("Info & Notes"),
           ),
           children: React.createElement(
             "div",
@@ -3786,7 +4056,7 @@ const DetailModal = ({ doc, onClose, onSuccess, currentUser, onPreview }) => {
           label: React.createElement(
             "span",
             { style: { fontFamily: FONT } },
-            "Lịch sử",
+            tr("History"),
           ),
           children: React.createElement(
             "div",
@@ -4016,7 +4286,7 @@ function useDynamicDocumentManager(
         setDocs(visibleDocs);
       } catch (e) {
         console.error("[DEBUG][fetchData][moduleScopeOnly] failed:", e);
-        message.error("Lỗi tải dữ liệu");
+        message.error(tr("Failed to load data"));
       } finally {
         setLoading(false);
       }
@@ -4085,7 +4355,7 @@ function useDynamicDocumentManager(
         );
       } catch (e) {
         console.error("[DEBUG][fetchData][global] failed:", e);
-        message.error("Lỗi tải dữ liệu");
+        message.error(tr("Failed to load data"));
       } finally {
         setLoading(false);
       }
@@ -4095,8 +4365,8 @@ function useDynamicDocumentManager(
     // Do NOT use ctx?.filterByTk here — NocoBase injects that value even on global views
     // (e.g. block config), which would incorrectly block the fetch and cause infinite loading.
     const urlHasFilterByTk = !!(
-      window.location.pathname.match(/\/filterbytk\/\d+/i) ||
-      window.location.href.match(/\/filterbytk\/\d+/i)
+      // location.href is blocked in the RunJS sandbox; the id is in the path.
+      window.location.pathname.match(/\/filterbytk\/\d+/i)
     );
     console.log("[DEBUG][fetchData] urlHasFilterByTk:", urlHasFilterByTk, "| ctx.filterByTk:", ctx?.filterByTk, "| context.mode:", context.mode);
     if (
@@ -4472,7 +4742,7 @@ function useDynamicDocumentManager(
       setDocs(visibleDocs);
     } catch (e) {
       console.error("[DEBUG][fetchData] failed:", e);
-      message.error("Lỗi tải dữ liệu");
+      message.error(tr("Failed to load data"));
     }
     setLoading(false);
   }, [
@@ -4538,7 +4808,7 @@ const getInternalCompanyName = (company) =>
   company?.shortCode ||
   company?.shortName ||
   company?.abbreviation ||
-  (company?.id ? `Company ${company.id}` : "");
+  (company?.id ? tr("Company {0}", { 0: company.id }) : "");
 
 const LEGAL_REFERENCE_RESOURCE_CANDIDATES = [
   "legalReference:list",
@@ -4557,7 +4827,7 @@ const getLegalReferenceDisplayName = (record) => {
     record.title ||
     record.name ||
     record.description ||
-    (record.id ? `Legal Reference ${record.id}` : "Legal Reference");
+    (record.id ? `Legal Reference ${record.id}` : tr("Legal Reference"));
   return code && String(code) !== String(title) ? `${code} - ${title}` : title;
 };
 
@@ -4752,7 +5022,7 @@ const FolderModal = ({
             updatedById: safeUserId,
           },
         });
-        message.success("Cập nhật thư mục thành công!");
+        message.success(tr("Folder updated!"));
       } else {
         const parentFolder = editFolder?.raw || null;
         const folderType = getFolderTypeForContext(context, parentFolder);
@@ -4781,7 +5051,7 @@ const FolderModal = ({
           data: payload,
         });
         folderIdToSync = createRes?.data?.data?.id;
-        message.success("Tạo thư mục thành công!");
+        message.success(tr("Folder created!"));
       }
 
       // Sync permissions manually
@@ -4844,7 +5114,7 @@ const FolderModal = ({
       onClose();
       onSuccess();
     } catch (e) {
-      message.error("Có lỗi xảy ra");
+      message.error(tr("An error occurred"));
     }
     setSaving(false);
   };
@@ -4886,13 +5156,13 @@ const FolderModal = ({
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        isEdit ? "Cập nhật thư mục" : "Tạo thư mục mới",
+        isEdit ? tr("Update folder") : tr("Create new folder"),
       ),
       footer: [
         React.createElement(
           Button,
           { key: "cancel", onClick: onClose, style: { fontFamily: FONT } },
-          "Hủy",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -4903,7 +5173,7 @@ const FolderModal = ({
             loading: saving,
             style: { fontFamily: FONT },
           },
-          "Lưu",
+          tr("Save"),
         ),
       ],
       width: 500,
@@ -4915,12 +5185,12 @@ const FolderModal = ({
         Form.Item,
         {
           name: "name",
-          label: "Tên thư mục",
-          rules: [{ required: true, message: "Vui lòng nhập tên thư mục" }],
+          label: tr("Folder name"),
+          rules: [{ required: true, message: tr("Please enter a folder name") }],
         },
         React.createElement(Input, {
           autoFocus: true,
-          placeholder: "Nhập tên thư mục...",
+          placeholder: tr("Enter folder name..."),
           onKeyDown: (e) => {
             if (e.key === "Enter") handleSave();
           },
@@ -4928,11 +5198,11 @@ const FolderModal = ({
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Tóm tắt nội dung" },
+        { name: "description", label: tr("Content summary") },
         React.createElement(Input.TextArea, {
           rows: 2,
           allowClear: true,
-          placeholder: "Nhập tóm tắt nội dung thư mục...",
+          placeholder: tr("Enter a summary of the folder..."),
         }),
       ),
     ),
@@ -4944,12 +5214,12 @@ const FolderModal = ({
       React.createElement(
         "div",
         { style: { marginBottom: 8, fontWeight: 600 } },
-        "Thêm người truy cập",
+        tr("Add people with access"),
       ),
       React.createElement(Select, {
         showSearch: true,
         style: { width: "100%", fontFamily: FONT },
-        placeholder: "Tìm và thêm người...",
+        placeholder: tr("Search and add people..."),
         options: availableOptions,
         value: null,
         onChange: handleAddShare,
@@ -4963,12 +5233,12 @@ const FolderModal = ({
       React.createElement(
         "div",
         { style: { marginBottom: 12, fontWeight: 600 } },
-        "Những người có quyền truy cập",
+        tr("People with access"),
       ),
       shares.length === 0
         ? React.createElement(Empty, {
           image: Empty.PRESENTED_IMAGE_SIMPLE,
-          description: "Chưa chia sẻ cho ai",
+          description: tr("Not shared with anyone yet"),
         })
         : shares.map((s) => {
           const lw =
@@ -4979,7 +5249,7 @@ const FolderModal = ({
             lw.nickname ||
             lw.lawyerName ||
             lw.email ||
-            (s.id && s.id !== "undefined" ? `ID: ${s.id}` : "Không rõ tên");
+            (s.id && s.id !== "undefined" ? `ID: ${s.id}` : tr("Unknown name"));
           return React.createElement(
             "div",
             {
@@ -5027,10 +5297,10 @@ const FolderModal = ({
                   "div",
                   { style: { fontSize: 12, color: "#8c8c8c" } },
                   s.role === "manager"
-                    ? "Quản lý"
+                    ? tr("Manager")
                     : s.role === "editor"
-                      ? "Người chỉnh sửa"
-                      : "Người xem",
+                      ? tr("Editor")
+                      : tr("Viewer"),
                 ),
               ),
             ),
@@ -5043,9 +5313,9 @@ const FolderModal = ({
                 style: { width: 140, fontFamily: FONT },
                 bordered: false,
                 options: [
-                  { value: "viewer", label: "Người xem" },
-                  { value: "editor", label: "Người chỉnh sửa" },
-                  { value: "manager", label: "Quản lý" },
+                  { value: "viewer", label: tr("Viewer") },
+                  { value: "editor", label: tr("Editor") },
+                  { value: "manager", label: tr("Manager") },
                 ],
               }),
               React.createElement(
@@ -5103,7 +5373,7 @@ const UploadModal = ({
       headers: { "Content-Type": "multipart/form-data" },
     });
     const attachment = uploadRes?.data?.data;
-    if (!attachment?.id) throw new Error("Upload file thất bại");
+    if (!attachment?.id) throw new Error(tr("File upload failed"));
     return [{ id: attachment.id }];
   };
 
@@ -5117,7 +5387,7 @@ const UploadModal = ({
     const hasFile = fileList.length > 0;
     const hasDriveUrl = !!values.googleDriveUrl?.trim();
     if (!hasFile && !hasDriveUrl) {
-      message.error("Vui lòng chọn file hoặc nhập URL");
+      message.error(tr("Please choose a file or enter a URL"));
       return;
     }
 
@@ -5177,11 +5447,11 @@ const UploadModal = ({
         method: "POST",
         data: payload,
       });
-      message.success("Upload thành công!");
+      message.success(tr("Uploaded!"));
       handleClose();
       onSuccess();
     } catch (e) {
-      message.error("Có lỗi xảy ra khi upload.");
+      message.error(tr("An error occurred while uploading."));
     }
     setUploading(false);
   };
@@ -5204,7 +5474,7 @@ const UploadModal = ({
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Upload tài liệu",
+        tr("Upload document"),
       ),
       width: 1100,
       centered: true,
@@ -5217,7 +5487,7 @@ const UploadModal = ({
             disabled: uploading,
             style: { fontFamily: FONT },
           },
-          "Hủy",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -5228,7 +5498,7 @@ const UploadModal = ({
             loading: uploading,
             style: { fontFamily: FONT },
           },
-          uploading ? "Đang upload..." : "Upload",
+          uploading ? tr("Uploading...") : tr("Upload"),
         ),
       ],
     },
@@ -5243,7 +5513,7 @@ const UploadModal = ({
           internalCompanyId: activeInternalCompanyId,
         }
       },
-      divider("Định danh"),
+      divider(tr("Identification")),
       (context.mode === "legal_reference" || context.mode === "internal_templates") && React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr", gap: 12 } },
@@ -5251,15 +5521,15 @@ const UploadModal = ({
           Form.Item,
           {
             name: "internalCompanyId",
-            label: "Công ty nội bộ",
-            rules: [{ required: true, message: "Vui lòng chọn công ty nội bộ" }],
+            label: tr("Internal company"),
+            rules: [{ required: true, message: tr("Please select an internal company") }],
           },
           React.createElement(Select, {
             options: internalCompanies.map((company) => ({
               value: String(extractId(company)),
               label: getInternalCompanyName(company),
             })),
-            placeholder: "Chọn công ty nội bộ",
+            placeholder: tr("Select internal company"),
             showSearch: true,
             optionFilterProp: "label",
           })
@@ -5272,20 +5542,20 @@ const UploadModal = ({
           Form.Item,
           {
             name: "documentType",
-            label: "Loại văn bản",
-            rules: [{ required: true, message: "Vui lòng nhập loại văn bản" }],
+            label: tr("Document type"),
+            rules: [{ required: true, message: tr("Enter the document type") }],
           },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: Hợp đồng, Biên bản...",
+            placeholder: tr("e.g. Hợp đồng, Biên bản..."),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "title", label: "Tên tài liệu" },
+          { name: "title", label: tr("Document name") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Nhập tên đầy đủ của tài liệu",
+            placeholder: tr("Enter the document's full name"),
           }),
         ),
       ),
@@ -5294,15 +5564,15 @@ const UploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "documentCode", label: "Số hiệu" },
+          { name: "documentCode", label: tr("Document number") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: 123/2024/HĐ-SAMSET",
+            placeholder: tr("e.g. 123/2024/HĐ-SAMSET"),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "openingDate", label: "Ngày ban hành" },
+          { name: "openingDate", label: tr("Issue date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -5314,7 +5584,7 @@ const UploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "signedAt", label: "Ngày ký" },
+          { name: "signedAt", label: tr("Signed date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -5322,31 +5592,31 @@ const UploadModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "effectiveAt", label: "Ngày có hiệu lực" },
+          { name: "effectiveAt", label: tr("Effective date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
           }),
         ),
       ),
-      divider("Bên liên quan"),
+      divider(tr("Parties")),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "senderName", label: "Người gửi" },
+          { name: "senderName", label: tr("Sender") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân / tổ chức gửi",
+            placeholder: tr("Sending person / organisation"),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "recipientName", label: "Người nhận" },
+          { name: "recipientName", label: tr("Recipient") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Tên cá nhân / tổ chức nhận",
+            placeholder: tr("Receiving person / organisation"),
           }),
         ),
       ),
@@ -5355,34 +5625,34 @@ const UploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "language", label: "Ngôn ngữ" },
+          { name: "language", label: tr("Language") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: Tiếng Việt, Tiếng Anh...",
+            placeholder: tr("e.g. Vietnamese, English..."),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "docFormat", label: "Hình thức tài liệu" },
+          { name: "docFormat", label: tr("Document form") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "VD: Bản gốc, Bản scan...",
+            placeholder: tr("e.g. Original, Scan..."),
           }),
         ),
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Tóm tắt nội dung" },
+        { name: "description", label: tr("Content summary") },
         React.createElement(Input.TextArea, {
           rows: 2,
           allowClear: true,
-          placeholder: "Mô tả ngắn gọn nội dung tài liệu...",
+          placeholder: tr("Briefly describe the document..."),
         }),
       ),
-      divider("File đính kèm"),
+      divider(tr("Attachment")),
       React.createElement(
         Form.Item,
-        { label: "Chọn file" },
+        { label: tr("Choose file") },
         React.createElement(
           Dragger,
           {
@@ -5413,27 +5683,27 @@ const UploadModal = ({
                 fontFamily: FONT,
               },
             },
-            "Kéo thả hoặc click để chọn",
+            tr("Drag and drop or click to choose"),
           ),
         ),
       ),
       React.createElement(
         Form.Item,
-        { name: "googleDriveUrl", label: "Google Drive URL (tuỳ chọn)" },
+        { name: "googleDriveUrl", label: tr("Google Drive URL (optional)") },
         React.createElement(Input, {
           placeholder: "https://docs.google.com/...",
           allowClear: true,
           style: { fontSize: 12, fontFamily: FONT },
         }),
       ),
-      divider("Ghi chú"),
+      divider(tr("Note")),
       React.createElement(
         Form.Item,
-        { name: "note", label: "Ghi chú" },
+        { name: "note", label: tr("Note") },
         React.createElement(Input.TextArea, {
           rows: 2,
           allowClear: true,
-          placeholder: "Nhập ghi chú...",
+          placeholder: tr("Enter a note..."),
           style: { fontSize: 12, fontFamily: FONT },
         }),
       ),
@@ -5449,7 +5719,7 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
 
   const folderOptions = useMemo(() => {
     const getPath = (folderId) => {
-      if (folderId === "root") return "Home";
+      if (folderId === "root") return tr("Home");
       const path = [];
       let curr = folders.find((f) => String(extractId(f)) === String(folderId));
       while (curr) {
@@ -5461,7 +5731,7 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
       return path.join(" / ");
     };
 
-    const opts = [{ value: "root", label: "Home" }];
+    const opts = [{ value: "root", label: tr("Home") }];
     folders.forEach((f) => {
       opts.push({
         value: String(extractId(f)),
@@ -5482,13 +5752,13 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Xác nhận Upload Thư mục",
+        tr("Confirm folder upload"),
       ),
       footer: [
         React.createElement(
           Button,
           { key: "cancel", onClick: onClose, style: { fontFamily: FONT } },
-          "Hủy bỏ",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -5498,7 +5768,7 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
             onClick: () => onUpload(targetId),
             style: { fontFamily: FONT },
           },
-          "Xác nhận Upload",
+          tr("Confirm upload"),
         ),
       ],
     },
@@ -5508,15 +5778,15 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
       React.createElement(
         "p",
         null,
-        `Bạn đang chuẩn bị tải lên thư mục `,
+        tr("You are about to upload the folder "),
         React.createElement("strong", null, folderNameToUpload),
-        ` chứa `,
+        tr(" containing "),
         React.createElement(
           "strong",
           { style: { color: "#1890ff" } },
           files?.length || 0,
         ),
-        ` tệp tin.`,
+        tr(" file(s)."),
       ),
       React.createElement(
         "div",
@@ -5524,7 +5794,7 @@ const BulkFolderUploadModal = ({ open, files, onClose, folders, onUpload }) => {
         React.createElement(
           "div",
           { style: { marginBottom: 8, fontWeight: 600, color: "#262626" } },
-          "Chọn nơi lưu trữ:",
+          tr("Choose where to store:"),
         ),
         React.createElement(Select, {
           style: { width: "100%", fontFamily: FONT },
@@ -5586,7 +5856,7 @@ const EntityList = ({ items, selectedId, onSelect, nameField, loading }) => {
     return React.createElement(
       "div",
       { style: { padding: "14px 10px", color: "#bfbfbf", fontSize: 12, fontFamily: FONT } },
-      "Không có dữ liệu",
+      tr("No data"),
     );
   return React.createElement(
     "div",
@@ -5942,7 +6212,7 @@ const DocumentDashboard = () => {
       .map(getRecordByRowKey)
       .filter(Boolean);
     if (selectedRecords.some((record) => !canManageRecord(record))) {
-      message.warning("Bạn không có quyền thao tác với một số mục đã chọn");
+      message.warning(tr("You do not have permission to act on some selected items"));
       return;
     }
     try {
@@ -5980,11 +6250,11 @@ const DocumentDashboard = () => {
           ),
         ),
       );
-      message.success("Đã xoá các mục được chọn");
+      message.success(tr("Selected items deleted"));
       setSelectedRowKeys([]);
       refetch();
     } catch (e) {
-      message.error("Có lỗi xảy ra khi xoá");
+      message.error(tr("An error occurred while deleting"));
     }
   };
 
@@ -5994,7 +6264,7 @@ const DocumentDashboard = () => {
       .map(getRecordByRowKey)
       .filter(Boolean);
     if (selectedRecords.some((record) => !canManageRecord(record))) {
-      message.warning("Bạn không có quyền thao tác với một số mục đã chọn");
+      message.warning(tr("You do not have permission to act on some selected items"));
       return;
     }
     try {
@@ -6051,12 +6321,12 @@ const DocumentDashboard = () => {
           ),
         ),
       );
-      message.success("Đã di chuyển các mục được chọn");
+      message.success(tr("Selected items moved"));
       setSelectedRowKeys([]);
       setMoveToModalOpen(false);
       refetch();
     } catch (e) {
-      message.error("Có lỗi xảy ra khi di chuyển");
+      message.error(tr("An error occurred while moving"));
     }
   };
 
@@ -6105,10 +6375,10 @@ const DocumentDashboard = () => {
         ]);
       }
 
-      message.success("Đã di chuyển file");
+      message.success(tr("File moved"));
       refetch();
     } catch (e) {
-      message.error("Di chuyển thất bại");
+      message.error(tr("Move failed"));
     }
   };
 
@@ -6149,7 +6419,7 @@ const DocumentDashboard = () => {
       } catch { }
     }
     if (!legalStudyFolder) {
-      message.warning("Khong tim thay folder Legal Study trong case nay");
+      message.warning(tr("No Legal Study folder in this case"));
       return;
     }
     const targetFolderId = extractId(legalStudyFolder.id);
@@ -6181,10 +6451,10 @@ const DocumentDashboard = () => {
         reindexFiles(oldFolderId, MODULE_SCOPE.CASE_DOCUMENT, null),
         reindexFiles(targetFolderId, MODULE_SCOPE.CASE_DOCUMENT, null),
       ]);
-      message.success("Da di chuyen file vao Legal Study");
+      message.success(tr("File moved to Legal Study"));
       refetch();
     } catch {
-      message.error("Di chuyen vao Legal Study that bai");
+      message.error(tr("Move to Legal Study failed"));
     }
   };
 
@@ -6269,7 +6539,7 @@ const DocumentDashboard = () => {
     if (!legalMoveDoc) return;
     const companyId = extractId(legalMoveCompanyId);
     if (!companyId) {
-      message.warning("Vui long chon cong ty noi bo");
+      message.warning(tr("Please select an internal company"));
       return;
     }
 
@@ -6323,13 +6593,13 @@ const DocumentDashboard = () => {
         reindexFiles(oldFolderId, oldScope, oldCompanyId),
         reindexFiles(targetFolderId, MODULE_SCOPE.LEGAL_REFERENCE, companyId),
       ]);
-      message.success("Da di chuyen file vao Legal Reference");
+      message.success(tr("File moved to Legal Reference"));
       setLegalMoveOpen(false);
       setLegalMoveDoc(null);
       setLegalMoveReferenceId(null);
       refetch();
     } catch {
-      message.error("Di chuyen vao Legal Reference that bai");
+      message.error(tr("Move to Legal Reference failed"));
     }
     setLegalMoveLoading(false);
   };
@@ -6355,10 +6625,10 @@ const DocumentDashboard = () => {
           })
           .catch(() => { });
       }
-      message.success("Đã cập nhật tiêu đề file");
+      message.success(tr("File title updated"));
       refetch();
     } catch (e) {
-      message.error("Cập nhật thất bại");
+      message.error(tr("Update failed"));
     }
     setEditingTitleId(null);
   };
@@ -6377,10 +6647,10 @@ const DocumentDashboard = () => {
         data: { parentId: newParentId },
       });
 
-      message.success("Đã di chuyển thư mục");
+      message.success(tr("Folder moved"));
       refetch();
     } catch (e) {
-      message.error("Di chuyển thất bại");
+      message.error(tr("Move failed"));
     }
   };
 
@@ -6415,7 +6685,7 @@ const DocumentDashboard = () => {
     let newParentId = null;
 
     if (info.dropToGap) {
-      message.warning("Khong the thay doi STT thu muc");
+      message.warning(tr("The folder order cannot be changed"));
       return;
     }
     if (dragFolderId === dropFolderId) return;
@@ -6430,10 +6700,10 @@ const DocumentDashboard = () => {
       });
 
 
-      message.success("Đã di chuyển thư mục");
+      message.success(tr("Folder moved"));
       refetch();
     } catch (e) {
-      message.error("Di chuyển thất bại");
+      message.error(tr("Move failed"));
     }
   };
 
@@ -6448,7 +6718,7 @@ const DocumentDashboard = () => {
   const executeFolderUpload = async (destinationFolderId) => {
     setBulkConfirmOpen(false);
     setBulkUploading(true);
-    setBulkProgress("Đang phân tích cấu trúc thư mục...");
+    setBulkProgress(tr("Analyzing folder structure..."));
 
     try {
       const files = pendingFolderFiles;
@@ -6474,7 +6744,7 @@ const DocumentDashboard = () => {
         (a, b) => a.split("/").length - b.split("/").length,
       );
 
-      setBulkProgress(`Đang khởi tạo ${sortedPaths.length} thư mục...`);
+      setBulkProgress(tr("Creating {0} folder(s)...", { 0: sortedPaths.length }));
       for (const path of sortedPaths) {
         const parts = path.split("/");
         const folderName = parts.pop();
@@ -6550,7 +6820,7 @@ const DocumentDashboard = () => {
       for (const file of files) {
         uploadedCount++;
         setBulkProgress(
-          `Đang tải lên file ${uploadedCount}/${files.length}...`,
+          tr("Uploading file {0}/{1}...", { 0: uploadedCount, 1: files.length }),
         );
 
         const parts = file.webkitRelativePath.split("/");
@@ -6593,10 +6863,10 @@ const DocumentDashboard = () => {
         });
       }
 
-      message.success("Upload thư mục hoàn tất!");
+      message.success(tr("Folder upload complete!"));
       refetch();
     } catch (err) {
-      message.error("Có lỗi xảy ra trong quá trình xử lý!");
+      message.error(tr("An error occurred while processing!"));
     } finally {
       setBulkUploading(false);
       setBulkProgress("");
@@ -6610,7 +6880,7 @@ const DocumentDashboard = () => {
       !activeInternalCompanyId &&
       ["create_folder", "upload_folder"].includes(e.key)
     ) {
-      message.warning("Vui long chon cong ty noi bo truoc");
+      message.warning(tr("Please select an internal company first"));
       return;
     }
     if (e.key === "create_folder") {
@@ -6645,20 +6915,20 @@ const DocumentDashboard = () => {
   const menuItems = [
     isManager && {
       key: "create_folder",
-      label: iconLabel(FolderPlusIcon, "Tạo thư mục mới"),
+      label: iconLabel(FolderPlusIcon, tr("Create new folder")),
     },
     isManager &&
     currentFolder && {
       key: "permissions",
-      label: iconLabel(UsersIcon, "Phân quyền thư mục"),
+      label: iconLabel(UsersIcon, tr("Folder permissions")),
     },
     canUpload && {
       key: "upload_file",
-      label: iconLabel(FileIcon, "Upload File"),
+      label: iconLabel(FileIcon, tr("Upload File")),
     },
     canUpload && {
       key: "upload_folder",
-      label: iconLabel(FolderIcon, "Upload thư mục"),
+      label: iconLabel(FolderIcon, tr("Upload folder")),
     },
   ].filter(Boolean);
 
@@ -6796,7 +7066,7 @@ const DocumentDashboard = () => {
           item.createdBy.id || item.createdById || item.createdBy,
         );
         const name =
-          getUserName(item.createdBy) || item.createdBy.email || `User ${id}`;
+          getUserName(item.createdBy) || item.createdBy.email || tr("User {0}", { 0: id });
         if (id && !map.has(id)) map.set(id, name);
       }
     };
@@ -7006,7 +7276,7 @@ const DocumentDashboard = () => {
           const attachment = Array.isArray(d.fileAttachment)
             ? d.fileAttachment[0]
             : d.fileAttachment;
-          const originalName = d.title || attachment?.filename || "File";
+          const originalName = d.title || attachment?.filename || tr("File");
           const content = [
             d.documentType,
             d.documentCode,
@@ -7149,7 +7419,7 @@ const DocumentDashboard = () => {
   const openFolderFromNameColumn = (record) => {
     if (!record) return;
     if (record._navOnly) {
-      message.warning("Bạn không có quyền truy cập thư mục này");
+      message.warning(tr("You do not have access to this folder"));
       return;
     }
     if (isFiltering) {
@@ -7165,7 +7435,7 @@ const DocumentDashboard = () => {
     event?.stopPropagation?.();
     if (!record) return;
     if (record._navOnly) {
-      message.warning("Bạn không có quyền truy cập thư mục này");
+      message.warning(tr("You do not have access to this folder"));
       return;
     }
     const { isManager: folderIsManager } = getFolderPermissions(
@@ -7175,7 +7445,7 @@ const DocumentDashboard = () => {
       currentLawyerId,
     );
     if (!folderIsManager) {
-      message.warning("Bạn không có quyền phân quyền thư mục này");
+      message.warning(tr("You cannot manage permissions of this folder"));
       return;
     }
     setEditFolderData(record);
@@ -7186,7 +7456,7 @@ const DocumentDashboard = () => {
     const attachment = Array.isArray(record?.fileAttachment)
       ? record.fileAttachment[0]
       : record?.fileAttachment;
-    return record?.title || attachment?.title || attachment?.filename || "Tài liệu";
+    return record?.title || attachment?.title || attachment?.filename || tr("Document");
   };
 
   const openMoveFromNameColumn = (record, event) => {
@@ -7196,7 +7466,7 @@ const DocumentDashboard = () => {
 
     if (record._type === "folder") {
       if (record._navOnly) {
-        message.warning("Bạn không có quyền truy cập thư mục này");
+        message.warning(tr("You do not have access to this folder"));
         return;
       }
       const { isManager: folderIsManager } = getFolderPermissions(
@@ -7206,7 +7476,7 @@ const DocumentDashboard = () => {
         currentLawyerId,
       );
       if (!folderIsManager) {
-        message.warning("Bạn không có quyền di chuyển thư mục này");
+        message.warning(tr("You do not have permission to move this folder"));
         return;
       }
     } else {
@@ -7214,7 +7484,7 @@ const DocumentDashboard = () => {
         (f) => String(extractId(f)) === String(extractId(record.folderId)),
       );
       if (!canManageFile(record, folder, currentUser, folders, currentLawyerId)) {
-        message.warning("Bạn không có quyền di chuyển file này");
+        message.warning(tr("You do not have permission to move this file"));
         return;
       }
     }
@@ -7229,7 +7499,7 @@ const DocumentDashboard = () => {
     event?.stopPropagation?.();
     if (!record) return;
     if (!isAdminUser(currentUser)) {
-      message.warning("Bạn không có quyền xem lịch sử hoạt động");
+      message.warning(tr("You do not have permission to view the activity history"));
       return;
     }
 
@@ -7254,48 +7524,48 @@ const DocumentDashboard = () => {
       items: [
         {
           key: "open",
-          label: iconLabel(FolderOpenIcon, "Mở thư mục"),
+          label: iconLabel(FolderOpenIcon, tr("Open folder")),
           disabled: !!record._navOnly,
         },
         canManageFolder
           ? {
             key: "detail",
-            label: iconLabel(UsersIcon, "Chi tiết / phân quyền"),
+            label: iconLabel(UsersIcon, tr("Details / permissions")),
           }
           : {
             key: "detail_disabled",
-            label: iconLabel(UsersIcon, "Không có quyền phân quyền"),
+            label: iconLabel(UsersIcon, tr("No permission to manage access")),
             disabled: true,
           },
         canManageFolder
           ? {
             key: "move",
-            label: iconLabel(MoveIcon, "Di chuyển thư mục"),
+            label: iconLabel(MoveIcon, tr("Move folder")),
           }
           : {
             key: "move_disabled",
-            label: iconLabel(MoveIcon, "Không có quyền di chuyển"),
+            label: iconLabel(MoveIcon, tr("No permission to move")),
             disabled: true,
           },
         canManageFolder
           ? {
             key: "delete",
-            label: iconLabel(DeleteIcon, "Xóa thư mục"),
+            label: iconLabel(DeleteIcon, tr("Delete folder")),
             danger: true,
           }
           : {
             key: "delete_disabled",
-            label: iconLabel(DeleteIcon, "Không có quyền xóa"),
+            label: iconLabel(DeleteIcon, tr("No permission to delete")),
             disabled: true,
           },
         isAdminUser(currentUser)
           ? {
             key: "activity",
-            label: iconLabel(HistoryIcon, "Lịch sử hoạt động"),
+            label: iconLabel(HistoryIcon, tr("Activity history")),
           }
           : {
             key: "activity_disabled",
-            label: iconLabel(HistoryIcon, "Không có quyền xem lịch sử"),
+            label: iconLabel(HistoryIcon, tr("No permission to view history")),
             disabled: true,
           },
       ],
@@ -7319,63 +7589,63 @@ const DocumentDashboard = () => {
       items: [
         {
           key: "preview",
-          label: iconLabel(EyeIcon, "Xem trước"),
+          label: iconLabel(EyeIcon, tr("Preview")),
         },
         fullUrl && {
           key: "download",
-          label: iconLabel(DownloadIcon, "Tải về"),
+          label: iconLabel(DownloadIcon, tr("Download")),
         },
         fileCanManage
           ? {
             key: "detail",
-            label: iconLabel(EditIcon, "Chi tiết / chỉnh sửa"),
+            label: iconLabel(EditIcon, tr("Details / edit")),
           }
           : {
             key: "detail_disabled",
-            label: iconLabel(EditIcon, "Không có quyền chỉnh sửa"),
+            label: iconLabel(EditIcon, tr("No permission to edit")),
             disabled: true,
           },
         fileCanManage
           ? {
             key: "move",
-            label: iconLabel(MoveIcon, "Di chuyển file"),
+            label: iconLabel(MoveIcon, tr("Move file")),
           }
           : {
             key: "move_disabled",
-            label: iconLabel(MoveIcon, "Không có quyền di chuyển"),
+            label: iconLabel(MoveIcon, tr("No permission to move")),
             disabled: true,
           },
         fileCanManage && isCaseDocumentScope
           ? {
             key: "move_legal_study",
-            label: iconLabel(FolderOpenIcon, "Move to Legal Study"),
+            label: iconLabel(FolderOpenIcon, tr("Move to Legal Study")),
           }
           : null,
         fileCanManage && isCaseDocumentScope
           ? {
             key: "move_legal_reference",
-            label: iconLabel(FolderOpenIcon, "Move to Legal Reference"),
+            label: iconLabel(FolderOpenIcon, tr("Move to Legal Reference")),
           }
           : null,
         fileCanManage
           ? {
             key: "delete",
-            label: iconLabel(DeleteIcon, "Xóa file"),
+            label: iconLabel(DeleteIcon, tr("Delete file")),
             danger: true,
           }
           : {
             key: "delete_disabled",
-            label: iconLabel(DeleteIcon, "Không có quyền xóa"),
+            label: iconLabel(DeleteIcon, tr("No permission to delete")),
             disabled: true,
           },
         isAdminUser(currentUser)
           ? {
             key: "activity",
-            label: iconLabel(HistoryIcon, "Lịch sử hoạt động"),
+            label: iconLabel(HistoryIcon, tr("Activity history")),
           }
           : {
             key: "activity_disabled",
-            label: iconLabel(HistoryIcon, "Không có quyền xem lịch sử"),
+            label: iconLabel(HistoryIcon, tr("No permission to view history")),
             disabled: true,
           },
       ].filter(Boolean),
@@ -7389,10 +7659,10 @@ const DocumentDashboard = () => {
         if (key === "move_legal_reference") openLegalReferenceMove(record);
         if (key === "delete") {
           Modal.confirm({
-            title: "Xóa file này?",
-            okText: "Xóa",
+            title: tr("Delete this file?"),
+            okText: tr("Delete"),
             okType: "danger",
-            cancelText: "Hủy",
+            cancelText: tr("Cancel"),
             onOk: () => handleDeleteFile(record.id),
           });
         }
@@ -7413,7 +7683,7 @@ const DocumentDashboard = () => {
         {
           type: "text",
           size: "small",
-          title: "Thao tác",
+          title: tr("Actions"),
           onMouseDown: (event) => event.stopPropagation(),
           onClick: (event) => event.stopPropagation(),
           style: {
@@ -7440,11 +7710,11 @@ const DocumentDashboard = () => {
 
     let contentElements = [];
     if (subFoldersCount > 0)
-      contentElements.push(`- ${subFoldersCount} thư mục con`);
-    if (filesCount > 0) contentElements.push(`- ${filesCount} tệp tin`);
+      contentElements.push(tr("- {0} subfolder(s)", { 0: subFoldersCount }));
+    if (filesCount > 0) contentElements.push(tr("- {0} file(s)", { 0: filesCount }));
 
     Modal.confirm({
-      title: `Xác nhận xóa thư mục "${folder.name}"?`,
+      title: tr("Confirm deleting folder \"{0}\"?", { 0: folder.name }),
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
@@ -7456,7 +7726,7 @@ const DocumentDashboard = () => {
         React.createElement(
           "p",
           null,
-          "Bạn sắp xóa vĩnh viễn thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:",
+          tr("You are about to permanently delete this folder. The following data will also be deleted:"),
         ),
         contentElements.length > 0
           ? React.createElement(
@@ -7480,17 +7750,17 @@ const DocumentDashboard = () => {
           : React.createElement(
             "p",
             { style: { color: "#8c8c8c", fontStyle: "italic" } },
-            "(Thư mục đang trống)",
+            tr("(Folder is empty)"),
           ),
         React.createElement(
           "p",
           null,
-          "Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa?",
+          tr("This cannot be undone. Are you sure you want to delete?"),
         ),
       ),
-      okText: "Xóa vĩnh viễn",
+      okText: tr("Delete permanently"),
       okType: "danger",
-      cancelText: "Hủy",
+      cancelText: tr("Cancel"),
       onOk: () => handleDeleteFolder(folderIdsToDelete),
     });
   };
@@ -7531,7 +7801,7 @@ const DocumentDashboard = () => {
           })
           .catch(() => { });
       }
-      message.success("Đã xóa thành công thư mục và các dữ liệu bên trong");
+      message.success(tr("Folder and its contents deleted"));
       if (
         selectedFolderId !== "root" &&
         folderIdsToDelete.includes(parseInt(selectedFolderId, 10))
@@ -7539,7 +7809,7 @@ const DocumentDashboard = () => {
         setSelectedFolderId("root");
       refetch();
     } catch (e) {
-      message.error("Xóa thất bại");
+      message.error(tr("Delete failed"));
     }
   };
 
@@ -7557,10 +7827,10 @@ const DocumentDashboard = () => {
           doc.moduleScope || activeModuleScope,
           doc.internalCompanyId || activeInternalCompanyId,
         );
-      message.success("Đã xóa file");
+      message.success(tr("File deleted"));
       refetch();
     } catch {
-      message.error("Xóa thất bại");
+      message.error(tr("Delete failed"));
     }
   };
 
@@ -7569,7 +7839,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "STT",
+        tr("No."),
       ),
       key: "stt",
       width: 50,
@@ -7604,7 +7874,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Ngày ban hành",
+        tr("Issue date"),
       ),
       key: "openingDate",
       width: 120,
@@ -7632,7 +7902,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Loại văn bản",
+        tr("Document type"),
       ),
       key: "documentType",
       width: 140,
@@ -7654,7 +7924,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Tên / Tiêu đề",
+        tr("Name / Title"),
       ),
       key: "name",
       width: 300,
@@ -7689,7 +7959,7 @@ const DocumentDashboard = () => {
             React.createElement(
               "span",
               {
-                title: "Mở thư mục",
+                title: tr("Open folder"),
                 style: {
                   color: record._navOnly ? "#8c8c8c" : "#8c6d1f",
                   cursor: record._navOnly ? "not-allowed" : "pointer",
@@ -7699,8 +7969,8 @@ const DocumentDashboard = () => {
                   paddingTop: 2,
                 },
                 title: canOpenFolderDetail
-                  ? "Folder detail / permissions"
-                  : "No permission to open folder detail",
+                  ? tr("Folder detail / permissions")
+                  : tr("No permission to open folder detail"),
                 onClick: (event) => {
                   event.stopPropagation();
                   openFolderDetailFromNameColumn(record, event);
@@ -7715,10 +7985,10 @@ const DocumentDashboard = () => {
                 Tooltip,
                 {
                   title: canOpenFolderDetail
-                    ? "Click để mở chi tiết / phân quyền"
+                    ? tr("Click to open details / permissions")
                     : record._navOnly
-                      ? "Bạn không có quyền truy cập thư mục"
-                      : "Click để mở thư mục",
+                      ? tr("You do not have access to the folder")
+                      : tr("Click to open the folder"),
                 },
                 React.createElement(
                   "div",
@@ -7777,7 +8047,7 @@ const DocumentDashboard = () => {
               : "." + attachment.extname.toLowerCase()
             : "";
           const originalName =
-            record.title || attachment?.title || attachment?.filename || "File";
+            record.title || attachment?.title || attachment?.filename || tr("File");
           const extInfo = getExtInfo(ext);
 
           const rawLocationPath = isFiltering
@@ -7963,7 +8233,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Người quản lý",
+        tr("Manager"),
       ),
       key: "folderManagers",
       width: 140,
@@ -7998,7 +8268,7 @@ const DocumentDashboard = () => {
           displayManagers.map((m, idx) => {
             const name = getLawyerDisplayName(
               m,
-              managers.length ? "Lawyer" : "User",
+              managers.length ? tr("Lawyer") : tr("User"),
             );
             return React.createElement(
               "div",
@@ -8025,7 +8295,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Số hiệu",
+        tr("Document number"),
       ),
       key: "documentCode",
       width: 125,
@@ -8048,7 +8318,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Người gửi",
+        tr("Sender"),
       ),
       key: "senderName",
       width: 130,
@@ -8070,7 +8340,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Người nhận",
+        tr("Recipient"),
       ),
       key: "recipientName",
       width: 130,
@@ -8092,7 +8362,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Tóm tắt nội dung",
+        tr("Content summary"),
       ),
       key: "description",
       width: 190,
@@ -8107,7 +8377,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Ngôn ngữ",
+        tr("Language"),
       ),
       key: "language",
       width: 95,
@@ -8130,7 +8400,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Hình thức",
+        tr("Form"),
       ),
       key: "docFormat",
       width: 105,
@@ -8153,7 +8423,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Ghi chú",
+        tr("Note"),
       ),
       key: "note",
       width: 120,
@@ -8181,7 +8451,7 @@ const DocumentDashboard = () => {
                 color: "blue",
                 style: { fontSize: 11, cursor: "default", fontFamily: FONT },
               },
-              `${arr.length} ghi chú`,
+              tr("{0} note(s)", { 0: arr.length }),
             );
           }
         } catch (_) { }
@@ -8196,7 +8466,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Dung lượng",
+        tr("Size"),
       ),
       key: "size",
       width: 110,
@@ -8225,7 +8495,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Người upload",
+        tr("Uploaded by"),
       ),
       key: "createdBy",
       width: 130,
@@ -8233,7 +8503,7 @@ const DocumentDashboard = () => {
         if (record._type === "folder") {
           const uploader = record.createdBy
             ? getUserName(record.createdBy) || record.createdBy.email
-            : "Hệ thống";
+            : tr("System");
           return React.createElement(
             Text,
             { style: { fontSize: 12, color: "#595959", fontFamily: FONT } },
@@ -8242,7 +8512,7 @@ const DocumentDashboard = () => {
         } else {
           const uploader = record.createdBy
             ? getUserName(record.createdBy) || record.createdBy.email
-            : "Hệ thống";
+            : tr("System");
           return React.createElement(
             Text,
             { style: { fontSize: 12, color: "#595959", fontFamily: FONT } },
@@ -8255,7 +8525,7 @@ const DocumentDashboard = () => {
       title: React.createElement(
         "span",
         { style: { fontFamily: FONT } },
-        "Ngày upload",
+        tr("Upload date"),
       ),
       key: "createdAt",
       width: 130,
@@ -8335,7 +8605,7 @@ const DocumentDashboard = () => {
               overflow: "hidden",
             },
           },
-          "DANH MỤC",
+          tr("CATEGORIES"),
         ),
         React.createElement(
           "div",
@@ -8354,7 +8624,7 @@ const DocumentDashboard = () => {
                     },
                     icon: FolderPlusIcon,
                   },
-                  "Thư mục mới",
+                  tr("New folder"),
                 ),
                 React.createElement(
                   Menu.Item,
@@ -8363,7 +8633,7 @@ const DocumentDashboard = () => {
                     onClick: () => setUploadOpen(true),
                     icon: UploadIcon,
                   },
-                  "Tải tệp lên",
+                  tr("Upload file"),
                 ),
               ]),
               trigger: ["click"],
@@ -8380,14 +8650,14 @@ const DocumentDashboard = () => {
                   fontSize: 12,
                 },
               },
-              iconLabel(PlusIcon, "Mới"),
+              iconLabel(PlusIcon, tr("New")),
             ),
           ),
           React.createElement(
             "button",
             {
               onClick: () => setSidebarCollapsed((v) => !v),
-              title: sidebarCollapsed ? "Mở rộng danh mục" : "Thu gọn danh mục",
+              title: sidebarCollapsed ? tr("Expand categories") : tr("Collapse categories"),
               style: {
                 background: "none",
                 border: "1px solid #e8e8e8",
@@ -8422,7 +8692,7 @@ const DocumentDashboard = () => {
         "div",
         { style: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" } },
         React.createElement(Input.Search, {
-          placeholder: `Tìm ${TAB_CONFIG[sidebarTab]?.label?.toLowerCase() || ""}...`,
+          placeholder: tr("Search {0}...", { 0: TAB_CONFIG[sidebarTab]?.label?.toLowerCase() || "" }),
           value: entitySearch,
           onChange: (e) => setEntitySearch(e.target.value),
           allowClear: true,
@@ -8626,7 +8896,7 @@ const DocumentDashboard = () => {
                   flexShrink: 0,
                 },
               },
-              `(${currentFolderStats.folders} thư mục, ${currentFolderStats.docs} tệp tin)`,
+              tr("({0} folder(s), {1} file(s))", { 0: currentFolderStats.folders, 1: currentFolderStats.docs }),
               " - ",
               React.createElement(
                 "span",
@@ -8640,8 +8910,8 @@ const DocumentDashboard = () => {
                   },
                 },
                 currentPerms.isManager || currentPerms.canEdit
-                  ? `(Bạn có quyền ${currentPerms.roleName.toLowerCase()})`
-                  : `(Bạn không có quyền thao tác trong thư mục này)`,
+                  ? tr("(You have {0} access)", { 0: currentPerms.roleName.toLowerCase() })
+                  : tr("(You cannot act in this folder)"),
               ),
             ),
           ),
@@ -8660,12 +8930,12 @@ const DocumentDashboard = () => {
                   onClick: () => setSelectedRowKeys([]),
                   style: { fontFamily: FONT },
                 },
-                "Hủy chọn",
+                tr("Deselect"),
               ),
               React.createElement(
                 Popconfirm,
                 {
-                  title: "Xóa các mục đã chọn?",
+                  title: tr("Delete the selected items?"),
                   onConfirm: handleBulkDelete,
                 },
                 React.createElement(
@@ -8675,7 +8945,7 @@ const DocumentDashboard = () => {
                     type: "primary",
                     style: { fontFamily: FONT },
                   },
-                  iconLabel(DeleteIcon, `Xóa (${selectedRowKeys.length})`),
+                  iconLabel(DeleteIcon, tr("Delete ({0})", { 0: selectedRowKeys.length })),
                 ),
               ),
               React.createElement(
@@ -8688,7 +8958,7 @@ const DocumentDashboard = () => {
                   },
                   style: { fontFamily: FONT },
                 },
-                iconLabel(MoveIcon, `Di chuyển (${selectedRowKeys.length})`),
+                iconLabel(MoveIcon, tr("Move ({0})", { 0: selectedRowKeys.length })),
               ),
             ),
             React.createElement(
@@ -8703,7 +8973,7 @@ const DocumentDashboard = () => {
                   type: "primary",
                   style: { fontFamily: FONT, fontWeight: 600 },
                 },
-                iconLabel(PlusIcon, "Mới"),
+                iconLabel(PlusIcon, tr("New")),
               ),
             ),
             React.createElement(ReloadButton, {
@@ -8737,7 +9007,7 @@ const DocumentDashboard = () => {
               },
             },
             React.createElement(Input, {
-              placeholder: "Tìm kiếm...",
+              placeholder: tr("Search..."),
               prefix: SearchIcon,
               allowClear: true,
               value: searchText,
@@ -8745,7 +9015,7 @@ const DocumentDashboard = () => {
               style: { width: 250, borderRadius: 6, fontFamily: FONT },
             }),
             React.createElement(Select, {
-              placeholder: "Người upload",
+              placeholder: tr("Uploaded by"),
               allowClear: true,
               value: filterUploader,
               onChange: setFilterUploader,
@@ -8754,7 +9024,7 @@ const DocumentDashboard = () => {
             }),
             showInternalCompanyFilter &&
             React.createElement(Select, {
-              placeholder: "Công ty nội bộ",
+              placeholder: tr("Internal company"),
               allowClear: !isCompanyLocked,
               disabled: isCompanyLocked,
               loading: loadingCompanies,
@@ -8816,7 +9086,7 @@ const DocumentDashboard = () => {
           React.createElement(
             Text,
             { type: "secondary", style: { fontSize: 12 } },
-            `Kết quả: ${tableData.length}`,
+            tr("Results: {0}", { 0: tableData.length }),
           ),
         ),
 
@@ -8859,7 +9129,7 @@ const DocumentDashboard = () => {
                   disabled: !allowed,
                   title: allowed
                     ? undefined
-                    : "Bạn không có quyền thao tác mục này",
+                    : tr("You do not have permission to act on this item"),
                 };
               },
             },
@@ -8964,7 +9234,7 @@ const DocumentDashboard = () => {
                       handleMoveFolderToFolder(parsed.id, record.id);
                     }
                   } else if (position === "top" || position === "bottom") {
-                    message.warning("Khong the thay doi STT");
+                    message.warning(tr("The order cannot be changed"));
                     return;
                   }
                 },
@@ -8975,14 +9245,14 @@ const DocumentDashboard = () => {
               showSizeChanger: true,
               pageSizeOptions: ["10", "20", "50", "100"],
               showTotal: (total, range) =>
-                `${range[0]}-${range[1]} / ${total} mục`,
+                tr("{0}-{1} / {2} items", { 0: range[0], 1: range[1], 2: total }),
             },
             scroll: { x: 2000 },
             locale: {
               emptyText: React.createElement(Empty, {
                 description: isFiltering
-                  ? "Không tìm thấy dữ liệu phù hợp"
-                  : "Thư mục trống",
+                  ? tr("No matching data")
+                  : tr("Folder is empty"),
                 image: Empty.PRESENTED_IMAGE_SIMPLE,
               }),
             },
@@ -9012,7 +9282,7 @@ const DocumentDashboard = () => {
           React.createElement(
             "span",
             null,
-            `Lịch sử hoạt động: ${activityTargetRecord?.name || ""}`,
+            tr("Activity history: {0}", { 0: activityTargetRecord?.name || "" }),
           ),
         ),
         open: activityModalOpen,
@@ -9025,7 +9295,7 @@ const DocumentDashboard = () => {
               onClick: () => setActivityModalOpen(false),
               style: { fontFamily: FONT },
             },
-            "Đóng",
+            tr("Close"),
           ),
         ],
         width: 700,
@@ -9151,7 +9421,7 @@ const DocumentDashboard = () => {
         title: React.createElement(
           "span",
           { style: { fontFamily: FONT } },
-          "Di chuyển",
+          tr("Moved"),
         ),
         footer: [
           React.createElement(
@@ -9161,7 +9431,7 @@ const DocumentDashboard = () => {
               onClick: () => setMoveToModalOpen(false),
               style: { fontFamily: FONT },
             },
-            "Hủy",
+            tr("Cancel"),
           ),
           React.createElement(
             Button,
@@ -9180,7 +9450,7 @@ const DocumentDashboard = () => {
               },
               style: { fontFamily: FONT },
             },
-            "Di chuyển",
+            tr("Moved"),
           ),
         ],
       },
@@ -9191,25 +9461,25 @@ const DocumentDashboard = () => {
           ? React.createElement(
             React.Fragment,
             null,
-            `Bạn đang di chuyển: `,
+            tr("You are moving: "),
             React.createElement(
               "strong",
               null,
-              fileToMove.title || fileToMove.name || "Thư mục/File",
+              fileToMove.title || fileToMove.name || tr("Folder/File"),
             ),
           )
-          : `Bạn đang di chuyển ${selectedRowKeys.length} mục đã chọn.`,
+          : tr("You are moving {0} selected items.", { 0: selectedRowKeys.length }),
       ),
       React.createElement(
         "div",
         { style: { fontWeight: 600, marginBottom: 8, fontFamily: FONT } },
-        "Chọn thư mục đích:",
+        tr("Choose the destination folder:"),
       ),
       React.createElement(TreeSelect, {
         style: { width: "100%", fontFamily: FONT },
         treeData: [
           {
-            title: "Home",
+            title: tr("Home"),
             value: "root",
             children: buildTreeForSelect(moveTargetFolders),
           },
@@ -9217,7 +9487,7 @@ const DocumentDashboard = () => {
         value: moveToTargetId,
         onChange: setMoveToTargetId,
         treeDefaultExpandAll: true,
-        placeholder: "Chọn thư mục",
+        placeholder: tr("Choose folder"),
       }),
     ),
 
@@ -9233,7 +9503,7 @@ const DocumentDashboard = () => {
         title: React.createElement(
           "span",
           { style: { fontFamily: FONT } },
-          "Move to Legal Reference",
+          tr("Move to Legal Reference"),
         ),
         footer: [
           React.createElement(
@@ -9247,7 +9517,7 @@ const DocumentDashboard = () => {
               },
               style: { fontFamily: FONT },
             },
-            "Hủy",
+            tr("Cancel"),
           ),
           React.createElement(
             Button,
@@ -9258,24 +9528,24 @@ const DocumentDashboard = () => {
               onClick: handleMoveFileToLegalReference,
               style: { fontFamily: FONT },
             },
-            "Move",
+            tr("Move"),
           ),
         ],
       },
       React.createElement(
         "div",
         { style: { fontFamily: FONT, marginBottom: 16 } },
-        "File: ",
+        tr("File: "),
         React.createElement(
           "strong",
           null,
-          legalMoveDoc?.title || legalMoveDoc?.name || "File",
+          legalMoveDoc?.title || legalMoveDoc?.name || tr("File"),
         ),
       ),
       React.createElement(
         "div",
         { style: { fontWeight: 600, marginBottom: 8, fontFamily: FONT } },
-        "Công ty nội bộ:",
+        tr("Internal company:"),
       ),
       React.createElement(Select, {
         style: { width: "100%", fontFamily: FONT, marginBottom: 16 },
@@ -9289,12 +9559,12 @@ const DocumentDashboard = () => {
         loading: loadingCompanies,
         showSearch: true,
         optionFilterProp: "label",
-        placeholder: "Chọn công ty nội bộ",
+        placeholder: tr("Select internal company"),
       }),
       React.createElement(
         "div",
         { style: { fontWeight: 600, marginBottom: 8, fontFamily: FONT } },
-        "Legal Reference:",
+        tr("Legal Reference:"),
       ),
       React.createElement(Select, {
         style: { width: "100%", fontFamily: FONT, marginBottom: 16 },
@@ -9305,18 +9575,18 @@ const DocumentDashboard = () => {
         showSearch: true,
         optionFilterProp: "label",
         allowClear: true,
-        placeholder: "Chọn Legal Reference",
+        placeholder: tr("Select Legal Reference"),
       }),
       React.createElement(
         "div",
         { style: { fontWeight: 600, marginBottom: 8, fontFamily: FONT } },
-        "Folder Legal Reference:",
+        tr("Folder Legal Reference:"),
       ),
       React.createElement(TreeSelect, {
         style: { width: "100%", fontFamily: FONT },
         treeData: [
           {
-            title: "Legal Reference Home",
+            title: tr("Legal Reference Home"),
             value: "root",
             children: buildTreeForSelect(legalReferenceFolders),
           },
@@ -9325,7 +9595,7 @@ const DocumentDashboard = () => {
         onChange: setLegalMoveTargetFolderId,
         treeDefaultExpandAll: true,
         loading: legalMoveLoading,
-        placeholder: "Chọn thư mục Legal Reference",
+        placeholder: tr("Select a Legal Reference folder"),
       }),
     ),
 

@@ -61,6 +61,315 @@
 // throws "Cannot read properties of undefined (reading 'createElement')"
 // (confirmed by hitting exactly this error against a real running
 // instance before adding this line).
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "By Case": "Theo hồ sơ",
+  "Retainer": "Retainer",
+  "By Service": "Theo dịch vụ",
+  "Draft": "Nháp",
+  "Negotiation": "Đang đàm phán",
+  "Pending": "Chờ gửi",
+  "Approved": "Đã duyệt",
+  "Rejected": "Bị từ chối",
+  "Execution": "Đang thực hiện",
+  "Closed": "Đã đóng",
+  "Expired": "Hết hạn",
+  "Vietnamese": "Tiếng Việt",
+  "English": "Tiếng Anh",
+  "Fixed": "Cố định",
+  "Hourly": "Theo giờ",
+  "Success Fee": "Phí thành công",
+  "Hybrid": "Kết hợp",
+  "Monthly Retainer": "Retainer hàng tháng",
+  "Monthly": "Hàng tháng",
+  "Quarterly": "Hàng quý",
+  "Milestone": "Theo mốc",
+  "Manual": "Thủ công",
+  "One Time": "Một lần",
+  "Mutiple Payment": "Nhiều đợt",
+  "Unpaid": "Chưa thanh toán",
+  "Partial": "Thanh toán một phần",
+  "Paid": "Đã thanh toán",
+  "Fixed one-time": "Cố định một lần",
+  "Active": "Đang hiệu lực",
+  "Completed": "Đã hoàn tất",
+  "Cancelled": "Đã hủy",
+  "Day": "Ngày",
+  "Week": "Tuần",
+  "Month": "Tháng",
+  "Quarter": "Quý",
+  "Year": "Năm",
+  "Contract has no active billing plan yet.": "Hợp đồng chưa có kế hoạch thu phí đang hiệu lực.",
+  "Retainer Billing Plan": "Kế hoạch thu phí Retainer",
+  "Plan Type": "Loại kế hoạch",
+  "Status": "Trạng thái",
+  "Amount per period": "Số tiền mỗi kỳ",
+  "Retainer Unit": "Đơn vị kỳ retainer",
+  "Cycles Billed": "Số kỳ đã thu",
+  "Next Billing Date": "Ngày thu tiếp theo",
+  "Start Date": "Ngày bắt đầu",
+  "End Date": "Ngày kết thúc",
+  "Could not load contract details.": "Không thể tải chi tiết hợp đồng.",
+  "Please enter the contract name.": "Vui lòng nhập tên hợp đồng.",
+  "Contract updated.": "Đã cập nhật hợp đồng.",
+  "Could not save changes.": "Không thể lưu thay đổi.",
+  "Contract not found.": "Không tìm thấy hợp đồng.",
+  "Basic Info": "Thông tin cơ bản",
+  "Edit": "Chỉnh sửa",
+  "Cancel": "Hủy",
+  "Save": "Lưu",
+  "Contract Name *": "Tên hợp đồng *",
+  "Type": "Loại",
+  "Person Responsible": "Người phụ trách",
+  "Template": "Mẫu",
+  "Customer": "Khách hàng",
+  "Internal Company": "Công ty nội bộ",
+  "Currency": "Tiền tệ",
+  "Issued Date": "Ngày ban hành",
+  "Signed At": "Ngày ký",
+  "Effective At": "Ngày hiệu lực",
+  "Language": "Ngôn ngữ",
+  "Scope Note": "Ghi chú phạm vi",
+  "Description": "Mô tả",
+  "Contract Code": "Mã hợp đồng",
+  "Contract Name": "Tên hợp đồng",
+  "Billing (By Case)": "Thu phí (theo hồ sơ)",
+  "Billing Cycle": "Chu kỳ thanh toán",
+  "Fee Model": "Mô hình phí",
+  "Total Amount": "Tổng số tiền",
+  "Sub Total": "Tạm tính",
+  "VAT Amount": "Tiền VAT",
+  "Payment Date": "Ngày thanh toán",
+  "Payment Status": "Trạng thái thanh toán",
+  "Outstanding Amount": "Số tiền còn nợ",
+  "Total Cycles": "Tổng số kỳ",
+  "≈ {0} VND": "≈ {0} VND",
+  "-- Select --": "-- Chọn --",
+  "Contract is locked": "Hợp đồng đã khoá",
+  "Click to edit": "Click để chỉnh sửa",
+  "Missing exchange rate to VND for the service package ({0}).": "Thiếu tỷ giá quy đổi sang VND cho combo dịch vụ ({0}).",
+  "This combo has no services.": "Combo này chưa có dịch vụ.",
+  "Applied combo \"{0}\". Click \"Save & Update contract\" to persist.": "Đã áp dụng combo \"{0}\". Bấm \"Lưu & cập nhật hợp đồng\" để lưu.",
+  "Error applying combo: ": "Lỗi khi áp dụng combo: ",
+  "Please enter a combo name.": "Vui lòng nhập tên combo.",
+  "Please add at least one service.": "Vui lòng thêm ít nhất một dịch vụ.",
+  "One or more services are missing a name.": "Một hoặc nhiều dịch vụ chưa có tên.",
+  "Created combo \"{0}\". Click \"Save & Update contract\" to persist.": "Đã tạo combo \"{0}\". Bấm \"Lưu & cập nhật hợp đồng\" để lưu.",
+  "Error creating combo: ": "Lỗi khi tạo combo: ",
+  "Please enter the service name": "Vui lòng nhập tên dịch vụ",
+  "Service name": "Tên dịch vụ",
+  "Service type": "Loại dịch vụ",
+  "Unit price": "Đơn giá",
+  "VAT (%)": "VAT (%)",
+  "No catalog": "Không có danh mục",
+  "Changed": "Đã thay đổi",
+  "Same": "Giống nhau",
+  "Contract Service": "Dịch vụ Hợp đồng",
+  "{0} changed": "{0} thay đổi",
+  "No change": "Không thay đổi",
+  "No catalog service": "Không có dịch vụ trong danh mục",
+  "This service is not linked to the original catalog service — no data to compare.": "Dịch vụ này không liên kết với danh mục dịch vụ gốc, không có dữ liệu để so sánh.",
+  "Field": "Trường dữ liệu",
+  "Original Service (Catalog) · {0}": "Dịch vụ gốc (Catalog) · {0}",
+  "Original Service (Catalog)": "Dịch vụ gốc (Catalog)",
+  "Service in Contract · {0}": "Dịch vụ trong Hợp đồng · {0}",
+  "Service in Contract": "Dịch vụ trong Hợp đồng",
+  "Review": "Xem lại",
+  "Comparing the current service data in the Contract against the original catalog.": "So sánh dữ liệu dịch vụ hiện tại trong Hợp đồng với danh mục dịch vụ gốc.",
+  "No.": "STT",
+  "Original Service": "Dịch vụ gốc",
+  "Changes": "Thay đổi",
+  "No catalog link": "Chưa liên kết danh mục",
+  "Action": "Thao tác",
+  "View": "Xem",
+  "🔒 Contract is signed or in progress — cannot add service": "🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể thêm dịch vụ",
+  "🔒 Contract is signed or in progress — cannot delete service": "🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể xoá dịch vụ",
+  "Saved and synced contract services → case services": "Đã lưu và đồng bộ dịch vụ hợp đồng → dịch vụ hồ sơ",
+  "Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).": "Combo \"{0}\" chưa được lưu vào danh mục — không liên kết được các dịch vụ (có thể tên đã được dùng, hoặc lưu một dịch vụ bị lỗi).",
+  "Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.": "Đã lưu combo \"{0}\" vào danh mục — bỏ qua {1} dịch vụ tự tạo chưa liên kết danh mục.",
+  "Combo \"{0}\" saved to the catalog.": "Đã lưu combo \"{0}\" vào danh mục.",
+  "Could not save combo \"{0}\" to the catalog.": "Không thể lưu combo \"{0}\" vào danh mục.",
+  "\"{0}\" was saved to the catalog but a company-specific price could not be assigned — please add it manually in companyServices.": "\"{0}\" đã lưu vào catalog nhưng chưa gán được giá riêng cho company — cần thêm thủ công trong companyServices.",
+  "Could not save \"{0}\" to the catalog: ": "Không thể lưu \"{0}\" vào danh mục: ",
+  "Please enter all service names": "Vui lòng nhập đầy đủ tên dịch vụ",
+  "Please fill in all service names and unit prices": "Vui lòng điền đầy đủ tên dịch vụ và đơn giá",
+  "Please enter the contract service package value": "Vui lòng nhập giá trị combo dịch vụ hợp đồng",
+  "Unnamed service": "Dịch vụ chưa đặt tên",
+  "Missing exchange rate to VND for: {0} — cannot save.": "Thiếu tỷ giá quy đổi sang VND cho: {0} — không thể lưu.",
+  "Could not load the projectServices list: ": "Không thể tải danh sách projectServices: ",
+  "Could not delete projectService #": "Không thể xoá projectService #",
+  "Could not update duplicate projectService: ": "Không thể update projectService trùng: ",
+  "Could not create projectService: ": "Không thể tạo projectService: ",
+  "Could not update projectService #": "Không thể update projectService #",
+  "Could not sync the case: ": "Không thể đồng bộ hồ sơ: ",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Thử lại",
+  "Contract ID was not found in the URL.": "Không tìm thấy ID hợp đồng trong URL.",
+  "Service & Type": "Dịch vụ & loại",
+  "Select service": "Chọn dịch vụ",
+  "Service description...": "Mô tả dịch vụ...",
+  "Price": "Giá",
+  "Included in combo": "Đã gồm trong combo",
+  "Missing exchange rate": "Thiếu tỷ giá quy đổi",
+  "VAT amount": "Tiền VAT",
+  "Total amount": "Tổng số tiền",
+  "Delete": "Xóa",
+  "COMBO": "COMBO",
+  "Combo": "Combo",
+  "{0} service{1}": "{0} dịch vụ",
+  "Package price:": "Giá combo:",
+  "Individual price: {0}": "Giá lẻ: {0}",
+  "Save {0} ({1}%)": "Tiết kiệm {0} ({1}%)",
+  "+ Add service": "+ Thêm dịch vụ",
+  "Remove this combo?": "Gỡ combo này?",
+  "All services in this combo section will be removed.": "Mọi dịch vụ trong phần combo này sẽ bị gỡ.",
+  "Remove": "Gỡ",
+  "Remove combo": "Gỡ combo",
+  "Combo subtotal (excl. VAT):": "Tạm tính combo (chưa VAT):",
+  "VAT rate:": "Thuế suất VAT:",
+  "Combo VAT amount:": "Tiền VAT combo:",
+  "Combo total:": "Tổng combo:",
+  "Subtotal (excl. VAT):": "Tạm tính (chưa VAT):",
+  "Total VAT:": "Tổng VAT:",
+  "Total:": "Tổng:",
+  "Contract services": "Dịch vụ hợp đồng",
+  "{0} services": "{0} dịch vụ",
+  "Locked": "Đã khóa",
+  "Unsaved": "Chưa lưu",
+  "Review Changes": "Xem lại thay đổi",
+  "Refresh": "Làm mới",
+  "No services": "Không có dịch vụ",
+  "No services - click New service": "Chưa có dịch vụ - bấm Dịch vụ mới",
+  "Cancel changes": "Hủy thay đổi",
+  "Save & Update contract": "Lưu & cập nhật hợp đồng",
+  "Compare Original Service": "So sánh Dịch vụ gốc",
+  "Review Service Changes": "Xem lại thay đổi dịch vụ",
+  "Back to list": "Quay lại danh sách",
+  "Close": "Đóng",
+  "Line pricing": "Giá theo dòng",
+  "Combo pricing": "Giá combo",
+  "Select Service": "Chọn dịch vụ",
+  "Search service name...": "Tìm tên dịch vụ...",
+  "Create new": "Tạo mới",
+  "Service Name": "Tên dịch vụ",
+  "Unit Price": "Đơn giá",
+  "Selected": "Đã chọn",
+  "In Case": "Đã có trong hồ sơ",
+  "Select": "Chọn",
+  "← Back": "← Quay lại",
+  "Create New Service": "Tạo dịch vụ mới",
+  "Service Name *": "Tên dịch vụ *",
+  "e.g., Labor contract consulting...": "VD: Tư vấn hợp đồng lao động...",
+  "Service Type optional": "Loại dịch vụ (không bắt buộc)",
+  "e.g., Consulting, Legal...": "VD: Tư vấn, Pháp lý...",
+  "Unit Price ({0}) *": "Đơn giá ({0}) *",
+  "Description optional": "Mô tả (không bắt buộc)",
+  "Scope of work, notes...": "Phạm vi công việc, ghi chú...",
+  "Save & Select": "Lưu & Chọn",
+  "Select Combo": "Chọn combo",
+  "New Combo": "Combo mới",
+  "Search combo name...": "Tìm tên combo...",
+  "No combos available": "Không có combo",
+  "Combo #{0}": "Combo #{0}",
+  "{0} service(s)": "{0} dịch vụ",
+  "Package price: {0}": "Giá combo: {0}",
+  "Apply": "Áp dụng",
+  "Combo Name": "Tên combo",
+  "E.g. Business incorporation consulting combo...": "VD: Combo tư vấn thành lập doanh nghiệp...",
+  "Combo Type (optional)": "Loại combo (không bắt buộc)",
+  "E.g. Business, Education...": "VD: Doanh nghiệp, Giáo dục...",
+  "Combo final price": "Giá cuối của combo",
+  "Services in this combo": "Dịch vụ trong combo này",
+  "Add from catalog...": "Thêm từ danh mục...",
+  "Service #{0}": "Dịch vụ #{0}",
+  "+ Add custom service": "+ Thêm dịch vụ tự tạo",
+  "New service name...": "Tên dịch vụ mới...",
+  "Type (optional)...": "Loại (không bắt buộc)...",
+  "Description (optional)...": "Mô tả (không bắt buộc)...",
+  "Individual price (converted to VND): {0}": "Giá lẻ (quy đổi VND): {0}",
+  "(loading exchange rate for {0} services...)": "(đang tải tỷ giá cho {0} dịch vụ...)",
+  "Decrease {0}": "Giảm {0}",
+  "Increase {0}": "Tăng {0}",
+  "Also save this combo to the shared catalog (created only after you finish saving this contract). Custom services in it already get their own \"Save to catalog?\" chance after Save — this just adds the combo itself as a reusable catalog entry.": "Lưu combo này vào danh mục chung (chỉ tạo sau khi bạn lưu xong hợp đồng). Các dịch vụ tự tạo trong combo đã có lựa chọn \"Lưu vào danh mục?\" riêng.",
+  "Submit": "Gửi",
+  "Save to catalog?": "Lưu vào danh mục?",
+  "Skip": "Bỏ qua",
+  "Save selected": "Lưu mục đã chọn",
+  "These services were typed manually and aren't in the standardized services catalog yet. Check any you'd like to add, so future contracts can pick them from the catalog instead of retyping them.": "Các dịch vụ này được nhập tay và chưa có trong danh mục dịch vụ chuẩn. Đánh dấu dịch vụ muốn thêm để các hợp đồng sau có thể chọn từ danh mục.",
+  "Already in the catalog": "Đã có trong danh mục",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Multiple payments": "Nhiều đợt",
+  "One time": "Một lần",
+  "By milestone": "Theo mốc",
+  "Recurring": "Định kỳ",
+  "Planned": "Dự kiến",
+  "Due": "Hạn",
+  "Overdue": "Quá hạn",
+  "Received": "Đã nhận",
+  "Create request failed.": "Tạo yêu cầu thất bại.",
+  "Installment": "Đợt thanh toán",
+  "Installment {0}": "Đợt thanh toán {0}",
+  "Content": "Nội dung",
+  "Payment %": "% Thanh toán",
+  "Payment date": "Ngày thanh toán",
+  "Remaining": "Còn lại",
+  "Auto PR": "YCTT tự động",
+  "Retainer rule: ": "Quy tắc retainer: ",
+  "Next payment: ": "Thanh toán tiếp theo: ",
+  "Cycles billed: ": "Số kỳ đã thu: ",
+  "Could not load actual payment data.": "Không thể tải dữ liệu thanh toán thực tế.",
+  "Could not load the contract's payment schedule.": "Không thể tải lịch thanh toán của hợp đồng.",
+  "No payable schedule item is available for request.": "Không có mục lịch nào để yêu cầu thanh toán.",
+  "Please select at least one payment request line.": "Vui lòng chọn ít nhất một dòng yêu cầu thanh toán.",
+  "Please enter a payment request title.": "Vui lòng nhập tiêu đề yêu cầu thanh toán.",
+  "Please select an assignee to process this request.": "Vui lòng chọn người phụ trách xử lý yêu cầu này.",
+  "Please select a due date.": "Vui lòng chọn hạn.",
+  "Payment request was created but no id was returned.": "Đã tạo yêu cầu thanh toán nhưng không nhận được ID.",
+  "Payment request created.": "Đã tạo yêu cầu thanh toán.",
+  "Could not create payment request.": "Không thể tạo yêu cầu thanh toán.",
+  "{0} installments": "{0} đợt",
+  "Recurring schedule": "Lịch định kỳ",
+  "One-time payment": "Thanh toán một lần",
+  "Create payment request": "Tạo yêu cầu thanh toán",
+  "Create request": "Tạo yêu cầu",
+  "Title": "Tiêu đề",
+  "Enter payment request title": "Nhập tiêu đề yêu cầu thanh toán",
+  "Request type": "Loại yêu cầu",
+  "Priority": "Ưu tiên",
+  "Low": "Thấp",
+  "Normal": "Bình thường",
+  "High": "Cao",
+  "Urgent": "Khẩn",
+  "Assignee": "Người phụ trách",
+  "Select lawyer": "Chọn luật sư",
+  "Due date": "Hạn",
+  "Request lines": "Các dòng yêu cầu",
+  "Note": "Ghi chú",
+  "Add payment request note...": "Thêm ghi chú cho yêu cầu thanh toán...",
+  "First payment date": "Ngày thanh toán đầu tiên",
+  "Requested": "Đã yêu cầu",
+  "Create payment": "Tạo khoản thanh toán",
+  "Create invoice": "Tạo hóa đơn",
+  "Create invoice and payment": "Tạo hóa đơn và khoản thanh toán",
+  "Check payment": "Kiểm tra thanh toán",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 
 const BasicInfoModule = (() => {
@@ -209,8 +518,8 @@ const formatMoney = (value, currencyCode) => {
 };
 
 const CONTRACT_TYPE_LABELS = {
-  byCase: "By Case",
-  retainer: "Retainer",
+  byCase: tr("By Case"),
+  retainer: tr("Retainer"),
   // Added to the live enum 2026-09-18. Label-only fix so a contract saved
   // with this type (e.g. via the native Admin UI form, ahead of a
   // dedicated By Service create/detail UI existing here) shows "By
@@ -219,7 +528,7 @@ const CONTRACT_TYPE_LABELS = {
   // Schedule etc.) still only branch on isByCase/isRetainer — By Service
   // renders none of them until its own UI section is designed and built
   // (see docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md).
-  byService: "By Service",
+  byService: tr("By Service"),
 };
 
 // Every option list below is copied verbatim from this database's own
@@ -227,29 +536,29 @@ const CONTRACT_TYPE_LABELS = {
 // queried directly before writing this, since these are select fields
 // whose exact value strings matter for a correct save.
 const CONTRACT_TYPE_OPTIONS = [
-  { value: "byCase", label: "By Case" },
-  { value: "retainer", label: "Retainer" },
+  { value: "byCase", label: tr("By Case") },
+  { value: "retainer", label: tr("Retainer") },
 ];
 const STATUS_OPTIONS = [
-  { value: "draft", label: "Draft" },
-  { value: "negotiation", label: "Negotiation" },
-  { value: "pending", label: "Pending" },
-  { value: "approval", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "execution", label: "Execution" },
-  { value: "closed", label: "Closed" },
-  { value: "expired", label: "Expired" },
+  { value: "draft", label: tr("Draft") },
+  { value: "negotiation", label: tr("Negotiation") },
+  { value: "pending", label: tr("Pending") },
+  { value: "approval", label: tr("Approved") },
+  { value: "rejected", label: tr("Rejected") },
+  { value: "execution", label: tr("Execution") },
+  { value: "closed", label: tr("Closed") },
+  { value: "expired", label: tr("Expired") },
 ];
 const LANGUAGE_OPTIONS = [
-  { value: "vi", label: "Vietnamese" },
-  { value: "en", label: "English" },
+  { value: "vi", label: tr("Vietnamese") },
+  { value: "en", label: tr("English") },
 ];
 const FEE_MODEL_OPTIONS = [
-  { value: "fixed", label: "Fixed" },
-  { value: "hourly", label: "Hourly" },
-  { value: "successFee", label: "Success Fee" },
-  { value: "hybrid", label: "Hybrid" },
-  { value: "monthlyRetainer", label: "Monthly Retainer" },
+  { value: "fixed", label: tr("Fixed") },
+  { value: "hourly", label: tr("Hourly") },
+  { value: "successFee", label: tr("Success Fee") },
+  { value: "hybrid", label: tr("Hybrid") },
+  { value: "monthlyRetainer", label: tr("Monthly Retainer") },
 ];
 // NOTE (flagging, not fixing here — out of scope for "make every field
 // editable"): the live enum's 6th option is genuinely spelled
@@ -264,34 +573,34 @@ const FEE_MODEL_OPTIONS = [
 // intended one) but is a pre-existing system inconsistency, not something
 // this change introduces.
 const BILLING_CYCLE_OPTIONS = [
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "milestone", label: "Milestone" },
-  { value: "manual", label: "Manual" },
-  { value: "one_time", label: "One Time" },
-  { value: "mutiple_payments", label: "Mutiple Payment" },
+  { value: "monthly", label: tr("Monthly") },
+  { value: "quarterly", label: tr("Quarterly") },
+  { value: "milestone", label: tr("Milestone") },
+  { value: "manual", label: tr("Manual") },
+  { value: "one_time", label: tr("One Time") },
+  { value: "mutiple_payments", label: tr("Mutiple Payment") },
 ];
 const PAYMENT_STATUS_OPTIONS = [
-  { value: "unpaid", label: "Unpaid" },
-  { value: "partial", label: "Partial" },
-  { value: "paid", label: "Paid" },
+  { value: "unpaid", label: tr("Unpaid") },
+  { value: "partial", label: tr("Partial") },
+  { value: "paid", label: tr("Paid") },
 ];
 const PLAN_TYPE_OPTIONS = [
-  { value: "retainer", label: "Retainer" },
-  { value: "milestone", label: "Milestone" },
-  { value: "fixed_onetime", label: "Fixed one-time" },
+  { value: "retainer", label: tr("Retainer") },
+  { value: "milestone", label: tr("Milestone") },
+  { value: "fixed_onetime", label: tr("Fixed one-time") },
 ];
 const PLAN_STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "active", label: tr("Active") },
+  { value: "completed", label: tr("Completed") },
+  { value: "cancelled", label: tr("Cancelled") },
 ];
 const RETAINER_UNIT_OPTIONS = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
-  { value: "quarter", label: "Quarter" },
-  { value: "year", label: "Year" },
+  { value: "day", label: tr("Day") },
+  { value: "week", label: tr("Week") },
+  { value: "month", label: tr("Month") },
+  { value: "quarter", label: tr("Quarter") },
+  { value: "year", label: tr("Year") },
 ];
 
 const SelectField = ({ value, onChange, options, allowClear = true }) =>
@@ -369,25 +678,25 @@ const SectionTitle = ({ children }) =>
   );
 
 const RetainerPlanSection = ({ plan }) => {
-  if (!plan) return React.createElement(Alert, { type: "info", showIcon: true, message: "Contract has no active billing plan yet.", style: { marginTop: 12 } });
+  if (!plan) return React.createElement(Alert, { type: "info", showIcon: true, message: tr("Contract has no active billing plan yet."), style: { marginTop: 12 } });
   return React.createElement(
     React.Fragment,
     null,
-    React.createElement(SectionTitle, null, "Retainer Billing Plan"),
+    React.createElement(SectionTitle, null, tr("Retainer Billing Plan")),
     React.createElement(
       "div",
       { style: GRID_STYLE },
-      React.createElement(ReadField, { label: "Plan Type", value: plan.planType }),
-      React.createElement(ReadField, { label: "Status", value: plan.status }),
-      React.createElement(ReadField, { label: "Total Amount", value: formatMoney(plan.totalAmount) }),
-      React.createElement(ReadField, { label: "Retainer Unit", value: plan.retainerUnit }),
+      React.createElement(ReadField, { label: tr("Plan Type"), value: plan.planType }),
+      React.createElement(ReadField, { label: tr("Status"), value: plan.status }),
+      React.createElement(ReadField, { label: tr("Amount per period"), value: formatMoney(plan.totalAmount) }),
+      React.createElement(ReadField, { label: tr("Retainer Unit"), value: plan.retainerUnit }),
       React.createElement(ReadField, {
-        label: "Cycles Billed",
+        label: tr("Cycles Billed"),
         value: `${plan.retainerCyclesBilled ?? 0}${plan.retainerTotalCycles ? ` / ${plan.retainerTotalCycles}` : " (open-ended)"}`,
       }),
-      React.createElement(ReadField, { label: "Next Billing Date", value: formatDate(plan.nextBillingDate) }),
-      React.createElement(ReadField, { label: "Start Date", value: formatDate(plan.startDate) }),
-      React.createElement(ReadField, { label: "End Date", value: formatDate(plan.endDate) }),
+      React.createElement(ReadField, { label: tr("Next Billing Date"), value: formatDate(plan.nextBillingDate) }),
+      React.createElement(ReadField, { label: tr("Start Date"), value: formatDate(plan.startDate) }),
+      React.createElement(ReadField, { label: tr("End Date"), value: formatDate(plan.endDate) }),
     ),
   );
 };
@@ -422,7 +731,7 @@ const ContractDetailView = () => {
       })
       .catch((err) => {
         console.error("[ContractDetailView] fetch contract failed", err);
-        if (mounted) setError("Could not load contract details.");
+        if (mounted) setError(tr("Could not load contract details."));
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -498,7 +807,7 @@ const ContractDetailView = () => {
 
   const saveEditing = async () => {
     if (!String(form.contractName || "").trim()) {
-      message?.warning?.("Please enter the contract name.");
+      message?.warning?.(tr("Please enter the contract name."));
       return;
     }
     setSaving(true);
@@ -567,10 +876,10 @@ const ContractDetailView = () => {
       const fresh = await fetchContract(recordId);
       setContract(fresh);
       setEditing(false);
-      message?.success?.("Contract updated.");
+      message?.success?.(tr("Contract updated."));
     } catch (err) {
       console.error("[ContractDetailView] save failed", err);
-      message?.error?.(err?.message || "Could not save changes.");
+      message?.error?.(err?.message || tr("Could not save changes."));
     } finally {
       setSaving(false);
     }
@@ -580,7 +889,7 @@ const ContractDetailView = () => {
     return React.createElement("div", { style: { padding: 24, textAlign: "center" } }, React.createElement(Spin, null));
   }
   if (!contract) {
-    return React.createElement(Alert, { type: "warning", showIcon: true, message: error || "Contract not found." });
+    return React.createElement(Alert, { type: "warning", showIcon: true, message: error || tr("Contract not found.") });
   }
 
   const contractType = contract.contractType || "";
@@ -631,7 +940,7 @@ const ContractDetailView = () => {
       React.createElement(
         "div",
         { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
-        React.createElement("span", { style: { fontSize: 15, fontWeight: 700 } }, "Basic Info"),
+        React.createElement("span", { style: { fontSize: 15, fontWeight: 700 } }, tr("Basic Info")),
         contract.contractCode
           ? React.createElement(Tag, { color: "default" }, contract.contractCode)
           : null,
@@ -641,13 +950,13 @@ const ContractDetailView = () => {
         contract.status ? React.createElement(Tag, null, contract.status) : null,
       ),
       canEdit && !editing
-        ? React.createElement(Button, { size: "small", onClick: startEditing }, "Edit")
+        ? React.createElement(Button, { size: "small", onClick: startEditing }, tr("Edit"))
         : editing
           ? React.createElement(
               "div",
               { style: { display: "flex", gap: 8 } },
-              React.createElement(Button, { size: "small", onClick: cancelEditing, disabled: saving }, "Cancel"),
-              React.createElement(Button, { size: "small", type: "primary", loading: saving, onClick: saveEditing }, "Save"),
+              React.createElement(Button, { size: "small", onClick: cancelEditing, disabled: saving }, tr("Cancel")),
+              React.createElement(Button, { size: "small", type: "primary", loading: saving, onClick: saveEditing }, tr("Save")),
             )
           : null,
     ),
@@ -661,62 +970,62 @@ const ContractDetailView = () => {
             { style: GRID_STYLE },
             React.createElement(
               FieldRow,
-              { label: "Contract Name *" },
+              { label: tr("Contract Name *") },
               React.createElement(Input, { value: form.contractName, onChange: (e) => setField("contractName", e.target.value) }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Type" },
+              { label: tr("Type") },
               React.createElement(SelectField, { value: form.contractType, onChange: (v) => setField("contractType", v), options: CONTRACT_TYPE_OPTIONS, allowClear: false }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Status" },
+              { label: tr("Status") },
               React.createElement(SelectField, { value: form.status, onChange: (v) => setField("status", v), options: STATUS_OPTIONS, allowClear: false }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Person Responsible" },
+              { label: tr("Person Responsible") },
               React.createElement(Select, { allowClear: true, showSearch: true, optionFilterProp: "label", style: { width: "100%" }, value: form.lawyerId || undefined, onChange: (v) => setField("lawyerId", v || null), options: lawyerSelectOptions }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Template" },
+              { label: tr("Template") },
               React.createElement(Select, { allowClear: true, showSearch: true, optionFilterProp: "label", style: { width: "100%" }, value: form.templateId || undefined, onChange: (v) => setField("templateId", v || null), options: templateSelectOptions }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Customer" },
+              { label: tr("Customer") },
               React.createElement(Select, { allowClear: true, showSearch: true, optionFilterProp: "label", style: { width: "100%" }, value: form.customerId || undefined, onChange: (v) => setField("customerId", v || null), options: customerSelectOptions }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Internal Company" },
+              { label: tr("Internal Company") },
               React.createElement(Select, { allowClear: true, showSearch: true, optionFilterProp: "label", style: { width: "100%" }, value: form.internalCompanyId || undefined, onChange: (v) => setField("internalCompanyId", v || null), options: companySelectOptions }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Currency" },
+              { label: tr("Currency") },
               React.createElement(Select, { allowClear: true, style: { width: "100%" }, value: form.currencyId || undefined, onChange: (v) => setField("currencyId", v || null), options: currencySelectOptions }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Issued Date" },
+              { label: tr("Issued Date") },
               React.createElement(Input, { type: "date", value: form.issuedDate, onChange: (e) => setField("issuedDate", e.target.value) }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Signed At" },
+              { label: tr("Signed At") },
               React.createElement(Input, { type: "date", value: form.signedAt, onChange: (e) => setField("signedAt", e.target.value) }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Effective At" },
+              { label: tr("Effective At") },
               React.createElement(Input, { type: "date", value: form.effectiveAt, onChange: (e) => setField("effectiveAt", e.target.value) }),
             ),
             React.createElement(
               FieldRow,
-              { label: "Language" },
+              { label: tr("Language") },
               React.createElement(SelectField, { value: form.language, onChange: (v) => setField("language", v), options: LANGUAGE_OPTIONS }),
             ),
             React.createElement(
@@ -724,7 +1033,7 @@ const ContractDetailView = () => {
               { style: { gridColumn: "1 / -1" } },
               React.createElement(
                 FieldRow,
-                { label: "Scope Note" },
+                { label: tr("Scope Note") },
                 React.createElement(Input.TextArea, { rows: 3, value: form.scopeNote, onChange: (e) => setField("scopeNote", e.target.value) }),
               ),
             ),
@@ -733,7 +1042,7 @@ const ContractDetailView = () => {
               { style: { gridColumn: "1 / -1" } },
               React.createElement(
                 FieldRow,
-                { label: "Description" },
+                { label: tr("Description") },
                 React.createElement(Input.TextArea, { rows: 3, value: form.description, onChange: (e) => setField("description", e.target.value) }),
               ),
             ),
@@ -744,27 +1053,27 @@ const ContractDetailView = () => {
             React.createElement(
               "div",
               { style: GRID_STYLE },
-              React.createElement(ReadField, { label: "Contract Code", value: contract.contractCode }),
-              React.createElement(ReadField, { label: "Contract Name", value: contract.contractName }),
-              React.createElement(ReadField, { label: "Person Responsible", value: displayLabel(lawyer) }),
-              React.createElement(ReadField, { label: "Template", value: displayLabel(template) }),
-              React.createElement(ReadField, { label: "Customer", value: displayLabel(customer) }),
-              React.createElement(ReadField, { label: "Internal Company", value: displayLabel(company) }),
-              React.createElement(ReadField, { label: "Currency", value: currencyCode }),
-              React.createElement(ReadField, { label: "Issued Date", value: formatDate(contract.issuedDate) }),
-              React.createElement(ReadField, { label: "Signed At", value: formatDate(contract.signedAt) }),
-              React.createElement(ReadField, { label: "Effective At", value: formatDate(contract.effectiveAt) }),
-              React.createElement(ReadField, { label: "Language", value: contract.language }),
+              React.createElement(ReadField, { label: tr("Contract Code"), value: contract.contractCode }),
+              React.createElement(ReadField, { label: tr("Contract Name"), value: contract.contractName }),
+              React.createElement(ReadField, { label: tr("Person Responsible"), value: displayLabel(lawyer) }),
+              React.createElement(ReadField, { label: tr("Template"), value: displayLabel(template) }),
+              React.createElement(ReadField, { label: tr("Customer"), value: displayLabel(customer) }),
+              React.createElement(ReadField, { label: tr("Internal Company"), value: displayLabel(company) }),
+              React.createElement(ReadField, { label: tr("Currency"), value: currencyCode }),
+              React.createElement(ReadField, { label: tr("Issued Date"), value: formatDate(contract.issuedDate) }),
+              React.createElement(ReadField, { label: tr("Signed At"), value: formatDate(contract.signedAt) }),
+              React.createElement(ReadField, { label: tr("Effective At"), value: formatDate(contract.effectiveAt) }),
+              React.createElement(ReadField, { label: tr("Language"), value: contract.language }),
             ),
             contract.scopeNote || contract.description
               ? React.createElement(
                   "div",
                   { style: { ...GRID_STYLE, marginTop: 16 } },
                   contract.scopeNote
-                    ? React.createElement("div", { style: { gridColumn: "1 / -1" } }, React.createElement(ReadField, { label: "Scope Note", value: contract.scopeNote }))
+                    ? React.createElement("div", { style: { gridColumn: "1 / -1" } }, React.createElement(ReadField, { label: tr("Scope Note"), value: contract.scopeNote }))
                     : null,
                   contract.description
-                    ? React.createElement("div", { style: { gridColumn: "1 / -1" } }, React.createElement(ReadField, { label: "Description", value: contract.description }))
+                    ? React.createElement("div", { style: { gridColumn: "1 / -1" } }, React.createElement(ReadField, { label: tr("Description"), value: contract.description }))
                     : null,
                 )
               : null,
@@ -779,33 +1088,33 @@ const ContractDetailView = () => {
         ? React.createElement(
             React.Fragment,
             null,
-            React.createElement(SectionTitle, null, "Billing (By Case)"),
+            React.createElement(SectionTitle, null, tr("Billing (By Case)")),
             editing
               ? React.createElement(
                   "div",
                   { style: GRID_STYLE },
-                  React.createElement(FieldRow, { label: "Billing Cycle" }, React.createElement(SelectField, { value: form.billingCycle, onChange: (v) => setField("billingCycle", v), options: BILLING_CYCLE_OPTIONS })),
-                  React.createElement(FieldRow, { label: "Fee Model" }, React.createElement(SelectField, { value: form.feeModel, onChange: (v) => setField("feeModel", v), options: FEE_MODEL_OPTIONS })),
-                  React.createElement(FieldRow, { label: "Total Amount" }, React.createElement(NumberField, { value: form.totalAmount, onChange: (v) => setField("totalAmount", v) })),
-                  React.createElement(FieldRow, { label: "Sub Total" }, React.createElement(NumberField, { value: form.subTotal, onChange: (v) => setField("subTotal", v) })),
-                  React.createElement(FieldRow, { label: "VAT Amount" }, React.createElement(NumberField, { value: form.vatAmount, onChange: (v) => setField("vatAmount", v) })),
-                  React.createElement(FieldRow, { label: "Payment Date" }, React.createElement(Input, { type: "date", value: form.paymentDate, onChange: (e) => setField("paymentDate", e.target.value) })),
-                  React.createElement(FieldRow, { label: "End Date" }, React.createElement(Input, { type: "date", value: form.endDate, onChange: (e) => setField("endDate", e.target.value) })),
-                  React.createElement(FieldRow, { label: "Payment Status" }, React.createElement(SelectField, { value: form.paymentStatus, onChange: (v) => setField("paymentStatus", v), options: PAYMENT_STATUS_OPTIONS })),
-                  React.createElement(FieldRow, { label: "Outstanding Amount" }, React.createElement(NumberField, { value: form.outStandingAmount, onChange: (v) => setField("outStandingAmount", v) })),
+                  React.createElement(FieldRow, { label: tr("Billing Cycle") }, React.createElement(SelectField, { value: form.billingCycle, onChange: (v) => setField("billingCycle", v), options: BILLING_CYCLE_OPTIONS })),
+                  React.createElement(FieldRow, { label: tr("Fee Model") }, React.createElement(SelectField, { value: form.feeModel, onChange: (v) => setField("feeModel", v), options: FEE_MODEL_OPTIONS })),
+                  React.createElement(FieldRow, { label: tr("Total Amount") }, React.createElement(NumberField, { value: form.totalAmount, onChange: (v) => setField("totalAmount", v) })),
+                  React.createElement(FieldRow, { label: tr("Sub Total") }, React.createElement(NumberField, { value: form.subTotal, onChange: (v) => setField("subTotal", v) })),
+                  React.createElement(FieldRow, { label: tr("VAT Amount") }, React.createElement(NumberField, { value: form.vatAmount, onChange: (v) => setField("vatAmount", v) })),
+                  React.createElement(FieldRow, { label: tr("Payment Date") }, React.createElement(Input, { type: "date", value: form.paymentDate, onChange: (e) => setField("paymentDate", e.target.value) })),
+                  React.createElement(FieldRow, { label: tr("End Date") }, React.createElement(Input, { type: "date", value: form.endDate, onChange: (e) => setField("endDate", e.target.value) })),
+                  React.createElement(FieldRow, { label: tr("Payment Status") }, React.createElement(SelectField, { value: form.paymentStatus, onChange: (v) => setField("paymentStatus", v), options: PAYMENT_STATUS_OPTIONS })),
+                  React.createElement(FieldRow, { label: tr("Outstanding Amount") }, React.createElement(NumberField, { value: form.outStandingAmount, onChange: (v) => setField("outStandingAmount", v) })),
                 )
               : React.createElement(
                   "div",
                   { style: GRID_STYLE },
-                  React.createElement(ReadField, { label: "Billing Cycle", value: contract.billingCycle }),
-                  React.createElement(ReadField, { label: "Fee Model", value: contract.feeModel }),
-                  React.createElement(ReadField, { label: "Total Amount", value: formatMoney(contract.totalAmount, currencyCode) }),
-                  React.createElement(ReadField, { label: "Sub Total", value: formatMoney(contract.subTotal, currencyCode) }),
-                  React.createElement(ReadField, { label: "VAT Amount", value: formatMoney(contract.vatAmount, currencyCode) }),
-                  React.createElement(ReadField, { label: "Payment Date", value: formatDate(contract.paymentDate) }),
-                  React.createElement(ReadField, { label: "End Date", value: formatDate(contract.endDate) }),
-                  React.createElement(ReadField, { label: "Payment Status", value: contract.paymentStatus }),
-                  React.createElement(ReadField, { label: "Outstanding Amount", value: formatMoney(contract.outStandingAmount, currencyCode) }),
+                  React.createElement(ReadField, { label: tr("Billing Cycle"), value: contract.billingCycle }),
+                  React.createElement(ReadField, { label: tr("Fee Model"), value: contract.feeModel }),
+                  React.createElement(ReadField, { label: tr("Total Amount"), value: formatMoney(contract.totalAmount, currencyCode) }),
+                  React.createElement(ReadField, { label: tr("Sub Total"), value: formatMoney(contract.subTotal, currencyCode) }),
+                  React.createElement(ReadField, { label: tr("VAT Amount"), value: formatMoney(contract.vatAmount, currencyCode) }),
+                  React.createElement(ReadField, { label: tr("Payment Date"), value: formatDate(contract.paymentDate) }),
+                  React.createElement(ReadField, { label: tr("End Date"), value: formatDate(contract.endDate) }),
+                  React.createElement(ReadField, { label: tr("Payment Status"), value: contract.paymentStatus }),
+                  React.createElement(ReadField, { label: tr("Outstanding Amount"), value: formatMoney(contract.outStandingAmount, currencyCode) }),
                 ),
           )
         : null,
@@ -813,22 +1122,22 @@ const ContractDetailView = () => {
         ? React.createElement(
             React.Fragment,
             null,
-            React.createElement(SectionTitle, null, "Retainer Billing Plan"),
+            React.createElement(SectionTitle, null, tr("Retainer Billing Plan")),
             !activePlan
-              ? React.createElement(Alert, { type: "info", showIcon: true, message: "Contract has no active billing plan yet." })
+              ? React.createElement(Alert, { type: "info", showIcon: true, message: tr("Contract has no active billing plan yet.") })
               : editing
                 ? React.createElement(
                     "div",
                     { style: GRID_STYLE },
-                    React.createElement(FieldRow, { label: "Plan Type" }, React.createElement(SelectField, { value: form.planType, onChange: (v) => setField("planType", v), options: PLAN_TYPE_OPTIONS })),
-                    React.createElement(FieldRow, { label: "Status" }, React.createElement(SelectField, { value: form.planStatus, onChange: (v) => setField("planStatus", v), options: PLAN_STATUS_OPTIONS })),
-                    React.createElement(FieldRow, { label: "Total Amount" }, React.createElement(NumberField, { value: form.planTotalAmount, onChange: (v) => setField("planTotalAmount", v) })),
-                    React.createElement(FieldRow, { label: "Retainer Unit" }, React.createElement(SelectField, { value: form.retainerUnit, onChange: (v) => setField("retainerUnit", v), options: RETAINER_UNIT_OPTIONS })),
-                    React.createElement(FieldRow, { label: "Total Cycles" }, React.createElement(NumberField, { value: form.retainerTotalCycles, onChange: (v) => setField("retainerTotalCycles", v) })),
-                    React.createElement(FieldRow, { label: "Cycles Billed" }, React.createElement(NumberField, { value: form.retainerCyclesBilled, onChange: (v) => setField("retainerCyclesBilled", v) })),
-                    React.createElement(FieldRow, { label: "Next Billing Date" }, React.createElement(Input, { type: "date", value: form.nextBillingDate, onChange: (e) => setField("nextBillingDate", e.target.value) })),
-                    React.createElement(FieldRow, { label: "Start Date" }, React.createElement(Input, { type: "date", value: form.planStartDate, onChange: (e) => setField("planStartDate", e.target.value) })),
-                    React.createElement(FieldRow, { label: "End Date" }, React.createElement(Input, { type: "date", value: form.planEndDate, onChange: (e) => setField("planEndDate", e.target.value) })),
+                    React.createElement(FieldRow, { label: tr("Plan Type") }, React.createElement(SelectField, { value: form.planType, onChange: (v) => setField("planType", v), options: PLAN_TYPE_OPTIONS })),
+                    React.createElement(FieldRow, { label: tr("Status") }, React.createElement(SelectField, { value: form.planStatus, onChange: (v) => setField("planStatus", v), options: PLAN_STATUS_OPTIONS })),
+                    React.createElement(FieldRow, { label: tr("Amount per period") }, React.createElement(NumberField, { value: form.planTotalAmount, onChange: (v) => setField("planTotalAmount", v) })),
+                    React.createElement(FieldRow, { label: tr("Retainer Unit") }, React.createElement(SelectField, { value: form.retainerUnit, onChange: (v) => setField("retainerUnit", v), options: RETAINER_UNIT_OPTIONS })),
+                    React.createElement(FieldRow, { label: tr("Total Cycles") }, React.createElement(NumberField, { value: form.retainerTotalCycles, onChange: (v) => setField("retainerTotalCycles", v) })),
+                    React.createElement(FieldRow, { label: tr("Cycles Billed") }, React.createElement(NumberField, { value: form.retainerCyclesBilled, onChange: (v) => setField("retainerCyclesBilled", v) })),
+                    React.createElement(FieldRow, { label: tr("Next Billing Date") }, React.createElement(Input, { type: "date", value: form.nextBillingDate, onChange: (e) => setField("nextBillingDate", e.target.value) })),
+                    React.createElement(FieldRow, { label: tr("Start Date") }, React.createElement(Input, { type: "date", value: form.planStartDate, onChange: (e) => setField("planStartDate", e.target.value) })),
+                    React.createElement(FieldRow, { label: tr("End Date") }, React.createElement(Input, { type: "date", value: form.planEndDate, onChange: (e) => setField("planEndDate", e.target.value) })),
                   )
                 : React.createElement(RetainerPlanSection, { plan: activePlan }),
           )
@@ -843,6 +1152,59 @@ const ContractDetailView = () => {
 const ContractServicesModule = (() => {
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo } = React;
+
+// ---- package document subtotal (pure; tested by scripts/tests/package-group-totals.test.js) ----
+// Combo pricing: each combo group's rows carry that group's OWN amount — not
+// the document total. The document's package subtotal is its header subTotal
+// (every writer keeps it equal to the groups' sum; older contracts stamped the
+// whole total on every row, so summing rows would multiply it). Without a
+// header amount: the sum of each distinct group — comboId, else comboName,
+// else the row itself — counted once. 2026-09-25: reading the FIRST package
+// row showed (and on save re-split) one combo's amount as the whole total.
+const packageDocumentSubTotal = (header, rows = [], useHeader = true) => {
+  const num = (v) => {
+    const n = parseFloat(String(v ?? "").replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const headerSubTotal = useHeader ? num(header?.packageSubTotal) || num(header?.subTotal) : 0;
+  if (headerSubTotal > 0) return headerSubTotal;
+  const groups = new Map();
+  (rows || []).forEach((row, index) => {
+    if (!row) return;
+    const rawComboId = row.comboId ?? row.serviceCombo;
+    const comboIdVal = rawComboId && typeof rawComboId === "object" ? rawComboId.id : rawComboId;
+    const comboName = String(row.comboName || "").trim();
+    const key = comboIdVal ? `id:${comboIdVal}` : comboName ? `name:${comboName}` : `row:${row.id ?? index}`;
+    if (!groups.has(key)) groups.set(key, num(row.packageSubTotal));
+  });
+  return Array.from(groups.values()).reduce((sum, amount) => sum + amount, 0);
+};
+
+// Re-deriving a contract's package subtotal FROM its rows (header resync):
+// each distinct combo group once. Older contracts stamped the whole total on
+// every row — several groups all carrying the current header amount is that
+// shape, and the header amount is kept instead of being multiplied.
+const packageRowsSubTotal = (rows = [], headerSubTotal = 0) => {
+  const num = (v) => {
+    const n = parseFloat(String(v ?? "").replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const groups = new Map();
+  (rows || []).forEach((row, index) => {
+    if (!row) return;
+    const rawComboId = row.comboId ?? row.serviceCombo;
+    const comboIdVal = rawComboId && typeof rawComboId === "object" ? rawComboId.id : rawComboId;
+    const comboName = String(row.comboName || "").trim();
+    const key = comboIdVal ? `id:${comboIdVal}` : comboName ? `name:${comboName}` : `row:${row.id ?? index}`;
+    if (!groups.has(key)) groups.set(key, num(row.packageSubTotal));
+  });
+  const amounts = Array.from(groups.values());
+  const header = num(headerSubTotal);
+  if (amounts.length > 1 && header > 0 && amounts.every((amount) => amount === header)) return header;
+  return amounts.reduce((sum, amount) => sum + amount, 0);
+};
+// ---- end package document subtotal ----
+
 const { Spin, Typography, message, Modal, Table, Tag, Button, Tooltip, Card, Space, Segmented, theme, Popconfirm, Empty } = ctx.antd;
 const { Text } = Typography;
 
@@ -1002,6 +1364,26 @@ const BILLING_LINE = 'lineBillable';
 const BILLING_PACKAGE_INCLUDED = 'packageIncluded';
 const SOURCE_CONTRACT = 'contract';
 
+// ---- catalog VND text (pure; tested by scripts/tests/catalog-vnd-display.test.js) ----
+// The VND a catalog / company price was converted to at the latest rate
+// (stored by pgsql/currency_catalog.sql): a company price shows only its own
+// priceVnd, a catalog service its basePriceVnd; nothing for a VND price.
+const catalogVndText = (record, currency) => {
+  const code = String(currency?.code || currency?.currencyCode || "").toUpperCase();
+  if (!record || code === "VND") return null;
+  const own = Object.prototype.hasOwnProperty.call(record, "priceVnd") ? record.priceVnd : record.basePriceVnd;
+  const n = Number(own);
+  return own === null || own === undefined || own === "" || !Number.isFinite(n)
+    ? null
+    : tr("≈ {0} VND", { 0: Math.round(n).toLocaleString("vi-VN") });
+};
+// ---- end catalog VND text ----
+// ---- api error text (pure; tested by scripts/tests/service-thread-js.test.js) ----
+// A request the database refused (a billed contract, a task in progress —
+// pgsql/service_thread_sync.sql) carries its reason in errors[0].message.
+const apiErrorText = (error, fallback) =>
+  error?.response?.data?.errors?.[0]?.message || error?.message || fallback;
+// ---- end api error text ----
 const parseNum = v => { const n = parseFloat(String(v).replace(/[^\d.-]/g, '')); return isNaN(n) ? 0 : n; };
 const extractId = val => {
   const id = val && typeof val === 'object' ? val.id : val;
@@ -1159,36 +1541,77 @@ const isUsableExchangeRateStatus = (status) => {
   if (!value) return true;
   return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
 };
-const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+// Business dates are Vietnam dates, as in the database (money_local_date):
+// "2026-09-01" stays as it is; a timestamp is read in Asia/Ho_Chi_Minh.
+const moneyDateKey = (value) => {
+  if (!value && value !== 0) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const ms = parseDateMillis(value);
+  return ms === null ? null : new Date(ms + 7 * 3600 * 1000).toISOString().slice(0, 10);
+};
+// Rates carry 15 significant digits, as float8 -> numeric does in Postgres.
+const rate15 = (value) => Number(Number(value).toPrecision(15));
+const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate, when = "onOrBefore") => {
   const fromId = extractCurrencyId(fromCurrency);
   const toId = extractCurrencyId(toCurrency);
-  const cutoff = parseDateMillis(pricingDate) || Date.now();
-  return (rates || [])
-    .map((rate) => {
-      const effectiveMs = parseDateMillis(rate?.effectiveDate);
-      return {
-        record: rate,
-        rate: parseNum(rate?.rate),
-        effectiveMs: effectiveMs || 0,
-        rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
-        rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
-      };
-    })
+  const cutoff = moneyDateKey(pricingDate) || moneyDateKey(Date.now());
+  const candidates = (rates || [])
+    .map((rate) => ({
+      record: rate,
+      rate: parseNum(rate?.rate),
+      effectiveMs: parseDateMillis(rate?.effectiveDate) || 0,
+      day: moneyDateKey(rate?.effectiveDate) || "1900-01-01",
+      rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
+      rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
+    }))
     .filter((item) =>
       item.rate > 0 &&
       isUsableExchangeRateStatus(item.record?.status) &&
-      (!item.effectiveMs || item.effectiveMs <= cutoff) &&
       item.rateFromId === fromId &&
       item.rateToId === toId,
-    )
-    .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
+    );
+  if (when === "after") {
+    return candidates.filter((item) => item.day > cutoff).sort((a, b) => a.effectiveMs - b.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
+  }
+  return candidates.filter((item) => item.day <= cutoff).sort((a, b) => b.effectiveMs - a.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
 };
+// same order as money_rate_to_base(): the latest direct rate on or before
+// the date, else the latest inverse one; only then the earliest after it.
+// ---- stored line helpers (pure; tested by scripts/tests/stored-line-display.test.js) ----
+// A saved line whose price, VAT, quantity and currency are unchanged shows
+// what the database stored with its frozen rate (money_line_compute), not
+// a fresh rate lookup; a new or edited line gets null (preview instead).
+const storedLinePricing = (row) => {
+  if (!row || row._isNew || row._deleted) return null;
+  const rate = Number(row.exchangeRateToBase);
+  const stored = row.totalAmount;
+  if (!(rate > 0) || stored === null || stored === undefined || stored === '') return null;
+  // only a rate the database froze (it always dates it): older rows carry
+  // rate 1 (an old column default) with no date
+  if (!row.exchangeRateDate) return null;
+  if (parseNum(row._basePrice) !== parseNum(row.basePrice)) return null;
+  if (parseNum(row._vat) !== parseNum(row.vat)) return null;
+  if (row._quantity !== undefined && parseNum(row._quantity) !== parseNum(row.quantity ?? 1)) return null;
+  const currencyId = row.currencyId && typeof row.currencyId === 'object' ? row.currencyId.id : row.currencyId;
+  if (row._currencyId !== undefined && String(row._currencyId ?? '') !== String(currencyId ?? '')) return null;
+  return {
+    subTotal: parseNum(row.subTotal),
+    vatAmount: parseNum(row.vatAmount),
+    totalAmount: parseNum(row.totalAmount),
+    exchangeRateToBase: rate,
+    _convertible: true,
+    _stored: true,
+  };
+};
+// ---- end stored line helpers ----
 const pickConversionRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
-  const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate);
-  if (direct) return { ...direct, direction: "direct" };
-  const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate);
-  if (inverse?.rate > 0) {
-    return { ...inverse, direction: "inverse", originalRate: inverse.rate, rate: 1 / inverse.rate };
+  for (const when of ["onOrBefore", "after"]) {
+    const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate, when);
+    if (direct) return { ...direct, rate: rate15(direct.rate), direction: "direct" };
+    const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate, when);
+    if (inverse) {
+      return { ...inverse, direction: "inverse", originalRate: inverse.rate, rate: rate15(1 / rate15(inverse.rate)) };
+    }
   }
   return null;
 };
@@ -1333,10 +1756,26 @@ const syncContractHeaderFromServices = async (contractId) => {
 
       if (packageLine || (isPackagePricing(contract) && lines.length > 0)) {
         const packageAmounts = getContractLineAmounts(packageLine || contract);
-        subTotal = packageAmounts.subTotal;
-        vatAmount = packageAmounts.vatAmount;
-        totalAmount = packageAmounts.totalAmount;
+        // Every combo group counts (each group's rows carry only that
+        // group's amount) — was the first package row's combo only.
+        const packageLines = lines.filter((line) =>
+          isPackagePricing(line) ||
+          parseNum(line.packageSubTotal) ||
+          parseNum(line.packageTotalAmount)
+        );
+        const lineVatRate =
+          packageAmounts.packageVatRate ||
+          (packageAmounts.subTotal ? (packageAmounts.vatAmount * 100) / packageAmounts.subTotal : 0);
         packageVatRate = packageAmounts.packageVatRate || packageVatRate;
+        if (packageLines.length) {
+          subTotal = packageRowsSubTotal(packageLines, contract.subTotal);
+          vatAmount = Math.round((subTotal * (lineVatRate || packageVatRate || 0)) / 100);
+          totalAmount = subTotal + vatAmount;
+        } else {
+          subTotal = packageAmounts.subTotal;
+          vatAmount = packageAmounts.vatAmount;
+          totalAmount = packageAmounts.totalAmount;
+        }
       } else {
         const totals = lines.reduce((sum, line) => {
           const amount = getContractLineAmounts(line);
@@ -1419,7 +1858,12 @@ const syncQuotationHeaderFromServices = async (quotationId) => {
 
     if (isPackage) {
       const packageLine = lines.find(line => isPackagePricing(line) || parseNum(line.packageSubTotal)) || quotation;
-      subTotal = parseNum(packageLine.packageSubTotal ?? quotation.packageSubTotal);
+      // Every combo counts: the quotation's header subtotal, else each group once.
+      subTotal = packageDocumentSubTotal(
+        quotation,
+        lines.filter((line) => isPackagePricing(line) || parseNum(line.packageSubTotal)),
+        isPackagePricing(quotation),
+      );
       const vatRate = parseNum(packageLine.packageVatRate ?? quotation.packageVatRate ?? 0);
       vatAmount = Math.round((subTotal * vatRate) / 100);
       totalAmount = subTotal + vatAmount;
@@ -1871,7 +2315,7 @@ const EditableCell = ({ value, onSave, isTextArea = false, isNumber = false, isM
         showSearch: true,
         optionFilterProp: "children"
       },
-        React.createElement(Select.Option, { value: "" }, "-- Chọn --"),
+        React.createElement(Select.Option, { value: "" }, tr("-- Select --")),
         ...options.map(o => React.createElement(Select.Option, {
           key: o.value,
           value: o.value,
@@ -1996,7 +2440,7 @@ const EditableCell = ({ value, onSave, isTextArea = false, isNumber = false, isM
     onClick: () => { if (!disabled) setEditing(true); },
     onMouseEnter: (e) => { if (!disabled) { e.currentTarget.style.background = C.primarySoft; e.currentTarget.style.borderColor = C.borderStrong; } },
     onMouseLeave: (e) => { if (!disabled) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } },
-    title: disabled ? "Hợp đồng đã khoá" : "Click để chỉnh sửa"
+    title: disabled ? tr("Contract is locked") : tr("Click to edit")
   }, displayVal || React.createElement("span", { style: { color: C.muted, fontStyle: "italic" } }, "—"));
 
   return (isTextArea && val)
@@ -2111,7 +2555,7 @@ const ContractServicesBlock = () => {
       pricingDate,
     });
     if (!pricing._convertible) {
-      message.error(`Thiếu tỷ giá quy đổi sang VND cho combo dịch vụ (${getCurrencyCode(comboCurrency)}).`);
+      message.error(tr("Missing exchange rate to VND for the service package ({0}).", { 0: getCurrencyCode(comboCurrency) }));
       return null;
     }
     return pricing.subTotal;
@@ -2122,7 +2566,7 @@ const ContractServicesBlock = () => {
   // the API until the existing "Save & Update contract" button.
   const applyComboFromCatalog = async (combo) => {
     const items = combo.serviceComboItems || [];
-    if (!items.length) { message.warning('This combo has no services.'); return; }
+    if (!items.length) { message.warning(tr("This combo has no services.")); return; }
     setApplyingCombo(true);
     try {
       const comboIdVal = extractId(combo.id);
@@ -2142,7 +2586,7 @@ const ContractServicesBlock = () => {
         const foldRates = foldNeededIds.length ? await fetchExchangeRatesForConversion(foldNeededIds, vndCurrencyId) : [];
         const mergedFoldRates = [...exchangeRates, ...foldRates];
         rows.forEach((r) => {
-          const pricing = buildServicePricingPayload({
+          const pricing = storedLinePricing(r) || buildServicePricingPayload({
             pricingMode: PRICING_MODE_LINE,
             basePrice: r._basePrice,
             quantity: 1,
@@ -2194,11 +2638,11 @@ const ContractServicesBlock = () => {
       if (!isPackageMode) setPricingMode(PRICING_MODE_PACKAGE);
       setPackageSubTotal(prev => parseNum(prev) + comboOwnAmount);
       setDirty(true);
-      message.success(`Applied combo "${combo.comboName}". Click "Save & Update contract" to persist.`);
+      message.success(tr("Applied combo \"{0}\". Click \"Save & Update contract\" to persist.", { 0: combo.comboName }));
       setPickerOpen(false);
     } catch (err) {
       console.error(err);
-      message.error('Error applying combo: ' + (err.message || ''));
+      message.error(tr("Error applying combo: ") + apiErrorText(err, ''));
     } finally {
       setApplyingCombo(false);
     }
@@ -2240,10 +2684,10 @@ const ContractServicesBlock = () => {
   // never prices a line item on its own, only the aggregate subtotal.
   const applyAdhocCombo = async () => {
     const name = adhocComboName.trim();
-    if (!name) { message.warning('Please enter a combo name.'); return; }
-    if (!comboItems.length) { message.warning('Please add at least one service.'); return; }
+    if (!name) { message.warning(tr("Please enter a combo name.")); return; }
+    if (!comboItems.length) { message.warning(tr("Please add at least one service.")); return; }
     const emptyNameItem = comboItems.find((it) => !String(it.serviceName || '').trim());
-    if (emptyNameItem) { message.warning('One or more services are missing a name.'); return; }
+    if (emptyNameItem) { message.warning(tr("One or more services are missing a name.")); return; }
     setApplyingCombo(true);
     try {
       const comboFinalPriceVnd = await convertComboSubTotalToVnd(comboFinalPrice, { currencyId: comboCurrencyId });
@@ -2260,7 +2704,7 @@ const ContractServicesBlock = () => {
         const foldRates = foldNeededIds.length ? await fetchExchangeRatesForConversion(foldNeededIds, vndCurrencyId) : [];
         const mergedFoldRates = [...exchangeRates, ...foldRates];
         rows.forEach((r) => {
-          const pricing = buildServicePricingPayload({
+          const pricing = storedLinePricing(r) || buildServicePricingPayload({
             pricingMode: PRICING_MODE_LINE,
             basePrice: r._basePrice,
             quantity: 1,
@@ -2327,7 +2771,7 @@ const ContractServicesBlock = () => {
           },
         ]);
       }
-      message.success(`Created combo "${name}". Click "Save & Update contract" to persist.`);
+      message.success(tr("Created combo \"{0}\". Click \"Save & Update contract\" to persist.", { 0: name }));
       setPickerOpen(false);
       setComboItems([]);
       setAdhocComboName('');
@@ -2336,7 +2780,7 @@ const ContractServicesBlock = () => {
       setComboFinalPrice(0);
     } catch (err) {
       console.error(err);
-      message.error('Error creating combo: ' + (err.message || ''));
+      message.error(tr("Error creating combo: ") + apiErrorText(err, ''));
     } finally {
       setApplyingCombo(false);
     }
@@ -2443,7 +2887,7 @@ const ContractServicesBlock = () => {
   };
 
   const handleCreateCustomService = () => {
-    if (!newSvcName.trim()) { message.warning('Vui lòng nhập tên dịch vụ'); return; }
+    if (!newSvcName.trim()) { message.warning(tr("Please enter the service name")); return; }
     const nextCurrencyId = extractCurrencyId(newSvcCurrencyId) || extractCurrencyId(contractCurrency);
     setRows(prev => prev.map(r => {
       if (r.id !== activeRowId) return r;
@@ -2483,7 +2927,19 @@ const ContractServicesBlock = () => {
     setCurrencies(currs);
     const resolvedContractCurrencyId = extractCurrencyId(currencyFromRecord(currentContract, currs));
     setPricingMode(isPackagePricing(currentContract) || !!packageLine ? PRICING_MODE_PACKAGE : PRICING_MODE_LINE);
-    setPackageSubTotal(parseNum(packageSource?.packageSubTotal ?? currentContract?.packageSubTotal ?? currentContract?.subTotal));
+    // Every combo counts — see packageDocumentSubTotal (was the first row's
+    // own combo amount).
+    setPackageSubTotal(
+      packageDocumentSubTotal(
+        currentContract,
+        svcs.filter(
+          (item) =>
+            !isDeletedServiceLine(item) &&
+            (isPackagePricing(item) || parseNum(item?.packageSubTotal) || parseNum(item?.packageTotalAmount)),
+        ),
+        isPackagePricing(currentContract),
+      ),
+    );
     setPackageVatRate(
       packageSource?.packageVatRate ?? currentContract?.packageVatRate ?? inferVatRate(
         packageSource?.packageSubTotal ?? currentContract?.subTotal,
@@ -2556,7 +3012,7 @@ const ContractServicesBlock = () => {
   // purely for the basePrice input; everything downstream of that is VND.
   const vndCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
   const vndCurrencyId = extractCurrencyId(vndCurrency);
-  const pricingDate = contract?.signedAt || contract?.date;
+  const pricingDate = contract?.signedAt || contract?.createdAt;
 
   // Keeps comboRatesVnd stocked with whatever currencies the combo builder's
   // own items/final price are currently in — a lightweight, combo-scoped
@@ -2655,7 +3111,7 @@ const ContractServicesBlock = () => {
     if (isPackageMode) return { subTotal: 0, vatAmount: 0, totalAmount: 0, missingRows: [] };
     const missingRows = [];
     const sums = activeRows.reduce((acc, r) => {
-      const pricing = buildServicePricingPayload({
+      const pricing = storedLinePricing(r) || buildServicePricingPayload({
         pricingMode: PRICING_MODE_LINE,
         basePrice: r._basePrice,
         quantity: 1,
@@ -2729,11 +3185,11 @@ const ContractServicesBlock = () => {
   const isLocked = ['signed', 'active', 'completed', 'terminated'].includes(String(CONTRACT_STATUS || contract?.status || '').toLowerCase().trim());
 
   const compareFields = [
-    { key: "serviceName", label: "Tên dịch vụ", type: "text" },
-    { key: "serviceType", label: "Loại dịch vụ", type: "text" },
-    { key: "description", label: "Mô tả", type: "text" },
-    { key: "basePrice", label: "Đơn giá", type: "money" },
-    { key: "vat", label: "VAT (%)", type: "number" },
+    { key: "serviceName", label: tr("Service name"), type: "text" },
+    { key: "serviceType", label: tr("Service type"), type: "text" },
+    { key: "description", label: tr("Description"), type: "text" },
+    { key: "basePrice", label: tr("Unit price"), type: "money" },
+    { key: "vat", label: tr("VAT (%)"), type: "number" },
   ];
 
   const formatCompareValue = (value, type, currency = null) => {
@@ -2803,10 +3259,10 @@ const ContractServicesBlock = () => {
   }, formatCompareValue(value, type, currency));
 
   const renderCompareStatus = (row) => {
-    if (row.catalogMissing) return React.createElement(Tag, { color: "default" }, "No catalog");
+    if (row.catalogMissing) return React.createElement(Tag, { color: "default" }, tr("No catalog"));
     return row.changed
-      ? React.createElement(Tag, { color: "red" }, "Changed")
-      : React.createElement(Tag, { color: "green" }, "Same");
+      ? React.createElement(Tag, { color: "red" }, tr("Changed"))
+      : React.createElement(Tag, { color: "green" }, tr("Same"));
   };
 
   const renderCompareDetail = (record) => {
@@ -2835,7 +3291,7 @@ const ContractServicesBlock = () => {
         }
       },
         React.createElement("div", { style: { minWidth: 0 } },
-          React.createElement("div", { style: { fontSize: 13, color: C.textSub, marginBottom: 4 } }, "Dịch vụ Hợp đồng"),
+          React.createElement("div", { style: { fontSize: 13, color: C.textSub, marginBottom: 4 } }, tr("Contract Service")),
           React.createElement("div", { style: { fontSize: 16, fontWeight: 600, color: C.text, wordBreak: "break-word" } },
             formatCompareValue(getQuotedValue(record, "serviceName"), "text")
           )
@@ -2843,9 +3299,9 @@ const ContractServicesBlock = () => {
         React.createElement("div", { style: { textAlign: "right", whiteSpace: "nowrap" } },
           catalog
             ? React.createElement(Tag, { color: changedRows.length ? "red" : "green", style: { marginRight: 0 } },
-              changedRows.length ? `${changedRows.length} changed` : "No change"
+              changedRows.length ? tr("{0} changed", { 0: changedRows.length }) : tr("No change")
             )
-            : React.createElement(Tag, { color: "default", style: { marginRight: 0 } }, "No catalog service")
+            : React.createElement(Tag, { color: "default", style: { marginRight: 0 } }, tr("No catalog service"))
         )
       ),
 
@@ -2859,7 +3315,7 @@ const ContractServicesBlock = () => {
           color: C.warning,
           fontSize: 13,
         }
-      }, "Dịch vụ này không liên kết với danh mục dịch vụ gốc, không có dữ liệu để so sánh."),
+      }, tr("This service is not linked to the original catalog service — no data to compare.")),
 
       React.createElement(Table, {
         dataSource: rows,
@@ -2868,19 +3324,19 @@ const ContractServicesBlock = () => {
         size: "small",
         bordered: true,
         columns: [
-          { title: "Trường dữ liệu", dataIndex: "field", width: 150 },
+          { title: tr("Field"), dataIndex: "field", width: 150 },
           {
-            title: showCurrencyHint ? `Dịch vụ gốc (Catalog) · ${getCurrencyCode(catalogCurrency)}` : "Dịch vụ gốc (Catalog)",
+            title: showCurrencyHint ? tr("Original Service (Catalog) · {0}", { 0: getCurrencyCode(catalogCurrency) }) : tr("Original Service (Catalog)"),
             dataIndex: "original",
             render: (value, row) => renderCompareCell(value, row.type, catalogCurrency),
           },
           {
-            title: showCurrencyHint ? `Dịch vụ trong Hợp đồng · ${getCurrencyCode(recordCurrency)}` : "Dịch vụ trong Hợp đồng",
+            title: showCurrencyHint ? tr("Service in Contract · {0}", { 0: getCurrencyCode(recordCurrency) }) : tr("Service in Contract"),
             dataIndex: "quoted",
             render: (value, row) => renderCompareCell(value, row.type, recordCurrency),
           },
           {
-            title: "Review",
+            title: tr("Review"),
             width: 110,
             align: "center",
             render: (_, row) => renderCompareStatus(row),
@@ -2917,7 +3373,7 @@ const ContractServicesBlock = () => {
           color: C.textSub,
           fontSize: 13,
         }
-      }, "So sánh dữ liệu dịch vụ hiện tại trong Hợp đồng với danh mục dịch vụ gốc."),
+      }, tr("Comparing the current service data in the Contract against the original catalog.")),
 
       React.createElement(Table, {
         dataSource: tableRows,
@@ -2927,41 +3383,41 @@ const ContractServicesBlock = () => {
         bordered: true,
         scroll: { x: "max-content", y: 420 },
         columns: [
-          { title: "No.", dataIndex: "no", width: 60, align: "center" },
+          { title: tr("No."), dataIndex: "no", width: 60, align: "center" },
           {
-            title: "Dịch vụ Hợp đồng",
+            title: tr("Contract Service"),
             dataIndex: "serviceName",
             width: 240,
             render: (value, row) => React.createElement("div", { style: { fontWeight: 600, color: C.text, wordBreak: "break-word" } }, formatCompareValue(value, "text")),
           },
           {
-            title: "Dịch vụ gốc",
+            title: tr("Original Service"),
             dataIndex: "originalName",
             width: 220,
             render: (value, row) => row.catalogMissing
-              ? React.createElement(Tag, { color: "default" }, "No catalog")
+              ? React.createElement(Tag, { color: "default" }, tr("No catalog"))
               : React.createElement("span", { style: { wordBreak: "break-word" } }, formatCompareValue(value, "text")),
           },
           {
-            title: "Thay đổi",
+            title: tr("Changes"),
             width: 220,
             render: (_, row) => row.catalogMissing
-              ? React.createElement(Tag, { color: "default" }, "No catalog link")
+              ? React.createElement(Tag, { color: "default" }, tr("No catalog link"))
               : (row.changedCount
                 ? React.createElement("div", null,
-                  React.createElement(Tag, { color: "red" }, `${row.changedCount} changed`),
+                  React.createElement(Tag, { color: "red" }, tr("{0} changed", { 0: row.changedCount })),
                   React.createElement("div", { style: { fontSize: 12, color: C.textSub, marginTop: 4, wordBreak: "break-word" } }, row.changedLabels)
                 )
-                : React.createElement(Tag, { color: "green" }, "No change")),
+                : React.createElement(Tag, { color: "green" }, tr("No change"))),
           },
           {
-            title: "Action",
+            title: tr("Action"),
             width: 100,
             align: "center",
             render: (_, row) => React.createElement(Button, {
               size: "small",
               onClick: () => setCompareModal({ open: true, data: row.record }),
-            }, "View"),
+            }, tr("View")),
           },
         ],
       })
@@ -2971,7 +3427,7 @@ const ContractServicesBlock = () => {
   // comboTarget (set via a combo section's own "+ Add service" button) tags
   // the new row into that combo instead of landing as an untagged row.
   const addRow = (comboTarget = null) => {
-    if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể thêm dịch vụ'); return; }
+    if (isLocked) { message.warning(tr("🔒 Contract is signed or in progress — cannot add service")); return; }
     const newId = Date.now();
     const defaultCurrencyId = extractCurrencyId(contractCurrency);
     setRows(prev => [...prev, {
@@ -2997,7 +3453,7 @@ const ContractServicesBlock = () => {
   };
 
   const deleteRow = id => {
-    if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể xoá dịch vụ'); return; }
+    if (isLocked) { message.warning(tr("🔒 Contract is signed or in progress — cannot delete service")); return; }
     setRows(prev => prev.map(r => r.id === id ? { ...r, _deleted: true } : r));
     setDirty(true);
   };
@@ -3008,7 +3464,7 @@ const ContractServicesBlock = () => {
   // single-row delete); a row only added locally (`_isNew`, never saved) is
   // simply dropped from state instead of round-tripping through delete.
   const removeCombo = (groupKey) => {
-    if (isLocked) { message.warning('🔒 Hợp đồng đã được ký hoặc đang thực hiện — không thể xoá dịch vụ'); return; }
+    if (isLocked) { message.warning(tr("🔒 Contract is signed or in progress — cannot delete service")); return; }
     const groupRows = rows.filter((r) => getComboGroupKey(r) === groupKey && !r._deleted);
     const groupAmount = groupRows.length ? parseNum(groupRows[0].packageSubTotal) : 0;
     setRows(prev => prev
@@ -3040,7 +3496,7 @@ const ContractServicesBlock = () => {
   };
 
   const finishSaveFlow = async (savedServiceIdByName) => {
-    message.success('Đã lưu và đồng bộ dịch vụ hợp đồng → dịch vụ hồ sơ');
+    message.success(tr("Saved and synced contract services → case services"));
     setDirty(false);
     await resolvePendingComboCatalogSaves(savedServiceIdByName || new Map());
     reload();
@@ -3087,7 +3543,7 @@ const ContractServicesBlock = () => {
       const skippedCount = comboEntry.members.length - resolved.length;
       if (!resolved.length) {
         console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
-        message.warning(`Combo "${comboEntry.comboName}" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).`);
+        message.warning(tr("Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).", { 0: comboEntry.comboName }));
         continue;
       }
       const byServiceId = new Map();
@@ -3124,13 +3580,13 @@ const ContractServicesBlock = () => {
           );
           message.success(
             skippedCount > 0
-              ? `Combo "${comboEntry.comboName}" saved to the catalog — ${skippedCount} custom service(s) without a catalog link were left out.`
-              : `Combo "${comboEntry.comboName}" saved to the catalog.`,
+              ? tr("Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.", { 0: comboEntry.comboName, 1: skippedCount })
+              : tr("Combo \"{0}\" saved to the catalog.", { 0: comboEntry.comboName }),
           );
         }
       } catch (comboErr) {
         console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
-        message.warning(`Could not save combo "${comboEntry.comboName}" to the catalog.`);
+        message.warning(tr("Could not save combo \"{0}\" to the catalog.", { 0: comboEntry.comboName }));
       }
     }
     setPendingComboCatalogSaves([]);
@@ -3184,12 +3640,12 @@ const ContractServicesBlock = () => {
             });
           } catch (linkErr) {
             console.warn('Could not link new service to company catalog:', linkErr);
-            message.warning(`"${r._svcName}" đã lưu vào catalog nhưng chưa gán được giá riêng cho company — cần thêm thủ công trong companyServices.`);
+            message.warning(tr("\"{0}\" was saved to the catalog but a company-specific price could not be assigned — please add it manually in companyServices.", { 0: r._svcName }));
           }
         }
       } catch (err) {
         console.error(err);
-        message.warning(`Could not save "${r._svcName}" to the catalog: ` + (err?.message || ''));
+        message.warning(tr("Could not save \"{0}\" to the catalog: ", { 0: r._svcName }) + apiErrorText(err, ''));
       }
     }
     setCatalogSaving(false);
@@ -3204,13 +3660,13 @@ const ContractServicesBlock = () => {
 
   const handleSave = async () => {
     const invalid = activeRows.find(r => !r._svcName?.trim() || (!isPackageMode && parseNum(r._basePrice) <= 0));
-    if (invalid) { message.warning(isPackageMode ? 'Vui lòng nhập đầy đủ tên dịch vụ' : 'Vui lòng điền đầy đủ tên dịch vụ và đơn giá'); return; }
-    if (isPackageMode && parseNum(packageSubTotal) <= 0) { message.warning('Vui lòng nhập giá trị combo dịch vụ hợp đồng'); return; }
+    if (invalid) { message.warning(isPackageMode ? tr("Please enter all service names") : tr("Please fill in all service names and unit prices")); return; }
+    if (isPackageMode && parseNum(packageSubTotal) <= 0) { message.warning(tr("Please enter the contract service package value")); return; }
     if (!isPackageMode && lineTotalsVnd.missingRows.length) {
       const names = lineTotalsVnd.missingRows
-        .map((r) => `"${r._svcName || 'Dịch vụ chưa đặt tên'}" (${getCurrencyCode(getRowCurrency(r))})`)
+        .map((r) => `"${r._svcName || tr("Unnamed service")}" (${getCurrencyCode(getRowCurrency(r))})`)
         .join(', ');
-      message.error(`Thiếu tỷ giá quy đổi sang VND cho: ${names} — không thể lưu.`);
+      message.error(tr("Missing exchange rate to VND for: {0} — cannot save.", { 0: names }));
       return;
     }
     setSaving(true);
@@ -3255,7 +3711,7 @@ const ContractServicesBlock = () => {
             }
           });
           existingPS = psAllRes?.data?.data || [];
-        } catch (e) { message.warning('Không thể tải danh sách projectServices: ' + (e?.message || '')); }
+        } catch (e) { message.warning(tr("Could not load the projectServices list: ") + apiErrorText(e, '')); }
       }
 
       // Fetch bản gốc contractServices từ DB để lấy originalServiceId khi user đổi dịch vụ
@@ -3269,6 +3725,56 @@ const ContractServicesBlock = () => {
       } catch (e) { console.warn('[CS] Không fetch được originalCSvcs:', e); }
 
       const createdCustomRows = [];
+      // Combo pricing (2026-09-25 fix): the package groups — one per combo,
+      // one per standalone package line — must add up to the Combo subtotal,
+      // because Case/contract views sum one packageSubTotal per group. When
+      // the header subtotal was edited (e.g. combos 62,823,600 + 15,000,000
+      // sold for 70,000,000) the rows still carried the old combo amounts.
+      // If the groups don't already sum to it, rescale: combos pro-rata to
+      // their own amount, standalone lines 0 ("included in package"); no
+      // combo amounts at all → equal split; remainder on the last group.
+      const packageGroupShareOf = (() => {
+        if (pricingMode !== PRICING_MODE_PACKAGE) return () => undefined;
+        const pool = Math.round(parseNum(packageSubTotal) || 0);
+        if (pool <= 0) return () => undefined;
+        const keyOf = (row) => {
+          const comboIdVal = extractId(row.comboId) || extractId(row.serviceCombo);
+          if (comboIdVal) return `id:${comboIdVal}`;
+          const name = String(row.comboName || "").trim();
+          return name ? `name:${name}` : row;
+        };
+        const groups = new Map();
+        rows
+          .filter((row) => !row._deleted && !isDeletedServiceLine(row))
+          .forEach((row) => {
+            const key = keyOf(row);
+            if (!groups.has(key)) {
+              groups.set(key, {
+                isCombo: typeof key === "string",
+                amount: parseNum(row.packageSubTotal ?? packageSubTotal) || 0,
+              });
+            }
+          });
+        const list = Array.from(groups.entries());
+        const currentSum = list.reduce((sum, [, group]) => sum + group.amount, 0);
+        if (!list.length || Math.abs(currentSum - pool) <= 1) return () => undefined;
+        const weightOf = ([, group]) => (group.isCombo ? Math.max(group.amount, 0) : 0);
+        const weightSum = list.reduce((sum, entry) => sum + weightOf(entry), 0);
+        const targets = weightSum > 0 ? list.filter((entry) => weightOf(entry) > 0) : list;
+        const shares = new Map(list.map(([key]) => [key, 0]));
+        let allocated = 0;
+        targets.forEach((entry, index) => {
+          const share =
+            index === targets.length - 1
+              ? pool - allocated
+              : weightSum > 0
+                ? Math.round((pool * weightOf(entry)) / weightSum)
+                : Math.round(pool / targets.length);
+          shares.set(entry[0], share);
+          allocated += share;
+        });
+        return (row) => shares.get(keyOf(row));
+      })();
       for (const r of rows) {
         if (isDeletedServiceLine(r) && !r._deleted) continue;
         // Combo rows carry their own combo group's independently-tracked
@@ -3282,7 +3788,7 @@ const ContractServicesBlock = () => {
           basePrice: r._basePrice,
           quantity: 1,
           vat: r._vat,
-          packageSubTotal: r.packageSubTotal ?? packageSubTotal,
+          packageSubTotal: packageGroupShareOf(r) ?? r.packageSubTotal ?? packageSubTotal,
           packageVatRate,
           currency: getRowCurrency(r),
           vndCurrency,
@@ -3382,7 +3888,7 @@ const ContractServicesBlock = () => {
                 action: 'destroy',
                 params: { filterByTk: linkedProjectServiceId },
               });
-            } catch (e) { message.warning('Không thể xoá projectService #' + linkedProjectServiceId + ': ' + (e?.message || '')); }
+            } catch (e) { message.warning(tr("Could not delete projectService #") + linkedProjectServiceId + ': ' + apiErrorText(e, '')); }
           }
           if (linkedQuotationServiceId) {
             try {
@@ -3413,7 +3919,7 @@ const ContractServicesBlock = () => {
                     ...projectServicePayload,
                   }
                 });
-              } catch (e) { message.warning('Không thể update projectService trùng: ' + (e?.message || '')); }
+              } catch (e) { message.warning(tr("Could not update duplicate projectService: ") + apiErrorText(e, '')); }
             } else {
               try {
                 const newPS = await requestProjectService({
@@ -3425,7 +3931,7 @@ const ContractServicesBlock = () => {
                 });
                 projectServiceId = newPS?.data?.data?.id || newPS?.data?.id || null;
                 if (newPS?.data?.data) existingPS.push(newPS.data.data);
-              } catch (e) { message.warning('Không thể tạo projectService: ' + (e?.message || '')); }
+              } catch (e) { message.warning(tr("Could not create projectService: ") + apiErrorText(e, '')); }
             }
           }
 
@@ -3506,7 +4012,7 @@ const ContractServicesBlock = () => {
                   ...projectServicePayload,
                 }
               });
-            } catch (e) { message.warning('Không thể update projectService #' + linkedProjectServiceId + ': ' + (e?.message || '')); }
+            } catch (e) { message.warning(tr("Could not update projectService #") + linkedProjectServiceId + ': ' + apiErrorText(e, '')); }
           }
 
           // Cascade: update quotationService if found
@@ -3591,7 +4097,7 @@ const ContractServicesBlock = () => {
             params: { filterByTk: projectId },
             data: { totalAmount: finalTotalAmount }
           });
-        } catch (e) { message.warning('Không thể đồng bộ hồ sơ: ' + (e?.message || '')); }
+        } catch (e) { message.warning(tr("Could not sync the case: ") + apiErrorText(e, '')); }
       }
 
       const customRowsAwaitingCatalogDecision = createdCustomRows.filter((r) => r._svcName?.trim());
@@ -3600,7 +4106,7 @@ const ContractServicesBlock = () => {
       } else {
         await finishSaveFlow();
       }
-    } catch (e) { message.error('Lỗi: ' + (e?.message || 'Thử lại')); }
+    } catch (e) { message.error(tr("Error: ") + apiErrorText(e, tr("Please try again"))); }
     setSaving(false);
   };
 
@@ -3612,7 +4118,7 @@ const ContractServicesBlock = () => {
   // they'd silently keep showing the natural-currency amount even after the
   // user picks a different display currency — the "Quy đổi sang X" label
   // above the table would then be lying about what the numbers show.
-  if (!CONTRACT_ID) return React.createElement('div', { style: { padding: 20, color: C.danger, fontFamily: FONT } }, 'Contract ID was not found in the URL.');
+  if (!CONTRACT_ID) return React.createElement('div', { style: { padding: 20, color: C.danger, fontFamily: FONT } }, tr("Contract ID was not found in the URL."));
   if (loading) return React.createElement('div', { style: { textAlign: 'center', padding: 48 } }, React.createElement(Spin, { size: 'large' }));
 
   // A package row's own basePrice is always 0 (the real price lives in the
@@ -3661,7 +4167,7 @@ const ContractServicesBlock = () => {
       render: (_, r) => r._displayIndex,
     },
     {
-      title: 'Service & Type',
+      title: tr("Service & Type"),
       key: 'service',
       width: 190,
       render: (_, r) => React.createElement(Button, {
@@ -3672,7 +4178,7 @@ const ContractServicesBlock = () => {
         style: { height: 'auto', padding: token.paddingXS, whiteSpace: 'normal', textAlign: 'left' },
       },
         (!r.serviceId && !r._svcName)
-          ? React.createElement(Text, { type: 'secondary', italic: true }, 'Select service')
+          ? React.createElement(Text, { type: 'secondary', italic: true }, tr("Select service"))
           : React.createElement(Space, { direction: 'vertical', size: 2, style: { width: '100%' } },
             React.createElement(Text, { strong: true, style: { whiteSpace: 'normal' } }, r._svcName),
             r._serviceType && React.createElement(Tag, { color: 'blue', style: { marginInlineEnd: 0 } }, r._serviceType),
@@ -3680,7 +4186,7 @@ const ContractServicesBlock = () => {
       ),
     },
     {
-      title: 'Description',
+      title: tr("Description"),
       dataIndex: '_description',
       key: 'description',
       width: 180,
@@ -3689,11 +4195,11 @@ const ContractServicesBlock = () => {
         onSave: val => updateRow(r.id, '_description', val),
         disabled: isLocked,
         isTextArea: true,
-        placeholder: 'Service description...',
+        placeholder: tr("Service description..."),
       }),
     },
     {
-      title: 'Price',
+      title: tr("Price"),
       key: 'basePrice',
       width: 180,
       align: 'right',
@@ -3703,11 +4209,11 @@ const ContractServicesBlock = () => {
           if (!individual) return React.createElement(Text, { type: 'secondary' }, '—');
           return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 } },
             React.createElement(Text, { strong: true }, formatMoney(individual.price, individual.currency)),
-            React.createElement(Text, { type: 'secondary', style: { fontSize: 10.5 } }, 'Included in combo'),
+            React.createElement(Text, { type: 'secondary', style: { fontSize: 10.5 } }, tr("Included in combo")),
           );
         }
         const rowCurrency = getRowCurrency(r);
-        const pricing = buildServicePricingPayload({
+        const pricing = storedLinePricing(r) || buildServicePricingPayload({
           pricingMode: PRICING_MODE_LINE,
           basePrice: r._basePrice,
           quantity: 1,
@@ -3736,18 +4242,18 @@ const ContractServicesBlock = () => {
               style: { width: 76, flexShrink: 0 },
               onChange: (v) => updateRow(r.id, '_currencyId', v),
               options: currencyOptions,
-              placeholder: 'Currency',
+              placeholder: tr("Currency"),
             })
           ),
           !isSameCurrency(rowCurrency, vndCurrency) && React.createElement(Text, {
             type: pricing._convertible ? 'secondary' : 'danger',
             style: { fontSize: 11 },
-          }, pricing._convertible ? `≈ ${formatMoney(pricing.subTotal, vndCurrency)}` : 'Thiếu tỷ giá quy đổi'),
+          }, pricing._convertible ? `≈ ${formatMoney(pricing.subTotal, vndCurrency)}` : tr("Missing exchange rate")),
         );
       },
     },
     {
-      title: 'VAT (%)',
+      title: tr("VAT (%)"),
       key: 'vat',
       width: 60,
       align: 'right',
@@ -3765,7 +4271,7 @@ const ContractServicesBlock = () => {
       },
     },
     {
-      title: 'VAT amount',
+      title: tr("VAT amount"),
       key: 'vatAmount',
       width: 110,
       align: 'right',
@@ -3777,7 +4283,7 @@ const ContractServicesBlock = () => {
           return React.createElement(Text, { type: 'secondary', style: { wordBreak: 'break-word' } },
             formatMoney(vatAmount, individual.currency));
         }
-        const pricing = buildServicePricingPayload({
+        const pricing = storedLinePricing(r) || buildServicePricingPayload({
           pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
           currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
         });
@@ -3786,7 +4292,7 @@ const ContractServicesBlock = () => {
       },
     },
     {
-      title: 'Total amount',
+      title: tr("Total amount"),
       key: 'total',
       width: 120,
       align: 'right',
@@ -3799,7 +4305,7 @@ const ContractServicesBlock = () => {
           return React.createElement(Text, { strong: true, style: { color: token.colorTextSecondary, wordBreak: 'break-word' } },
             formatMoney(total, individual.currency));
         }
-        const pricing = buildServicePricingPayload({
+        const pricing = storedLinePricing(r) || buildServicePricingPayload({
           pricingMode: PRICING_MODE_LINE, basePrice: r._basePrice, quantity: 1, vat: r._vat,
           currency: getRowCurrency(r), vndCurrency, exchangeRatesToVnd: exchangeRates, pricingDate,
         });
@@ -3808,7 +4314,7 @@ const ContractServicesBlock = () => {
       },
     },
     {
-      title: 'Action',
+      title: tr("Action"),
       key: 'action',
       width: 90,
       align: 'center',
@@ -3818,14 +4324,14 @@ const ContractServicesBlock = () => {
           type: 'link',
           style: { padding: 0, height: 20 },
           onClick: () => setCompareModal({ open: true, data: r }),
-        }, 'Review'),
+        }, tr("Review")),
         !isLocked && React.createElement(Button, {
           size: 'small',
           type: 'link',
           danger: true,
           style: { padding: 0, height: 20 },
           onClick: () => deleteRow(r.id),
-        }, 'Delete')
+        }, tr("Delete"))
       ),
     },
   ].filter(Boolean);
@@ -3924,10 +4430,10 @@ const ContractServicesBlock = () => {
     },
       // Top row: what this combo is.
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
-        React.createElement(Tag, { color: 'blue', style: { fontWeight: 700, letterSpacing: 0.3 } }, 'COMBO'),
-        React.createElement(Text, { strong: true }, record.comboName || 'Combo'),
+        React.createElement(Tag, { color: 'blue', style: { fontWeight: 700, letterSpacing: 0.3 } }, tr("COMBO")),
+        React.createElement(Text, { strong: true }, record.comboName || tr("Combo")),
         React.createElement(Text, { type: 'secondary', style: { fontSize: 12.5 } },
-          `${record._comboCount} service${record._comboCount === 1 ? '' : 's'}`),
+          tr("{0} service{1}", { 0: record._comboCount, 1: record._comboCount === 1 ? '' : 's' })),
       ),
       // Bottom row: pricing on the left, actions pinned to the right — kept
       // apart so the money and the destructive/mutating actions never end
@@ -3935,7 +4441,7 @@ const ContractServicesBlock = () => {
       React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' } },
         React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' } },
           React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
-            React.createElement(Text, { style: { fontSize: 12, color: C.textSub } }, 'Giá combo:'),
+            React.createElement(Text, { style: { fontSize: 12, color: C.textSub } }, tr("Package price:")),
             React.createElement(MoneyDraftInput, {
               value: record._groupAmount,
               disabled: isLocked,
@@ -3945,24 +4451,24 @@ const ContractServicesBlock = () => {
             }),
           ),
           priceComparison && React.createElement(Text, { style: { fontSize: 12, color: C.textSub } },
-            `Giá lẻ: ${formatMoney(priceComparison.individualTotal, priceComparison.currency)}`),
+            tr("Individual price: {0}", { 0: formatMoney(priceComparison.individualTotal, priceComparison.currency) })),
           priceComparison && priceComparison.savings > 0 && React.createElement(Text, { style: { fontSize: 12, color: C.success, fontWeight: 600 } },
-            `Tiết kiệm ${formatMoney(priceComparison.savings, priceComparison.currency)} (${priceComparison.savingsPct}%)`)
+            tr("Save {0} ({1}%)", { 0: formatMoney(priceComparison.savings, priceComparison.currency), 1: priceComparison.savingsPct }))
         ),
         !isLocked && React.createElement(Space, { size: 8 },
           React.createElement(Button, {
             size: 'small',
             onClick: () => addRow({ comboId: record.comboId, comboName: record.comboName }),
-          }, '+ Add service'),
+          }, tr("+ Add service")),
           React.createElement(Popconfirm, {
-            title: 'Remove this combo?',
-            description: 'All services in this combo section will be removed.',
-            okText: 'Remove',
+            title: tr("Remove this combo?"),
+            description: tr("All services in this combo section will be removed."),
+            okText: tr("Remove"),
             okType: 'danger',
-            cancelText: 'Cancel',
+            cancelText: tr("Cancel"),
             onConfirm: () => removeCombo(record._groupKey),
           },
-            React.createElement(Button, { size: 'small', danger: true }, 'Remove combo')
+            React.createElement(Button, { size: 'small', danger: true }, tr("Remove combo"))
           )
         )
       )
@@ -4011,11 +4517,11 @@ const ContractServicesBlock = () => {
       isPackageMode
         ? [
           React.createElement('div', { key: 'subtotal', style: rowStyle(true) },
-            React.createElement(Text, { style: labelStyle }, 'Combo subtotal (excl. VAT):'),
+            React.createElement(Text, { style: labelStyle }, tr("Combo subtotal (excl. VAT):")),
             React.createElement(MoneyDraftInput, { value: packageSubTotal, disabled: isLocked, onChange: updatePackageField(setPackageSubTotal), style: { width: 170 }, placeholder: '0', currency: vndCurrency })
           ),
           React.createElement('div', { key: 'vatrate', style: rowStyle(true) },
-            React.createElement(Text, { style: labelStyle }, 'VAT rate:'),
+            React.createElement(Text, { style: labelStyle }, tr("VAT rate:")),
             React.createElement(InputNumber, {
               value: packageVatRate, min: 0, max: 100, step: 0.1, disabled: isLocked,
               onChange: updatePackageField(setPackageVatRate),
@@ -4024,25 +4530,25 @@ const ContractServicesBlock = () => {
             })
           ),
           React.createElement('div', { key: 'vatamount', style: rowStyle(true) },
-            React.createElement(Text, { style: labelStyle }, 'Combo VAT amount:'),
+            React.createElement(Text, { style: labelStyle }, tr("Combo VAT amount:")),
             React.createElement(Text, { style: valueStyle(token.colorWarning) }, formatMoney(packageTotals.vatAmount, vndCurrency))
           ),
           React.createElement('div', { key: 'total', style: rowStyle(false) },
-            React.createElement(Text, { style: totalLabelStyle }, 'Combo total:'),
+            React.createElement(Text, { style: totalLabelStyle }, tr("Combo total:")),
             React.createElement(Text, { style: totalValueStyle(token.colorSuccess) }, formatMoney(packageTotals.totalAmount, vndCurrency))
           ),
         ]
         : [
           React.createElement('div', { key: 'subtotal', style: rowStyle(true) },
-            React.createElement(Text, { style: labelStyle }, 'Subtotal (excl. VAT):'),
+            React.createElement(Text, { style: labelStyle }, tr("Subtotal (excl. VAT):")),
             React.createElement(Text, { style: valueStyle() }, formatMoney(lineTotalsVnd.subTotal, vndCurrency))
           ),
           React.createElement('div', { key: 'vat', style: rowStyle(true) },
-            React.createElement(Text, { style: labelStyle }, 'Total VAT:'),
+            React.createElement(Text, { style: labelStyle }, tr("Total VAT:")),
             React.createElement(Text, { style: valueStyle(token.colorWarning) }, formatMoney(lineTotalsVnd.vatAmount, vndCurrency))
           ),
           React.createElement('div', { key: 'total', style: rowStyle(false) },
-            React.createElement(Text, { style: totalLabelStyle }, 'Total:'),
+            React.createElement(Text, { style: totalLabelStyle }, tr("Total:")),
             React.createElement(Text, { style: totalValueStyle(token.colorSuccess) }, formatMoney(lineTotalsVnd.totalAmount, vndCurrency))
           ),
         ]
@@ -4052,28 +4558,28 @@ const ContractServicesBlock = () => {
   return React.createElement(Card, {
     size: 'small',
     title: React.createElement(Space, { size: 8, wrap: true },
-      React.createElement(Text, { strong: true }, 'Contract services'),
-      React.createElement(Text, { type: 'secondary' }, `${activeRows.length} services`),
+      React.createElement(Text, { strong: true }, tr("Contract services")),
+      React.createElement(Text, { type: 'secondary' }, tr("{0} services", { 0: activeRows.length })),
       isLocked
-        ? React.createElement(Tag, null, 'Locked')
-        : dirty && React.createElement(Tag, { color: 'warning' }, 'Unsaved')
+        ? React.createElement(Tag, null, tr("Locked"))
+        : dirty && React.createElement(Tag, { color: 'warning' }, tr("Unsaved"))
     ),
     extra: React.createElement(Space, { size: 8, wrap: true },
       React.createElement(Button, {
         size: 'small',
         onClick: () => setCompareModal({ open: true, data: null }),
         disabled: activeRows.length === 0,
-      }, 'Review Changes'),
+      }, tr("Review Changes")),
       !isLocked && React.createElement(Button, {
         size: 'small',
         type: 'primary',
         onClick: () => addRow(),
-      }, '+ Add service'),
+      }, tr("+ Add service")),
       React.createElement(Button, {
         size: 'small',
         onClick: reload,
         loading,
-      }, 'Refresh')
+      }, tr("Refresh"))
     ),
     bodyStyle: { padding: 0 },
     style: { width: '100%' },
@@ -4094,7 +4600,7 @@ const ContractServicesBlock = () => {
       // change's explicit ask ("compress columns, no horizontal scroll,
       // full value still visible via wrapping instead of truncation").
       locale: {
-        emptyText: isLocked ? 'No services' : 'No services - click New service',
+        emptyText: isLocked ? tr("No services") : tr("No services - click New service"),
       },
     }),
 
@@ -4102,29 +4608,29 @@ const ContractServicesBlock = () => {
 
     (dirty && !isLocked) && React.createElement('div', { style: { ...ui.section, display: 'flex', justifyContent: 'flex-end' } },
       React.createElement(Space, { size: 8 },
-        React.createElement(Button, { onClick: reload }, 'Cancel changes'),
+        React.createElement(Button, { onClick: reload }, tr("Cancel changes")),
         React.createElement(Button, {
           type: 'primary',
           loading: saving,
           onClick: saving ? undefined : handleSave,
-        }, 'Save & Update contract')
+        }, tr("Save & Update contract"))
       )
     ),
 
     // COMPARE MODAL
     React.createElement(Modal, {
-      title: compareModal.data ? "So sánh Dịch vụ gốc" : "Review Service Changes",
+      title: compareModal.data ? tr("Compare Original Service") : tr("Review Service Changes"),
       open: compareModal.open,
       onCancel: () => setCompareModal({ open: false, data: null }),
       footer: React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
         compareModal.data && React.createElement(Button, {
           onClick: () => setCompareModal({ open: true, data: null })
-        }, "Quay lại danh sách"),
+        }, tr("Back to list")),
         React.createElement(Button, {
           type: "primary",
           onClick: () => setCompareModal({ open: false, data: null }),
           style: DS.primaryButton
-        }, "Đóng")
+        }, tr("Close"))
       ),
       width: compareModal.data ? 900 : 1000,
       style: { maxWidth: 'calc(100vw - 24px)' },
@@ -4152,8 +4658,8 @@ const ContractServicesBlock = () => {
           value: pickerMode,
           onChange: handlePickerModeChange,
           options: [
-            { label: 'Line pricing', value: 'individual' },
-            { label: 'Combo pricing', value: 'combo' },
+            { label: tr("Line pricing"), value: 'individual' },
+            { label: tr("Combo pricing"), value: 'combo' },
           ],
           style: { marginBottom: 16 },
         }),
@@ -4161,12 +4667,12 @@ const ContractServicesBlock = () => {
         ? React.createElement('div', null,
           // Header
           React.createElement('div', { style: { marginBottom: 20 } },
-            React.createElement('span', { style: { fontSize: 18, fontWeight: 700, color: C.text, fontFamily: FONT } }, 'Select Service'),
+            React.createElement('span', { style: { fontSize: 18, fontWeight: 700, color: C.text, fontFamily: FONT } }, tr("Select Service")),
           ),
           // Search Bar & Create New Button
           React.createElement('div', { style: { display: 'flex', gap: 10, marginBottom: 16 } },
             React.createElement(Input, {
-              placeholder: 'Search service name...',
+              placeholder: tr("Search service name..."),
               value: svcSearch,
               onChange: e => setSvcSearch(e.target.value),
               style: { flex: 1, borderRadius: DS.radius.sm, height: 38 }
@@ -4175,7 +4681,7 @@ const ContractServicesBlock = () => {
               type: 'primary',
               onClick: () => setModalView('create'),
               style: { background: C.success, borderColor: C.success, height: 38, borderRadius: DS.radius.sm, fontWeight: 600 }
-            }, 'Create new')
+            }, tr("Create new"))
           ),
           // Services Table List
           React.createElement('div', { style: { maxHeight: 380, overflowY: 'auto', overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: DS.radius.md, marginBottom: 16 } },
@@ -4183,10 +4689,10 @@ const ContractServicesBlock = () => {
               React.createElement('thead', null,
                 React.createElement('tr', null,
                   React.createElement('th', { style: th({ width: 40, textAlign: 'center' }) }, '#'),
-                  React.createElement('th', { style: th({ textAlign: 'left' }) }, 'Service Name'),
-                  React.createElement('th', { style: th({ width: 150, textAlign: 'left' }) }, 'Type'),
-                  React.createElement('th', { style: th({ width: 140, textAlign: 'right' }) }, 'Unit Price'),
-                  React.createElement('th', { style: th({ width: 80, textAlign: 'center' }) }, 'Currency'),
+                  React.createElement('th', { style: th({ textAlign: 'left' }) }, tr("Service Name")),
+                  React.createElement('th', { style: th({ width: 150, textAlign: 'left' }) }, tr("Type")),
+                  React.createElement('th', { style: th({ width: 140, textAlign: 'right' }) }, tr("Unit Price")),
+                  React.createElement('th', { style: th({ width: 80, textAlign: 'center' }) }, tr("Currency")),
                   React.createElement('th', { style: th({ width: 90, textAlign: 'center' }) }, ''))),
               React.createElement('tbody', null,
                 svcOpts
@@ -4211,7 +4717,7 @@ const ContractServicesBlock = () => {
                       React.createElement('td', { style: td({ textAlign: 'left' }) },
                         o.serviceType && React.createElement(Tag, { color: 'blue', style: { fontSize: 11 } }, o.serviceType)
                       ),
-                      React.createElement('td', { style: td({ textAlign: 'right', fontWeight: 500 }) }, formatMoney(price, catalogCurrency)),
+                      React.createElement('td', { style: td({ textAlign: 'right', fontWeight: 500 }) }, React.createElement("div", null, formatMoney(price, catalogCurrency), catalogVndText(o, catalogCurrency) && React.createElement("div", { style: { fontSize: 11, color: "rgba(0, 0, 0, 0.45)", fontWeight: 400 } }, catalogVndText(o, catalogCurrency)))),
                       React.createElement('td', { style: td({ textAlign: 'center', fontFamily: FONT_MONO, fontSize: 11.5, color: C.textSub }) }, getCurrencyCode(catalogCurrency)),
                       React.createElement('td', { style: td({ textAlign: 'center' }) },
                         React.createElement(Button, {
@@ -4220,7 +4726,7 @@ const ContractServicesBlock = () => {
                           disabled: isDisabled,
                           onClick: () => handleSelectCatalogService(o),
                           style: { background: isDisabled ? C.border : C.primary, borderColor: isDisabled ? C.border : C.primary, borderRadius: DS.radius.xs, fontSize: 12, fontWeight: 600 }
-                        }, isUsedElsewhere ? 'Selected' : isInCase ? 'In Case' : 'Select')
+                        }, isUsedElsewhere ? tr("Selected") : isInCase ? tr("In Case") : tr("Select"))
                       )
                     );
                   })
@@ -4234,25 +4740,25 @@ const ContractServicesBlock = () => {
             React.createElement('span', {
               onClick: () => setModalView('select'),
               style: { cursor: 'pointer', color: C.info, fontSize: 14, fontFamily: FONT, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }
-            }, '← Back'),
-            React.createElement('span', { style: { fontSize: 18, fontWeight: 700, color: C.text, fontFamily: FONT, marginLeft: 12 } }, 'Create New Service'),
+            }, tr("← Back")),
+            React.createElement('span', { style: { fontSize: 18, fontWeight: 700, color: C.text, fontFamily: FONT, marginLeft: 12 } }, tr("Create New Service")),
           ),
           // Form body
           React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 24, fontFamily: FONT } },
             React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 12 } },
               React.createElement('div', { style: { flex: '2 1 200px', minWidth: 0 } },
-                React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, 'Service Name *'),
+                React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, tr("Service Name *")),
                 React.createElement(Input, {
-                  placeholder: 'e.g., Labor contract consulting...',
+                  placeholder: tr("e.g., Labor contract consulting..."),
                   value: newSvcName,
                   onChange: e => setNewSvcName(e.target.value),
                   style: { borderRadius: DS.radius.sm, height: 38 }
                 })
               ),
               React.createElement('div', { style: { flex: '1 1 160px', minWidth: 0 } },
-                React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, 'Service Type optional'),
+                React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, tr("Service Type optional")),
                 React.createElement(Input, {
-                  placeholder: 'e.g., Consulting, Legal...',
+                  placeholder: tr("e.g., Consulting, Legal..."),
                   value: newSvcType,
                   onChange: e => setNewSvcType(e.target.value),
                   style: { borderRadius: DS.radius.sm, height: 38 }
@@ -4260,7 +4766,7 @@ const ContractServicesBlock = () => {
               ),
             ),
             React.createElement('div', null,
-              React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, `Unit Price (${getCurrencyCode(newServiceCurrency)}) *`),
+              React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, tr("Unit Price ({0}) *", { 0: getCurrencyCode(newServiceCurrency) })),
               React.createElement('div', { style: { display: 'flex', gap: 8 } },
                 React.createElement('div', { style: { flex: 1, minWidth: 0 } },
                   React.createElement(MoneyDraftInput, {
@@ -4283,9 +4789,9 @@ const ContractServicesBlock = () => {
               ),
             ),
             React.createElement('div', null,
-              React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, 'Description optional'),
+              React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 } }, tr("Description optional")),
               React.createElement(Input.TextArea, {
-                placeholder: 'Scope of work, notes...',
+                placeholder: tr("Scope of work, notes..."),
                 value: newDescription,
                 onChange: e => setNewDescription(e.target.value),
                 autoSize: { minRows: 3, maxRows: 6 },
@@ -4298,12 +4804,12 @@ const ContractServicesBlock = () => {
             React.createElement(Button, {
               onClick: () => setModalView('select'),
               style: { ...DS.secondaryButton, width: 100 }
-            }, 'Cancel'),
+            }, tr("Cancel")),
             React.createElement(Button, {
               type: 'primary',
               onClick: handleCreateCustomService,
               style: { ...DS.primaryButton, width: 140 }
-            }, 'Save & Select')
+            }, tr("Save & Select"))
           )
         )
       ,
@@ -4315,15 +4821,15 @@ const ContractServicesBlock = () => {
         value: comboSubTab,
         onChange: (v) => setComboSubTab(v),
         options: [
-          { label: 'Select Combo', value: 'select' },
-          { label: 'New Combo', value: 'adhoc' },
+          { label: tr("Select Combo"), value: 'select' },
+          { label: tr("New Combo"), value: 'adhoc' },
         ],
         style: { marginBottom: 16 },
       }),
       comboSubTab === 'select'
         ? React.createElement(React.Fragment, null,
           React.createElement(Input, {
-            placeholder: 'Search combo name...',
+            placeholder: tr("Search combo name..."),
             value: comboSearch,
             onChange: (e) => setComboSearch(e.target.value),
             style: { marginBottom: 12, borderRadius: DS.radius.sm },
@@ -4331,7 +4837,7 @@ const ContractServicesBlock = () => {
           }),
           React.createElement('div', { style: { maxHeight: 380, overflowY: 'auto' } },
             comboCatalog.length === 0
-              ? React.createElement(Empty, { description: 'No combos available' })
+              ? React.createElement(Empty, { description: tr("No combos available") })
               : comboCatalog
                 .filter((c) => normalizeLookupText(c.comboName || '').includes(normalizeLookupText(comboSearch)))
                 .map((c) => React.createElement('div', {
@@ -4342,9 +4848,9 @@ const ContractServicesBlock = () => {
                   },
                 },
                   React.createElement('div', null,
-                    React.createElement('div', { style: { fontWeight: 600 } }, c.comboName || `Combo #${c.id}`),
+                    React.createElement('div', { style: { fontWeight: 600 } }, c.comboName || tr("Combo #{0}", { 0: c.id })),
                     React.createElement('div', { style: { fontSize: 12, color: C.textSub } },
-                      `${(c.serviceComboItems || []).length} service(s)`),
+                      tr("{0} service(s)", { 0: (c.serviceComboItems || []).length })),
                     (() => {
                       // Illustrative only — sums each service's own standalone
                       // basePrice × quantity so the user can see, at a glance,
@@ -4381,44 +4887,44 @@ const ContractServicesBlock = () => {
                             color: C.textSub,
                             textDecoration: savings !== 0 ? 'line-through' : 'none',
                           },
-                        }, `Giá lẻ: ${formatMoney(individualTotal, comboCur)}`),
+                        }, tr("Individual price: {0}", { 0: formatMoney(individualTotal, comboCur) })),
                         React.createElement('span', { style: { margin: '0 6px', color: C.textSub } }, '·'),
-                        React.createElement('span', { style: { fontWeight: 600 } }, `Giá combo: ${formatMoney(packagePrice, comboCur)}`),
+                        React.createElement('span', { style: { fontWeight: 600 } }, tr("Package price: {0}", { 0: formatMoney(packagePrice, comboCur) })),
                         savings > 0 && React.createElement('span', { style: { marginLeft: 6, color: C.success, fontWeight: 600 } },
-                          `Tiết kiệm ${formatMoney(savings, comboCur)} (${savingsPct}%)`)
+                          tr("Save {0} ({1}%)", { 0: formatMoney(savings, comboCur), 1: savingsPct }))
                       );
                     })()
                   ),
                   React.createElement(Button, {
                     size: 'small', type: 'primary', loading: applyingCombo,
                     onClick: () => applyComboFromCatalog(c),
-                  }, 'Apply')
+                  }, tr("Apply"))
                 ))
           )
         )
         : React.createElement(React.Fragment, null,
           React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 } },
             React.createElement('div', { style: { flex: '2 1 220px', minWidth: 0 } },
-              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo Name'),
+              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, tr("Combo Name")),
               React.createElement(Input, {
                 value: adhocComboName,
                 onChange: (e) => setAdhocComboName(e.target.value),
-                placeholder: 'E.g. Business incorporation consulting combo...',
+                placeholder: tr("E.g. Business incorporation consulting combo..."),
                 style: { borderRadius: DS.radius.sm },
               })
             ),
             React.createElement('div', { style: { flex: '1 1 160px', minWidth: 0 } },
-              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo Type (optional)'),
+              React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, tr("Combo Type (optional)")),
               React.createElement(Input, {
                 value: adhocComboType,
                 onChange: (e) => setAdhocComboType(e.target.value),
-                placeholder: 'E.g. Business, Education...',
+                placeholder: tr("E.g. Business, Education..."),
                 style: { borderRadius: DS.radius.sm },
               })
             ),
           ),
           React.createElement('div', { style: { marginBottom: 12 } },
-            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Combo final price'),
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, tr("Combo final price")),
             React.createElement('div', { style: { display: 'flex', gap: 8 } },
               React.createElement('div', { style: { flex: 1, minWidth: 0 } },
                 React.createElement(MoneyDraftInput, {
@@ -4441,7 +4947,7 @@ const ContractServicesBlock = () => {
             ),
           ),
           React.createElement('div', { style: { marginBottom: 12 } },
-            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, 'Services in this combo'),
+            React.createElement('div', { style: { fontSize: 12, fontWeight: 600, marginBottom: 4 } }, tr("Services in this combo")),
             React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
               React.createElement(Select, {
                 value: comboItemPick,
@@ -4452,13 +4958,13 @@ const ContractServicesBlock = () => {
                 showSearch: true,
                 optionFilterProp: 'children',
                 style: { flex: '1 1 200px', minWidth: 0 },
-                placeholder: 'Add from catalog...',
+                placeholder: tr("Add from catalog..."),
               }, svcOpts
                 .filter((s) => !comboItems.some((it) => it.source === 'catalog' && String(it.serviceId) === String(s.id)))
                 .map((s) => React.createElement(Select.Option, {
                   key: s.id, value: s.id,
-                }, s.serviceName || s.name || `Service #${s.id}`))),
-              React.createElement(Button, { onClick: addComboCustomItem }, '+ Add custom service'),
+                }, s.serviceName || s.name || tr("Service #{0}", { 0: s.id })))),
+              React.createElement(Button, { onClick: addComboCustomItem }, tr("+ Add custom service")),
             ),
           ),
           comboItems.length > 0 &&
@@ -4467,10 +4973,10 @@ const ContractServicesBlock = () => {
               React.createElement('thead', null,
                 React.createElement('tr', null,
                   React.createElement('th', { style: th({ width: 28, textAlign: 'center' }) }, '#'),
-                  React.createElement('th', { style: th({ width: '28%' }) }, 'Service name'),
-                  React.createElement('th', { style: th({ width: 100 }) }, 'Type'),
-                  React.createElement('th', { style: th({ width: 210 }) }, 'Unit Price'),
-                  React.createElement('th', { style: th() }, 'Description'),
+                  React.createElement('th', { style: th({ width: '28%' }) }, tr("Service name")),
+                  React.createElement('th', { style: th({ width: 100 }) }, tr("Type")),
+                  React.createElement('th', { style: th({ width: 210 }) }, tr("Unit Price")),
+                  React.createElement('th', { style: th() }, tr("Description")),
                   React.createElement('th', { style: th({ width: 36 }) }, ''),
                 )
               ),
@@ -4485,7 +4991,7 @@ const ContractServicesBlock = () => {
                           size: 'small',
                           value: item.serviceName,
                           onChange: (e) => updateComboItem(item._id, 'serviceName', e.target.value),
-                          placeholder: 'New service name...',
+                          placeholder: tr("New service name..."),
                         }),
                     ),
                     React.createElement('td', { style: td() },
@@ -4495,7 +5001,7 @@ const ContractServicesBlock = () => {
                           size: 'small',
                           value: item.serviceType,
                           onChange: (e) => updateComboItem(item._id, 'serviceType', e.target.value),
-                          placeholder: 'Type (optional)...',
+                          placeholder: tr("Type (optional)..."),
                         }),
                     ),
                     React.createElement('td', { style: td() },
@@ -4533,7 +5039,7 @@ const ContractServicesBlock = () => {
                           size: 'small',
                           value: item.description,
                           onChange: (e) => updateComboItem(item._id, 'description', e.target.value),
-                          placeholder: 'Description (optional)...',
+                          placeholder: tr("Description (optional)..."),
                         }),
                     ),
                     React.createElement('td', { style: td({ textAlign: 'center' }) },
@@ -4553,13 +5059,13 @@ const ContractServicesBlock = () => {
               return React.createElement(
                 'div',
                 { style: { marginBottom: 12, fontSize: 11.5, color: C.textSub, display: 'flex', flexWrap: 'wrap', gap: 6 } },
-                React.createElement('span', null, `Giá lẻ (quy đổi VND): ${formatMoney(originalTotalVnd, vndCurrency)}`),
+                React.createElement('span', null, tr("Individual price (converted to VND): {0}", { 0: formatMoney(originalTotalVnd, vndCurrency) })),
                 pendingRateCount > 0 &&
-                  React.createElement('span', null, `(đang tải tỷ giá cho ${pendingRateCount} dịch vụ...)`),
+                  React.createElement('span', null, tr("(loading exchange rate for {0} services...)", { 0: pendingRateCount })),
                 delta < 0 &&
-                  React.createElement('span', { style: { color: '#52c41a', fontWeight: 600 } }, `Giảm ${formatMoney(-delta, vndCurrency)}`),
+                  React.createElement('span', { style: { color: '#52c41a', fontWeight: 600 } }, tr("Decrease {0}", { 0: formatMoney(-delta, vndCurrency) })),
                 delta > 0 &&
-                  React.createElement('span', { style: { color: '#faad14', fontWeight: 600 } }, `Tăng ${formatMoney(delta, vndCurrency)}`),
+                  React.createElement('span', { style: { color: '#faad14', fontWeight: 600 } }, tr("Increase {0}", { 0: formatMoney(delta, vndCurrency) })),
               );
             })(),
           React.createElement(
@@ -4580,12 +5086,12 @@ const ContractServicesBlock = () => {
             React.createElement(
               'span',
               null,
-              'Also save this combo to the shared catalog (created only after you finish saving this contract). Custom services in it already get their own "Save to catalog?" chance after Save — this just adds the combo itself as a reusable catalog entry.',
+              tr("Also save this combo to the shared catalog (created only after you finish saving this contract). Custom services in it already get their own \"Save to catalog?\" chance after Save — this just adds the combo itself as a reusable catalog entry."),
             ),
           ),
           React.createElement(Button, {
             type: 'primary', loading: applyingCombo, onClick: applyAdhocCombo, style: DS.primaryButton,
-          }, 'Submit')
+          }, tr("Submit"))
         )
       )
     ),
@@ -4593,24 +5099,24 @@ const ContractServicesBlock = () => {
     // SAVE TO CATALOG? — appears once after Save, only if this session
     // created at least one custom-named (non-catalog) row.
     React.createElement(Modal, {
-      title: 'Save to catalog?',
+      title: tr("Save to catalog?"),
       open: showCatalogPrompt,
       onCancel: handleSkipCatalogPrompt,
       maskClosable: false,
       footer: React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
-        React.createElement(Button, { onClick: handleSkipCatalogPrompt }, 'Skip'),
+        React.createElement(Button, { onClick: handleSkipCatalogPrompt }, tr("Skip")),
         React.createElement(Button, {
           type: 'primary',
           loading: catalogSaving,
           onClick: handleSaveSelectedToCatalog,
-        }, 'Save selected'),
+        }, tr("Save selected")),
       ),
       width: 640,
       style: { maxWidth: 'calc(100vw - 24px)' },
       bodyStyle: { maxHeight: '70vh', overflowY: 'auto' },
     },
       React.createElement('div', { style: { marginBottom: 12, color: C.textSub, fontSize: 13 } },
-        "These services were typed manually and aren't in the standardized services catalog yet. Check any you'd like to add, so future contracts can pick them from the catalog instead of retyping them.",
+        tr("These services were typed manually and aren't in the standardized services catalog yet. Check any you'd like to add, so future contracts can pick them from the catalog instead of retyping them."),
       ),
       React.createElement('div', { style: { display: 'grid', gap: 8 } },
         catalogPromptRows.map((r) => React.createElement('div', {
@@ -4631,7 +5137,7 @@ const ContractServicesBlock = () => {
               [r._serviceType, formatMoney(r._basePrice || 0, getRowCurrency(r))].filter(Boolean).join(' · '),
             ),
           ),
-          r._alreadyInCatalog && React.createElement(Tag, { color: 'default' }, 'Already in the catalog'),
+          r._alreadyInCatalog && React.createElement(Tag, { color: 'default' }, tr("Already in the catalog")),
         )),
       ),
     )
@@ -4745,19 +5251,19 @@ const getCurrentUser = () =>
   null;
 
 const lawyerLabel = (record) =>
-  firstPresent(record, ["lawyerName", "nickname", "name"]) || (record?.id ? `Lawyer #${record.id}` : "-");
+  firstPresent(record, ["lawyerName", "nickname", "name"]) || (record?.id ? tr("Lawyer #{0}", { 0: record.id }) : "-");
 
 const customerLabel = (record) =>
   compact([
     firstPresent(record, ["shortName", "customerName", "companyName", "name", "fullName", "displayName"]),
     firstPresent(record, ["customerCode", "code"]) ? `(${firstPresent(record, ["customerCode", "code"])})` : "",
-  ]).join(" ") || (record?.id ? `Customer #${record.id}` : "");
+  ]).join(" ") || (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const contractLabel = (record) =>
   compact([
     firstPresent(record, ["contractCode", "contractNumber", "code"]),
     firstPresent(record, ["contractName", "name", "title"]),
-  ]).join(" - ") || (record?.id ? `Contract #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Contract #{0}", { 0: record.id }) : "");
 
 const buildDefaultPaymentRequestTitle = (record, requestType) =>
   compact([
@@ -4997,13 +5503,13 @@ const isActualPaidStatus = (status) => ACTUAL_PAYMENT_STATUSES.includes(normaliz
 
 const modeLabel = (mode) => {
   const labels = {
-    multiple_payments: "Multiple payments",
-    one_time: "One time",
-    monthly: "Monthly",
-    quarterly: "Quarterly",
-    milestone: "By milestone",
-    manual: "Manual",
-    recurring: "Recurring",
+    multiple_payments: tr("Multiple payments"),
+    one_time: tr("One time"),
+    monthly: tr("Monthly"),
+    quarterly: tr("Quarterly"),
+    milestone: tr("By milestone"),
+    manual: tr("Manual"),
+    recurring: tr("Recurring"),
   };
   return labels[String(mode || "").trim()] || mode || "";
 };
@@ -5011,18 +5517,18 @@ const modeLabel = (mode) => {
 const statusMeta = (status) => {
   const key = String(status || "planned").toLowerCase().trim();
   const map = {
-    planned: { label: "Planned", bg: C.neutralBg, color: C.neutralText },
-    partial: { label: "Partial", bg: C.warningBg, color: C.warningText },
-    pending: { label: "Pending", bg: C.warningBg, color: C.warningText },
-    due: { label: "Due", bg: C.warningBg, color: C.warningText },
-    overdue: { label: "Overdue", bg: C.dangerBg, color: C.dangerText },
-    received: { label: "Received", bg: C.successBg, color: C.successText },
-    paid: { label: "Paid", bg: C.successBg, color: C.successText },
-    completed: { label: "Completed", bg: C.successBg, color: C.successText },
-    cancelled: { label: "Cancelled", bg: C.neutralBg, color: C.neutralText },
-    canceled: { label: "Cancelled", bg: C.neutralBg, color: C.neutralText },
+    planned: { label: tr("Planned"), bg: C.neutralBg, color: C.neutralText },
+    partial: { label: tr("Partial"), bg: C.warningBg, color: C.warningText },
+    pending: { label: tr("Pending"), bg: C.warningBg, color: C.warningText },
+    due: { label: tr("Due"), bg: C.warningBg, color: C.warningText },
+    overdue: { label: tr("Overdue"), bg: C.dangerBg, color: C.dangerText },
+    received: { label: tr("Received"), bg: C.successBg, color: C.successText },
+    paid: { label: tr("Paid"), bg: C.successBg, color: C.successText },
+    completed: { label: tr("Completed"), bg: C.successBg, color: C.successText },
+    cancelled: { label: tr("Cancelled"), bg: C.neutralBg, color: C.neutralText },
+    canceled: { label: tr("Cancelled"), bg: C.neutralBg, color: C.neutralText },
   };
-  return map[key] || { label: status || "Planned", bg: C.neutralBg, color: C.neutralText };
+  return map[key] || { label: status || tr("Planned"), bg: C.neutralBg, color: C.neutralText };
 };
 
 const installmentAmountFromPercent = (percentage, baseAmount) => {
@@ -5032,11 +5538,36 @@ const installmentAmountFromPercent = (percentage, baseAmount) => {
   return Math.round(base * percent / 100);
 };
 
+// ---- percent remainder helpers (pure; tested by scripts/tests/money-rounding.test.js) ----
+// Legacy schedules that store only percentages get each amount rounded on
+// its own, so 30/30/40 of 10,000,001 showed 10,000,000. When every amount is
+// derived from a percentage and they add up to 100%, the last installment
+// takes the remainder (cumulative totals follow). Stored amounts are never
+// changed.
+const absorbPercentRemainder = (installments, baseAmount) => {
+  const base = Math.round(Number(baseAmount) || 0);
+  if (!Array.isArray(installments) || installments.length < 2 || base <= 0) return installments;
+  if (!installments.every((row) => row.amountFromPercent)) return installments;
+  const percentSum = installments.reduce((sum, row) => sum + (Number(row.percentage) || 0), 0);
+  if (Math.abs(percentSum - 100) > 0.01) return installments;
+  const lastIndex = installments.length - 1;
+  const others = installments.reduce(
+    (sum, row, index) => (index === lastIndex ? sum : sum + (Number(row.amount) || 0)),
+    0,
+  );
+  let running = 0;
+  return installments.map((row, index) => {
+    const amount = index === lastIndex ? base - others : row.amount;
+    running += Number(amount) || 0;
+    return row.cumulativeTotal === undefined ? { ...row, amount } : { ...row, amount, cumulativeTotal: running };
+  });
+};
+// ---- end percent remainder helpers ----
+
 const normalizeInstallment = (row, index, runningTotal, baseAmount) => {
   const percentage = row?.percentage ?? null;
-  const amount =
-    parseNum(row?.amount ?? row?.totalAmount ?? row?.paymentAmount) ||
-    installmentAmountFromPercent(percentage, baseAmount);
+  const storedAmount = parseNum(row?.amount ?? row?.totalAmount ?? row?.paymentAmount);
+  const amount = storedAmount || installmentAmountFromPercent(percentage, baseAmount);
   const cumulativeTotal = parseNum(row?.cumulativeTotal) || runningTotal + amount;
   return {
     id: row?.id || `payment-${index + 1}`,
@@ -5056,6 +5587,7 @@ const normalizeInstallment = (row, index, runningTotal, baseAmount) => {
     amount,
     cumulativeTotal,
     percentage,
+    amountFromPercent: !storedAmount && amount > 0,
     triggerType: row?.triggerType || "on_signed",
     status: row?.status || "planned",
   };
@@ -5107,13 +5639,14 @@ const normalizeSchedule = (record, scheduleRows = null) => {
   );
 
   let runningTotal = 0;
-  const installments = sourceRows
+  const normalizedInstallments = sourceRows
     .map((row, index) => {
       const normalized = normalizeInstallment(row, index, runningTotal, baseAmount);
       runningTotal = normalized.cumulativeTotal;
       return normalized;
     })
     .filter((row) => row.content || row.paymentDate || row.amount > 0 || row.label);
+  const installments = absorbPercentRemainder(normalizedInstallments, baseAmount);
 
   const totalAmount =
     baseAmount ||
@@ -5222,7 +5755,7 @@ const createWithPayloadFallback = async (resources, payloadVariants = []) => {
       console.warn("[ContractPaymentScheduleDetailBlock] create fallback failed", error);
     }
   }
-  throw lastError || new Error("Create request failed.");
+  throw lastError || new Error(tr("Create request failed."));
 };
 
 const listPaymentsByContract = async (contractId) => {
@@ -5288,22 +5821,18 @@ const listPaymentRequestsByContract = async (contractId) => {
 // — surfaces the pipeline status of each installment's Payment Request,
 // distinct from the payment-derived "Trạng thái" column (which reflects
 // actual money received, not the request's own approval/processing state).
+// Payment Request statuses (2026-09-28, spec
+// docs/superpowers/specs/2026-09-28-case-finance-tab-business-rules-design.md §4):
+// pending (waiting on its trigger / due date) -> active (ready to invoice);
+// cancelled is terminal. Paid / partly paid is derived from payments, not a status.
 const PR_STATUS_META = {
-  draft: { label: "Draft", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
-  pending: { label: "Pending", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
-  submitted: { label: "Submitted", bg: "#e6f4ff", color: "#1677ff" },
-  active: { label: "Ready", bg: "#e6f4ff", color: "#1677ff" },
-  checking: { label: "Checking", bg: "#fffbe6", color: "#d48806" },
-  approved: { label: "Approved", bg: "#e6fffb", color: "#08979c" },
-  converted: { label: "Converted", bg: "#f6ffed", color: "#389e0d" },
-  rejected: { label: "Rejected", bg: "#fff2f0", color: "#cf1322" },
-  cancelled: { label: "Cancelled", bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
+  pending: { label: tr("Pending"), bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
+  active: { label: tr("Active"), bg: "#e6f4ff", color: "#1677ff" },
+  cancelled: { label: tr("Cancelled"), bg: "#f5f5f5", color: "rgba(0, 0, 0, 0.45)" },
 };
 
-// "Requested" = any Payment Request that has moved past "pending" (still
-// waiting on its trigger condition/due date) — i.e. it's actually in
-// accounting's pipeline, not just scheduled.
-const REQUESTED_PR_STATUSES = ["submitted", "active", "checking", "approved", "converted"];
+// "Requested" = a request that is active, i.e. in accounting's pipeline.
+const REQUESTED_PR_STATUSES = ["active"];
 
 const PRStatusBadge = ({ status }) => {
   if (!status) return null;
@@ -5616,18 +6145,18 @@ const PaymentScheduleTable = ({ schedule }) => {
     // below on purpose.
     const columnsConfig = [
       {
-        title: "Installment",
+        title: tr("Installment"),
         dataIndex: "label",
         width: 90,
         render: (value, row) =>
           React.createElement(
             "span",
             { style: { fontWeight: 600, color: C.text, wordBreak: "break-word" } },
-            value || `Installment ${row.installmentNo}`,
+            value || tr("Installment {0}", { 0: row.installmentNo }),
           ),
       },
       {
-        title: "Content",
+        title: tr("Content"),
         dataIndex: "content",
         render: (value) =>
           React.createElement(
@@ -5637,7 +6166,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Payment %",
+        title: tr("Payment %"),
         dataIndex: "percentage",
         width: 70,
         align: "right",
@@ -5645,13 +6174,13 @@ const PaymentScheduleTable = ({ schedule }) => {
           value !== null && value !== undefined && value !== "" ? `${parseNum(value)}%` : "—",
       },
       {
-        title: "Payment date",
+        title: tr("Payment date"),
         dataIndex: "paymentDate",
         width: 100,
         render: formatDate,
       },
       {
-        title: "Planned",
+        title: tr("Planned"),
         dataIndex: "amount",
         width: 100,
         align: "right",
@@ -5663,7 +6192,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Received",
+        title: tr("Received"),
         dataIndex: "paidAmount",
         width: 100,
         align: "right",
@@ -5675,7 +6204,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Remaining",
+        title: tr("Remaining"),
         dataIndex: "remainingAmount",
         width: 100,
         align: "right",
@@ -5687,13 +6216,13 @@ const PaymentScheduleTable = ({ schedule }) => {
           ),
       },
       {
-        title: "Status",
+        title: tr("Status"),
         dataIndex: "status",
         width: 90,
         render: (value) => React.createElement(StatusBadge, { status: value }),
       },
       {
-        title: "Auto PR",
+        title: tr("Auto PR"),
         dataIndex: "linkedPaymentRequest",
         width: 90,
         render: (pr) =>
@@ -5743,15 +6272,15 @@ const PaymentScheduleTable = ({ schedule }) => {
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: columns } },
-        React.createElement("div", { style: headerStyle }, "Installment"),
-        React.createElement("div", { style: headerStyle }, "Content"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Payment %"),
-        React.createElement("div", { style: headerStyle }, "Payment date"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Planned"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Received"),
-        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, "Remaining"),
-        React.createElement("div", { style: headerStyle }, "Status"),
-        React.createElement("div", { style: headerStyle }, "Auto PR"),
+        React.createElement("div", { style: headerStyle }, tr("Installment")),
+        React.createElement("div", { style: headerStyle }, tr("Content")),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, tr("Payment %")),
+        React.createElement("div", { style: headerStyle }, tr("Payment date")),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, tr("Planned")),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, tr("Received")),
+        React.createElement("div", { style: { ...headerStyle, textAlign: "right" } }, tr("Remaining")),
+        React.createElement("div", { style: headerStyle }, tr("Status")),
+        React.createElement("div", { style: headerStyle }, tr("Auto PR")),
       ),
       schedule.installments.map((row) =>
         React.createElement(
@@ -5767,7 +6296,7 @@ const PaymentScheduleTable = ({ schedule }) => {
           React.createElement(
             "div",
             { style: { ...cellStyle, fontWeight: 800 } },
-            row.label || `Installment ${row.installmentNo}`,
+            row.label || tr("Installment {0}", { 0: row.installmentNo }),
           ),
           React.createElement(
             "div",
@@ -5827,13 +6356,13 @@ const RetainerRule = ({ plan }) => {
         fontSize: 13,
       },
     },
-    React.createElement("strong", { style: { color: C.text } }, "Retainer rule: "),
+    React.createElement("strong", { style: { color: C.text } }, tr("Retainer rule: ")),
     display.displayText,
     display.nextPaymentDate
       ? React.createElement(
           "div",
           { style: { marginTop: 6 } },
-          React.createElement("strong", { style: { color: C.text } }, "Next payment: "),
+          React.createElement("strong", { style: { color: C.text } }, tr("Next payment: ")),
           formatDate(display.nextPaymentDate),
         )
       : null,
@@ -5841,7 +6370,7 @@ const RetainerRule = ({ plan }) => {
       ? React.createElement(
           "div",
           { style: { marginTop: 6 } },
-          React.createElement("strong", { style: { color: C.text } }, "Cycles billed: "),
+          React.createElement("strong", { style: { color: C.text } }, tr("Cycles billed: ")),
           `${plan.retainerCyclesBilled}${plan.retainerTotalCycles ? ` / ${plan.retainerTotalCycles}` : ""}`,
         )
       : null,
@@ -5901,7 +6430,7 @@ const PaymentScheduleDetailBlock = () => {
         : fetchContract(recordId),
       listPaymentsByContract(recordId).catch((err) => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch payments failed", err);
-        if (mounted) setError("Could not load actual payment data.");
+        if (mounted) setError(tr("Could not load actual payment data."));
         return [];
       }),
       listPaymentRequestsByContract(recordId).catch((err) => {
@@ -5924,7 +6453,7 @@ const PaymentScheduleDetailBlock = () => {
         console.error("[ContractPaymentScheduleDetailBlock] fetch contract failed", err);
         if (mounted) {
           setRecord(contextRecord);
-          setError("Could not load the contract's payment schedule.");
+          setError(tr("Could not load the contract's payment schedule."));
         }
       })
       .finally(() => {
@@ -5959,7 +6488,7 @@ const PaymentScheduleDetailBlock = () => {
   const openPaymentRequestModal = async () => {
     const rows = requestableItems;
     if (!rows.length) {
-      message?.warning?.("No payable schedule item is available for request.");
+      message?.warning?.(tr("No payable schedule item is available for request."));
       return;
     }
     await loadLawyers();
@@ -5987,19 +6516,19 @@ const PaymentScheduleDetailBlock = () => {
   const submitPaymentRequest = async () => {
     const selectedItems = requestableItems.filter((item) => (requestForm.selectedItemKeys || []).includes(item.key));
     if (!selectedItems.length) {
-      message?.warning?.("Please select at least one payment request line.");
+      message?.warning?.(tr("Please select at least one payment request line."));
       return;
     }
     if (!String(requestForm.title || "").trim()) {
-      message?.warning?.("Please enter a payment request title.");
+      message?.warning?.(tr("Please enter a payment request title."));
       return;
     }
     if (!requestForm.assignedLawyerId) {
-      message?.warning?.("Please select an assignee to process this request.");
+      message?.warning?.(tr("Please select an assignee to process this request."));
       return;
     }
     if (!requestForm.dueDate) {
-      message?.warning?.("Please select a due date.");
+      message?.warning?.(tr("Please select a due date."));
       return;
     }
 
@@ -6015,7 +6544,7 @@ const PaymentScheduleDetailBlock = () => {
     const requestPayload = {
       title: String(requestForm.title || "").trim(),
       requestType: requestForm.requestType,
-      status: "submitted",
+      status: "active",
       priority: requestForm.priority,
       contractId,
       contracts: contractId || undefined,
@@ -6042,7 +6571,7 @@ const PaymentScheduleDetailBlock = () => {
         paymentRequestPayloadVariants(requestPayload),
       );
       const requestId = extractId(createdRequest);
-      if (!requestId) throw new Error("Payment request was created but no id was returned.");
+      if (!requestId) throw new Error(tr("Payment request was created but no id was returned."));
 
       for (const item of selectedItems) {
         const itemPayload = {
@@ -6073,12 +6602,12 @@ const PaymentScheduleDetailBlock = () => {
         );
       }
 
-      message?.success?.("Payment request created.");
+      message?.success?.(tr("Payment request created."));
       await refreshNocoBaseDataBlocks();
       setRequestOpen(false);
     } catch (submitError) {
       console.error("[ContractPaymentScheduleDetailBlock] create payment request failed", submitError);
-      message?.error?.(submitError?.message || "Could not create payment request.");
+      message?.error?.(submitError?.message || tr("Could not create payment request."));
     } finally {
       setRequestSaving(false);
     }
@@ -6097,10 +6626,10 @@ const PaymentScheduleDetailBlock = () => {
   }
 
   const countText = schedule.installments.length
-    ? `${schedule.installments.length} installments`
+    ? tr("{0} installments", { 0: schedule.installments.length })
     : schedule.retainerRule?.enabled || schedule.mode === "recurring"
-      ? "Recurring schedule"
-      : "One-time payment";
+      ? tr("Recurring schedule")
+      : tr("One-time payment");
   // By-case contracts with no installment schedule have nothing for
   // per-installment paidAmount/remainingAmount to sum from — fall back to
   // the contract-level total (mirrors buildRequestableItems's own
@@ -6127,13 +6656,13 @@ const PaymentScheduleDetailBlock = () => {
     ? React.createElement(
         AntModal,
         {
-          title: "Create payment request",
+          title: tr("Create payment request"),
           open: requestOpen,
           visible: requestOpen,
           onCancel: () => setRequestOpen(false),
           onOk: submitPaymentRequest,
-          okText: "Create request",
-          cancelText: "Cancel",
+          okText: tr("Create request"),
+          cancelText: tr("Cancel"),
           confirmLoading: requestSaving,
           width: 760,
           style: { maxWidth: "calc(100vw - 24px)" },
@@ -6154,11 +6683,11 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text, gridColumn: "1 / -1" } },
-              fieldLabel("Title", true),
+              fieldLabel(tr("Title"), true),
               AntInput
                 ? React.createElement(AntInput, {
                     value: requestForm.title,
-                    placeholder: "Enter payment request title",
+                    placeholder: tr("Enter payment request title"),
                     onChange: (event) => setRequestField("title", event.target.value),
                   })
                 : React.createElement("input", {
@@ -6169,7 +6698,7 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              "Request type",
+              tr("Request type"),
               AntSelect
                 ? React.createElement(AntSelect, {
                     value: requestForm.requestType,
@@ -6180,10 +6709,10 @@ const PaymentScheduleDetailBlock = () => {
                         title: prev.title || buildDefaultPaymentRequestTitle(record || {}, value),
                       })),
                     options: [
-                      { value: "create_payment", label: REQUEST_TYPE_LABELS.create_payment },
-                      { value: "create_invoice", label: REQUEST_TYPE_LABELS.create_invoice },
-                      { value: "create_invoice_and_payment", label: REQUEST_TYPE_LABELS.create_invoice_and_payment },
-                      { value: "check_payment", label: REQUEST_TYPE_LABELS.check_payment },
+                      { value: "create_payment", label: tr(REQUEST_TYPE_LABELS.create_payment) },
+                      { value: "create_invoice", label: tr(REQUEST_TYPE_LABELS.create_invoice) },
+                      { value: "create_invoice_and_payment", label: tr(REQUEST_TYPE_LABELS.create_invoice_and_payment) },
+                      { value: "check_payment", label: tr(REQUEST_TYPE_LABELS.check_payment) },
                     ],
                   })
                 : React.createElement("input", {
@@ -6199,16 +6728,16 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              "Priority",
+              tr("Priority"),
               AntSelect
                 ? React.createElement(AntSelect, {
                     value: requestForm.priority,
                     onChange: (value) => setRequestField("priority", value),
                     options: [
-                      { value: "low", label: "Low" },
-                      { value: "normal", label: "Normal" },
-                      { value: "high", label: "High" },
-                      { value: "urgent", label: "Urgent" },
+                      { value: "low", label: tr("Low") },
+                      { value: "normal", label: tr("Normal") },
+                      { value: "high", label: tr("High") },
+                      { value: "urgent", label: tr("Urgent") },
                     ],
                   })
                 : React.createElement("input", {
@@ -6219,13 +6748,13 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              fieldLabel("Assignee", true),
+              fieldLabel(tr("Assignee"), true),
               AntSelect
                 ? React.createElement(AntSelect, {
                     showSearch: true,
                     allowClear: true,
                     value: requestForm.assignedLawyerId || undefined,
-                    placeholder: "Select lawyer",
+                    placeholder: tr("Select lawyer"),
                     optionFilterProp: "label",
                     onChange: (value) => setRequestField("assignedLawyerId", value || ""),
                     options: lawyerOptions,
@@ -6238,7 +6767,7 @@ const PaymentScheduleDetailBlock = () => {
             React.createElement(
               "label",
               { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-              fieldLabel("Due date", true),
+              fieldLabel(tr("Due date"), true),
               AntInput
                 ? React.createElement(AntInput, {
                     type: "date",
@@ -6274,7 +6803,7 @@ const PaymentScheduleDetailBlock = () => {
                   fontWeight: 700,
                 },
               },
-              React.createElement("span", null, "Request lines"),
+              React.createElement("span", null, tr("Request lines")),
               React.createElement("span", { style: { fontVariantNumeric: "tabular-nums" } }, formatMoney(requestTotal)),
             ),
             React.createElement(
@@ -6327,13 +6856,13 @@ const PaymentScheduleDetailBlock = () => {
           React.createElement(
             "label",
             { style: { display: "grid", gap: 6, fontSize: 13, color: C.text } },
-            "Note",
+            tr("Note"),
             AntInput?.TextArea
               ? React.createElement(AntInput.TextArea, {
                   rows: 3,
                   value: requestForm.requestNote,
                   onChange: (event) => setRequestField("requestNote", event.target.value),
-                  placeholder: "Add payment request note...",
+                  placeholder: tr("Add payment request note..."),
                 })
               : React.createElement("textarea", {
                   rows: 3,
@@ -6386,10 +6915,10 @@ const PaymentScheduleDetailBlock = () => {
           { style: { fontSize: 13, color: C.sub } },
           compact([countText, modeLabel(schedule.mode)]).join(" · "),
         ),
-        React.createElement(SummaryPill, { label: "First payment date", value: formatDate(schedule.firstPaymentDate) }),
-        React.createElement(SummaryPill, { label: "Requested", value: formatMoney(totalRequested) }),
-        React.createElement(SummaryPill, { label: "Received", value: formatMoney(totalPaid) }),
-        React.createElement(SummaryPill, { label: "Remaining", value: formatMoney(totalRemaining) }),
+        React.createElement(SummaryPill, { label: tr("First payment date"), value: formatDate(schedule.firstPaymentDate) }),
+        React.createElement(SummaryPill, { label: tr("Requested"), value: formatMoney(totalRequested) }),
+        React.createElement(SummaryPill, { label: tr("Received"), value: formatMoney(totalPaid) }),
+        React.createElement(SummaryPill, { label: tr("Remaining"), value: formatMoney(totalRemaining) }),
       ),
       AntButton
         ? React.createElement(
@@ -6399,7 +6928,7 @@ const PaymentScheduleDetailBlock = () => {
               onClick: openPaymentRequestModal,
               disabled: !requestableItems.length || requestSaving,
             },
-            "Create payment request",
+            tr("Create payment request"),
           )
         : React.createElement(
             "button",
@@ -6408,7 +6937,7 @@ const PaymentScheduleDetailBlock = () => {
               onClick: openPaymentRequestModal,
               disabled: !requestableItems.length || requestSaving,
             },
-            "Create payment request",
+            tr("Create payment request"),
           ),
     ),
     error

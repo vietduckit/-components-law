@@ -1,3 +1,139 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Case detail": "Chi tiết hồ sơ",
+  "Folders": "Thư mục",
+  "Legal Study #{0}": "Legal Study #{0}",
+  "Legal Study": "Legal Study",
+  "Upload file failed": "Tải tệp lên thất bại",
+  "Case Reference": "Case Reference",
+  "Folder": "Thư mục",
+  "Closed {0}": "Đóng {0}",
+  "Source case in system": "Hồ sơ nguồn trong hệ thống",
+  "Standalone reference dossier": "Hồ sơ tham chiếu độc lập",
+  "Legal Reference": "Legal Reference",
+  "Case Reference in system": "Case Reference trong hệ thống",
+  "Document": "Tài liệu",
+  "Failed to link {0}": "Không thể liên kết {0}",
+  "Failed to unlink {0}": "Không thể gỡ liên kết {0}",
+  "Failed to load document references.": "Không thể tải tham chiếu tài liệu.",
+  "Please allow popups for this site to open case details.": "Vui lòng cho phép popup trên trang này để mở chi tiết hồ sơ.",
+  "Source case not found.": "Không tìm thấy hồ sơ nguồn.",
+  "Legal Reference not found.": "Không tìm thấy Legal Reference.",
+  "Please allow popups for this site to open Legal Reference details.": "Vui lòng cho phép pop-up trên trang này để mở chi tiết Legal Reference.",
+  "Legal Study not found.": "Không tìm thấy Legal Study.",
+  "Please allow popups for this site to open Legal Study details.": "Vui lòng cho phép pop-up trên trang này để mở chi tiết Legal Study.",
+  "The document does not have a file or URL to preview.": "Tài liệu chưa có tệp hoặc URL để xem trước.",
+  "The document does not have a file or URL.": "Tài liệu chưa có tệp hoặc URL.",
+  "Failed to load folders/files of the legal reference.": "Không thể tải thư mục/tệp của tài liệu tham chiếu.",
+  "Current case not found.": "Không tìm thấy hồ sơ hiện tại.",
+  "Reference record not found.": "Không tìm thấy bản ghi tham chiếu.",
+  "Unlinked Legal Study successfully.": "Đã gỡ liên kết Legal Study.",
+  "Removed Case Reference successfully.": "Đã gỡ Case Reference.",
+  "Removed Legal Reference successfully.": "Đã gỡ Legal Reference.",
+  "Could not confirm removal. Please refresh.": "Không xác nhận được việc gỡ. Vui lòng làm mới.",
+  "Remove Case Reference?": "Gỡ Case Reference?",
+  "Remove Legal Study?": "Gỡ Legal Study?",
+  "Remove Legal Reference?": "Gỡ Legal Reference?",
+  "Remove link": "Gỡ liên kết",
+  "Cancel": "Hủy",
+  "Please select a Case.": "Vui lòng chọn hồ sơ.",
+  "This case is already linked as a reference.": "Hồ sơ này đã được liên kết làm tham chiếu.",
+  "Linked Case Reference successfully.": "Đã liên kết Case Reference.",
+  "Please select a Legal Reference.": "Vui lòng chọn Legal Reference.",
+  "This record is already linked to the current case.": "Bản ghi này đã được liên kết với hồ sơ hiện tại.",
+  "Linked Legal Reference successfully.": "Đã liên kết Legal Reference.",
+  "Please select a Legal Study.": "Vui lòng chọn Legal Study.",
+  "This Legal Study is already linked to the current case.": "Legal Study này đã được liên kết với hồ sơ hiện tại.",
+  "Linked Legal Study successfully.": "Đã liên kết Legal Study.",
+  "Unknown link mode.": "Chế độ liên kết không xác định.",
+  "Failed to create link.": "Không thể tạo liên kết.",
+  "Root": "Thư mục gốc",
+  "All documents ({0})": "Tất cả tài liệu ({0})",
+  "All documents": "Tất cả tài liệu",
+  "Search results": "Kết quả tìm kiếm",
+  "Source: {0}": "Nguồn: {0}",
+  "Open": "Mở",
+  "Download": "Tải về",
+  "No file information": "Không có thông tin tệp",
+  "No other cases.": "Không có hồ sơ khác.",
+  "No documents yet.": "Chưa có tài liệu.",
+  "{0} documents displayed · {1} folders · {2} files": "Hiển thị {0} tài liệu · {1} thư mục · {2} tệp",
+  "Search documents...": "Tìm tài liệu...",
+  "No matching documents found.": "Không tìm thấy tài liệu phù hợp.",
+  "This folder has no documents yet.": "Thư mục này chưa có tài liệu.",
+  "The document has no file or URL to preview.": "Tài liệu chưa có file hoặc URL để xem trước.",
+  "Could not read the file content in the browser.": "Không đọc được nội dung file trong trình duyệt.",
+  "Dossier name": "Tên hồ sơ",
+  "Please enter a dossier name": "Vui lòng nhập tên hồ sơ",
+  "Enter a dossier name...": "Nhập tên hồ sơ...",
+  "Description": "Mô tả",
+  "Short description...": "Mô tả ngắn...",
+  "Upload documents for the reference dossier": "Upload tài liệu cho hồ sơ tham chiếu",
+  "Upload file": "Tải tệp lên",
+  "Upload folder": "Upload thư mục",
+  "{0} file(s) · {1} file(s) in folders": "{0} file · {1} file trong thư mục",
+  "All files": "Tất cả tệp",
+  "Deselect folder": "Bỏ chọn folder",
+  "Select folder": "Chọn folder",
+  "Locked": "Đã khóa",
+  "({0} file)": "({0} tệp)",
+  "{0} folders · {1} files selected · {2} Legal Studies": "Đã chọn {0} thư mục · {1} tệp · {2} Legal Study",
+  "Search folders or files...": "Tìm thư mục hoặc tệp...",
+  "No folders/files found.": "Không tìm thấy thư mục/tệp.",
+  "Folders ({0})": "Thư mục ({0})",
+  "{0}/{1} files selectable": "{0}/{1} tệp có thể chọn",
+  "Select all": "Chọn tất cả",
+  "Deselect": "Bỏ chọn",
+  "This file is already linked": "File này đã được liên kết",
+  "No files in this folder.": "Thư mục này không có tệp.",
+  "{0} folders · {1} files selected": "Đã chọn {0} thư mục · {1} tệp",
+  "Files ({0})": "Tệp ({0})",
+  "Link Reference": "Liên kết tham chiếu",
+  "Link": "Liên kết",
+  "Found {0} cases{1}": "Tìm thấy {0} hồ sơ{1}",
+  ", showing {0}": ", đang hiện {0}",
+  "Please select a Case Reference": "Vui lòng chọn Case Reference",
+  "Search Case Reference...": "Tìm Case Reference...",
+  "Case Reference not found": "Không tìm thấy Case Reference",
+  "Found {0} references{1}": "Tìm thấy {0} tham chiếu{1}",
+  "Please select a Legal Reference": "Vui lòng chọn Legal Reference",
+  "Select Legal Reference...": "Chọn Legal Reference...",
+  "Legal Reference not found": "Không tìm thấy Legal Reference",
+  "Please select a Legal Study": "Vui lòng chọn Legal Study",
+  "Select Legal Study...": "Chọn Legal Study...",
+  "Legal Study not found": "Không tìm thấy Legal Study",
+  "Failed to load references": "Không thể tải tham chiếu",
+  "Retry": "Thử lại",
+  "Current case not found": "Không tìm thấy hồ sơ hiện tại",
+  "References": "Tham chiếu",
+  "{0} Legal Reference · {1} Case Reference · {2} Legal Study": "{0} Legal Reference · {1} Case Reference · {2} Legal Study",
+  "Refresh": "Làm mới",
+  "All": "Tất cả",
+  "Search...": "Tìm kiếm...",
+  "Type": "Loại",
+  "Reference": "Reference",
+  "Creator": "Người tạo",
+  "Updated At": "Cập nhật lúc",
+  "No matching references found.": "Không tìm thấy tham chiếu phù hợp.",
+  "No references linked yet.": "Chưa liên kết tham chiếu nào.",
+  "{0} folders · {1} documents": "{0} thư mục · {1} tài liệu",
+  "Document Preview": "Xem trước tài liệu",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const React = ctx.React;
 const h = React.createElement;
 const antd = ctx.antd || {};
@@ -38,7 +174,7 @@ const CONFIG = {
   // Leave empty to follow the NocoBase template: popupUid = ctx.model.uid + "-1".
   casePopupUid: "3l7acumtlsc",
   caseViewUid: "3l7acumtlsc",
-  caseViewTitle: "Case detail",
+  caseViewTitle: tr("Case detail"),
   caseCollectionName: "projects",
   dataSourceKey: "main",
   caseOpenStrategy: "url", // "openView" or "url"
@@ -109,7 +245,7 @@ const CONFIG = {
   legalStudyListCandidates: [
     "legalStudy:list",
   ],
-  legalStudyAppends: ["documents", "Folders"],
+  legalStudyAppends: ["documents", tr("Folders")],
   legalStudyRelationFieldCandidates: [
     "legalStudyId",
     "legalStudy",
@@ -439,7 +575,7 @@ const getLegalStudyTitle = (record) =>
   record?.studyName ||
   record?.legalStudyName ||
   record?.code ||
-  (extractId(record) ? `Legal Study #${extractId(record)}` : "Legal Study");
+  (extractId(record) ? tr("Legal Study #{0}", { 0: extractId(record) }) : tr("Legal Study"));
 
 const getLegalStudyRelationId = (record) => {
   for (const field of CONFIG.legalStudyRelationFieldCandidates) {
@@ -631,7 +767,7 @@ const uploadAttachment = async (file, fileName = null) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   const attachment = uploadRes?.data?.data;
-  if (!attachment?.id) throw new Error("Upload file failed");
+  if (!attachment?.id) throw new Error(tr("Upload file failed"));
   return attachment;
 };
 
@@ -781,44 +917,44 @@ const isStandaloneReference = (reference) => !isCaseBasedReference(reference) &&
 
 const getReferenceKindLabelMojibake = (reference) =>
   isCaseBasedReference(reference)
-    ? "Case Reference"
+    ? tr("Case Reference")
     : isLegalStudyReference(reference)
-      ? "Legal Study"
-      : "Case Reference";
+      ? tr("Legal Study")
+      : tr("Case Reference");
 
 const getReferenceKindLabelLegacyMojibake = (reference) =>
-  isCaseBasedReference(reference) ? "Case Reference" : "Folder";
+  isCaseBasedReference(reference) ? tr("Case Reference") : tr("Folder");
 
 const getReferenceSubtitleMojibake = (reference) => {
   if (isCaseBasedReference(reference)) {
     const source = getSourceCase(reference);
     const closedAt = source?.closedDate || source?.closedAt || source?.endDate;
     const status = source?.status;
-    return [status, closedAt ? `Closed ${formatDate(closedAt)}` : ""].filter(Boolean).join(" · ") ||
-      "Source case in system";
+    return [status, closedAt ? tr("Closed {0}", { 0: formatDate(closedAt) }) : ""].filter(Boolean).join(" · ") ||
+      tr("Source case in system");
   }
-  return reference?.description || "Standalone reference dossier";
+  return reference?.description || tr("Standalone reference dossier");
 };
 
 const getReferenceKindLabel = (reference) =>
   isLegalStudyReference(reference)
-    ? "Legal Study"
+    ? tr("Legal Study")
     : isCaseBasedReference(reference)
-      ? "Case Reference"
-      : "Legal Reference";
+      ? tr("Case Reference")
+      : tr("Legal Reference");
 
 const getReferenceKindLabelLegacy = (reference) =>
-  isCaseBasedReference(reference) ? "Case Reference" : "Folder";
+  isCaseBasedReference(reference) ? tr("Case Reference") : tr("Folder");
 
 const getReferenceSubtitle = (reference) => {
   if (isCaseBasedReference(reference)) {
     const source = getSourceCase(reference);
     const closedAt = source?.closedDate || source?.closedAt || source?.endDate;
     const status = source?.status;
-    return [status, closedAt ? `Closed ${formatDate(closedAt)}` : ""].filter(Boolean).join(" · ") ||
-      "Case Reference in system";
+    return [status, closedAt ? tr("Closed {0}", { 0: formatDate(closedAt) }) : ""].filter(Boolean).join(" · ") ||
+      tr("Case Reference in system");
   }
-  return reference?.description || "Standalone reference dossier";
+  return reference?.description || tr("Standalone reference dossier");
 };
 
 const normalizeSearchValue = (value) =>
@@ -924,7 +1060,7 @@ const getFileName = (doc) => {
     doc?.title ||
     doc?.name ||
     doc?.googleDriveUrl ||
-    "Document"
+    tr("Document")
   );
 };
 
@@ -1053,7 +1189,7 @@ const addRelationLink = async (relationName, sourceCaseId, targetId) => {
       }
     }
   }
-  throw lastError || new Error(`Failed to link ${relationName}`);
+  throw lastError || new Error(tr("Failed to link {0}", { 0: relationName }));
 };
 
 const removeRelationLink = async (relationName, sourceCaseId, targetId) => {
@@ -1088,7 +1224,7 @@ const removeRelationLink = async (relationName, sourceCaseId, targetId) => {
       }
     }
   }
-  throw lastError || new Error(`Failed to unlink ${relationName}`);
+  throw lastError || new Error(tr("Failed to unlink {0}", { 0: relationName }));
 };
 
 const fetchLinkedRelationRows = async (caseId, relationName) => {
@@ -1727,7 +1863,7 @@ function LegalReferenceWorkspace() {
       loadStats(rows);
     } catch (loadError) {
       console.error("[JsItemLegalReference] load links failed", loadError);
-      setError(loadError?.message || "Failed to load document references.");
+      setError(loadError?.message || tr("Failed to load document references."));
     } finally {
       setLoading(false);
     }
@@ -1773,49 +1909,49 @@ function LegalReferenceWorkspace() {
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) {
       // Popup bị browser block → thông báo user thay vì redirect
-      message?.warning?.("Please allow popups for this site to open case details.");
+      message?.warning?.(tr("Please allow popups for this site to open case details."));
     }
   }, [buildCaseDetailUrl]);
 
   const openCaseViewPopup = async (sourceCaseId, sourceCaseRecord) => {
     const safeId = idValue(sourceCaseId);
     if (!hasUsableId(safeId)) {
-      message?.warning?.("Source case not found.");
+      message?.warning?.(tr("Source case not found."));
       return;
     }
     const path = CONFIG.caseDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
     const url = `${window.location.origin}${path}`;
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) {
-      message?.warning?.("Please allow popups for this site to open case details.");
+      message?.warning?.(tr("Please allow popups for this site to open case details."));
     }
   };
 
   const openLegalReferenceViewPopup = async (referenceId, referenceRecord) => {
     const safeId = idValue(referenceId);
     if (!hasUsableId(safeId)) {
-      message?.warning?.("Legal Reference not found.");
+      message?.warning?.(tr("Legal Reference not found."));
       return;
     }
     const path = CONFIG.legalReferenceDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
     const url = `${window.location.origin}${path}`;
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) {
-      message?.warning?.("Please allow popups for this site to open Legal Reference details.");
+      message?.warning?.(tr("Please allow popups for this site to open Legal Reference details."));
     }
   };
 
   const openLegalStudyViewPopup = async (studyId, studyRecord) => {
     const safeId = idValue(studyId);
     if (!hasUsableId(safeId)) {
-      message?.warning?.("Legal Study not found.");
+      message?.warning?.(tr("Legal Study not found."));
       return;
     }
     const path = CONFIG.legalStudyDetailUrlTemplate.replace("{id}", encodeURIComponent(safeId));
     const url = `${window.location.origin}${path}`;
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (!opened) {
-      message?.warning?.("Please allow popups for this site to open Legal Study details.");
+      message?.warning?.(tr("Please allow popups for this site to open Legal Study details."));
     }
   };
   const handleOpenReference = (link) => {
@@ -1842,7 +1978,7 @@ function LegalReferenceWorkspace() {
 
   const openPreview = (doc) => {
     if (!getFileUrl(doc)) {
-      message?.warning?.("The document does not have a file or URL to preview.");
+      message?.warning?.(tr("The document does not have a file or URL to preview."));
       return;
     }
     setPreviewDoc(doc);
@@ -1851,7 +1987,7 @@ function LegalReferenceWorkspace() {
   const openFileUrl = (doc) => {
     const fileUrl = getFileUrl(doc);
     if (!fileUrl) {
-      message?.warning?.("The document does not have a file or URL.");
+      message?.warning?.(tr("The document does not have a file or URL."));
       return;
     }
     const opened = window.open(fileUrl, "_blank", "noopener,noreferrer");
@@ -1880,7 +2016,7 @@ function LegalReferenceWorkspace() {
     } catch (error) {
       console.warn("[JsItemLegalReference] load source library failed", error);
       setSourcePickerLibrary({ studies: [], folders: [], documents: [] });
-      message?.warning?.("Failed to load folders/files of the legal reference.");
+      message?.warning?.(tr("Failed to load folders/files of the legal reference."));
     } finally {
       setSourcePickerLoading(false);
     }
@@ -2134,7 +2270,7 @@ function LegalReferenceWorkspace() {
 
   const removeLinkRecord = async (link) => {
     if (!hasUsableId(caseId)) {
-      message?.warning?.("Current case not found.");
+      message?.warning?.(tr("Current case not found."));
       return;
     }
 
@@ -2143,20 +2279,20 @@ function LegalReferenceWorkspace() {
     const referenceId = extractId(reference);
 
     if (!hasUsableId(referenceId)) {
-      message?.warning?.("Reference record not found.");
+      message?.warning?.(tr("Reference record not found."));
       return;
     }
 
     try {
       if (linkType === "legal_study") {
         await removeRelationLink("legalStudy", caseId, referenceId);
-        message?.success?.("Unlinked Legal Study successfully.");
+        message?.success?.(tr("Unlinked Legal Study successfully."));
       } else if (linkType === "case_based") {
         await removeRelationLink("caseReferences", caseId, referenceId);
-        message?.success?.("Removed Case Reference successfully.");
+        message?.success?.(tr("Removed Case Reference successfully."));
       } else {
         await removeRelationLink("legalReference", caseId, referenceId);
-        message?.success?.("Removed Legal Reference successfully.");
+        message?.success?.(tr("Removed Legal Reference successfully."));
       }
       await loadLinks();
     } catch (err) {
@@ -2164,7 +2300,7 @@ function LegalReferenceWorkspace() {
       // Không show error vì removeRelationLink đã thử tất cả candidates
       // Nếu tất cả fail thì reload lại để UI đồng bộ
       await loadLinks();
-      message?.warning?.("Could not confirm removal. Please refresh.");
+      message?.warning?.(tr("Could not confirm removal. Please refresh."));
     }
   };
 
@@ -2172,15 +2308,15 @@ function LegalReferenceWorkspace() {
     const reference = link?.reference || getLinkReference(link);
     const linkType = link?.type;
     const title = linkType === "case_based"
-      ? "Remove Case Reference?"
+      ? tr("Remove Case Reference?")
       : linkType === "legal_study"
-        ? "Remove Legal Study?"
-        : "Remove Legal Reference?";
+        ? tr("Remove Legal Study?")
+        : tr("Remove Legal Reference?");
     Modal.confirm({
       title,
       content: getReferenceTitle(reference),
-      okText: "Remove link",
-      cancelText: "Cancel",
+      okText: tr("Remove link"),
+      cancelText: tr("Cancel"),
       okButtonProps: { danger: true },
       onOk: () => removeLinkRecord(link),
     });
@@ -2191,7 +2327,7 @@ function LegalReferenceWorkspace() {
     try {
       const values = await linkForm.validateFields();
       if (!hasUsableId(caseId)) {
-        message?.warning?.("Current case not found.");
+        message?.warning?.(tr("Current case not found."));
         return;
       }
 
@@ -2199,31 +2335,31 @@ function LegalReferenceWorkspace() {
         // Case Reference: link via caseReferences relation
         const sourceCaseId = values.caseReferenceId;
         if (!hasUsableId(sourceCaseId)) {
-          message?.warning?.("Please select a Case.");
+          message?.warning?.(tr("Please select a Case."));
           return;
         }
         if (linkedSourceCaseIds.has(String(sourceCaseId))) {
-          message?.info?.("This case is already linked as a reference.");
+          message?.info?.(tr("This case is already linked as a reference."));
           setLinkModalOpen(false);
           return;
         }
         await addRelationLink("caseReferences", caseId, sourceCaseId);
-        message?.success?.("Linked Case Reference successfully.");
+        message?.success?.(tr("Linked Case Reference successfully."));
 
       } else if (linkMode === "standalone") {
         // Legal Reference: link via legalReference relation
         const referenceId = values.standaloneReferenceId;
         if (!hasUsableId(referenceId)) {
-          message?.warning?.("Please select a Legal Reference.");
+          message?.warning?.(tr("Please select a Legal Reference."));
           return;
         }
         if (linkedReferenceIds.has(String(referenceId))) {
-          message?.info?.("This record is already linked to the current case.");
+          message?.info?.(tr("This record is already linked to the current case."));
           setLinkModalOpen(false);
           return;
         }
         await addRelationLink("legalReference", caseId, referenceId);
-        message?.success?.("Linked Legal Reference successfully.");
+        message?.success?.(tr("Linked Legal Reference successfully."));
 
       } else if (linkMode === "legal_study") {
         const legalStudyId = values.legalStudyId || selectedLegalStudyId;
@@ -2231,20 +2367,20 @@ function LegalReferenceWorkspace() {
           selectedLegalStudy ||
           activeRows(legalStudyLibrary.studies).find((study) => String(extractId(study)) === String(legalStudyId));
         if (!legalStudyId || !legalStudyRecord) {
-          message?.warning?.("Please select a Legal Study.");
+          message?.warning?.(tr("Please select a Legal Study."));
           return;
         }
         const isAlreadyLinked = links.some((row) => row?.type === "legal_study" && String(extractId(row?.reference)) === String(legalStudyId));
         if (isAlreadyLinked) {
-          message?.info?.("This Legal Study is already linked to the current case.");
+          message?.info?.(tr("This Legal Study is already linked to the current case."));
           setLinkModalOpen(false);
           return;
         }
         await addRelationLink("legalStudy", caseId, legalStudyId);
-        message?.success?.("Linked Legal Study successfully.");
+        message?.success?.(tr("Linked Legal Study successfully."));
 
       } else {
-        message?.warning?.("Unknown link mode.");
+        message?.warning?.(tr("Unknown link mode."));
         return;
       }
 
@@ -2257,7 +2393,7 @@ function LegalReferenceWorkspace() {
     } catch (error) {
       if (error?.errorFields) return;
       console.error("[JsItemLegalReference] link submit failed", error);
-      message?.error?.("Failed to create link.");
+      message?.error?.(tr("Failed to create link."));
     } finally {
       setLinkLoading(false);
     }
@@ -2308,15 +2444,15 @@ function LegalReferenceWorkspace() {
   const getFolderPath = React.useCallback(
     (folderId) => {
       const id = extractId(folderId);
-      if (!id) return "Root";
+      if (!id) return tr("Root");
       const names = [];
       let current = folderMap.get(String(id));
       while (current) {
-        names.unshift(current.name || "Folder");
+        names.unshift(current.name || tr("Folder"));
         const parentId = getParentId(current);
         current = parentId ? folderMap.get(String(parentId)) : null;
       }
-      return names.length ? names.join(" / ") : "Root";
+      return names.length ? names.join(" / ") : tr("Root");
     },
     [folderMap],
   );
@@ -2335,7 +2471,7 @@ function LegalReferenceWorkspace() {
           const childFolders = countDescendantFolders(library.folders, folderId);
           return {
             key: folderId,
-            title: `${folder.name || "Folder"}${directFiles || childFolders ? ` (${directFiles + childFolders})` : ""}`,
+            title: `${folder.name || tr("Folder")}${directFiles || childFolders ? ` (${directFiles + childFolders})` : ""}`,
             children: buildTree(folderId),
           };
         }),
@@ -2346,7 +2482,7 @@ function LegalReferenceWorkspace() {
     () => [
       {
         key: "root",
-        title: `All documents (${library.documents.length})`,
+        title: tr("All documents ({0})", { 0: library.documents.length }),
         children: buildTree(null),
       },
     ],
@@ -2374,9 +2510,9 @@ function LegalReferenceWorkspace() {
   }, [library.documents, library.folders, selectedFolderId, libraryQuery]);
 
   const selectedFolderName = React.useMemo(() => {
-    if (selectedFolderId === "root") return "All documents";
-    if (libraryQuery.trim()) return "Search results";
-    return folderMap.get(String(selectedFolderId))?.name || "Folder";
+    if (selectedFolderId === "root") return tr("All documents");
+    if (libraryQuery.trim()) return tr("Search results");
+    return folderMap.get(String(selectedFolderId))?.name || tr("Folder");
   }, [selectedFolderId, libraryQuery, folderMap]);
 
   const filteredLinks = React.useMemo(() => {
@@ -2481,7 +2617,7 @@ function LegalReferenceWorkspace() {
     const isStudy = overrideType === "legal_study" || (!overrideType && isLegalStudyReference(reference));
     const isCase = overrideType === "case_based" || (!overrideType && !isStudy && isCaseBasedReference(reference));
     const badgeColor = isStudy ? "purple" : isCase ? "geekblue" : "blue";
-    const label = isStudy ? "Legal Study" : isCase ? "Case Reference" : "Legal Reference";
+    const label = isStudy ? tr("Legal Study") : isCase ? tr("Case Reference") : tr("Legal Reference");
     return h(
       Tag,
       { color: badgeColor, style: { margin: 0, borderRadius: 4, fontWeight: 600 } },
@@ -2626,7 +2762,7 @@ function LegalReferenceWorkspace() {
     const name = getFileName(doc);
     const sizeText = formatBytes(attachment?.size);
     const dateText = formatDate(doc.uploadedAt || doc.createdAt || doc.updatedAt);
-    const sourceText = selectedFolderId === "root" ? `Nguồn: ${getFolderPath(getDocFolderId(doc))}` : "";
+    const sourceText = selectedFolderId === "root" ? tr("Source: {0}", { 0: getFolderPath(getDocFolderId(doc)) }) : "";
 
     return h(
       List.Item,
@@ -2644,7 +2780,7 @@ function LegalReferenceWorkspace() {
               disabled: !fileUrl,
               onClick: () => openPreview(doc),
             },
-            "Open",
+            tr("Open"),
           ),
           h(
             Button,
@@ -2660,7 +2796,7 @@ function LegalReferenceWorkspace() {
                 openFileUrl(doc);
               },
             },
-            "Download",
+            tr("Download"),
           ),
         ],
       },
@@ -2713,7 +2849,7 @@ function LegalReferenceWorkspace() {
             h(
               "div",
               { key: "meta", style: { marginTop: doc.description || sourceText ? 3 : 0 } },
-              [sizeText, dateText].filter(Boolean).join(" · ") || "No file information",
+              [sizeText, dateText].filter(Boolean).join(" · ") || tr("No file information"),
             ),
           ],
         ),
@@ -2724,7 +2860,7 @@ function LegalReferenceWorkspace() {
   const renderLinkedCases = () => {
     const cases = activeRows(linkedCases);
     if (!cases.length) {
-      return h("div", { style: { color: color.faint, fontSize: 12 } }, "No other cases.");
+      return h("div", { style: { color: color.faint, fontSize: 12 } }, tr("No other cases."));
     }
 
     return h(
@@ -2784,7 +2920,7 @@ function LegalReferenceWorkspace() {
             overflowY: "auto",
           },
         },
-        h("div", { style: { fontSize: 12, color: color.muted, marginBottom: 8, fontWeight: 700 } }, "Folders"),
+        h("div", { style: { fontSize: 12, color: color.muted, marginBottom: 8, fontWeight: 700 } }, tr("Folders")),
         folderCount || fileCount
           ? h(DirectoryTree, {
             treeData,
@@ -2795,7 +2931,7 @@ function LegalReferenceWorkspace() {
           })
           : h(Empty, {
             image: Empty.PRESENTED_IMAGE_SIMPLE,
-            description: "No documents yet.",
+            description: tr("No documents yet."),
             style: { padding: "18px 0" },
           }),
       ),
@@ -2820,12 +2956,12 @@ function LegalReferenceWorkspace() {
             h(
               "div",
               { style: { fontSize: 12, color: color.muted, marginTop: 2 } },
-              `${visibleDocuments.length} documents displayed · ${folderCount} folders · ${fileCount} files`,
+              tr("{0} documents displayed · {1} folders · {2} files", { 0: visibleDocuments.length, 1: folderCount, 2: fileCount }),
             ),
           ),
           h(Input.Search, {
             allowClear: true,
-            placeholder: "Search documents...",
+            placeholder: tr("Search documents..."),
             value: libraryQuery,
             onChange: (event) => setLibraryQuery(event.target.value),
             style: { width: 260 },
@@ -2851,7 +2987,7 @@ function LegalReferenceWorkspace() {
             })
             : h(Empty, {
               image: Empty.PRESENTED_IMAGE_SIMPLE,
-              description: libraryQuery ? "No matching documents found." : "This folder has no documents yet.",
+              description: libraryQuery ? tr("No matching documents found.") : tr("This folder has no documents yet."),
               style: { padding: "48px 0" },
             }),
         ),
@@ -2868,7 +3004,7 @@ function LegalReferenceWorkspace() {
     if (!fileUrl) {
       return h(Empty, {
         image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "Tài liệu chưa có file hoặc URL để xem trước.",
+        description: tr("The document has no file or URL to preview."),
         style: { padding: "60px 0" },
       });
     }
@@ -2911,7 +3047,7 @@ function LegalReferenceWorkspace() {
         return h(Alert, {
           type: "warning",
           showIcon: true,
-          message: "Không đọc được nội dung file trong trình duyệt.",
+          message: tr("Could not read the file content in the browser."),
         });
       }
       return h(
@@ -2996,18 +3132,18 @@ function LegalReferenceWorkspace() {
         Form.Item,
         {
           name: "newStandaloneTitle",
-          label: "Tên hồ sơ",
-          rules: [{ required: true, message: "Vui lòng nhập tên hồ sơ" }],
+          label: tr("Dossier name"),
+          rules: [{ required: true, message: tr("Please enter a dossier name") }],
         },
-        h(Input, { placeholder: "Nhập tên hồ sơ..." }),
+        h(Input, { placeholder: tr("Enter a dossier name...") }),
       ),
       h(
         Form.Item,
         {
           name: "newStandaloneDescription",
-          label: "Mô tả",
+          label: tr("Description"),
         },
-        h(Input.TextArea, { rows: 3, placeholder: "Mô tả ngắn..." }),
+        h(Input.TextArea, { rows: 3, placeholder: tr("Short description...") }),
       ),
       h(
         "div",
@@ -3019,19 +3155,19 @@ function LegalReferenceWorkspace() {
             background: color.bg,
           },
         },
-        h("div", { style: { fontWeight: 700, color: color.text, marginBottom: 8 } }, "Upload tài liệu cho hồ sơ tham chiếu"),
+        h("div", { style: { fontWeight: 700, color: color.text, marginBottom: 8 } }, tr("Upload documents for the reference dossier")),
         h(
           Space,
           { size: 8, wrap: true },
           renderUploadPicker({
             type: "files",
-            title: "Upload file",
+            title: tr("Upload file"),
             fileList: newReferenceFiles,
             setFileList: setNewReferenceFiles,
           }),
           renderUploadPicker({
             type: "folder",
-            title: "Upload thư mục",
+            title: tr("Upload folder"),
             fileList: newReferenceFolderFiles,
             setFileList: setNewReferenceFolderFiles,
           }),
@@ -3039,7 +3175,7 @@ function LegalReferenceWorkspace() {
         h(
           "div",
           { style: { marginTop: 8, color: color.muted, fontSize: 12 } },
-          `${newReferenceFiles.length} file · ${newReferenceFolderFiles.length} file trong thư mục`,
+          tr("{0} file(s) · {1} file(s) in folders", { 0: newReferenceFiles.length, 1: newReferenceFolderFiles.length }),
         ),
       ),
     );
@@ -3080,7 +3216,7 @@ function LegalReferenceWorkspace() {
         let current = folderMapForSource.get(String(folderId));
         let study = current?._legalStudy;
         while (current) {
-          names.unshift(current.name || current.title || "Folder");
+          names.unshift(current.name || current.title || tr("Folder"));
           study = study || current?._legalStudy;
           const parentId = getParentId(current);
           current = parentId ? folderMapForSource.get(String(parentId)) : null;
@@ -3121,7 +3257,7 @@ function LegalReferenceWorkspace() {
 
       const countFilesInFolder = (folderId) => getScopedDocuments(folderId).length;
       const activeFolder = activeSourceFolderId === "root" ? null : folderMapForSource.get(String(activeSourceFolderId));
-      const activeFolderLabel = activeFolder ? getSourceFolderPath(activeSourceFolderId) : "All files";
+      const activeFolderLabel = activeFolder ? getSourceFolderPath(activeSourceFolderId) : tr("All files");
       const activeScopeFolderIds = activeSourceFolderId === "root" ? [] : getFolderScopeIds(activeSourceFolderId);
       const activeScopeFolderSet = new Set(activeScopeFolderIds);
       const activeDocuments = getScopedDocuments(activeSourceFolderId);
@@ -3181,7 +3317,7 @@ function LegalReferenceWorkspace() {
             h("span", {
               role: "checkbox",
               "aria-checked": selected || locked,
-              title: selected ? "Bỏ chọn folder" : "Chọn folder",
+              title: selected ? tr("Deselect folder") : tr("Select folder"),
               onClick: (event) => {
                 event.stopPropagation();
                 if (locked) return;
@@ -3213,10 +3349,10 @@ function LegalReferenceWorkspace() {
                     whiteSpace: "nowrap",
                   },
                 },
-                folder.name || folder.title || "Folder",
+                folder.name || folder.title || tr("Folder"),
               ),
             ),
-            locked ? h(Tag, { color: "default", style: { marginLeft: 2, borderRadius: 4, fontSize: 11 } }, "Locked") : null,
+            locked ? h(Tag, { color: "default", style: { marginLeft: 2, borderRadius: 4, fontSize: 11 } }, tr("Locked")) : null,
           ),
           h(
             "span",
@@ -3227,7 +3363,7 @@ function LegalReferenceWorkspace() {
                 whiteSpace: "nowrap",
               },
             },
-            `(${fileCount} file)`,
+            tr("({0} file)", { 0: fileCount }),
           ),
         );
       };
@@ -3266,14 +3402,14 @@ function LegalReferenceWorkspace() {
               "span",
               { style: { display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 } },
               h("span", { style: { color: color.blue, display: "inline-flex" } }, ICONS.folder),
-              h("span", null, "All files"),
+              h("span", null, tr("All files")),
             ),
-            h("span", { style: { color: color.faint, fontSize: 12 } }, `(${documents.length} file)`),
+            h("span", { style: { color: color.faint, fontSize: 12 } }, tr("({0} file)", { 0: documents.length })),
           ),
           children: buildSourceTree(null),
         },
       ];
-      const selectionHint = `${selectedSourceFolderIds.length} folders · ${selectedSourceDocumentIds.length} files selected · ${studies.length} Legal Studies`;
+      const selectionHint = tr("{0} folders · {1} files selected · {2} Legal Studies", { 0: selectedSourceFolderIds.length, 1: selectedSourceDocumentIds.length, 2: studies.length });
 
       return h(
         "div",
@@ -3288,7 +3424,7 @@ function LegalReferenceWorkspace() {
         },
         h(Input.Search, {
           allowClear: true,
-          placeholder: "Search folders or files...",
+          placeholder: tr("Search folders or files..."),
           value: legalStudySearch,
           onChange: (event) => setLegalStudySearch(event.target.value),
           style: { marginBottom: 8 },
@@ -3301,7 +3437,7 @@ function LegalReferenceWorkspace() {
         loading
           ? h("div", { style: { padding: 24, textAlign: "center" } }, h(Spin, null))
           : (!folders.length && !documents.length)
-            ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || "No folders/files found." })
+            ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || tr("No folders/files found.") })
             : h(
               "div",
               {
@@ -3325,7 +3461,7 @@ function LegalReferenceWorkspace() {
                     overflow: "auto",
                   },
                 },
-                h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Folders (${folders.length})`),
+                h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, tr("Folders ({0})", { 0: folders.length })),
                 h(DirectoryTree, {
                   blockNode: true,
                   showIcon: false,
@@ -3388,7 +3524,7 @@ function LegalReferenceWorkspace() {
                     h(
                       "div",
                       { style: { color: color.muted, fontSize: 12, marginTop: 2 } },
-                      `${selectedInActiveFolder}/${selectableActiveDocumentIds.length} files selectable`,
+                      tr("{0}/{1} files selectable", { 0: selectedInActiveFolder, 1: selectableActiveDocumentIds.length }),
                     ),
                   ),
                   h(
@@ -3398,14 +3534,14 @@ function LegalReferenceWorkspace() {
                       size: "small",
                       disabled: !selectableActiveDocumentIds.length,
                       onClick: selectActiveDocuments,
-                    }, "Select all"),
+                    }, tr("Select all")),
                     h(Button, {
                       size: "small",
                       disabled: activeSourceFolderId === "root"
                         ? (!selectedSourceFolderIds.length && !selectedSourceDocumentIds.length)
                         : (!activeScopeFolderIds.some((id) => selectedFolderSet.has(id)) && !selectedInActiveFolder),
                       onClick: clearActiveSelection,
-                    }, "Deselect"),
+                    }, tr("Deselect")),
                   ),
                 ),
                 h(
@@ -3434,7 +3570,7 @@ function LegalReferenceWorkspace() {
                           },
                           children: h(
                             Tooltip,
-                            { title: locked ? "File này đã được liên kết" : folderPath ? `${folderPath} / ${getFileName(doc)}` : getFileName(doc) },
+                            { title: locked ? tr("This file is already linked") : folderPath ? `${folderPath} / ${getFileName(doc)}` : getFileName(doc) },
                             h(
                               "span",
                               {
@@ -3458,13 +3594,13 @@ function LegalReferenceWorkspace() {
                                 },
                                 getFileName(doc),
                               ),
-                              locked ? h(Tag, { color: "default", style: { marginLeft: 4, borderRadius: 4, fontSize: 11 } }, "Locked") : null,
+                              locked ? h(Tag, { color: "default", style: { marginLeft: 4, borderRadius: 4, fontSize: 11 } }, tr("Locked")) : null,
                             ),
                           ),
                         });
                       }),
                     )
-                    : h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: "No files in this folder." }),
+                    : h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: tr("No files in this folder.") }),
                 ),
               ),
             ),
@@ -3477,7 +3613,7 @@ function LegalReferenceWorkspace() {
       const names = [];
       let current = folderMapForSource.get(String(folderId));
       while (current) {
-        names.unshift(current.name || current.title || "Folder");
+        names.unshift(current.name || current.title || tr("Folder"));
         const parentId = getParentId(current);
         current = parentId ? folderMapForSource.get(String(parentId)) : null;
       }
@@ -3503,7 +3639,7 @@ function LegalReferenceWorkspace() {
       },
       h(Input.Search, {
         allowClear: true,
-        placeholder: "Search folders or files...",
+        placeholder: tr("Search folders or files..."),
         value: legalStudySearch,
         onChange: (event) => setLegalStudySearch(event.target.value),
         style: { marginBottom: 8 },
@@ -3511,12 +3647,12 @@ function LegalReferenceWorkspace() {
       h(
         "div",
         { style: { color: color.muted, fontSize: 12, marginBottom: 10 } },
-        hint || `${selectedSourceFolderIds.length} folders · ${selectedSourceDocumentIds.length} files selected`,
+        hint || tr("{0} folders · {1} files selected", { 0: selectedSourceFolderIds.length, 1: selectedSourceDocumentIds.length }),
       ),
       loading
         ? h("div", { style: { padding: 24, textAlign: "center" } }, h(Spin, null))
         : (!library.folders.length && !library.documents.length)
-          ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || "No folders/files found." })
+          ? h(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE, description: emptyText || tr("No folders/files found.") })
           : h(
             "div",
             {
@@ -3529,7 +3665,7 @@ function LegalReferenceWorkspace() {
             h(
               "div",
               null,
-              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Folders (${filteredFolders.length})`),
+              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, tr("Folders ({0})", { 0: filteredFolders.length })),
               h(
                 "div",
                 { style: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflow: "auto" } },
@@ -3542,7 +3678,7 @@ function LegalReferenceWorkspace() {
                     children: h(
                       Tooltip,
                       { title: getSourceFolderPath(id) },
-                      h("span", { style: { fontSize: 13 } }, folder.name || folder.title || "Folder"),
+                      h("span", { style: { fontSize: 13 } }, folder.name || folder.title || tr("Folder")),
                     ),
                   });
                 }),
@@ -3551,7 +3687,7 @@ function LegalReferenceWorkspace() {
             h(
               "div",
               null,
-              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, `Files (${filteredDocuments.length})`),
+              h("div", { style: { fontWeight: 700, marginBottom: 8, color: color.text } }, tr("Files ({0})", { 0: filteredDocuments.length })),
               h(
                 "div",
                 { style: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflow: "auto" } },
@@ -3579,7 +3715,7 @@ function LegalReferenceWorkspace() {
     h(
       Modal,
       {
-        title: "Link Reference",
+        title: tr("Link Reference"),
         open: linkModalOpen,
         width: 920,
         onCancel: () => {
@@ -3593,8 +3729,8 @@ function LegalReferenceWorkspace() {
           setNewReferenceFolderFiles([]);
         },
         onOk: handleLinkSubmit,
-        okText: "Link",
-        cancelText: "Cancel",
+        okText: tr("Link"),
+        cancelText: tr("Cancel"),
         confirmLoading: linkLoading,
         destroyOnClose: true,
       },
@@ -3642,7 +3778,7 @@ function LegalReferenceWorkspace() {
                 transition: "all 0.2s ease",
               },
             },
-            "Legal Reference",
+            tr("Legal Reference"),
           ),
           h(
             "button",
@@ -3668,7 +3804,7 @@ function LegalReferenceWorkspace() {
                 transition: "all 0.2s ease",
               },
             },
-            "Case Reference",
+            tr("Case Reference"),
           ),
           h(
             "button",
@@ -3695,7 +3831,7 @@ function LegalReferenceWorkspace() {
                 transition: "all 0.2s ease",
               },
             },
-            "Legal Study",
+            tr("Legal Study"),
           ),
         ),
         linkMode === "case"
@@ -3706,28 +3842,28 @@ function LegalReferenceWorkspace() {
                 key: "caseSearchCount",
                 style: { marginBottom: 8, color: color.muted, fontSize: 12 },
               },
-              `Found ${filteredCaseOptions.length} cases${filteredCaseOptions.length > visibleCaseOptions.length ? `, showing ${visibleCaseOptions.length}` : ""}`,
+              tr("Found {0} cases{1}", { 0: filteredCaseOptions.length, 1: filteredCaseOptions.length > visibleCaseOptions.length ? tr(", showing {0}", { 0: visibleCaseOptions.length }) : "" }),
             ),
             h(
               Form.Item,
               {
                 key: "caseReferenceId",
                 name: "caseReferenceId",
-                label: "Case Reference",
-                rules: [{ required: true, message: "Please select a Case Reference" }],
+                label: tr("Case Reference"),
+                rules: [{ required: true, message: tr("Please select a Case Reference") }],
               },
               h(
                 Select,
                 {
                   showSearch: true,
                   loading: optionLoading,
-                  placeholder: "Search Case Reference...",
+                  placeholder: tr("Search Case Reference..."),
                   searchValue: caseOptionSearch,
                   onSearch: setCaseOptionSearch,
                   onChange: () => setCaseOptionSearch(""),
                   optionFilterProp: "label",
                   filterOption: false,
-                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Case Reference not found",
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : tr("Case Reference not found"),
                 },
                 visibleCaseOptions.map((item) => {
                   const labelText = getCaseTitle(item);
@@ -3747,28 +3883,28 @@ function LegalReferenceWorkspace() {
                 key: "standaloneSearchCount",
                 style: { marginBottom: 8, color: color.muted, fontSize: 12 },
               },
-              `Found ${filteredStandaloneOptions.length} references${filteredStandaloneOptions.length > visibleStandaloneOptions.length ? `, showing ${visibleStandaloneOptions.length}` : ""}`,
+              tr("Found {0} references{1}", { 0: filteredStandaloneOptions.length, 1: filteredStandaloneOptions.length > visibleStandaloneOptions.length ? tr(", showing {0}", { 0: visibleStandaloneOptions.length }) : "" }),
             ),
             h(
               Form.Item,
               {
                 key: "standaloneReferenceId",
                 name: "standaloneReferenceId",
-                label: "Legal Reference",
-                rules: [{ required: true, message: "Please select a Legal Reference" }],
+                label: tr("Legal Reference"),
+                rules: [{ required: true, message: tr("Please select a Legal Reference") }],
               },
               h(
                 Select,
                 {
                   showSearch: true,
                   loading: optionLoading,
-                  placeholder: "Select Legal Reference...",
+                  placeholder: tr("Select Legal Reference..."),
                   searchValue: standaloneOptionSearch,
                   onSearch: setStandaloneOptionSearch,
                   onChange: () => setStandaloneOptionSearch(""),
                   optionFilterProp: "label",
                   filterOption: false,
-                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Legal Reference not found",
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : tr("Legal Reference not found"),
                 },
                 visibleStandaloneOptions.map((item) =>
                   h(Select.Option, {
@@ -3785,15 +3921,15 @@ function LegalReferenceWorkspace() {
               {
                 key: "legalStudyId",
                 name: "legalStudyId",
-                label: "Legal Study",
-                rules: [{ required: true, message: "Please select a Legal Study" }],
+                label: tr("Legal Study"),
+                rules: [{ required: true, message: tr("Please select a Legal Study") }],
               },
               h(
                 Select,
                 {
                   showSearch: true,
                   loading: optionLoading,
-                  placeholder: "Select Legal Study...",
+                  placeholder: tr("Select Legal Study..."),
                   optionFilterProp: "label",
                   filterOption: (input, option) =>
                     normalizeSearchValue(option?.label).includes(normalizeSearchValue(input)),
@@ -3802,7 +3938,7 @@ function LegalReferenceWorkspace() {
                     resetSourceSelection();
                     linkForm.setFieldsValue({ legalStudyId: value });
                   },
-                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : "Legal Study not found",
+                  notFoundContent: optionLoading ? h(Spin, { size: "small" }) : tr("Legal Study not found"),
                 },
                 activeRows(legalStudyLibrary.studies).map((study) =>
                   h(Select.Option, {
@@ -3825,9 +3961,9 @@ function LegalReferenceWorkspace() {
     return h(Alert, {
       type: "error",
       showIcon: true,
-      message: "Failed to load references",
+      message: tr("Failed to load references"),
       description: error,
-      action: h(Button, { size: "small", onClick: loadLinks }, "Retry"),
+      action: h(Button, { size: "small", onClick: loadLinks }, tr("Retry")),
     });
   }
 
@@ -3835,7 +3971,7 @@ function LegalReferenceWorkspace() {
     return h(Alert, {
       type: "warning",
       showIcon: true,
-      message: "Current case not found",
+      message: tr("Current case not found"),
     });
   }
 
@@ -3871,16 +4007,16 @@ function LegalReferenceWorkspace() {
           h(
             "div",
             { style: { display: "flex", alignItems: "center", gap: 8 } },
-            h("strong", { style: { color: color.text, fontSize: 15 } }, "References"),
+            h("strong", { style: { color: color.text, fontSize: 15 } }, tr("References")),
             h(Badge, { count: links.length, style: { backgroundColor: color.blue } }),
           ),
-          h("div", { style: { marginTop: 3, fontSize: 12, color: color.muted } }, `${standaloneCount} Legal Reference · ${caseBasedCount} Case Reference · ${legalStudyCount} Legal Study`),
+          h("div", { style: { marginTop: 3, fontSize: 12, color: color.muted } }, tr("{0} Legal Reference · {1} Case Reference · {2} Legal Study", { 0: standaloneCount, 1: caseBasedCount, 2: legalStudyCount })),
         ),
         h(
           Space,
           { size: 8 },
-          h(Button, { type: "primary", icon: ICONS.plus, onClick: openLinkModal }, "Link"),
-          h(Button, { icon: ICONS.refresh, onClick: loadLinks }, "Refresh"),
+          h(Button, { type: "primary", icon: ICONS.plus, onClick: openLinkModal }, tr("Link")),
+          h(Button, { icon: ICONS.refresh, onClick: loadLinks }, tr("Refresh")),
         ),
       ),
       h(
@@ -3909,14 +4045,14 @@ function LegalReferenceWorkspace() {
               border: "1px solid #D1D5DB",
             }
           },
-          renderSegmentButton("all", "All", links.length),
-          renderSegmentButton("standalone", "Legal Reference", standaloneCount),
-          renderSegmentButton("case", "Case Reference", caseBasedCount),
-          renderSegmentButton("legal_study", "Legal Study", legalStudyCount),
+          renderSegmentButton("all", tr("All"), links.length),
+          renderSegmentButton("standalone", tr("Legal Reference"), standaloneCount),
+          renderSegmentButton("case", tr("Case Reference"), caseBasedCount),
+          renderSegmentButton("legal_study", tr("Legal Study"), legalStudyCount),
         ),
         h(Input.Search, {
           allowClear: true,
-          placeholder: "Search...",
+          placeholder: tr("Search..."),
           value: searchText,
           onChange: (event) => setSearchText(event.target.value),
           style: { width: 280 },
@@ -3941,11 +4077,11 @@ function LegalReferenceWorkspace() {
                 fontWeight: 700,
               },
             },
-            h("div", null, "Type"),
-            h("div", null, "Reference"),
-            h("div", null, "Description"),
-            h("div", null, "Creator"),
-            h("div", null, "Updated At"),
+            h("div", null, tr("Type")),
+            h("div", null, tr("Reference")),
+            h("div", null, tr("Description")),
+            h("div", null, tr("Creator")),
+            h("div", null, tr("Updated At")),
             h("div", null, ""),
             h("div", null, ""),
           ),
@@ -3953,7 +4089,7 @@ function LegalReferenceWorkspace() {
         )
         : h(Empty, {
           image: Empty.PRESENTED_IMAGE_SIMPLE,
-          description: links.length ? "No matching references found." : "No references linked yet.",
+          description: links.length ? tr("No matching references found.") : tr("No references linked yet."),
           style: { padding: "46px 0" },
         }),
     ),
@@ -3968,7 +4104,7 @@ function LegalReferenceWorkspace() {
             renderKindBadge(activeReference),
             h("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, getReferenceTitle(activeReference)),
           )
-          : "Folders",
+          : tr("Folders"),
         open: drawerOpen,
         onClose: () => setDrawerOpen(false),
         width: CONFIG.drawerWidth,
@@ -3979,7 +4115,7 @@ function LegalReferenceWorkspace() {
           activeReference
             ? renderText(
               { style: { color: color.muted, fontSize: 12 } },
-              `${library.folders.length} folders · ${library.documents.length} documents`,
+              tr("{0} folders · {1} documents", { 0: library.folders.length, 1: library.documents.length }),
             )
             : null,
         ),
@@ -3990,7 +4126,7 @@ function LegalReferenceWorkspace() {
     h(
       Drawer,
       {
-        title: previewDoc ? getFileName(previewDoc) : "Document Preview",
+        title: previewDoc ? getFileName(previewDoc) : tr("Document Preview"),
         open: !!previewDoc,
         onClose: () => setPreviewDoc(null),
         width: CONFIG.previewWidth,
@@ -4006,7 +4142,7 @@ function LegalReferenceWorkspace() {
                 icon: ICONS.download,
                 onClick: () => openFileUrl(previewDoc),
               },
-              "Download",
+              tr("Download"),
             ),
           )
           : null,

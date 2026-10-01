@@ -1,3 +1,347 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "To do": "Chưa thực hiện",
+  "In progress": "Đang xử lý",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã huỷ",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "Title": "Tiêu đề",
+  "Status": "Trạng thái",
+  "Priority": "Ưu tiên",
+  "Deadline": "Hạn",
+  "Start date": "Ngày bắt đầu",
+  "Completion date": "Ngày hoàn thành",
+  "Progress details": "Nội dung diễn biến",
+  "Note content": "Nội dung ghi chú",
+  "Estimated duration": "Thời gian dự kiến",
+  "Pending Issue": "Vấn đề tồn đọng",
+  "Next Step": "Bước tiếp theo",
+  "Approver": "Người duyệt",
+  "Approval assigned date": "Ngày phân công xét duyệt",
+  "Approval date": "Ngày duyệt",
+  "Approval required": "Yêu cầu xét duyệt",
+  "Comment": "Bình luận",
+  "Document": "Tài liệu",
+  "Deleted status": "Trạng thái xóa",
+  "By": "Người thực hiện",
+  "Note": "Ghi chú",
+  "Content": "Nội dung",
+  "Assignees": "Người được gán",
+  "Draft": "Nháp",
+  "Rejected": "Từ chối",
+  "Task document": "Tài liệu Task",
+  "Meeting minutes": "Biên bản họp",
+  "Contract": "Hợp đồng",
+  "Evidence / Records": "Chứng cứ / Hồ sơ",
+  "Other": "Khác",
+  "Task": "Công việc",
+  "Minutes": "Biên bản",
+  "Records": "Hồ sơ",
+  "just now": "vừa xong",
+  "{0} min ago": "{0} phút trước",
+  "{0} hours ago": "{0} giờ trước",
+  "Waiting": "Đang chờ",
+  "{0}% Excellent": "{0}% Xuất sắc",
+  "{0}% On track": "{0}% Đúng tiến độ",
+  "{0}% Slow": "{0}% Chậm",
+  "{0}% Poor": "{0}% Kém",
+  "Prerequisite task": "Công việc điều kiện",
+  "Next step": "Bước tiếp theo",
+  "Refresh": "Làm mới",
+  "Write a comment...": "Viết bình luận...",
+  "Attach document": "Đính kèm tài liệu",
+  "Bold (Ctrl+B)": "In đậm (Ctrl+B)",
+  "Italic (Ctrl+I)": "In nghiêng (Ctrl+I)",
+  "Underline (Ctrl+U)": "Gạch chân (Ctrl+U)",
+  "Strikethrough": "Gạch ngang",
+  "Decrease indent": "Giảm lề",
+  "Increase indent": "Tăng lề",
+  "Blockquote": "Trích dẫn",
+  "Code block": "Đoạn mã",
+  "Numbered list": "Danh sách số",
+  "Bullet list": "Danh sách chấm",
+  "Insert link": "Chèn liên kết",
+  "Clear formatting": "Xóa định dạng",
+  "Font size": "Kích cỡ chữ",
+  "Alignment": "Căn lề",
+  "Could not load the editor. Check your network connection.": "Không thể tải editor. Vui lòng kiểm tra kết nối mạng.",
+  "Loading editor...": "Đang tải editor...",
+  "Mention someone": "Nhắc đến ai",
+  "Search lawyer name...": "Tìm tên luật sư...",
+  "No results": "Không tìm thấy",
+  "User #{0}": "Người dùng #{0}",
+  "Anonymous": "Ẩn danh",
+  "Enter the comment before mentioning anyone.": "Vui lòng nhập nội dung bình luận trước khi nhắc tên.",
+  "Comment posted": "Đã đăng bình luận",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Thử lại",
+  "Comment updated": "Đã cập nhật bình luận",
+  "Could not update": "Lỗi cập nhật",
+  "Confirm delete": "Xác nhận xóa",
+  "Delete this comment and its attachments?": "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?",
+  "Delete these files?": "Bạn có chắc chắn muốn xóa các tệp này không?",
+  "Delete": "Xóa",
+  "Cancel": "Hủy",
+  "Deleted": "Đã xóa",
+  "Could not delete": "Lỗi khi xóa",
+  "Document name updated": "Đã cập nhật tên tài liệu",
+  "Failed to update name": "Lỗi cập nhật tên",
+  "File": "Tệp",
+  "Original file: {0}": "File gốc: {0}",
+  "Save": "Lưu",
+  "Hide preview": "Ẩn preview",
+  "Xem preview": "Show preview",
+  "▲ Collapse": "▲ Thu nhỏ",
+  "▼ Preview": "▼ Preview",
+  "Download": "Tải về",
+  "System": "Hệ thống",
+  "Save changes": "Lưu thay đổi",
+  "Quote:": "Trích dẫn:",
+  "Mentioned:": "Đã nhắc đến:",
+  "Reply": "Phản hồi",
+  "Edit": "Chỉnh sửa",
+  "▲ Collapse replies": "▲ Thu gọn phản hồi",
+  "▼ Show {0} replies": "▼ Xem {0} phản hồi",
+  "Pending": "Chờ gửi",
+  "Note:": "Nội dung ghi chú:",
+  "Replying to ": "Đang trả lời ",
+  "Attached document": "Tài liệu đính kèm",
+  "Sending...": "Đang gửi...",
+  "No comments or documents yet": "Chưa có bình luận hay tài liệu nào",
+  "▲ Collapse (showing {0} of {1})": "▲ Rút gọn (hiện {0} trong {1})",
+  "▼ View {0} more comments ({1} total)": "▼ Xem thêm {0} bình luận (tổng {1})",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "This format cannot be previewed — download it to open": "Không thể xem trước định dạng này — vui lòng tải về để mở",
+  "Upload failed": "Upload thất bại",
+  "Choose a file or enter a Drive URL": "Vui lòng chọn file hoặc nhập Drive URL",
+  "✅ Updated successfully!": "✅ Cập nhật thành công!",
+  "✅ Upload successful!": "✅ Upload thành công!",
+  "✏️ Update document": "✏️ Cập nhật tài liệu",
+  "📎 Attach document": "📎 Đính kèm tài liệu",
+  "Updating...": "Đang cập nhật...",
+  "Processing...": "Đang xử lý...",
+  "Update": "Cập nhật",
+  "Confirm attachment": "Xác nhận đính kèm",
+  "Upload": "Tải lên",
+  "Identification": "Định danh",
+  "Document type": "Loại văn bản",
+  "Enter the document type": "Vui lòng nhập loại văn bản",
+  "e.g. Hợp đồng, Biên bản...": "VD: Hợp đồng, Biên bản...",
+  "Document name": "Tên tài liệu",
+  "Full document name (the file name if left blank)": "Nhập tên đầy đủ của tài liệu (Sẽ lấy tên file nếu bỏ trống)",
+  "Document number": "Số hiệu",
+  "e.g. 123/2024/HĐ": "VD: 123/2024/HĐ",
+  "Issue date": "Ngày ban hành",
+  "Signed date": "Ngày ký",
+  "Effective date": "Ngày hiệu lực",
+  "Parties": "Bên liên quan",
+  "Sender": "Người gửi",
+  "Sending person / organisation": "Tên cá nhân / tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Receiving person / organisation": "Tên cá nhân / tổ chức nhận",
+  "Content summary": "Tóm tắt nội dung",
+  "A short description of the main content...": "Mô tả ngắn gọn nội dung chính...",
+  "Attachment": "File đính kèm",
+  "Replace file (optional)": "Thay file mới (tuỳ chọn)",
+  "Choose file": "Chọn file",
+  "Drag and drop or ": "Kéo thả hoặc ",
+  "click to choose": "click để chọn",
+  "Google Drive URL (optional)": "Google Drive URL (tuỳ chọn)",
+  "Enter a note...": "Nhập ghi chú...",
+  "✅ Next step saved": "✅ Đã lưu bước tiếp theo",
+  "Save failed": "Lưu thất bại",
+  "(No next step yet)": "(Chưa có bước tiếp theo)",
+  "e.g.: Draft the LoA per the Detailed outline, send to client for review...": "VD: Khải soạn LoA theo Detailed outline, gửi khách hàng review...",
+  "Unsaved": "Chưa lưu",
+  "Saving...": "Đang lưu...",
+  "💾 Save": "💾 Lưu",
+  "✓ Saved": "✓ Đã lưu",
+  "✅ Saved": "✅ Đã lưu",
+  "(No content yet)": "(Chưa có nội dung)",
+  "Enter progress details...": "Nhập nội dung diễn biến...",
+  "Search lawyer...": "Tìm luật sư...",
+  "Unassign": "Huỷ phân công",
+  "{0} ₫/hr": "{0} ₫/giờ",
+  "Choose the approving lawyer": "Chọn luật sư duyệt",
+  "No service assigned": "Chưa gắn dịch vụ",
+  "Service #": "Dịch vụ #",
+  "Search tasks by name...": "Tìm công việc theo tên...",
+  "No tasks found": "Không có công việc nào",
+  "Select a prerequisite task...": "Chọn công việc điều kiện...",
+  "❌ Reject timesheet": "❌ Từ chối timesheet",
+  "Rejection reason": "Lý do từ chối",
+  "Enter a reason (optional)...": "Nhập lý do (tuỳ chọn)...",
+  "❌ Confirm rejection": "❌ Xác nhận từ chối",
+  "Please select the start time": "Vui lòng chọn thời điểm bắt đầu",
+  "Please enter the hours worked": "Vui lòng nhập số giờ thực hiện",
+  "Hours must not exceed 24": "Số giờ không được vượt quá 24",
+  "The start time cannot be more than 24 hours in the future": "Thời điểm bắt đầu không được quá 24 giờ trong tương lai",
+  "⛔ Overlaps timesheet {0} → {1}": "⛔ Trùng thời gian với timesheet {0} → {1}",
+  "✅ Updated": "✅ Đã cập nhật",
+  "✅ Saved (Draft)": "✅ Đã lưu (Nháp)",
+  "📤 Sent for approval": "📤 Đã gửi duyệt",
+  "Error": "Lỗi",
+  "✅ Approved": "✅ Đã duyệt",
+  "❌ Rejected": "❌ Đã từ chối",
+  "📝 Moved back to draft": "📝 Đã chuyển về nháp",
+  "⏱ Total hours:": "⏱ Tổng giờ:",
+  "estimated {0}": "dự kiến {0}",
+  "⏱ Estimated:": "⏱ Dự kiến:",
+  "⚡ Productivity:": "⚡ Năng suất:",
+  "＋ Add": "＋ Thêm",
+  "A timesheet is still running": "Đang có timesheet chưa kết thúc",
+  "No timesheet yet — press ＋ Add to start": "Chưa có timesheet — nhấn ＋ Thêm để bắt đầu",
+  "⏳ Running": "⏳ Đang chạy",
+  "Rejection reason: ": "Lý do từ chối: ",
+  "📤 Send for approval": "📤 Gửi duyệt",
+  "✅ Approve": "✅ Duyệt",
+  "❌ Reject": "❌ Từ chối",
+  "✏️ Edit": "✏️ Sửa",
+  "📝 Back to draft": "📝 Về nháp",
+  "🗑 Delete": "🗑 Xoá",
+  "✏️ Update timesheet": "✏️ Cập nhật timesheet",
+  "⏱ Log work hours": "⏱ Ghi nhận giờ làm việc",
+  "👨‍⚖️ Lawyer": "👨‍⚖️ Luật sư",
+  "(you)": "(bạn)",
+  "🕐 Start time *": "🕐 Thời điểm bắt đầu *",
+  "⚡ Use the current time": "⚡ Dùng thời điểm hiện tại",
+  "⏱ Hours worked *": "⏱ Số giờ thực hiện *",
+  "e.g. 2 or 1.5": "VD: 2 hoặc 1.5",
+  "hours": "giờ",
+  "⛔ Overlaps:": "⛔ Trùng thời gian:",
+  "📊 Total after saving:": "📊 Tổng sau khi lưu:",
+  "⚡ Productivity (estimated {0}):": "⚡ Năng suất (dự kiến {0}):",
+  "📝 Description": "📝 Mô tả",
+  "Short description...": "Mô tả ngắn gọn...",
+  "The timesheet will be saved with status ": "Timesheet sẽ được lưu với trạng thái ",
+  "\"Draft\"": "\"Nháp\"",
+  "💾 Save draft": "💾 Lưu nháp",
+  "edited a comment": "đã chỉnh sửa bình luận",
+  "deleted a comment": "đã xóa bình luận",
+  "uploaded files": "đã tải lên tệp",
+  "commented": "đã bình luận",
+  "edited": "đã chỉnh sửa",
+  "deleted": "đã xóa bỏ",
+  "uploaded": "đã tải lên",
+  "acted": "đã thực hiện",
+  "Comment + {0} files": "Bình luận + {0} tệp",
+  "Comment + mentions": "Bình luận + nhắc tên",
+  "{0} files": "{0} tệp",
+  "Attached file": "Tệp đính kèm",
+  "Mention": "Nhắc tên",
+  "replied to {0}:": "đã phản hồi {0}:",
+  "Comment content:": "Nội dung bình luận:",
+  "↓ changed to ↓": "↓ thay đổi thành ↓",
+  "(Note mentions someone)": "(Ghi chú có nhắc tên)",
+  "Mentioned people:": "Đã nhắc đến ai:",
+  "Attached file:": "Tệp đính kèm:",
+  "(No name yet)": "(Chưa có tên)",
+  "DOWNLOAD": "TẢI VỀ",
+  "data": "dữ liệu",
+  "created {0}": "đã tạo {0}",
+  "deleted {0}": "đã xóa {0}",
+  "updated {0}": "đã cập nhật {0}",
+  " {0} at ": " {0} lúc ",
+  "Value:": "Giá trị:",
+  "Edited the comment and its mentions": "Sửa nội dung bình luận và cập nhật người được nhắc",
+  "Edited the comment": "Sửa nội dung bình luận",
+  "Updated the comment's mentions": "Cập nhật người được nhắc trong bình luận",
+  "Deleted the comment": "Xóa bình luận",
+  "Replied to {0}'s comment": "Phản hồi bình luận của {0}",
+  "Uploaded {0} attached files": "Tải lên {0} tệp đính kèm",
+  "Uploaded an attached file": "Tải lên tệp đính kèm",
+  "Created a comment with related details": "Tạo bình luận kèm thông tin liên quan",
+  "Created a comment": "Tạo bình luận",
+  "Action:": "Hành động:",
+  "{0} at {1}": "{0} lúc {1}",
+  "updated [{0}]": "cập nhật [{0}]",
+  "deleted [{0}]": "đã xóa [{0}]",
+  "Activity history": "Lịch sử hoạt động",
+  "No activity yet": "Chưa có hoạt động nào",
+  "▼ View {0} more activities ({1} total)": "▼ Xem thêm {0} hoạt động (tổng {1})",
+  "Must complete \"{0}\" first": "Cần hoàn thành \"{0}\" trước",
+  "Status: {0}": "Trạng thái: {0}",
+  "Update failed!": "Lỗi cập nhật!",
+  "Priority updated": "Đã cập nhật ưu tiên",
+  "Name updated": "Đã cập nhật tên",
+  "Estimated duration updated": "Đã cập nhật thời gian dự kiến",
+  "Requires approval": "Cần phê duyệt",
+  "Overdue": "Quá hạn",
+  "No attached files yet.": "Chưa có tệp đính kèm nào.",
+  "Document name: ": "Tên tài liệu: ",
+  "Log Timesheet": "Ghi nhận Timesheet",
+  "General information": "Thông tin chung",
+  "Number of hours...": "Số giờ...",
+  "Assignee": "Người phụ trách",
+  "Not required": "Không yêu cầu",
+  "Select...": "Chọn...",
+  "Time worked": "Thời gian thực hiện",
+  "Work description": "Mô tả công việc",
+  "Prerequisite task (Pending Issue)": "Công việc điều kiện (Pending Issue)",
+  "Template files": "Tệp đính kèm file mẫu",
+  "No template files yet.": "Chưa có file mẫu nào.",
+  "Comments & Reports": "Bình luận & Báo cáo",
+  "Work hour history": "Lịch sử giờ làm việc",
+  "Type": "Loại",
+  "Subtask": "Công việc phụ",
+  "Main task": "Công việc chính",
+  "Task name": "Tên công việc",
+  "Description": "Mô tả",
+  "✓ None": "✓ Không có",
+  "✓ Done": "✓ Đã xong",
+  "Start": "Bắt đầu",
+  "Not selected": "Chưa chọn",
+  "Update failed": "Cập nhật thất bại",
+  "No project linked": "Chưa gắn dự án",
+  "Service #{0}": "Dịch vụ #{0}",
+  "Admin": "Admin",
+  "Unknown": "Chưa xác định",
+  "No lawyer profile linked": "Chưa liên kết hồ sơ luật sư",
+  "↻ Refresh": "↻ Làm mới",
+  "Loading...": "Đang tải...",
+  "{0}/{1} done ({2}%)": "{0}/{1} hoàn thành ({2}%)",
+  "📅 {0} due today": "📅 {0} đến hạn hôm nay",
+  "⚠ {0} overdue": "⚠ {0} quá hạn",
+  "🔍 Search task name...": "🔍 Tìm tên công việc...",
+  "📁 All cases": "📁 Tất cả hồ sơ",
+  "Untitled": "Không tên",
+  "All": "Tất cả",
+  "Loading data...": "Đang tải dữ liệu...",
+  "No results found": "Không tìm thấy kết quả",
+  "No tasks assigned yet.": "Chưa có công việc nào được phân công.",
+  "{0} items": "{0} mục",
+  "📅 {0} today": "📅 {0} hôm nay",
+  "{0} items in total": "Tổng cộng {0} mục",
+  "Show 5 more cases ⬇": "Xem thêm 5 hồ sơ ⬇",
+  "Show less ⬆": "Rút gọn ⬆",
+  "👤 Updated by: ": "👤 Cập nhật bởi: ",
+  "👤 Attached by: ": "👤 Đính kèm bởi: ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -13,48 +357,48 @@ const {
   Tag,
 } = ctx.antd;
 const { Text } = Typography;
-const { Table, Tooltip, Empty, Drawer, Descriptions } = ctx.antd;
+const { Table, Tooltip, Empty, Drawer, Descriptions, Avatar } = ctx.antd;
 const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 const STATUS_CFG = {
   toDo: {
-    label: "Chưa thực hiện",
+    label: tr("To do"),
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
   },
   inProgress: {
-    label: "Đang xử lý",
+    label: tr("In progress"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   blocked: {
-    label: "Bị chặn",
+    label: tr("Blocked"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
   },
   pending: {
-    label: "Chờ phê duyệt",
+    label: tr("Pending approval"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   approval: {
-    label: "Đã phê duyệt",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   done: {
-    label: "Hoàn thành",
+    label: tr("Done"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Đã huỷ",
+    label: tr("Cancelled"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -94,9 +438,9 @@ const resolveStatus = (newStatus, item) => {
   return newStatus;
 };
 const PRIORITY_CFG = {
-  high: { label: "Cao", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Trung", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Thấp", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 const LAWYER_COLORS = [
   "#531dab",
@@ -109,43 +453,43 @@ const LAWYER_COLORS = [
   "#003a8c",
 ];
 const LAWYER_TYPE_CFG = {
-  partner: { label: "Luật sư đối tác", color: "#531dab", bg: "#f9f0ff" },
-  lawyer: { label: "Luật sư", color: "#096dd9", bg: "#e6f4ff" },
-  associate: { label: "Luật sư cộng sự", color: "#08979c", bg: "#e6fffb" },
-  suppliant: { label: "Trợ lý pháp lý", color: "#d46b08", bg: "#fff7e6" },
+  partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+  lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+  associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+  suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
 };
 
 const FIELD_LABEL = {
-  title: "Tiêu đề",
-  status: "Trạng thái",
-  priority: "Ưu tiên",
-  lawyerId: "Luật sư",
-  dueDate: "Deadline",
-  startDate: "Ngày bắt đầu",
-  closedDate: "Ngày hoàn thành",
-  description: "Nội dung diễn biến",
-  body: "Nội dung ghi chú",
-  estimatedDuration: "Thời gian dự kiến",
-  previousTaskId: "Pending Issue",
-  nextStepDescription: "Next Step",
-  approvedById: "Người xét duyệt",
-  approvedAt: "Ngày phân công xét duyệt",
-  acceptedAt: "Ngày xét duyệt",
-  isRequiredApproval: "Yêu cầu xét duyệt",
-  notes: "Bình luận",
-  documents: "Tài liệu",
-  isDeleted: "Trạng thái xóa",
-  assignedLawyerId: "Người thực hiện",
+  title: tr("Title"),
+  status: tr("Status"),
+  priority: tr("Priority"),
+  lawyerId: tr("Lawyer"),
+  dueDate: tr("Deadline"),
+  startDate: tr("Start date"),
+  closedDate: tr("Completion date"),
+  description: tr("Progress details"),
+  body: tr("Note content"),
+  estimatedDuration: tr("Estimated duration"),
+  previousTaskId: tr("Pending Issue"),
+  nextStepDescription: tr("Next Step"),
+  approvedById: tr("Approver"),
+  approvedAt: tr("Approval assigned date"),
+  acceptedAt: tr("Approval date"),
+  isRequiredApproval: tr("Approval required"),
+  notes: tr("Comment"),
+  documents: tr("Document"),
+  isDeleted: tr("Deleted status"),
+  assignedLawyerId: tr("By"),
 };
 
 const ACTIVITY_FIELD_LABELS = {
-  notes: "Ghi chú",
-  body: "Nội dung",
-  documents: "Tài liệu",
-  title: "Tiêu đề",
-  status: "Trạng thái",
-  assignedLawyerId: "Người thực hiện",
-  assignees: "Người được gán",
+  notes: tr("Note"),
+  body: tr("Content"),
+  documents: tr("Document"),
+  title: tr("Title"),
+  status: tr("Status"),
+  assignedLawyerId: tr("By"),
+  assignees: tr("Assignees"),
 };
 
 
@@ -160,28 +504,28 @@ const extractId = (val) => {
 
 const TS_STATUS_CFG = {
   draft: {
-    label: "Nháp",
+    label: tr("Draft"),
     color: "#8c8c8c",
     bg: "#f5f5f5",
     border: "#d9d9d9",
     icon: "📝",
   },
   submitted: {
-    label: "Chờ duyệt",
+    label: tr("Pending approval"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
     icon: "📤",
   },
   approved: {
-    label: "Đã duyệt",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
     icon: "✅",
   },
   rejected: {
-    label: "Từ chối",
+    label: tr("Rejected"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -190,18 +534,18 @@ const TS_STATUS_CFG = {
 };
 
 const DOC_TYPE_OPTIONS = [
-  { value: "task_doc", label: "Tài liệu Task" },
-  { value: "meeting_note", label: "Biên bản họp" },
-  { value: "contract", label: "Hợp đồng" },
-  { value: "evidence", label: "Chứng cứ / Hồ sơ" },
-  { value: "other", label: "Khác" },
+  { value: "task_doc", label: tr("Task document") },
+  { value: "meeting_note", label: tr("Meeting minutes") },
+  { value: "contract", label: tr("Contract") },
+  { value: "evidence", label: tr("Evidence / Records") },
+  { value: "other", label: tr("Other") },
 ];
 const DOC_TYPE_CFG = {
-  task_doc: { label: "Task", color: "cyan" },
-  meeting_note: { label: "Biên bản", color: "blue" },
-  contract: { label: "Hợp đồng", color: "purple" },
-  evidence: { label: "Hồ sơ", color: "orange" },
-  other: { label: "Khác", color: "default" },
+  task_doc: { label: tr("Task"), color: "cyan" },
+  meeting_note: { label: tr("Minutes"), color: "blue" },
+  contract: { label: tr("Contract"), color: "purple" },
+  evidence: { label: tr("Records"), color: "orange" },
+  other: { label: tr("Other"), color: "default" },
 };
 const FILE_EXT_ICON = {
   ".pdf": "📄",
@@ -231,9 +575,9 @@ const fmt = (iso, mode) => {
 const timeAgo = (iso) => {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60) return "vừa xong";
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+  if (diff < 60) return tr("just now");
+  if (diff < 3600) return tr("{0} min ago", { 0: Math.floor(diff / 60) });
+  if (diff < 86400) return tr("{0} hours ago", { 0: Math.floor(diff / 3600) });
   return fmt(iso, "date");
 };
 const isOD = (iso, st) =>
@@ -325,16 +669,16 @@ const getExtInfo = (ext) =>
 const formatActivityValue = (val) => {
   if (!val) return val;
   const statusMap = {
-    toDo: "Chưa thực hiện",
-    inProgress: "Đang xử lý",
-    blocked: "Đang chờ",
-    pending: "Chờ phê duyệt",
-    approval: "Đã phê duyệt",
-    done: "Hoàn thành",
-    cancelled: "Đã huỷ",
+    toDo: tr("To do"),
+    inProgress: tr("In progress"),
+    blocked: tr("Waiting"),
+    pending: tr("Pending approval"),
+    approval: tr("Approved"),
+    done: tr("Done"),
+    cancelled: tr("Cancelled"),
   };
   if (statusMap[val]) return statusMap[val];
-  const priorityMap = { high: "Cao", medium: "Trung bình", low: "Thấp" };
+  const priorityMap = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
   if (priorityMap[val]) return priorityMap[val];
   if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
     try {
@@ -364,12 +708,12 @@ const calcWRFromTotal = (estimatedDuration, totalHours) => {
 const wrCfg = (rate) => {
   if (rate == null) return { label: "—", color: "#8c8c8c", bg: "#f5f5f5" };
   if (rate >= 120)
-    return { label: `${rate}% Xuất sắc`, color: "#389e0d", bg: "#f6ffed" };
+    return { label: tr("{0}% Excellent", { 0: rate }), color: "#389e0d", bg: "#f6ffed" };
   if (rate >= 90)
-    return { label: `${rate}% Đúng tiến độ`, color: "#096dd9", bg: "#e6f4ff" };
+    return { label: tr("{0}% On track", { 0: rate }), color: "#096dd9", bg: "#e6f4ff" };
   if (rate >= 70)
-    return { label: `${rate}% Chậm`, color: "#d46b08", bg: "#fff7e6" };
-  return { label: `${rate}% Kém`, color: "#cf1322", bg: "#fff1f0" };
+    return { label: tr("{0}% Slow", { 0: rate }), color: "#d46b08", bg: "#fff7e6" };
+  return { label: tr("{0}% Poor", { 0: rate }), color: "#cf1322", bg: "#fff1f0" };
 };
 
 // api
@@ -558,11 +902,11 @@ async function logAct(col, id, action, field, oldV, newV, who, batchId, dataId =
 
 const tF = (f) => {
   const map = {
-    title: 'Tiêu đề', status: 'Trạng thái', priority: 'Ưu tiên', lawyerId: 'Luật sư',
-    dueDate: 'Deadline', startDate: 'Ngày bắt đầu', closedDate: 'Ngày hoàn thành',
-    description: 'Nội dung diễn biến', estimatedDuration: 'Thời gian dự kiến',
-    previousTaskId: 'Công việc điều kiện', nextStepDescription: 'Bước tiếp theo',
-    approvedById: 'Người xét duyệt', isRequiredApproval: 'Yêu cầu xét duyệt',
+    title: tr("Title"), status: tr("Status"), priority: tr("Priority"), lawyerId: tr("Lawyer"),
+    dueDate: tr("Deadline"), startDate: tr("Start date"), closedDate: tr("Completion date"),
+    description: tr("Progress details"), estimatedDuration: tr("Estimated duration"),
+    previousTaskId: tr("Prerequisite task"), nextStepDescription: tr("Next step"),
+    approvedById: tr("Approver"), isRequiredApproval: tr("Approval required"),
   };
   return map[f] || f;
 };
@@ -589,7 +933,7 @@ const SBadge = ({ status }) => {
   }, cfg.label);
 };
 
-const ReloadButton = ({ onReload, loading, text='Làm mới', style={}}) =>{
+const ReloadButton = ({ onReload, loading, text=tr("Refresh"), style={}}) =>{
   return React.createElement(Button, {
     size:'medium',
     onClick: onReload,
@@ -700,7 +1044,7 @@ const QuillEditor = ({
 
         const q = new Quill(containerRef.current, {
           theme: "snow",
-          placeholder: placeholder || "Viết bình luận...",
+          placeholder: placeholder || tr("Write a comment..."),
           modules: {
             toolbar: {
               container: [
@@ -745,23 +1089,23 @@ const QuillEditor = ({
         if (uploadBtn) {
           uploadBtn.innerHTML =
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>';
-          uploadBtn.title = "Đính kèm tài liệu";
+          uploadBtn.title = tr("Attach document");
         }
 
         // Add Tooltips to Quill toolbar buttons
         const tooltipMap = {
-          ".ql-bold": "In đậm (Ctrl+B)",
-          ".ql-italic": "In nghiêng (Ctrl+I)",
-          ".ql-underline": "Gạch chân (Ctrl+U)",
-          ".ql-strike": "Gạch ngang",
-          '.ql-indent[value="-1"]': "Giảm lề",
-          '.ql-indent[value="+1"]': "Tăng lề",
-          ".ql-blockquote": "Trích dẫn",
-          ".ql-code-block": "Đoạn mã",
-          '.ql-list[value="ordered"]': "Danh sách số",
-          '.ql-list[value="bullet"]': "Danh sách chấm",
-          ".ql-link": "Chèn liên kết",
-          ".ql-clean": "Xóa định dạng",
+          ".ql-bold": tr("Bold (Ctrl+B)"),
+          ".ql-italic": tr("Italic (Ctrl+I)"),
+          ".ql-underline": tr("Underline (Ctrl+U)"),
+          ".ql-strike": tr("Strikethrough"),
+          '.ql-indent[value="-1"]': tr("Decrease indent"),
+          '.ql-indent[value="+1"]': tr("Increase indent"),
+          ".ql-blockquote": tr("Blockquote"),
+          ".ql-code-block": tr("Code block"),
+          '.ql-list[value="ordered"]': tr("Numbered list"),
+          '.ql-list[value="bullet"]': tr("Bullet list"),
+          ".ql-link": tr("Insert link"),
+          ".ql-clean": tr("Clear formatting"),
         };
         Object.entries(tooltipMap).forEach(([selector, title]) => {
           const el = containerRef.current.parentElement.querySelector(selector);
@@ -770,11 +1114,11 @@ const QuillEditor = ({
         const headerPicker = containerRef.current.parentElement.querySelector(
           ".ql-size .ql-picker-label",
         );
-        if (headerPicker) headerPicker.setAttribute("title", "Kích cỡ chữ");
+        if (headerPicker) headerPicker.setAttribute("title", tr("Font size"));
         const alignPicker = containerRef.current.parentElement.querySelector(
           ".ql-align .ql-picker-label",
         );
-        if (alignPicker) alignPicker.setAttribute("title", "Căn lề");
+        if (alignPicker) alignPicker.setAttribute("title", tr("Alignment"));
 
         // Sync initial value
         if (value) {
@@ -809,7 +1153,7 @@ const QuillEditor = ({
       })
       .catch((e) => {
         console.error("Quill load error:", e);
-        setError("Không thể tải editor. Vui lòng kiểm tra kết nối mạng.");
+        setError(tr("Could not load the editor. Check your network connection."));
       });
 
     return () => {
@@ -864,7 +1208,7 @@ const QuillEditor = ({
                 fontFamily: FONT,
               },
             },
-            "Đang tải editor...",
+            tr("Loading editor..."),
           )
         : null,
     React.createElement("div", { ref: containerRef }),
@@ -961,7 +1305,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
           { style: { fontSize: 14, fontWeight: 700 } },
           "@",
         ),
-        "Nhắc đến ai",
+        tr("Mention someone"),
       ),
 
       // ── Dropdown ───────────────────────────────────────────────
@@ -994,7 +1338,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
               autoFocus: true,
               value: search,
               onChange: (e) => setSearch(e.target.value),
-              placeholder: "Tìm tên luật sư...",
+              placeholder: tr("Search lawyer name..."),
               style: {
                 width: "100%",
                 boxSizing: "border-box",
@@ -1020,7 +1364,7 @@ const MentionPicker = ({ lawyers, assignedIds, onAssignMultiple }) => {
                     fontFamily: FONT,
                   },
                 },
-                "Không tìm thấy",
+                tr("No results"),
               )
             : filtered.map((l) => {
                 const selected = assignedIds.includes(l.id);
@@ -1358,9 +1702,9 @@ const UnifiedNoteThread = ({
     n.createdBy?.nickname ||
     n.createdBy?.username ||
     n.createdBy?.email ||
-    (n.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
   const warnMentionOnly = () => {
-    message.warning("Vui lòng nhập nội dung bình luận trước khi nhắc tên.");
+    message.warning(tr("Enter the comment before mentioning anyone."));
   };
   const handleSend = async () => {
     const hasText = getCommentText(body, true).length > 0;
@@ -1497,9 +1841,9 @@ const UnifiedNoteThread = ({
         `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       );
       reload();
-      message.success("Đã đăng bình luận");
+      message.success(tr("Comment posted"));
     } catch (e) {
-      message.error("Lỗi: " + (e?.message || "Thử lại"));
+      message.error(tr("Error: ") + (e?.message || tr("Please try again")));
     }
     setSending(false);
   };
@@ -1592,21 +1936,21 @@ const UnifiedNoteThread = ({
       setEditingNoteId(null);
       setEditBody("");
       setEditAssignedIds([]);
-      message.success("Đã cập nhật bình luận");
+      message.success(tr("Comment updated"));
     } catch (e) {
-      message.error("Lỗi cập nhật");
+      message.error(tr("Could not update"));
     }
   };
 
   const handleDeleteNote = (item) => {
     const { note, files } = item;
     Modal.confirm({
-      title: "Xác nhận xóa",
+      title: tr("Confirm delete"),
       content: note
-        ? "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?"
-        : "Bạn có chắc chắn muốn xóa các tệp này không?",
-      okText: "Xóa",
-      cancelText: "Hủy",
+        ? tr("Delete this comment and its attachments?")
+        : tr("Delete these files?"),
+      okText: tr("Delete"),
+      cancelText: tr("Cancel"),
       okType: "danger",
       onOk: async () => {
         try {
@@ -1669,9 +2013,9 @@ const UnifiedNoteThread = ({
             }
           }
           setFeed((prev) => prev.filter((i) => i !== item));
-          message.success("Đã xóa thành công");
+          message.success(tr("Deleted"));
         } catch (e) {
-          message.error("Lỗi khi xóa");
+          message.error(tr("Could not delete"));
         }
       },
     });
@@ -1730,9 +2074,9 @@ const UnifiedNoteThread = ({
           ),
         })),
       );
-      message.success("Đã cập nhật tên tài liệu");
+      message.success(tr("Document name updated"));
     } catch (e) {
-      message.error("Lỗi cập nhật tên");
+      message.error(tr("Failed to update name"));
     }
     setEditingFileId(null);
     setEditFileTitle("");
@@ -1747,7 +2091,7 @@ const UnifiedNoteThread = ({
         ? att.extname.toLowerCase()
         : "." + att.extname.toLowerCase()
       : "";
-    const rawFilename = att?.filename || "File";
+    const rawFilename = att?.filename || tr("File");
     const displayTitle = f.title || att?.title || rawFilename;
     const fullUrl = getFullUrl(att?.url || att?.preview);
     const isPdf = ext === ".pdf";
@@ -1819,7 +2163,7 @@ const UnifiedNoteThread = ({
               "span",
               {
                 onClick: fullUrl ? () => setPreviewDoc(f) : undefined,
-                title: `File gốc: ${rawFilename}`,
+                title: tr("Original file: {0}", { 0: rawFilename }),
                 style: {
                   fontSize: 13,
                   fontFamily: FONT,
@@ -1856,7 +2200,7 @@ const UnifiedNoteThread = ({
                     flexShrink: 0,
                   },
                 },
-                "Lưu",
+                tr("Save"),
               ),
               React.createElement(
                 "span",
@@ -1872,7 +2216,7 @@ const UnifiedNoteThread = ({
                     flexShrink: 0,
                   },
                 },
-                "Hủy",
+                tr("Cancel"),
               ),
             )
           : React.createElement(
@@ -1887,7 +2231,7 @@ const UnifiedNoteThread = ({
                         ...prev,
                         [f.id]: !prev[f.id],
                       })),
-                    title: isExpanded ? "Ẩn preview" : "Xem preview",
+                    title: isExpanded ? tr("Hide preview") : tr("Xem preview"),
                     style: {
                       fontSize: 12,
                       padding: "2px 8px",
@@ -1899,7 +2243,7 @@ const UnifiedNoteThread = ({
                       fontWeight: 500,
                     },
                   },
-                  isExpanded ? "▲ Thu nhỏ" : "▼ Preview",
+                  isExpanded ? tr("▲ Collapse") : tr("▼ Preview"),
                 ),
               fullUrl &&
                 React.createElement(
@@ -1921,7 +2265,7 @@ const UnifiedNoteThread = ({
                       border: "1px solid #d3adf7",
                     },
                   },
-                  "Tải về",
+                  tr("Download"),
                 ),
               isMine &&
                 canEdit &&
@@ -1998,7 +2342,7 @@ const UnifiedNoteThread = ({
       ? authorName(note)
       : firstFile?.createdBy
         ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-        : "Hệ thống";
+        : tr("System");
     const time = note?.createdAt || firstFile?.createdAt;
     const hasBody = !!note?.body;
     const hasFiles = files.length > 0;
@@ -2123,7 +2467,7 @@ const UnifiedNoteThread = ({
                         fontFamily: FONT,
                       },
                     },
-                    "Hủy",
+                    tr("Cancel"),
                   ),
                   React.createElement(
                     "span",
@@ -2140,7 +2484,7 @@ const UnifiedNoteThread = ({
                         fontFamily: FONT,
                       },
                     },
-                    "Lưu thay đổi",
+                    tr("Save changes"),
                   ),
                 ),
               )
@@ -2187,7 +2531,7 @@ const UnifiedNoteThread = ({
                         React.createElement(
                           "b",
                           { style: { color: "#8c8c8c", marginRight: 4 } },
-                          "Trích dẫn:",
+                          tr("Quote:"),
                         ),
                         " ",
                         note.replyText,
@@ -2224,7 +2568,7 @@ const UnifiedNoteThread = ({
                               fontFamily: FONT,
                             },
                           },
-                          "Đã nhắc đến:",
+                          tr("Mentioned:"),
                         ),
                         ...note.assignees.map((assigneeItem) => {
                           const assigneeId =
@@ -2289,7 +2633,7 @@ const UnifiedNoteThread = ({
                           onMouseLeave: (e) =>
                             (e.currentTarget.style.color = "#52c41a"),
                         },
-                        "Phản hồi",
+                        tr("Reply"),
                       ),
                       isMyItem &&
                         note &&
@@ -2318,7 +2662,7 @@ const UnifiedNoteThread = ({
                             onMouseLeave: (e) =>
                               (e.currentTarget.style.color = "#595959"),
                           },
-                          "Chỉnh sửa",
+                          tr("Edit"),
                         ),
                       isMyItem &&
                         React.createElement(
@@ -2338,7 +2682,7 @@ const UnifiedNoteThread = ({
                             onMouseLeave: (e) =>
                               (e.currentTarget.style.color = "#ff4d4f"),
                           },
-                          "Xóa",
+                          tr("Delete"),
                         ),
                     ),
                 ),
@@ -2372,8 +2716,8 @@ const UnifiedNoteThread = ({
               },
             },
             isExpanded
-              ? "▲ Thu gọn phản hồi"
-              : `▼ Xem ${replies.length} phản hồi`,
+              ? tr("▲ Collapse replies")
+              : tr("▼ Show {0} replies", { 0: replies.length }),
             !isExpanded &&
               React.createElement(
                 Avatar.Group,
@@ -2381,7 +2725,7 @@ const UnifiedNoteThread = ({
                 replies.map((r, i) =>
                   React.createElement(Av, {
                     key: i,
-                    name: r.note ? authorName(r.note) : "Ẩn danh",
+                    name: r.note ? authorName(r.note) : tr("Anonymous"),
                     size: 16,
                   }),
                 ),
@@ -2412,7 +2756,7 @@ const UnifiedNoteThread = ({
         },
       },
       ...pendingDocs.map((doc, i) => {
-        const name = doc.metadata.title || doc.fileName || "Tài liệu";
+        const name = doc.metadata.title || doc.fileName || tr("Document");
         return React.createElement(
           "div",
           {
@@ -2458,7 +2802,7 @@ const UnifiedNoteThread = ({
                   fontWeight: 600,
                 },
               },
-              "Chờ gửi",
+              tr("Pending"),
             ),
             React.createElement(
               "span",
@@ -2494,7 +2838,7 @@ const UnifiedNoteThread = ({
                 {
                   style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
                 },
-                "Nội dung ghi chú:",
+                tr("Note:"),
               ),
               doc.metadata.note,
             ),
@@ -2565,8 +2909,8 @@ const UnifiedNoteThread = ({
                   fontFamily: FONT,
                 },
               },
-              "Đang trả lời ",
-              replyingTo.note ? authorName(replyingTo.note) : "Tài liệu",
+              tr("Replying to "),
+              replyingTo.note ? authorName(replyingTo.note) : tr("Document"),
             ),
             React.createElement(
               "div",
@@ -2585,7 +2929,7 @@ const UnifiedNoteThread = ({
               },
               replyingTo.note?.body
                 ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
-                : "Tài liệu đính kèm",
+                : tr("Attached document"),
             ),
           ),
           React.createElement(
@@ -2649,7 +2993,7 @@ const UnifiedNoteThread = ({
               border: "none",
             },
           },
-          sending ? "Đang gửi..." : "Bình luận",
+          sending ? tr("Sending...") : tr("Comment"),
         ),
       ),
     );
@@ -2680,7 +3024,7 @@ const UnifiedNoteThread = ({
                   color: "#bfbfbf",
                 },
               },
-              "Chưa có bình luận hay tài liệu nào",
+              tr("No comments or documents yet"),
             )
           : React.createElement(
               "div",
@@ -2709,8 +3053,8 @@ const UnifiedNoteThread = ({
                       (e.currentTarget.style.background = "#f0f8ff"),
                   },
                   showAll
-                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${feed.length})`
-                    : `▼ Xem thêm ${feed.length - INITIAL_COUNT} bình luận (tổng ${feed.length})`,
+                    ? tr("▲ Collapse (showing {0} of {1})", { 0: INITIAL_COUNT, 1: feed.length })
+                    : tr("▼ View {0} more comments ({1} total)", { 0: feed.length - INITIAL_COUNT, 1: feed.length }),
                 ),
             ),
     ),
@@ -2741,7 +3085,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const attachment = Array.isArray(doc.fileAttachment) ? doc.fileAttachment[0] : doc.fileAttachment;
   const fileUrl  = attachment?.url || attachment?.preview;
   const fullUrl  = getFullUrl(fileUrl);
-  const rawName    = doc.title || attachment?.title || attachment?.filename || 'File';
+  const rawName    = doc.title || attachment?.title || attachment?.filename || tr("File");
   const extFromAtt = attachment?.extname
     ? (attachment.extname.startsWith('.') ? attachment.extname.toLowerCase() : '.' + attachment.extname.toLowerCase())
     : '';
@@ -2752,7 +3096,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const baseName = rawName.toLowerCase().endsWith(fileExt)
     ? rawName.slice(0, rawName.length - fileExt.length)
     : rawName;
-  const displayName = (baseName || 'File') + fileExt;
+  const displayName = (baseName || tr("File")) + fileExt;
   const isPdf   = fileExt === '.pdf';
   const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(fileExt);
   const isOffice = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.odt'].includes(fileExt);
@@ -2769,8 +3113,8 @@ const PreviewModal = ({ doc, onClose }) => {
       fullUrl && React.createElement(Button, {
         key: 'dl',
         onClick: () => window.open(fullUrl, '_blank'),
-      }, '⬇️ Tải về'),
-      React.createElement(Button, { key: 'cl', onClick: onClose }, 'Đóng'),
+      }, tr("⬇️ Download")),
+      React.createElement(Button, { key: 'cl', onClick: onClose }, tr("Close")),
     ].filter(Boolean),
   },
     isPdf && fullUrl && React.createElement('iframe', {
@@ -2793,7 +3137,7 @@ const PreviewModal = ({ doc, onClose }) => {
     !isPdf && !isImage && !isOffice && React.createElement('div', {
       style: { padding: 32, textAlign: 'center' },
     },
-      React.createElement(Empty, { description: 'Không thể xem trước định dạng này — vui lòng tải về để mở' }),
+      React.createElement(Empty, { description: tr("This format cannot be previewed — download it to open") }),
     ),
   );
 };
@@ -2836,7 +3180,7 @@ const FileUploadModal = ({ open, onClose, onSuccess, onAddPending, collectionNam
       data: formData, headers: { 'Content-Type': 'multipart/form-data' },
     });
     const att = uploadRes?.data?.data;
-    if (!att?.id) throw new Error('Upload thất bại');
+    if (!att?.id) throw new Error(tr("Upload failed"));
     return [{ id: att.id }];
   };
 
@@ -2853,7 +3197,7 @@ const FileUploadModal = ({ open, onClose, onSuccess, onAddPending, collectionNam
     const hasDrive = !!values.googleDriveUrl?.trim();
     
     if (!isEdit && !hasFile && !hasDrive) { 
-      message.error('Vui lòng chọn file hoặc nhập Drive URL'); 
+      message.error(tr("Choose a file or enter a Drive URL")); 
       return; 
     }
     
@@ -2885,79 +3229,79 @@ const FileUploadModal = ({ open, onClose, onSuccess, onAddPending, collectionNam
 
       if (isEdit) {
         await ctx.api.request({ url: 'documents:update', method: 'POST', params: { filterByTk: editDoc.id }, data: payload });
-        message.success('✅ Cập nhật thành công!');
+        message.success(tr("✅ Updated successfully!"));
       } else {
         await apiReq('documents:create', 'POST', { ...payload, collectionName, recordId: parseInt(recordId), createdById: currentUser?.id || null, createdAt: now });
-        message.success('✅ Upload thành công!');
+        message.success(tr("✅ Upload successful!"));
       }
       handleClose(); 
       if (onSuccess) onSuccess();
     } catch (e) { 
-      message.error('Lỗi: ' + (e?.message || 'Thử lại')); 
+      message.error(tr("Error: ") + (e?.message || tr("Please try again"))); 
     }
     setUploading(false);
   };
 
   const inpStyle = { fontSize: 12, fontFamily: FONT };
   const DOC_TYPE_SUGGESTIONS = [
-    'Hợp đồng','Biên bản','Quyết định','Tờ trình',
-    'Báo cáo','Chứng cứ / Hồ sơ','Công văn','Đơn từ',
-    'Phụ lục','Biên bản làm việc','File mẫu','Khác',
+    tr("Contract"),tr("Minutes"),'Quyết định','Tờ trình',
+    'Báo cáo',tr("Evidence / Records"),'Công văn','Đơn từ',
+    'Phụ lục','Biên bản làm việc','File mẫu',tr("Other"),
   ];
   const divider = (label) => React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, margin: '12px 0 8px', paddingBottom: 4, borderBottom: '1px solid #f0f0f0', fontFamily: FONT } }, label);
 
   return React.createElement(Modal, {
     open, onCancel: handleClose, width: 1100, centered: true,
-    title: React.createElement(Text, { strong: true, style: { fontFamily: FONT, fontSize: 14 } }, isEdit ? '✏️ Cập nhật tài liệu' : '📎 Đính kèm tài liệu'),
+    title: React.createElement(Text, { strong: true, style: { fontFamily: FONT, fontSize: 14 } }, isEdit ? tr("✏️ Update document") : tr("📎 Attach document")),
     footer: [
-      React.createElement(Button, { key: 'c', onClick: handleClose, disabled: uploading, style: { fontFamily: FONT } }, 'Huỷ'),
+      React.createElement(Button, { key: 'c', onClick: handleClose, disabled: uploading, style: { fontFamily: FONT } }, tr("Cancel")),
       React.createElement(Button, { key: 's', type: 'primary', onClick: handleSubmit, loading: uploading, style: { fontFamily: FONT } }, 
-        uploading ? (isEdit ? 'Đang cập nhật...' : 'Đang xử lý...') : (isEdit ? 'Cập nhật' : (onAddPending ? 'Xác nhận đính kèm' : 'Upload'))
+        uploading ? (isEdit ? tr("Updating...") : tr("Processing...")) : (isEdit ? tr("Update") : (onAddPending ? tr("Confirm attachment") : tr("Upload")))
       ),
     ],
   },
     currentUser && React.createElement('div', { style: { background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: '6px 12px', marginBottom: 12, fontSize: 12, color: '#595959', fontFamily: FONT } },
-      `👤 ${isEdit ? 'Cập nhật' : 'Đính kèm'} bởi: `, React.createElement('strong', null, userName(currentUser) || currentUser.email)
+      (isEdit ? tr("👤 Updated by: ") : tr("👤 Attached by: ")), React.createElement('strong', null, userName(currentUser) || currentUser.email)
     ),
     React.createElement(Form, { form, layout: 'vertical', size: 'small', style: { fontFamily: FONT } },
-      divider('Định danh'),
+      divider(tr("Identification")),
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-        React.createElement(Form.Item, { name: 'documentType', label: 'Loại văn bản', rules: [{ required: true, message: 'Vui lòng nhập loại văn bản' }] },
+        React.createElement(Form.Item, { name: 'documentType', label: tr("Document type"), rules: [{ required: true, message: tr("Enter the document type") }] },
           React.createElement('div', null,
-            React.createElement(Input, { allowClear: true, maxLength: 150, placeholder: 'VD: Hợp đồng, Biên bản...', list: 'doc-type-list', style: inpStyle }),
+            React.createElement(Input, { allowClear: true, maxLength: 150, placeholder: tr("e.g. Hợp đồng, Biên bản..."), list: 'doc-type-list', style: inpStyle }),
             React.createElement('datalist', { id: 'doc-type-list' }, ...DOC_TYPE_SUGGESTIONS.map((s) => React.createElement('option', { key: s, value: s })))
           )
         ),
-        React.createElement(Form.Item, { name: 'title', label: 'Tên tài liệu' }, 
-          React.createElement(Input, { allowClear: true, placeholder: 'Nhập tên đầy đủ của tài liệu (Sẽ lấy tên file nếu bỏ trống)', style: inpStyle })
+        React.createElement(Form.Item, { name: 'title', label: tr("Document name") }, 
+          React.createElement(Input, { allowClear: true, placeholder: tr("Full document name (the file name if left blank)"), style: inpStyle })
         )
       ),
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-        React.createElement(Form.Item, { name: 'documentCode', label: 'Số hiệu' }, React.createElement(Input, { allowClear: true, placeholder: 'VD: 123/2024/HĐ', style: inpStyle })),
-        React.createElement(Form.Item, { name: 'openingDate', label: 'Ngày ban hành' }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } }))
+        React.createElement(Form.Item, { name: 'documentCode', label: tr("Document number") }, React.createElement(Input, { allowClear: true, placeholder: tr("e.g. 123/2024/HĐ"), style: inpStyle })),
+        React.createElement(Form.Item, { name: 'openingDate', label: tr("Issue date") }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } }))
       ),
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-        React.createElement(Form.Item, { name: 'signedAt', label: 'Ngày ký' }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } })),
-        React.createElement(Form.Item, { name: 'effectiveAt', label: 'Ngày hiệu lực' }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } }))
+        React.createElement(Form.Item, { name: 'signedAt', label: tr("Signed date") }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } })),
+        React.createElement(Form.Item, { name: 'effectiveAt', label: tr("Effective date") }, React.createElement(Input, { type: 'date', style: { width: '100%', ...inpStyle } }))
       ),
-      divider('Bên liên quan'),
+      divider(tr("Parties")),
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-        React.createElement(Form.Item, { name: 'senderName', label: 'Người gửi' }, React.createElement(Input, { allowClear: true, placeholder: 'Tên cá nhân / tổ chức gửi', style: inpStyle })),
-        React.createElement(Form.Item, { name: 'recipientName', label: 'Người nhận' }, React.createElement(Input, { allowClear: true, placeholder: 'Tên cá nhân / tổ chức nhận', style: inpStyle }))
+        React.createElement(Form.Item, { name: 'senderName', label: tr("Sender") }, React.createElement(Input, { allowClear: true, placeholder: tr("Sending person / organisation"), style: inpStyle })),
+        React.createElement(Form.Item, { name: 'recipientName', label: tr("Recipient") }, React.createElement(Input, { allowClear: true, placeholder: tr("Receiving person / organisation"), style: inpStyle }))
       ),
-      React.createElement(Form.Item, { name: 'description', label: 'Tóm tắt nội dung' }, 
-        React.createElement(Input.TextArea, { rows: 3, allowClear: true, placeholder: 'Mô tả ngắn gọn nội dung chính...' })
+      React.createElement(Form.Item, { name: 'description', label: tr("Content summary") }, 
+        React.createElement(Input.TextArea, { rows: 3, allowClear: true, placeholder: tr("A short description of the main content...") })
       ),
-      divider('File đính kèm'),
-      React.createElement(Form.Item, { label: isEdit ? 'Thay file mới (tuỳ chọn)' : 'Chọn file' },
+      divider(tr("Attachment")),
+      React.createElement(Form.Item, { label: isEdit ? tr("Replace file (optional)") : tr("Choose file") },
         React.createElement(Upload.Dragger, { fileList, beforeUpload: () => false, onChange: ({ fileList: fl }) => setFileList(fl.slice(-1)), maxCount: 1, style: { padding: '6px 0' } },
           React.createElement('p', { style: { fontSize: 20, margin: '0 0 4px' } }, '📁'),
-          React.createElement('p', { style: { fontSize: 12, color: '#595959', margin: 0, fontFamily: FONT } }, 'Kéo thả hoặc ', React.createElement('span', { style: { color: '#1890ff' } }, 'click để chọn'))
+          React.createElement('p', { style: { fontSize: 12, color: '#595959', margin: 0, fontFamily: FONT } }, tr("Drag and drop or "), React.createElement('span', { style: { color: '#1890ff' } }, tr("click to choose")))
         )
       ),
-      React.createElement(Form.Item, { name: 'googleDriveUrl', label: 'Google Drive URL (tuỳ chọn)' }, React.createElement(Input, { placeholder: 'https://docs.google.com/...', allowClear: true, style: inpStyle })),
-      divider('Ghi chú'),
-      React.createElement(Form.Item, { name: 'note', label: 'Ghi chú' }, React.createElement(Input.TextArea, { rows: 2, allowClear: true, placeholder: 'Nhập ghi chú...', style: inpStyle }))
+      React.createElement(Form.Item, { name: 'googleDriveUrl', label: tr("Google Drive URL (optional)") }, React.createElement(Input, { placeholder: 'https://docs.google.com/...', allowClear: true, style: inpStyle })),
+      divider(tr("Note")),
+      React.createElement(Form.Item, { name: 'note', label: tr("Note") }, React.createElement(Input.TextArea, { rows: 2, allowClear: true, placeholder: tr("Enter a note..."), style: inpStyle }))
     )
   );
 };
@@ -2973,19 +3317,19 @@ const NextStepInlineEditor = ({ item, onUpdate, currentUser, readOnly = false })
     try {
       await apiReq(`tasks:update?filterByTk=${item.id}`, 'POST', { nextStepDescription: val || null });
       onUpdate({ ...item, nextStepDescription: val || null });
-      message.success('✅ Đã lưu bước tiếp theo');
-    } catch { message.error('Lưu thất bại'); }
+      message.success(tr("✅ Next step saved"));
+    } catch { message.error(tr("Save failed")); }
     setSaving(false);
   };
   if (readOnly) {
     return React.createElement('div', {
       style: { padding: '8px 10px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 6, fontSize: 12, fontFamily: FONT, color: val ? '#096dd9' : '#bfbfbf', lineHeight: 1.7, whiteSpace: 'pre-wrap', minHeight: 40 },
-    }, val ? `→ ${val}` : '(Chưa có bước tiếp theo)');
+    }, val ? `→ ${val}` : tr("(No next step yet)"));
   }
   return React.createElement('div', { style: { position: 'relative' } },
     React.createElement('textarea', {
       value: val, onChange: (e) => setVal(e.target.value),
-      placeholder: 'VD: Khải soạn LoA theo Detailed outline, gửi khách hàng review...', rows: 3,
+      placeholder: tr("e.g.: Draft the LoA per the Detailed outline, send to client for review..."), rows: 3,
       style: {
         width: '100%', border: `1px solid ${isDirty ? '#1890ff' : '#e8e8e8'}`,
         borderRadius: 6, padding: '8px 10px', paddingBottom: 36,
@@ -2995,7 +3339,7 @@ const NextStepInlineEditor = ({ item, onUpdate, currentUser, readOnly = false })
       onFocus: (e) => e.currentTarget.style.borderColor = '#1890ff',
     }),
     React.createElement('div', { style: { position: 'absolute', bottom: 8, right: 8, display: 'flex', alignItems: 'center', gap: 6 } },
-      isDirty && React.createElement('span', { style: { fontSize: 12, fontFamily: FONT, color: '#fa8c16', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 10, padding: '1px 8px' } }, 'Chưa lưu'),
+      isDirty && React.createElement('span', { style: { fontSize: 12, fontFamily: FONT, color: '#fa8c16', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 10, padding: '1px 8px' } }, tr("Unsaved")),
       React.createElement('div', {
         onClick: saving ? null : handleSave,
         style: {
@@ -3004,7 +3348,7 @@ const NextStepInlineEditor = ({ item, onUpdate, currentUser, readOnly = false })
           color: saving ? '#bfbfbf' : (isDirty ? '#fff' : '#bfbfbf'),
           cursor: saving ? 'not-allowed' : (isDirty ? 'pointer' : 'default'),
         },
-      }, saving ? 'Đang lưu...' : (isDirty ? '💾 Lưu' : '✓ Đã lưu')),
+      }, saving ? tr("Saving...") : (isDirty ? tr("💾 Save") : tr("✓ Saved"))),
     ),
   );
 };
@@ -3023,8 +3367,8 @@ const DescriptionInlineEditor = ({ item, type, onUpdate, readOnly = false }) => 
         : `tasks:update?filterByTk=${item.id}`;
       await apiReq(url, 'POST', { description: val || null });
       onUpdate({ ...item, description: val || null });
-      message.success('✅ Đã lưu');
-    } catch { message.error('Lưu thất bại'); }
+      message.success(tr("✅ Saved"));
+    } catch { message.error(tr("Save failed")); }
     setSaving(false);
   };
   if (readOnly) {
@@ -3035,13 +3379,13 @@ const DescriptionInlineEditor = ({ item, type, onUpdate, readOnly = false }) => 
         color: val ? '#262626' : '#bfbfbf',
         lineHeight: 1.7, whiteSpace: 'pre-wrap', minHeight: 64,
       },
-    }, val || '(Chưa có nội dung)');
+    }, val || tr("(No content yet)"));
   }
   return React.createElement('div', { style: { position: 'relative' } },
     React.createElement('textarea', {
       value: val,
       onChange: (e) => setVal(e.target.value),
-      placeholder: 'Nhập nội dung diễn biến...',
+      placeholder: tr("Enter progress details..."),
       rows: 4,
       style: {
         width: '100%',
@@ -3057,7 +3401,7 @@ const DescriptionInlineEditor = ({ item, type, onUpdate, readOnly = false }) => 
     },
       isDirty && React.createElement('span', {
         style: { fontSize: 11, fontFamily: FONT, color: '#fa8c16', background: '#fff7e6', border: '1px solid #ffd591', borderRadius: 10, padding: '1px 8px' },
-      }, 'Chưa lưu'),
+      }, tr("Unsaved")),
       React.createElement('div', {
         onClick: saving ? null : handleSave,
         style: {
@@ -3066,7 +3410,7 @@ const DescriptionInlineEditor = ({ item, type, onUpdate, readOnly = false }) => 
           color:      saving ? '#bfbfbf' : (isDirty ? '#fff'    : '#bfbfbf'),
           cursor:     saving ? 'not-allowed' : (isDirty ? 'pointer' : 'default'),
         },
-      }, saving ? 'Đang lưu...' : (isDirty ? '💾 Lưu' : '✓ Đã lưu')),
+      }, saving ? tr("Saving...") : (isDirty ? tr("💾 Save") : tr("✓ Saved"))),
     ),
   );
 };
@@ -3294,7 +3638,7 @@ const LawyerPicker = ({
         autoFocus: true,
         value: q,
         onChange: (e) => setQ(e.target.value),
-        placeholder: "Tìm luật sư...",
+        placeholder: tr("Search lawyer..."),
         style: {
           width: "100%",
           border: "1px solid #e8e8e8",
@@ -3336,7 +3680,7 @@ const LawyerPicker = ({
               (e.currentTarget.style.background = "transparent"),
           },
           React.createElement("span", null, "×"),
-          React.createElement("span", null, "Huỷ phân công"),
+          React.createElement("span", null, tr("Unassign")),
         ),
       ...grouped.map(({ type, cfg, items }) =>
         React.createElement(
@@ -3418,7 +3762,7 @@ const LawyerPicker = ({
                         color: "#8c8c8c",
                       },
                     },
-                    `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/giờ`,
+                    tr("{0} ₫/hr", { 0: Number(l.unitPrice).toLocaleString("vi-VN") }),
                   ),
               ),
             );
@@ -3444,7 +3788,7 @@ const LawyerPicker = ({
                 borderTop: "1px solid #f0f0f0",
               },
             },
-            "Khác",
+            tr("Other"),
           ),
           ...others.map((l) => {
             const lColor =
@@ -3542,7 +3886,7 @@ const LawyerPicker = ({
           : React.createElement(
               "div",
               {
-                title: "Chọn luật sư duyệt",
+                title: tr("Choose the approving lawyer"),
                 style: {
                   width: size,
                   height: size,
@@ -3574,7 +3918,7 @@ const TaskPicker = ({ allTasks, currentTaskId, value, onChange, services = [], r
   const currentTask = useMemo(() => allTasks.find((t) => t.id === currentTaskId), [allTasks, currentTaskId]);
 
   const serviceMap = useMemo(() => {
-    const m = { __none__: 'Chưa gắn dịch vụ' };
+    const m = { __none__: tr("No service assigned") };
     services.forEach((s) => { m[String(s.id)] = s.serviceName; });
     return m;
   }, [services]);
@@ -3596,7 +3940,7 @@ const TaskPicker = ({ allTasks, currentTaskId, value, onChange, services = [], r
     const noneKey     = map['__none__'] ? ['__none__'] : [];
     return [...serviceKeys, ...noneKey].map((k) => ({
       key: k,
-      label: serviceMap[k] || ('Dịch vụ #' + k),
+      label: serviceMap[k] || (tr("Service #") + k),
       tasks: map[k],
       isSameService: currentTask && String(currentTask.serviceId) === k
     }));
@@ -3651,13 +3995,13 @@ const TaskPicker = ({ allTasks, currentTaskId, value, onChange, services = [], r
       React.createElement('div', { style: { padding: '8px 10px 6px', flexShrink: 0 } },
         React.createElement('input', {
           autoFocus: true, value: q, onChange: (e) => setQ(e.target.value),
-          placeholder: 'Tìm công việc theo tên...',
+          placeholder: tr("Search tasks by name..."),
           style: { width: '100%', border: '1px solid #e8e8e8', borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none', boxSizing: 'border-box', fontFamily: FONT },
         }),
       ),
       React.createElement('div', { style: { overflowY: 'auto', flex: 1 } },
         grouped.length === 0
-          ? React.createElement('div', { style: { padding: '16px', fontSize: 12, fontFamily: FONT, color: '#bfbfbf', textAlign: 'center' } }, 'Không có công việc nào')
+          ? React.createElement('div', { style: { padding: '16px', fontSize: 12, fontFamily: FONT, color: '#bfbfbf', textAlign: 'center' } }, tr("No tasks found"))
           : grouped.map((g) =>
               React.createElement('div', { key: g.key },
                 React.createElement('div', {
@@ -3694,7 +4038,7 @@ const TaskPicker = ({ allTasks, currentTaskId, value, onChange, services = [], r
               style: { fontSize: 14, color: '#cf1322', fontWeight: 700, flexShrink: 0, lineHeight: 1 },
             }, '×'),
           )
-        : React.createElement('span', { style: { fontSize: 13, fontFamily: FONT, color: '#bfbfbf', flex: 1 } }, 'Chọn công việc điều kiện...'),
+        : React.createElement('span', { style: { fontSize: 13, fontFamily: FONT, color: '#bfbfbf', flex: 1 } }, tr("Select a prerequisite task...")),
     ),
     renderDropdown(),
   );
@@ -3725,7 +4069,7 @@ const RejectModal = ({ open, onClose, onConfirm }) => {
       title: React.createElement(
         Text,
         { strong: true, style: { fontFamily: FONT, fontSize: 14 } },
-        "❌ Từ chối timesheet",
+        tr("❌ Reject timesheet"),
       ),
     },
     React.createElement(
@@ -3748,12 +4092,12 @@ const RejectModal = ({ open, onClose, onConfirm }) => {
               letterSpacing: 0.5,
             },
           },
-          "Lý do từ chối",
+          tr("Rejection reason"),
         ),
         React.createElement("textarea", {
           value: reason,
           onChange: (e) => setReason(e.target.value),
-          placeholder: "Nhập lý do (tuỳ chọn)...",
+          placeholder: tr("Enter a reason (optional)..."),
           rows: 3,
           autoFocus: true,
           style: {
@@ -3789,7 +4133,7 @@ const RejectModal = ({ open, onClose, onConfirm }) => {
               color: "#595959",
             },
           },
-          "Huỷ",
+          tr("Cancel"),
         ),
         React.createElement(
           "div",
@@ -3806,7 +4150,7 @@ const RejectModal = ({ open, onClose, onConfirm }) => {
               fontWeight: 700,
             },
           },
-          saving ? "Đang xử lý..." : "❌ Xác nhận từ chối",
+          saving ? tr("Processing...") : tr("❌ Confirm rejection"),
         ),
       ),
     ),
@@ -3938,15 +4282,15 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
 
   const save = async () => {
     if (!startInput) {
-      message.warning("Vui lòng chọn thời điểm bắt đầu");
+      message.warning(tr("Please select the start time"));
       return;
     }
     if (!dur || dur <= 0) {
-      message.warning("Vui lòng nhập số giờ thực hiện");
+      message.warning(tr("Please enter the hours worked"));
       return;
     }
     if (dur > 24) {
-      message.warning("Số giờ không được vượt quá 24");
+      message.warning(tr("Hours must not exceed 24"));
       return;
     }
     const startTime = new Date(startInput);
@@ -3954,14 +4298,14 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
     const now = new Date();
     if (startTime > new Date(now.getTime() + 24 * 3600000)) {
       message.warning(
-        "Thời điểm bắt đầu không được quá 24 giờ trong tương lai",
+        tr("The start time cannot be more than 24 hours in the future"),
       );
       return;
     }
     if (overlapInfo && overlapInfo.length > 0) {
       const cf = overlapInfo[0];
       message.error(
-        `⛔ Trùng thời gian với timesheet ${fmt(cf.startTime, "full")} → ${fmt(cf.endTime, "full")}`,
+        tr("⛔ Overlaps timesheet {0} → {1}", { 0: fmt(cf.startTime, "full"), 1: fmt(cf.endTime, "full") }),
       );
       return;
     }
@@ -3975,7 +4319,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
           duration: dur,
           description: descInput.trim() || null,
         });
-        message.success("✅ Đã cập nhật");
+        message.success(tr("✅ Updated"));
       } else {
         await createTS({
           lawyerId: myLawyer.id,
@@ -3991,13 +4335,13 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
           [fKey]: item.id,
           projectId: item.projectId ? parseInt(item.projectId) : null,
         });
-        message.success("✅ Đã lưu (Nháp)");
+        message.success(tr("✅ Saved (Draft)"));
       }
       setModal(false);
       setEditE(null);
       await reloadSheets();
     } catch (e) {
-      message.error("Lỗi: " + (e?.message || "Thử lại"));
+      message.error(tr("Error: ") + (e?.message || tr("Please try again")));
     }
     setSaving(false);
   };
@@ -4006,10 +4350,10 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
     setActionLoading(id);
     try {
       await updateTS(id, { status: "submitted" });
-      message.success("📤 Đã gửi duyệt");
+      message.success(tr("📤 Sent for approval"));
       await reloadSheets();
     } catch {
-      message.error("Lỗi");
+      message.error(tr("Error"));
     }
     setActionLoading(null);
   };
@@ -4017,10 +4361,10 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
     setActionLoading(id);
     try {
       await updateTS(id, { status: "approved" });
-      message.success("✅ Đã duyệt");
+      message.success(tr("✅ Approved"));
       await reloadSheets();
     } catch {
-      message.error("Lỗi");
+      message.error(tr("Error"));
     }
     setActionLoading(null);
   };
@@ -4032,10 +4376,10 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
         status: "rejected",
         rejectionReason: reason || null,
       });
-      message.success("❌ Đã từ chối");
+      message.success(tr("❌ Rejected"));
       await reloadSheets();
     } catch {
-      message.error("Lỗi");
+      message.error(tr("Error"));
     }
     setActionLoading(null);
     setRejectModal(false);
@@ -4045,10 +4389,10 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
     setActionLoading(id);
     try {
       await updateTS(id, { status: "draft", rejectionReason: null });
-      message.success("📝 Đã chuyển về nháp");
+      message.success(tr("📝 Moved back to draft"));
       await reloadSheets();
     } catch {
-      message.error("Lỗi");
+      message.error(tr("Error"));
     }
     setActionLoading(null);
   };
@@ -4056,10 +4400,10 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
     setDel(id);
     try {
       await deleteTS(id);
-      message.success("Đã xoá");
+      message.success(tr("Deleted"));
       await reloadSheets();
     } catch {
-      message.error("Lỗi");
+      message.error(tr("Error"));
     }
     setDel(null);
   };
@@ -4142,7 +4486,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
               React.createElement(
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-                "⏱ Tổng giờ:",
+                tr("⏱ Total hours:"),
               ),
               React.createElement(
                 "span",
@@ -4174,7 +4518,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                         color: "#8c8c8c",
                       },
                     },
-                    `dự kiến ${fmtHours(item.estimatedDuration)}`,
+                    tr("estimated {0}", { 0: fmtHours(item.estimatedDuration) }),
                   ),
                 ),
             )
@@ -4197,7 +4541,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                   {
                     style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" },
                   },
-                  "⏱ Dự kiến:",
+                  tr("⏱ Estimated:"),
                 ),
                 React.createElement(
                   "span",
@@ -4230,7 +4574,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
             React.createElement(
               "span",
               { style: { fontSize: 11, fontFamily: FONT, color: "#8c8c8c" } },
-              "⚡ Năng suất:",
+              tr("⚡ Productivity:"),
             ),
             React.createElement(
               "span",
@@ -4262,7 +4606,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
             flexShrink: 0,
           },
         },
-        "＋ Thêm",
+        tr("＋ Add"),
       ),
     ),
     activeSheet &&
@@ -4293,7 +4637,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                 color: "#d46b08",
               },
             },
-            "Đang có timesheet chưa kết thúc",
+            tr("A timesheet is still running"),
           ),
           React.createElement(
             "div",
@@ -4487,7 +4831,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                 borderRadius: 8,
               },
             },
-            "Chưa có timesheet — nhấn ＋ Thêm để bắt đầu",
+            tr("No timesheet yet — press ＋ Add to start"),
           )
         : React.createElement(
             "div",
@@ -4550,7 +4894,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                             border: "1px solid #ffd591",
                           },
                         },
-                        "⏳ Đang chạy",
+                        tr("⏳ Running"),
                       ),
                   ),
                   React.createElement(
@@ -4631,7 +4975,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                     React.createElement(
                       "span",
                       null,
-                      React.createElement("strong", null, "Lý do từ chối: "),
+                      React.createElement("strong", null, tr("Rejection reason: ")),
                       s.rejectionReason,
                     ),
                   ),
@@ -4663,7 +5007,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           fontWeight: 600,
                         },
                       },
-                      "📤 Gửi duyệt",
+                      tr("📤 Send for approval"),
                     ),
                   canApprove &&
                     React.createElement(
@@ -4682,7 +5026,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           fontWeight: 600,
                         },
                       },
-                      "✅ Duyệt",
+                      tr("✅ Approve"),
                     ),
                   canReject &&
                     React.createElement(
@@ -4706,7 +5050,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           fontWeight: 600,
                         },
                       },
-                      "❌ Từ chối",
+                      tr("❌ Reject"),
                     ),
                   canEdit &&
                     React.createElement(
@@ -4723,7 +5067,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           cursor: "pointer",
                         },
                       },
-                      "✏️ Sửa",
+                      tr("✏️ Edit"),
                     ),
                   canReDraft &&
                     React.createElement(
@@ -4741,7 +5085,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           cursor: isAL ? "not-allowed" : "pointer",
                         },
                       },
-                      "📝 Về nháp",
+                      tr("📝 Back to draft"),
                     ),
                   canDelete &&
                     React.createElement(
@@ -4760,7 +5104,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           marginLeft: "auto",
                         },
                       },
-                      del === s.id ? "..." : "🗑 Xoá",
+                      del === s.id ? "..." : tr("🗑 Delete"),
                     ),
                 ),
               );
@@ -4781,14 +5125,14 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
           title: React.createElement(
             Text,
             { strong: true, style: { fontFamily: FONT, fontSize: 15 } },
-            editE ? "✏️ Cập nhật timesheet" : "⏱ Ghi nhận giờ làm việc",
+            editE ? tr("✏️ Update timesheet") : tr("⏱ Log work hours"),
           ),
         },
         React.createElement(
           "div",
           null,
           fld(
-            "👨‍⚖️ Luật sư",
+            tr("👨‍⚖️ Lawyer"),
             React.createElement(
               "div",
               {
@@ -4818,14 +5162,14 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                 {
                   style: { marginLeft: "auto", fontSize: 11, color: "#bfbfbf" },
                 },
-                "(bạn)",
+                tr("(you)"),
               ),
             ),
           ),
           React.createElement(
             "div",
             { style: { marginBottom: 14 } },
-            lbl("🕐 Thời điểm bắt đầu *"),
+            lbl(tr("🕐 Start time *")),
             React.createElement("input", {
               type: "datetime-local",
               value: startInput,
@@ -4853,13 +5197,13 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                     gap: 4,
                   },
                 },
-                "⚡ Dùng thời điểm hiện tại",
+                tr("⚡ Use the current time"),
               ),
           ),
           React.createElement(
             "div",
             { style: { marginBottom: 14 } },
-            lbl("⏱ Số giờ thực hiện *"),
+            lbl(tr("⏱ Hours worked *")),
             React.createElement(
               "div",
               { style: { position: "relative" } },
@@ -4868,7 +5212,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                 step: "0.5",
                 min: "0.5",
                 max: "24",
-                placeholder: "VD: 2 hoặc 1.5",
+                placeholder: tr("e.g. 2 or 1.5"),
                 value: durInput,
                 onChange: (e) => {
                   setDurInput(e.target.value);
@@ -4901,7 +5245,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                     pointerEvents: "none",
                   },
                 },
-                "giờ",
+                tr("hours"),
               ),
             ),
             computedStart &&
@@ -4988,7 +5332,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                           marginBottom: 3,
                         },
                       },
-                      "⛔ Trùng thời gian:",
+                      tr("⛔ Overlaps:"),
                     ),
                     ...overlapInfo
                       .slice(0, 3)
@@ -5033,7 +5377,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                             color: "#8c8c8c",
                           },
                         },
-                        "📊 Tổng sau khi lưu:",
+                        tr("📊 Total after saving:"),
                       ),
                       React.createElement(
                         "span",
@@ -5066,7 +5410,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                             color: "#8c8c8c",
                           },
                         },
-                        `⚡ Năng suất (dự kiến ${fmtHours(item.estimatedDuration)}):`,
+                        tr("⚡ Productivity (estimated {0}):", { 0: fmtHours(item.estimatedDuration) }),
                       ),
                       React.createElement(
                         "span",
@@ -5088,11 +5432,11 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
               ),
           ),
           fld(
-            "📝 Mô tả",
+            tr("📝 Description"),
             React.createElement("textarea", {
               value: descInput,
               onChange: (e) => setDescInput(e.target.value),
-              placeholder: "Mô tả ngắn gọn...",
+              placeholder: tr("Short description..."),
               rows: 3,
               style: { ...inpS, resize: "vertical", lineHeight: 1.6 },
               onFocus: fb,
@@ -5118,8 +5462,8 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
               React.createElement(
                 "span",
                 { style: { fontSize: 12, fontFamily: FONT, color: "#595959" } },
-                "Timesheet sẽ được lưu với trạng thái ",
-                React.createElement("strong", null, '"Nháp"'),
+                tr("The timesheet will be saved with status "),
+                React.createElement("strong", null, tr("\"Draft\"")),
               ),
             ),
           React.createElement(
@@ -5150,7 +5494,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                   color: "#595959",
                 },
               },
-              "Huỷ",
+              tr("Cancel"),
             ),
             React.createElement(
               "div",
@@ -5171,7 +5515,7 @@ const TimesheetTab = ({ item, type, myLawyer, isManager = false }) => {
                   fontWeight: 700,
                 },
               },
-              saving ? "Đang lưu..." : editE ? "Cập nhật" : "💾 Lưu nháp",
+              saving ? tr("Saving...") : editE ? tr("Update") : tr("💾 Save draft"),
             ),
           ),
         ),
@@ -5207,7 +5551,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
     n?.createdBy?.nickname ||
     n?.createdBy?.username ||
     n?.createdBy?.email ||
-    (n?.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n?.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
 
   const getActivityTime = (a) =>
     new Date(
@@ -5342,27 +5686,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
       collection === "Note";
 
     if (isCommentLayout && action === "updated")
-      return "\u0111\u00e3 ch\u1ec9nh s\u1eeda b\u00ecnh lu\u1eadn";
+      return tr("edited a comment");
     if (isCommentLayout && action === "deleted")
-      return "\u0111\u00e3 x\u00f3a b\u00ecnh lu\u1eadn";
+      return tr("deleted a comment");
 
     const layoutLabels = {
-      fileOnly: "\u0111\u00e3 t\u1ea3i l\u00ean t\u1ec7p",
-      commentGroup: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-      commentOnly: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-      mentionOnly: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
+      fileOnly: tr("uploaded files"),
+      commentGroup: tr("commented"),
+      commentOnly: tr("commented"),
+      mentionOnly: tr("commented"),
     };
     const actionLabels = {
-      created: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-      commented: "\u0111\u00e3 b\u00ecnh lu\u1eadn",
-      updated: "\u0111\u00e3 ch\u1ec9nh s\u1eeda",
-      deleted: "\u0111\u00e3 x\u00f3a b\u1ecf",
-      uploaded: "\u0111\u00e3 t\u1ea3i l\u00ean",
+      created: tr("commented"),
+      commented: tr("commented"),
+      updated: tr("edited"),
+      deleted: tr("deleted"),
+      uploaded: tr("uploaded"),
     };
     return (
       layoutLabels[layoutType] ||
       actionLabels[action] ||
-      "\u0111\u00e3 th\u1ef1c hi\u1ec7n"
+      tr("acted")
     );
   };
 
@@ -5370,15 +5714,15 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
     const fileCount = (files || []).length;
     if (layoutType === "commentGroup") {
       return fileCount > 0
-        ? `B\u00ecnh lu\u1eadn + ${fileCount} t\u1ec7p`
-        : "B\u00ecnh lu\u1eadn + nh\u1eafc t\u00ean";
+        ? tr("Comment + {0} files", { 0: fileCount })
+        : tr("Comment + mentions");
     }
-    if (layoutType === "commentOnly") return "B\u00ecnh lu\u1eadn";
+    if (layoutType === "commentOnly") return tr("Comment");
     if (layoutType === "fileOnly")
       return fileCount > 1
-        ? `${fileCount} t\u1ec7p`
-        : "T\u1ec7p \u0111\u00ednh k\u00e8m";
-    if (layoutType === "mentionOnly") return "Nh\u1eafc t\u00ean";
+        ? tr("{0} files", { 0: fileCount })
+        : tr("Attached file");
+    if (layoutType === "mentionOnly") return tr("Mention");
     return null;
   };
 
@@ -5850,7 +6194,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
               fontStyle: "italic",
             },
           },
-          `đã phản hồi ${parentAuthor}:`,
+          tr("replied to {0}:", { 0: parentAuthor }),
         ),
 
       // ── Nội dung bình luận ─────────────────────────────────────────────
@@ -5870,7 +6214,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                 display: showBodyLabel ? "block" : "none",
               },
             },
-            "Nội dung bình luận:",
+            tr("Comment content:"),
           ),
           React.createElement(
             "div",
@@ -5935,7 +6279,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
               React.createElement(
                 "div",
                 { style: { color: "#8c8c8c", fontSize: 10, margin: "2px 0" } },
-                "↓ thay đổi thành ↓",
+                tr("↓ changed to ↓"),
               ),
 
             // Nội dung hiện tại
@@ -5965,7 +6309,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                 : React.createElement(
                     "span",
                     { style: { color: "#8c8c8c", fontStyle: "italic" } },
-                    "(Ghi chú có nhắc tên)",
+                    tr("(Note mentions someone)"),
                   ),
           ),
         ),
@@ -5986,7 +6330,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                 fontFamily: FONT,
               },
             },
-            "Đã nhắc đến ai:",
+            tr("Mentioned people:"),
           ),
           React.createElement(
             "div",
@@ -6048,14 +6392,14 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                 display: showFileLabel ? "block" : "none",
               },
             },
-            "Tệp đính kèm:",
+            tr("Attached file:"),
           ),
           files.map((f) => {
             const att = Array.isArray(f.fileAttachment)
               ? f.fileAttachment[0]
               : f.fileAttachment;
             const rawName =
-              f.title || att?.title || att?.filename || "(Chưa có tên)";
+              f.title || att?.title || att?.filename || tr("(No name yet)");
             const fExt = att?.extname || "";
             const displayName = rawName
               .toLowerCase()
@@ -6119,7 +6463,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                   {
                     style: { fontSize: 10, color: "#722ed1", fontWeight: 700 },
                   },
-                  "TẢI VỀ",
+                  tr("DOWNLOAD"),
                 ),
             );
           }),
@@ -6133,14 +6477,14 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
       a.action === "created"
         ? a.createdAt || a.changedAt || a.updatedAt
         : a.changedAt || a.updatedAt || a.createdAt;
-    const fieldLabel = tF(a.fieldName || "dữ liệu");
-    const user = a.changedByName || "Hệ thống";
+    const fieldLabel = tF(a.fieldName || tr("data"));
+    const user = a.changedByName || tr("System");
     const actionLabel =
       a.action === "created"
-        ? `\u0111\u00e3 t\u1ea1o ${fieldLabel}`
+        ? tr("created {0}", { 0: fieldLabel })
       : a.action === "deleted"
-          ? `\u0111\u00e3 x\u00f3a ${fieldLabel}`
-          : `\u0111\u00e3 c\u1eadp nh\u1eadt ${fieldLabel}`;
+          ? tr("deleted {0}", { 0: fieldLabel })
+          : tr("updated {0}", { 0: fieldLabel });
     const oldVal = a.oldValue ? formatActivityValue(a.oldValue) : "—";
     const newVal = a.newValue ? formatActivityValue(a.newValue) : "—";
     const showOldValue = a.action !== "created";
@@ -6183,7 +6527,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
           React.createElement(
             "span",
             { style: { fontSize: 13, color: "#595959" } },
-            ` ${actionLabel} lúc `,
+            tr(" {0} at ", { 0: actionLabel }),
           ),
           React.createElement(
             "span",
@@ -6208,7 +6552,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
         React.createElement(
           "span",
           { style: { color: "#8c8c8c", fontWeight: 700 } },
-          "Giá trị:",
+          tr("Value:"),
         ),
         showOldValue &&
           React.createElement(
@@ -6270,27 +6614,27 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
 
     if (collectionName === "Note" && action === "updated") {
       if (hasBodyLog && hasAssigneeLog)
-        return "S\u1eeda n\u1ed9i dung b\u00ecnh lu\u1eadn v\u00e0 c\u1eadp nh\u1eadt ng\u01b0\u1eddi \u0111\u01b0\u1ee3c nh\u1eafc";
-      if (hasBodyLog) return "S\u1eeda n\u1ed9i dung b\u00ecnh lu\u1eadn";
+        return tr("Edited the comment and its mentions");
+      if (hasBodyLog) return tr("Edited the comment");
       if (hasAssigneeLog)
-        return "C\u1eadp nh\u1eadt ng\u01b0\u1eddi \u0111\u01b0\u1ee3c nh\u1eafc trong b\u00ecnh lu\u1eadn";
+        return tr("Updated the comment's mentions");
     }
 
     if (collectionName === "Note" && action === "deleted")
-      return "X\u00f3a b\u00ecnh lu\u1eadn";
+      return tr("Deleted the comment");
 
     if (firstUnified?.parentAuthor)
-      return `Ph\u1ea3n h\u1ed3i b\u00ecnh lu\u1eadn c\u1ee7a ${firstUnified.parentAuthor}`;
+      return tr("Replied to {0}'s comment", { 0: firstUnified.parentAuthor });
 
     if (layoutType === "fileOnly")
       return fileCount > 1
-        ? `T\u1ea3i l\u00ean ${fileCount} t\u1ec7p \u0111\u00ednh k\u00e8m`
-        : "T\u1ea3i l\u00ean t\u1ec7p \u0111\u00ednh k\u00e8m";
+        ? tr("Uploaded {0} attached files", { 0: fileCount })
+        : tr("Uploaded an attached file");
 
     if (layoutType === "commentGroup")
-      return "T\u1ea1o b\u00ecnh lu\u1eadn k\u00e8m th\u00f4ng tin li\u00ean quan";
+      return tr("Created a comment with related details");
 
-    if (layoutType === "commentOnly") return "T\u1ea1o b\u00ecnh lu\u1eadn";
+    if (layoutType === "commentOnly") return tr("Created a comment");
 
     return null;
   };
@@ -6316,7 +6660,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
       React.createElement(
         "span",
         { style: { color: "#8c8c8c", fontWeight: 700 } },
-        "H\u00e0nh \u0111\u1ed9ng:",
+        tr("Action:"),
       ),
       React.createElement("span", null, text),
     );
@@ -6396,10 +6740,10 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
     // Tên user hiển thị
     const user =
       firstIt._kind === "log"
-        ? firstIt.data.changedByName || "Hệ thống"
+        ? firstIt.data.changedByName || tr("System")
         : firstIt.note
           ? authorName(firstIt.note)
-          : "Hệ thống";
+          : tr("System");
 
     const actionLabel = getLayoutActionLabel(
       layoutType,
@@ -6467,7 +6811,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
           React.createElement(
             "span",
             { style: { color: "#8c8c8c", fontSize: 12, fontFamily: FONT } },
-            `${actionLabel} l\u00fac ${fmt(latestTime, "full") || "\u2014"}`,
+            tr("{0} at {1}", { 0: actionLabel, 1: fmt(latestTime, "full") || "\u2014" }),
           ),
           badge &&
             React.createElement(
@@ -6569,7 +6913,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
               fontFamily: FONT,
             },
           },
-          "Tệp đính kèm:",
+          tr("Attached file:"),
         ),
         React.createElement(
           "div",
@@ -6662,7 +7006,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
             fontFamily: FONT,
           },
         },
-        isUpd ? `cập nhật [${label}]` : `đã xóa [${label}]`,
+        isUpd ? tr("updated [{0}]", { 0: label }) : tr("deleted [{0}]", { 0: label }),
       ),
       (a.oldValue || a.newValue) &&
         React.createElement(
@@ -6771,7 +7115,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
             color: "#262626",
           },
         },
-        "Lịch sử hoạt động",
+        tr("Activity history"),
       ),
       React.createElement(ReloadButton, {
         onReload: reloadData,
@@ -6802,7 +7146,7 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                   fontFamily: FONT,
                 },
               },
-              "Chưa có hoạt động nào",
+              tr("No activity yet"),
             )
           : React.createElement(
               "div",
@@ -6838,8 +7182,8 @@ const ActivityTab = ({ collectionName, recordId, lawyers = [] }) => {
                       (e.currentTarget.style.background = "#f0f8ff"),
                   },
                   showAll
-                    ? `▲ Rút gọn (hiện ${INITIAL_COUNT} trong ${items.length})`
-                    : `▼ Xem thêm ${items.length - INITIAL_COUNT} hoạt động (tổng ${items.length})`,
+                    ? tr("▲ Collapse (showing {0} of {1})", { 0: INITIAL_COUNT, 1: items.length })
+                    : tr("▼ View {0} more activities ({1} total)", { 0: items.length - INITIAL_COUNT, 1: items.length }),
                 ),
             ),
     ),
@@ -6918,7 +7262,7 @@ const DetailModal = ({
     if (type === 'task' && item.previousTaskId) {
       const prevTask = _pool.find((t) => extractId(t.id) === extractId(item.previousTaskId));
       if (prevTask && prevTask.status !== 'done' && prevTask.status !== 'cancelled') {
-        if (!['cancelled', 'blocked'].includes(newSt)) { message.warning(`Cần hoàn thành "${prevTask.title}" trước`); return; }
+        if (!['cancelled', 'blocked'].includes(newSt)) { message.warning(tr("Must complete \"{0}\" first", { 0: prevTask.title })); return; }
       }
     }
     const resolvedSt = resolveStatus(newSt, item);
@@ -6931,9 +7275,9 @@ const DetailModal = ({
       await apiReq(url, 'POST', data);
       await logAct(collectionName, extractId(item.id), 'updated', 'status', st.label, STATUS_CFG[resolvedSt]?.label, userName(currentUser));
       if (onStatusChange) onStatusChange(extractId(item.id), resolvedSt, type, data);
-      message.success(`Trạng thái: ${STATUS_CFG[resolvedSt]?.label}`);
+      message.success(tr("Status: {0}", { 0: STATUS_CFG[resolvedSt]?.label }));
     } catch (error) {
-      message.error("Lỗi cập nhật!");
+      message.error(tr("Update failed!"));
       onUpdate({ ...item }); 
     }
   };
@@ -6951,9 +7295,9 @@ const DetailModal = ({
     onUpdate({ ...item, priority: newPr });
     try {
       await apiReq(url, 'POST', { priority: newPr });
-      message.success('Đã cập nhật ưu tiên');
+      message.success(tr("Priority updated"));
     } catch(e) {
-      message.error("Lỗi cập nhật");
+      message.error(tr("Could not update"));
       onUpdate({ ...item }); 
     }
   };
@@ -6967,9 +7311,9 @@ const DetailModal = ({
     onUpdate({ ...item, [field]: nameVal.trim() });
     try {
       await apiReq(url, 'POST', { [field]: nameVal.trim() });
-      message.success('Đã cập nhật tên');
+      message.success(tr("Name updated"));
     } catch(e) {
-      message.error("Lỗi cập nhật");
+      message.error(tr("Could not update"));
       onUpdate({ ...item });
       setNameVal(name);
     }
@@ -6984,9 +7328,9 @@ const DetailModal = ({
     try {
       const url = type === 'subtask' ? `subTasks:update?filterByTk=${extractId(item.id)}` : `tasks:update?filterByTk=${extractId(item.id)}`;
       await apiReq(url, 'POST', { estimatedDuration: newVal });
-      message.success('Đã cập nhật thời gian dự kiến');
+      message.success(tr("Estimated duration updated"));
     } catch (e) {
-      message.error("Lỗi cập nhật");
+      message.error(tr("Could not update"));
       onUpdate({ ...item });
       setEstDurVal(oldVal || '');
     }
@@ -6997,17 +7341,17 @@ const DetailModal = ({
     canEdit && editName
       ? React.createElement('input', { value: nameVal, onChange: (e) => setNameVal(e.target.value), autoFocus: true, onKeyDown: (e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditName(false); }, onBlur: saveName, style: { fontSize: 16, fontWeight: 600, fontFamily: FONT, border: 'none', borderBottom: '2px solid #1890ff', outline: 'none', background: 'transparent', padding: '2px 4px', minWidth: 300 } })
       : React.createElement('span', { onClick: canEdit ? () => setEditName(true) : undefined, style: { fontSize: 16, fontWeight: 600, fontFamily: FONT, color: '#1a1a1a', cursor: canEdit ? 'text' : 'default' } }, nameVal || name),
-    item.isRequiredApproval && React.createElement('span', { style: { fontSize: 11, padding: '2px 6px', borderRadius: 3, background: '#fff7e6', color: '#d46b08', border: '1px solid #ffd591' } }, 'Cần phê duyệt'),
-    item._od && React.createElement('span', { style: { fontSize: 11, padding: '2px 6px', borderRadius: 3, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' } }, 'Quá hạn'),
+    item.isRequiredApproval && React.createElement('span', { style: { fontSize: 11, padding: '2px 6px', borderRadius: 3, background: '#fff7e6', color: '#d46b08', border: '1px solid #ffd591' } }, tr("Requires approval")),
+    item._od && React.createElement('span', { style: { fontSize: 11, padding: '2px 6px', borderRadius: 3, background: '#fff1f0', color: '#cf1322', border: '1px solid #ffa39e' } }, tr("Overdue")),
   );
 
-  const renderFileList = (files, emptyMsg = 'Chưa có tệp đính kèm nào.', hideTime = false) => {
+  const renderFileList = (files, emptyMsg = tr("No attached files yet."), hideTime = false) => {
     if (loadingFiles) return React.createElement('div', { style: { padding: '10px 0' } }, React.createElement(Spin, { size: 'small' }));
     if (files.length === 0) return React.createElement('div', { style: { fontSize: 12, color: '#bfbfbf', fontStyle: 'italic', fontFamily: FONT } }, emptyMsg);
     return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 } },
       ...files.map(f => {
         const att = Array.isArray(f.fileAttachment) ? f.fileAttachment[0] : f.fileAttachment;
-        let originalName = att?.filename || 'File'; 
+        let originalName = att?.filename || tr("File"); 
         let ext = att?.extname ? (att.extname.startsWith('.') ? att.extname.toLowerCase() : '.' + att.extname.toLowerCase()) : '';
         if (ext && originalName.toLowerCase().endsWith(ext)) originalName = originalName.slice(0, -ext.length);
         const finalFileName = originalName + ext;
@@ -7024,8 +7368,8 @@ const DetailModal = ({
               !hideTime && React.createElement('div', { style: { fontSize: 11, color: '#8c8c8c', marginTop: 2 } }, timeAgo(f.createdAt))
             )
           ),
-          customTitle && React.createElement('div', { style: { fontSize: 11, color: '#262626', marginTop: 2 } }, React.createElement('span', { style: { fontWeight: 600, color: '#8c8c8c' } }, 'Tên tài liệu: '), customTitle),
-          f.note && React.createElement('div', { style: { fontSize: 11, color: '#262626', marginTop: 4, padding: '6px 10px', background: '#fff', borderRadius: 4, border: '1px solid #f0f0f0' } }, React.createElement('span', { style: { fontWeight: 700, color: '#8c8c8c', marginRight: 6 } }, 'Nội dung ghi chú:'), f.note)
+          customTitle && React.createElement('div', { style: { fontSize: 11, color: '#262626', marginTop: 2 } }, React.createElement('span', { style: { fontWeight: 600, color: '#8c8c8c' } }, tr("Document name: ")), customTitle),
+          f.note && React.createElement('div', { style: { fontSize: 11, color: '#262626', marginTop: 4, padding: '6px 10px', background: '#fff', borderRadius: 4, border: '1px solid #f0f0f0' } }, React.createElement('span', { style: { fontWeight: 700, color: '#8c8c8c', marginRight: 6 } }, tr("Note:")), f.note)
         );
       })
     );
@@ -7045,29 +7389,29 @@ const DetailModal = ({
         React.createElement('div', {
           style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#e6f4ff', color: '#096dd9', border: '1px solid #91caff', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: '0.2s' },
           onClick: () => setOpenTimesheet(true), onMouseEnter: e => e.currentTarget.style.background = '#bae0ff', onMouseLeave: e => e.currentTarget.style.background = '#e6f4ff',
-        }, 'Ghi nhận Timesheet'),
+        }, tr("Log Timesheet")),
         React.createElement('div', {
           style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: '#f5f5f5', color: '#595959', border: '1px solid #d9d9d9', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: '0.2s' },
           onClick: () => setOpenActivity(true), onMouseEnter: e => e.currentTarget.style.background = '#e8e8e8', onMouseLeave: e => e.currentTarget.style.background = '#f5f5f5',
-        }, 'Lịch sử hoạt động')
+        }, tr("Activity history"))
       ),
 
       // GRID LAYOUT (40/60 split)
       React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '4fr 6fr', flex: 1, overflow: 'hidden' } },
         // LEFT COLUMN (40%)
         React.createElement('div', { style: { display: 'flex', flexDirection: 'column', borderRight: '1px solid #f0f0f0', overflow: 'hidden' } },
-          headerBar('Thông tin chung'),
+          headerBar(tr("General information")),
           React.createElement('div', { style: { padding: '20px 24px', overflowY: 'auto', flex: 1 } },
             React.createElement('div', { style: { background: '#fafafa', padding: 16, borderRadius: 8, border: '1px solid #f0f0f0', marginBottom: 24 } },
               
               // Status & Priority Grid
               React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } },
                 React.createElement('div', null, 
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Trạng thái'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Status")),
                   React.createElement(Select, { value: item.status, onChange: canEdit ? handleStatus : undefined, disabled: !canEdit, style: { width: '100%', fontFamily: FONT }, options: getStatusKeys(item.isRequiredApproval).map(k => ({ label: React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } }, React.createElement('div', { style: { width: 10, height: 10, borderRadius: '50%', background: STATUS_CFG[k].color } }), STATUS_CFG[k].label), value: k })) })
                 ),
                 React.createElement('div', null, 
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Mức độ ưu tiên'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Priority")),
                   React.createElement(Select, { value: item.priority || 'medium', onChange: canEdit ? handlePriority : undefined, disabled: !canEdit, style: { width: '100%', fontFamily: FONT }, options: Object.entries(PRIORITY_CFG).map(([k, v]) => ({ label: `${v.label}`, value: k })) })
                 ),
               ),
@@ -7075,14 +7419,14 @@ const DetailModal = ({
               // Estimated Duration & Assignee Grid
               React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } },
                 React.createElement('div', null, 
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Thời gian dự kiến'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Estimated duration")),
                   React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    React.createElement('input', { type: 'number', step: '0.5', min: '0', value: estDurVal, onChange: canEdit ? e => setEstDurVal(e.target.value) : undefined, readOnly: !canEdit, placeholder: 'Số giờ...', style: { ...inpStyle, width: '100%' }, onBlur: canEdit ? saveEstDur : undefined }),
-                    React.createElement('span', { style: { color: '#8c8c8c', fontSize: 12, flexShrink: 0 } }, 'giờ')
+                    React.createElement('input', { type: 'number', step: '0.5', min: '0', value: estDurVal, onChange: canEdit ? e => setEstDurVal(e.target.value) : undefined, readOnly: !canEdit, placeholder: tr("Number of hours..."), style: { ...inpStyle, width: '100%' }, onBlur: canEdit ? saveEstDur : undefined }),
+                    React.createElement('span', { style: { color: '#8c8c8c', fontSize: 12, flexShrink: 0 } }, tr("hours"))
                   )
                 ),
                 React.createElement('div', null, 
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Người phụ trách'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Assignee")),
                   React.createElement('div', { style: { border: '1px solid #e8e8e8', borderRadius: 4, padding: '4px 10px', background: canManage ? '#fff' : '#fafafa', minHeight: 32, display: 'flex', alignItems: 'center', boxSizing: 'border-box' } },
                     React.createElement(LawyerPicker, { lawyers, value: extractId(item.lawyerId), size: 20, readOnly: !canManage, onChange: handleAssign })
                   )
@@ -7092,7 +7436,7 @@ const DetailModal = ({
               // Approval Required & Approver Grid
               React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } },
                 React.createElement('div', null,
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Yêu cầu xét duyệt'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Approval required")),
                   React.createElement('label', {
                     style: {
                       display: 'flex', alignItems: 'center', gap: 8, cursor: canManage ? 'pointer' : 'default',
@@ -7118,11 +7462,11 @@ const DetailModal = ({
                     }),
                     React.createElement('span', {
                       style: { color: item.isRequiredApproval ? '#d46b08' : '#8c8c8c', fontWeight: item.isRequiredApproval ? 600 : 400 },
-                    }, item.isRequiredApproval ? 'Cần phê duyệt' : 'Không yêu cầu'),
+                    }, item.isRequiredApproval ? tr("Requires approval") : tr("Not required")),
                   ),
                 ),
                 React.createElement('div', null,
-                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Người xét duyệt'),
+                  React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Approver")),
                   React.createElement('div', {
                     style: {
                       border: '1px solid #e8e8e8', borderRadius: 4, padding: '4px 10px',
@@ -7142,14 +7486,14 @@ const DetailModal = ({
                         onUpdate({ ...item, approvedById: id });
                       } : undefined,
                     }),
-                    !item.approvedById && item.isRequiredApproval && React.createElement('span', { style: { fontSize: 12, fontFamily: FONT, color: '#bfbfbf', marginLeft: 4 } }, 'Chọn...'),
+                    !item.approvedById && item.isRequiredApproval && React.createElement('span', { style: { fontSize: 12, fontFamily: FONT, color: '#bfbfbf', marginLeft: 4 } }, tr("Select...")),
                   )
                 )
               ),
 
               // Duration Grid
               React.createElement('div', null, 
-                React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, 'Thời gian thực hiện'),
+                React.createElement('div', { style: { fontSize: 12, color: '#8c8c8c', fontFamily: FONT, fontWeight: 600, marginBottom: 4 } }, tr("Time worked")),
                 React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
                   React.createElement('input', { type: 'datetime-local', value: toLocalDT(type === 'subtask' ? item.date : item.startDate), readOnly: !canEdit, onChange: canEdit ? async e => { const val = e.target.value ? new Date(e.target.value).toISOString() : null; const field = type === 'subtask' ? 'date' : 'startDate'; await apiReq(type === 'subtask' ? `subTasks:update?filterByTk=${extractId(item.id)}` : `tasks:update?filterByTk=${extractId(item.id)}`, 'POST', { [field]: val }); onUpdate({ ...item, [field]: val }); } : undefined, style: { ...inpStyle, flex: 1, minWidth: 0 } }),
                   React.createElement('span', { style: { color: '#bfbfbf' } }, '→'),
@@ -7161,11 +7505,11 @@ const DetailModal = ({
             // MAIN CONTENT (Editors)
             React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 24 } },
               React.createElement('div', null,
-                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, 'Mô tả công việc'),
+                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, tr("Work description")),
                 React.createElement(DescriptionInlineEditor, { item, type, onUpdate, readOnly: !canEdit }),
               ),
               type !== 'subtask' && React.createElement('div', null,
-                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, 'Công việc điều kiện (Pending Issue)'),
+                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, tr("Prerequisite task (Pending Issue)")),
                 React.createElement(TaskPicker, { allTasks: allTasksInProject || [], currentTaskId: extractId(item.id), value: extractId(item.previousTaskId), services, readOnly: !canEdit, onChange: async newPrevId => { 
                   const found = (allTasksInProject || []).find(t => extractId(t.id) === extractId(newPrevId));
                   const newStatus = newPrevId ? (found?.status !== 'done' && found?.status !== 'cancelled' ? 'blocked' : item.status) : (item.status === 'blocked' ? 'toDo' : item.status);
@@ -7175,21 +7519,21 @@ const DetailModal = ({
                 } }),
               ),
               React.createElement('div', null,
-                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, 'Bước tiếp theo (Next Step)'),
+                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, tr("Next step")),
                 React.createElement(NextStepInlineEditor, { item, onUpdate, currentUser, readOnly: !canEdit }),
               ),
               React.createElement('div', null,
-                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, 'Tệp đính kèm file mẫu'),
-                renderFileList(templateFiles, 'Chưa có file mẫu nào.', true),
-                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12, marginTop: 24 } }, 'Tệp đính kèm'),
-                renderFileList(regularFiles, 'Chưa có tệp đính kèm nào.'),
+                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12 } }, tr("Template files")),
+                renderFileList(templateFiles, tr("No template files yet."), true),
+                React.createElement('div', { style: { fontSize: 14, fontWeight: 600, color: '#262626', marginBottom: 12, marginTop: 24 } }, tr("Attached file")),
+                renderFileList(regularFiles, tr("No attached files yet.")),
               ),
             )
           )
         ),
         // RIGHT COLUMN (60%)
         React.createElement('div', { style: { display: 'flex', flexDirection: 'column', background: '#fff', overflow: 'hidden' } },
-          headerBar('Bình luận & Báo cáo'),
+          headerBar(tr("Comments & Reports")),
           React.createElement('div', { style: { flex: 1, overflow: 'hidden' } },
             React.createElement(UnifiedNoteThread, { 
               collectionName: type === 'subtask' ? 'SubTask' : 'Task', 
@@ -7205,10 +7549,10 @@ const DetailModal = ({
     ),
 
     // Drawers for Timesheet & Activity
-    React.createElement(Drawer, { title: 'Lịch sử giờ làm việc', placement: 'right', width: 500, open: openTimesheet, onClose: () => setOpenTimesheet(false), bodyStyle: { padding: 20 } },
+    React.createElement(Drawer, { title: tr("Work hour history"), placement: 'right', width: 500, open: openTimesheet, onClose: () => setOpenTimesheet(false), bodyStyle: { padding: 20 } },
       React.createElement(TimesheetTab, { item, type, myLawyer, isManager, canAccess: true })
     ),
-    React.createElement(Drawer, { title: 'Lịch sử hoạt động', placement: 'right', width: 700, open: openActivity, onClose: () => setOpenActivity(false), bodyStyle: { padding: 0 } },
+    React.createElement(Drawer, { title: tr("Activity history"), placement: 'right', width: 700, open: openActivity, onClose: () => setOpenActivity(false), bodyStyle: { padding: 0 } },
       React.createElement(ActivityTab, { collectionName: type === 'subtask' ? 'SubTask' : 'Task', recordId: extractId(item.id), lawyers })
     ),
     previewDoc && React.createElement(PreviewModal, { doc: previewDoc, onClose: () => setPreviewDoc(null) })
@@ -7218,14 +7562,14 @@ const DetailModal = ({
 // ==================== TABLE VIEW COLUMNS ====================
 const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
   {
-    title: "Loại",
+    title: tr("Type"),
     key: "type",
     width: 44,
     align: "center",
     render: (_, r) =>
       React.createElement(
         Tooltip,
-        { title: r._type === "subtask" ? "Công việc phụ" : "Công việc chính" },
+        { title: r._type === "subtask" ? tr("Subtask") : tr("Main task") },
         React.createElement(
           "span",
           { style: { fontSize: 14 } },
@@ -7234,7 +7578,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
       ),
   },
   {
-    title: "Tên công việc",
+    title: tr("Task name"),
     key: "name",
     width: 220,
     render: (_, r) => {
@@ -7284,7 +7628,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Mô tả",
+    title: tr("Description"),
     key: "description",
     width: 200,
     render: (_, r) => {
@@ -7318,7 +7662,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Pending Issue",
+    title: tr("Pending Issue"),
     key: "pendingIssue",
     width: 190,
     render: (_, r) => {
@@ -7338,7 +7682,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
               padding: "2px 8px",
             },
           },
-          "✓ Không có",
+          tr("✓ None"),
         );
       }
       const stCfg = STATUS_CFG[prev.status] || STATUS_CFG.toDo;
@@ -7361,7 +7705,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
               padding: "2px 8px",
             },
           },
-          "✓ Đã xong",
+          tr("✓ Done"),
         );
       }
       return React.createElement(
@@ -7413,7 +7757,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Next Step",
+    title: tr("Next Step"),
     key: "nextStep",
     width: 190,
     render: (_, r) => {
@@ -7472,14 +7816,14 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Trạng thái",
+    title: tr("Status"),
     key: "status",
     width: 130,
     align: "center",
     render: (_, r) => React.createElement(SBadge, { status: r.status }),
   },
   {
-    title: "Bắt đầu",
+    title: tr("Start"),
     key: "startDate",
     width: 96,
     align: "center",
@@ -7499,7 +7843,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Deadline",
+    title: tr("Deadline"),
     key: "deadline",
     width: 100,
     align: "center",
@@ -7528,7 +7872,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Người duyệt",
+    title: tr("Approver"),
     key: "approver",
     width: 130,
     render: (_, r) => {
@@ -7552,7 +7896,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
               fontStyle: "italic",
             },
           },
-          "Chưa chọn",
+          tr("Not selected"),
         );
       }
       const lIdx = Object.keys(lawyerMap || {}).indexOf(String(r.approvedById));
@@ -7579,7 +7923,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Ngày duyệt",
+    title: tr("Approval date"),
     key: "acceptedAt",
     width: 100,
     align: "center",
@@ -7605,7 +7949,7 @@ const buildTableColumns = (myLawyer, onOpen, lawyerMap) => [
     },
   },
   {
-    title: "Lý do từ chối",
+    title: tr("Rejection reason"),
     key: "rejectionReason",
     width: 180,
     render: (_, r) => {
@@ -7909,7 +8253,7 @@ const MyTaskTab = () => {
         );
       message.success(`→ ${STATUS_CFG[newStatus]?.label}`);
     } catch {
-      message.error("Cập nhật thất bại");
+      message.error(tr("Update failed"));
     }
   }, []);
 
@@ -7955,10 +8299,10 @@ const MyTaskTab = () => {
         _serviceKey: String(t.serviceId || "__none__"),
         _projectLabel:
           [t._caseCode, t._projectName].filter(Boolean).join(" — ") ||
-          "Chưa gắn dự án",
+          tr("No project linked"),
         _serviceLabel:
           t._serviceName ||
-          (t.serviceId ? `Dịch vụ #${t.serviceId}` : "Chưa gắn dịch vụ"),
+          (t.serviceId ? tr("Service #{0}", { 0: t.serviceId }) : tr("No service assigned")),
       })),
       ...fSub.map((s) => ({
         ...s,
@@ -7966,10 +8310,10 @@ const MyTaskTab = () => {
         _serviceKey: String(s.serviceId || "__none__"),
         _projectLabel:
           [s._caseCode, s._projectName].filter(Boolean).join(" — ") ||
-          "Chưa gắn dự án",
+          tr("No project linked"),
         _serviceLabel:
           s._serviceName ||
-          (s.serviceId ? `Dịch vụ #${s.serviceId}` : "Chưa gắn dịch vụ"),
+          (s.serviceId ? tr("Service #{0}", { 0: s.serviceId }) : tr("No service assigned")),
       })),
     ];
     const map = {};
@@ -8002,7 +8346,7 @@ const MyTaskTab = () => {
     if (!isAdminView) return base;
     // Insert assignee column after "Loại" column (index 1)
     const assigneeCol = {
-      title: "Luật sư",
+      title: tr("Lawyer"),
       key: "assignee",
       width: 130,
       render: (_, r) => {
@@ -8049,11 +8393,11 @@ const MyTaskTab = () => {
 
   const lt = myLawyer
     ? LAWYER_TYPE_CFG[myLawyer.lawyerType] || {
-        label: myLawyer.lawyerType || "Admin",
+        label: myLawyer.lawyerType || tr("Admin"),
         color: "#531dab",
         bg: "#f9f0ff",
       }
-    : { label: "Chưa xác định", color: "#8c8c8c", bg: "#f5f5f5" };
+    : { label: tr("Unknown"), color: "#8c8c8c", bg: "#f5f5f5" };
 
   const bS = (active) => ({
     fontSize: 12,
@@ -8127,7 +8471,7 @@ const MyTaskTab = () => {
               },
               loading
                 ? "..."
-                : myLawyer?.lawyerName || "Chưa liên kết hồ sơ luật sư",
+                : myLawyer?.lawyerName || tr("No lawyer profile linked"),
             ),
           ),
         ),
@@ -8148,7 +8492,7 @@ const MyTaskTab = () => {
                 color: "#595959",
               },
             },
-            "↻ Làm mới",
+            tr("↻ Refresh"),
           ),
         ),
       ),
@@ -8197,7 +8541,7 @@ const MyTaskTab = () => {
                 color: pct === 100 ? "#389e0d" : "#8c8c8c",
               },
             },
-            loading ? "Đang tải..." : `${tDone}/${total} hoàn thành (${pct}%)`,
+            loading ? tr("Loading...") : tr("{0}/{1} done ({2}%)", { 0: tDone, 1: total, 2: pct }),
           ),
         ),
         todayDue > 0 &&
@@ -8214,7 +8558,7 @@ const MyTaskTab = () => {
                 border: "1px solid #ffd591",
               },
             },
-            `📅 ${todayDue} đến hạn hôm nay`,
+            tr("📅 {0} due today", { 0: todayDue }),
           ),
         overdue > 0 &&
           React.createElement(
@@ -8230,7 +8574,7 @@ const MyTaskTab = () => {
                 border: "1px solid #ffa39e",
               },
             },
-            `⚠ ${overdue} quá hạn`,
+            tr("⚠ {0} overdue", { 0: overdue }),
           ),
       ),
 
@@ -8247,7 +8591,7 @@ const MyTaskTab = () => {
         React.createElement("input", {
           value: search,
           onChange: (e) => setSearch(e.target.value),
-          placeholder: "🔍 Tìm tên công việc...",
+          placeholder: tr("🔍 Search task name..."),
           style: {
             padding: "6px 12px",
             borderRadius: 6,
@@ -8265,10 +8609,10 @@ const MyTaskTab = () => {
           onChange: setCaseFilter,
           style: { width: 240, fontFamily: FONT },
           options: [
-            { value: "all", label: "📁 Tất cả hồ sơ" },
+            { value: "all", label: tr("📁 All cases") },
             ...projects.map((p) => ({
               value: String(p.id),
-              label: `📁 ${p.caseCode || "N/A"} - ${p.projectName || "Không tên"}`,
+              label: `📁 ${p.caseCode || "N/A"} - ${p.projectName || tr("Untitled")}`,
             })),
           ],
         }),
@@ -8276,13 +8620,13 @@ const MyTaskTab = () => {
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
           [
-            ["all", "Tất cả"],
-            ["toDo", "Chưa thực hiện"],
-            ["inProgress", "Đang xử lý"],
-            ["blocked", "Bị chặn"],
-            ["pending", "Chờ duyệt"],
-            ["done", "Hoàn thành"],
-            ["cancelled", "Đã huỷ"],
+            ["all", tr("All")],
+            ["toDo", tr("To do")],
+            ["inProgress", tr("In progress")],
+            ["blocked", tr("Blocked")],
+            ["pending", tr("Pending approval")],
+            ["done", tr("Done")],
+            ["cancelled", tr("Cancelled")],
           ].map(([k, label]) =>
             React.createElement(
               "div",
@@ -8338,7 +8682,7 @@ const MyTaskTab = () => {
                     flex: 1,
                   },
                 },
-                "Đang tải dữ liệu...",
+                tr("Loading data..."),
               ),
             ),
             React.createElement(
@@ -8371,7 +8715,7 @@ const MyTaskTab = () => {
                       color: "#096dd9",
                     },
                   },
-                  "Đang tải...",
+                  tr("Loading..."),
                 ),
                 React.createElement(Spin, { size: "small" }),
               ),
@@ -8398,7 +8742,7 @@ const MyTaskTab = () => {
                   React.createElement(
                     "div",
                     { style: { marginTop: 10, fontSize: 13 } },
-                    "Đang tải dữ liệu...",
+                    tr("Loading data..."),
                   ),
                 ),
               },
@@ -8433,8 +8777,8 @@ const MyTaskTab = () => {
                   },
                 },
                 search || stFilter !== "all"
-                  ? "Không tìm thấy kết quả"
-                  : "Chưa có công việc nào được phân công.",
+                  ? tr("No results found")
+                  : tr("No tasks assigned yet."),
               ),
             )
           : !loading &&
@@ -8494,7 +8838,7 @@ const MyTaskTab = () => {
                           padding: "2px 10px",
                         },
                       },
-                      `${Object.values(projectGroup.services).reduce((s, g) => s + g.rows.length, 0)} mục`,
+                      tr("{0} items", { 0: Object.values(projectGroup.services).reduce((s, g) => s + g.rows.length, 0) }),
                     ),
                   ),
                   React.createElement(
@@ -8558,7 +8902,7 @@ const MyTaskTab = () => {
                                     padding: "1px 8px",
                                   },
                                 },
-                                `⚠ ${serviceGroup.rows.filter((r) => r._od).length} quá hạn`,
+                                tr("⚠ {0} overdue", { 0: serviceGroup.rows.filter((r) => r._od).length }),
                               ),
                             serviceGroup.rows.some((r) => r._today && !r._od) &&
                               React.createElement(
@@ -8575,7 +8919,7 @@ const MyTaskTab = () => {
                                     padding: "1px 8px",
                                   },
                                 },
-                                `📅 ${serviceGroup.rows.filter((r) => r._today && !r._od).length} hôm nay`,
+                                tr("📅 {0} today", { 0: serviceGroup.rows.filter((r) => r._today && !r._od).length }),
                               ),
                             React.createElement(
                               "span",
@@ -8589,7 +8933,7 @@ const MyTaskTab = () => {
                                   padding: "1px 8px",
                                 },
                               },
-                              `${serviceGroup.rows.length} mục`,
+                              tr("{0} items", { 0: serviceGroup.rows.length }),
                             ),
                           ),
                           React.createElement(Table, {
@@ -8601,7 +8945,7 @@ const MyTaskTab = () => {
                               pageSize: 10, 
                               showSizeChanger: true, 
                               pageSizeOptions: ["10", "20", "50", "100"],
-                              showTotal: (total) => `Tổng cộng ${total} mục` 
+                              showTotal: (total) => tr("{0} items in total", { 0: total }) 
                             },
                             scroll: { x: 1700 },
                             onRow: (r) => ({
@@ -8643,7 +8987,7 @@ const MyTaskTab = () => {
                     onClick: () => setVisibleCases((prev) => prev + 5),
                     style: { fontFamily: FONT },
                   },
-                  "Xem thêm 5 hồ sơ ⬇"
+                  tr("Show 5 more cases ⬇")
                 ),
               visibleCases > 5 &&
                 React.createElement(
@@ -8652,7 +8996,7 @@ const MyTaskTab = () => {
                     onClick: () => setVisibleCases(5),
                     style: { fontFamily: FONT },
                   },
-                  "Rút gọn ⬆"
+                  tr("Show less ⬆")
                 )
             )
         ),

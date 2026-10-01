@@ -1,6 +1,230 @@
 // ============================================================
 // §1 CONFIG — không import, không side-effect
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Not Start": "Chưa bắt đầu",
+  "In Progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Scheduled": "Đã lên lịch",
+  "Ongoing": "Đang diễn ra",
+  "In Court": "Tại tòa",
+  "Completed": "Đã hoàn tất",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "Refresh": "Làm mới",
+  "Approval required": "Cần duyệt",
+  "Select payment installment": "Chọn đợt thanh toán",
+  "No Payment Request matches this task's service": "Không có yêu cầu thanh toán nào khớp dịch vụ của công việc này",
+  "Due: {0}": "Hạn: {0}",
+  "Clear": "Bỏ chọn",
+  "This service isn't part of any Payment Request item of the contract, so it isn't billed.": "Dịch vụ này không thuộc mục yêu cầu thanh toán nào của hợp đồng nên không được thu tiền.",
+  "Not billed": "Không thu tiền",
+  "Installment {0}": "Đợt thanh toán {0}",
+  "Select Payment Request...": "Chọn yêu cầu thanh toán...",
+  "Select payment...": "Chọn thanh toán...",
+  "Select installment...": "Chọn đợt thanh toán...",
+  "Retainer billing is fully automatic, on its own schedule — no task drives it.": "Retainer thu tiền hoàn toàn tự động theo lịch riêng — không công việc nào kích hoạt.",
+  "Not applicable — auto on schedule": "Không áp dụng — tự động theo lịch",
+  "This task's completion counts toward its service's payment trigger": "Hoàn thành công việc này được tính vào điều kiện thu tiền của dịch vụ",
+  "Task has no linked service — ticking this has no effect yet": "Công việc chưa gắn dịch vụ — tích chọn lúc này chưa có tác dụng",
+  "🔒 Only managers or the assignee can change the status": "🔒 Chỉ quản lý hoặc người phụ trách mới đổi được trạng thái",
+  "No edit permission": "Không có quyền chỉnh sửa",
+  "Task is blocked by a previous task": "Công việc đang bị chặn bởi công việc trước",
+  "No.": "STT",
+  "Title": "Tiêu đề",
+  "Status": "Trạng thái",
+  "Trigger Payment": "Kích hoạt thanh toán",
+  "Updated": "Cập nhật",
+  "Assignee": "Người phụ trách",
+  "Description": "Mô tả",
+  "Start": "Bắt đầu",
+  "Deadline": "Hạn",
+  "Pending Issue": "Vấn đề tồn đọng",
+  "Next Step": "Bước tiếp theo",
+  "Select assignee": "Chọn người phụ trách",
+  "{0} ₫/hr": "{0} ₫/giờ",
+  "Search lawyer...": "Tìm luật sư...",
+  "Unassign": "Bỏ phân công",
+  "Other": "Khác",
+  "Assign lawyer": "Phân công luật sư",
+  "No service assigned": "Chưa gắn dịch vụ",
+  "Service #{0}": "Dịch vụ #{0}",
+  "Service #": "Dịch vụ #",
+  "Search tasks by name...": "Tìm công việc theo tên...",
+  "No tasks found": "Không tìm thấy công việc nào",
+  "Select a prerequisite task...": "Chọn công việc tiên quyết...",
+  "File": "Tệp",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "Cannot preview this file type — please download to open": "Không thể xem trước loại tệp này — vui lòng tải về để mở",
+  "N/A": "N/A",
+  "Assignee: {0}": "Người phụ trách: {0}",
+  "Not assigned": "Chưa phân công",
+  "Status: {0}": "Trạng thái: {0}",
+  "Placed at the top of the list, above \"{0}\".": "Đặt ở đầu danh sách, trên \"{0}\".",
+  "Placed between \"{0}\" and \"{1}\".": "Đặt giữa \"{0}\" và \"{1}\".",
+  "Placed at the bottom of the list, below \"{0}\".": "Đặt ở cuối danh sách, dưới \"{0}\".",
+  "✅ Template overridden": "✅ Đã ghi đè mẫu",
+  "Failed to override template": "Ghi đè mẫu thất bại",
+  "✅ Saved to template": "✅ Đã lưu vào mẫu",
+  "Failed to save to template": "Lưu vào mẫu thất bại",
+  "Override this template?": "Ghi đè mẫu này?",
+  "Save as new template?": "Lưu thành mẫu mới?",
+  "Replacing \"{0}\". Edit the fields below if needed before confirming.": "Đang thay thế \"{0}\". Sửa các trường bên dưới nếu cần trước khi xác nhận.",
+  "Template title": "Tiêu đề mẫu",
+  "Description (optional)": "Mô tả (tùy chọn)",
+  "Priority": "Ưu tiên",
+  "This cannot be undone.": "Không thể hoàn tác.",
+  "Back": "Quay lại",
+  "Saving...": "Đang lưu...",
+  "Override": "Ghi đè",
+  "Confirm": "Xác nhận",
+  "Save to template?": "Lưu vào mẫu?",
+  "Standardized service": "Dịch vụ chuẩn hóa",
+  "-- Select a catalog service --": "-- Chọn dịch vụ trong danh mục --",
+  "Existing templates — override one, or insert above/below it": "Mẫu hiện có — ghi đè một mẫu, hoặc chèn trên/dưới nó",
+  "No existing templates yet for this service — nothing to override or insert relative to.": "Dịch vụ này chưa có mẫu nào — không có gì để ghi đè hay chèn cạnh.",
+  "↑ Above": "↑ Phía trên",
+  "↓ Below": "↓ Phía dưới",
+  "This service has been deleted; a new task cannot be created.": "Dịch vụ này đã bị xóa; không thể tạo công việc mới.",
+  "✅ Task created": "✅ Đã tạo công việc",
+  "Creation failed": "Tạo thất bại",
+  "New task will start as \"Waiting\"": "Công việc mới sẽ bắt đầu ở trạng thái \"Chờ\"",
+  "Submit": "Gửi",
+  "Cancel": "Hủy",
+  "New task": "Công việc mới",
+  "Please enter a task name": "Vui lòng nhập tên công việc",
+  "Enter title...": "Nhập tiêu đề...",
+  "Service": "Dịch vụ",
+  "Please select a service": "Vui lòng chọn dịch vụ",
+  "No services in this case yet": "Hồ sơ này chưa có dịch vụ nào",
+  "-- Select service --": "-- Chọn dịch vụ --",
+  "Start date": "Ngày bắt đầu",
+  "Description...": "Mô tả...",
+  "Next step after completion...": "Bước tiếp theo sau khi hoàn thành...",
+  "Estimated duration": "Thời lượng dự kiến",
+  "e.g., 4": "VD: 4",
+  "Pending Issue (optional)": "Vấn đề tồn đọng (tùy chọn)",
+  "On": "Bật",
+  "Off": "Tắt",
+  "Approver": "Người duyệt",
+  "Required because approval is enabled for this task.": "Bắt buộc vì công việc này bật duyệt.",
+  "Select approver": "Chọn người duyệt",
+  "✅ Subtask created": "✅ Đã tạo công việc con",
+  "New subtask": "Công việc con mới",
+  "Please enter a subtask name": "Vui lòng nhập tên công việc con",
+  "Detailed Description": "Mô tả chi tiết",
+  "Describe the subtask in detail...": "Mô tả chi tiết công việc con...",
+  "Required because approval is enabled for this subtask.": "Bắt buộc vì công việc con này bật duyệt.",
+  "📎 {0} documents": "📎 {0} tài liệu",
+  "Click to preview": "Bấm để xem trước",
+  "This format doesn't support preview": "Định dạng này không hỗ trợ xem trước",
+  "Download": "Tải về",
+  "Task ID not found for this action.": "Không tìm thấy ID công việc cho thao tác này.",
+  "The insert task action has not been configured.": "Thao tác chèn công việc chưa được cấu hình.",
+  "The save as template action has not been configured.": "Thao tác lưu thành mẫu chưa được cấu hình.",
+  "The delete task action has not been configured.": "Thao tác xóa công việc chưa được cấu hình.",
+  "Insert task above": "Chèn công việc phía trên",
+  "Insert task below": "Chèn công việc phía dưới",
+  "Create subtask": "Tạo công việc con",
+  "Save as template": "Lưu thành mẫu",
+  "Delete task": "Xóa công việc",
+  "Service is locked": "Dịch vụ đã bị khóa",
+  "Delete subtask": "Xóa công việc con",
+  "Meeting": "Cuộc họp",
+  "Unassigned host": "Chưa có người chủ trì",
+  "Start Time": "Giờ bắt đầu",
+  "End Time": "Giờ kết thúc",
+  "Not part of any Payment Request item — not billed": "Không thuộc mục yêu cầu thanh toán nào — không thu tiền",
+  "Payment Request: {0} · {1}": "Yêu cầu thanh toán: {0} · {1}",
+  "Payment Request: {0} · no trigger task yet": "Yêu cầu thanh toán: {0} · chưa có công việc kích hoạt",
+  "Payment Request: {0}": "Yêu cầu thanh toán: {0}",
+  "Payment Request: share of the package, computed when created": "Yêu cầu thanh toán: phần chia của gói, tính khi tạo",
+  "No tasks to save as template": "Không có công việc nào để lưu thành mẫu",
+  "This group is not linked to a case service": "Nhóm này chưa gắn với dịch vụ của hồ sơ",
+  "This service has been deleted and locked. The task list cannot be opened.": "Dịch vụ này đã bị xóa và khóa. Không thể mở danh sách công việc.",
+  "Expand task list": "Mở rộng danh sách công việc",
+  "Collapse task list": "Thu gọn danh sách công việc",
+  "{0}/{1} done": "{0}/{1} hoàn thành",
+  "Service actions": "Thao tác dịch vụ",
+  "New Task": "Công việc mới",
+  "New Meeting": "Cuộc họp mới",
+  "Override existing template": "Ghi đè mẫu hiện có",
+  "✅ Saved \"{0}\" as a new standardized service": "✅ Đã lưu \"{0}\" thành dịch vụ chuẩn hóa mới",
+  "Failed to save as template": "Lưu thành mẫu thất bại",
+  "Save": "Lưu",
+  "New service name": "Tên dịch vụ mới",
+  "Enter a name for the new standardized service": "Nhập tên cho dịch vụ chuẩn hóa mới",
+  "This name already exists in the catalog. Rename it, or use \"Override\" instead if you want to update that service.": "Tên này đã có trong danh mục. Đổi tên, hoặc dùng \"Ghi đè\" nếu muốn cập nhật dịch vụ đó.",
+  "{0} task{1} will be copied into this template.": "Sẽ sao chép {0} công việc vào mẫu này.",
+  "✅ \"{0}\" templates updated": "✅ Đã cập nhật mẫu của \"{0}\"",
+  "Select the standardized service to override": "Chọn dịch vụ chuẩn hóa cần ghi đè",
+  "Next": "Tiếp",
+  "Service name": "Tên dịch vụ",
+  "This will rename \"{0}\" to \"{1}\" and update its task templates to match the {2} task{3} currently in this case. Existing templates not present here will be removed. This cannot be undone.": "Thao tác sẽ đổi tên \"{0}\" thành \"{1}\" và cập nhật mẫu công việc theo {2} công việc đang có trong hồ sơ này. Các mẫu không có ở đây sẽ bị xóa. Không thể hoàn tác.",
+  "This will update \"{0}\"'s task templates to match the {1} task{2} currently in this case. Existing templates not present here will be removed. This cannot be undone.": "Thao tác sẽ cập nhật mẫu công việc của \"{0}\" theo {1} công việc đang có trong hồ sơ này. Các mẫu không có ở đây sẽ bị xóa. Không thể hoàn tác.",
+  "Overriding...": "Đang ghi đè...",
+  "Confirm override": "Xác nhận ghi đè",
+  "Error loading data, please refresh!": "Lỗi tải dữ liệu, vui lòng làm mới!",
+  "🔓 \"{0}\" has been unblocked": "🔓 Đã bỏ chặn \"{0}\"",
+  "This service has been deleted; the task cannot be updated.": "Dịch vụ này đã bị xóa; không thể cập nhật công việc.",
+  "You are not the assignee and do not have permission to change the status.": "Bạn không phải người phụ trách và không có quyền đổi trạng thái.",
+  "⛓ Task is waiting for \"{0}\" to complete first": "⛓ Công việc đang chờ \"{0}\" hoàn thành trước",
+  "📋 Task requires approval — moved to \"Pending approval\"": "📋 Công việc cần duyệt — đã chuyển sang \"Chờ duyệt\"",
+  "Backend error: your account has not been granted permission (Role) to edit data!": "Lỗi máy chủ: tài khoản của bạn chưa được cấp quyền (Role) chỉnh sửa dữ liệu!",
+  "You are not the assignee and do not have permission to change this task.": "Bạn không phải người phụ trách và không có quyền thay đổi công việc này.",
+  "You do not have permission to assign an assignee.": "Bạn không có quyền phân công người phụ trách.",
+  "Assignment removed": "Đã bỏ phân công",
+  "Failed": "Thất bại",
+  "Missing record id.": "Thiếu ID bản ghi.",
+  "Delete request failed.": "Yêu cầu xóa thất bại.",
+  "Task ID not found for deletion.": "Không tìm thấy ID công việc để xóa.",
+  "This service has been deleted; the task cannot be deleted.": "Dịch vụ này đã bị xóa; không thể xóa công việc.",
+  "Confirm deletion of {0}": "Xác nhận xóa {0}",
+  "Are you sure you want to delete ": "Bạn có chắc chắn muốn xóa ",
+  "? This action cannot be undone.": "? Thao tác này không thể hoàn tác.",
+  "Delete permanently": "Xóa vĩnh viễn",
+  "✅ Deleted successfully": "✅ Đã xóa thành công",
+  "Delete failed, please try again": "Xóa thất bại, vui lòng thử lại",
+  "Failed to save the new order.": "Lưu thứ tự mới thất bại.",
+  "This service has been deleted; a subtask cannot be created.": "Dịch vụ này đã bị xóa; không thể tạo công việc con.",
+  "This service has been deleted and locked; task details cannot be opened.": "Dịch vụ này đã bị xóa và khóa; không thể mở chi tiết công việc.",
+  "Task detail": "Chi tiết công việc",
+  "Meeting detail": "Chi tiết cuộc họp",
+  "Create meeting": "Tạo cuộc họp",
+  "⚠️ Project ID not found": "⚠️ Không tìm thấy ID hồ sơ",
+  "📋 Tasks": "📋 Công việc",
+  "⏸ {0} waiting": "⏸ {0} đang chờ",
+  "⚠ {0} overdue": "⚠ {0} quá hạn",
+  "＋ New Task": "＋ Công việc mới",
+  "＋ New Meeting": "＋ Cuộc họp mới",
+  "📭 No tasks yet": "📭 Chưa có công việc nào",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -84,43 +308,43 @@ const DEEP_LINK_CONFIG = {
 
 const STATUS_CFG = {
   toDo: {
-    label: "Not Start",
+    label: tr("Not Start"),
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
   },
   inProgress: {
-    label: "In Progress",
+    label: tr("In Progress"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   blocked: {
-    label: "Blocked",
+    label: tr("Blocked"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
   },
   pending: {
-    label: "Pending approval",
+    label: tr("Pending approval"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   approval: {
-    label: "Approved",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   done: {
-    label: "Done",
+    label: tr("Done"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -131,37 +355,37 @@ const STATUS_CFG = {
 const MEETING_DETAIL_POPUP_UID = "d3b88171bf7";
 const MEETING_STATUS_CFG = {
   scheduled: {
-    label: "Scheduled",
+    label: tr("Scheduled"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   ongoing: {
-    label: "Ongoing",
+    label: tr("Ongoing"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   inCourt: {
-    label: "In Court",
+    label: tr("In Court"),
     color: "#c41d7f",
     bg: "#fff0f6",
     border: "#ffadd2",
   },
   completed: {
-    label: "Completed",
+    label: tr("Completed"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "#8c8c8c",
     bg: "#fafafa",
     border: "#d9d9d9",
   },
   canceled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "#8c8c8c",
     bg: "#fafafa",
     border: "#d9d9d9",
@@ -187,9 +411,9 @@ const STATUS_KEYS_WITHOUT_APPROVAL = [
 const getStatusKeys = (isRequiredApproval) =>
   isRequiredApproval ? STATUS_KEYS_WITH_APPROVAL : STATUS_KEYS_WITHOUT_APPROVAL;
 const PRIORITY_CFG = {
-  high: { label: "High", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Medium", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Low", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 
 // Design tokens cho các modal form (AddTaskModal/AddSubtaskModal) — theo
@@ -314,10 +538,10 @@ const LAWYER_COLORS = [
   "#003a8c",
 ];
 const LAWYER_TYPE_CFG = {
-  partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
-  lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
-  associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
-  suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
+  partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+  lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+  associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+  suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
 };
 
 const FILE_EXT_ICON = {
@@ -1147,7 +1371,7 @@ const resolveStatus = (newStatus, item) => {
 // §5 ATOMS
 // ============================================================
 
-const ReloadButton = ({ onReload, loading, text = "Refresh", style = {} }) => {
+const ReloadButton = ({ onReload, loading, text = tr("Refresh"), style = {} }) => {
   return React.createElement(
     Button,
     {
@@ -1227,7 +1451,7 @@ const ApprovalIcon = ({ isRequiredApproval }) => {
         alignItems: "center",
         justifyContent: "center",
       },
-      title: "Approval required",
+      title: tr("Approval required"),
     },
     React.createElement("span", { style: { fontSize: 12 } }, "🔐"),
   );
@@ -1246,13 +1470,13 @@ const InstallmentPickerModal = ({ open, options, value, onSelect, onClear, onClo
     {
       open,
       onCancel: onClose,
-      title: "Select payment installment",
+      title: tr("Select payment installment"),
       footer: null,
       width: 480,
     },
     !options.length &&
       React.createElement(Empty, {
-        description: "No payment installment matches this task's service",
+        description: tr("No Payment Request matches this task's service"),
       }),
     options.map((opt) =>
       React.createElement(
@@ -1283,7 +1507,7 @@ const InstallmentPickerModal = ({ open, options, value, onSelect, onClear, onClo
               null,
               `${Number(opt.requestedAmount).toLocaleString("vi-VN")} ₫`,
             ),
-          opt.dueDate && React.createElement("span", null, `Due: ${fmt(opt.dueDate, "date")}`),
+          opt.dueDate && React.createElement("span", null, tr("Due: {0}", { 0: fmt(opt.dueDate, "date") })),
           opt.status && React.createElement("span", { style: { textTransform: "capitalize" } }, opt.status),
         ),
         opt.serviceNames.length > 0 &&
@@ -1313,7 +1537,7 @@ const InstallmentPickerModal = ({ open, options, value, onSelect, onClear, onClo
       React.createElement(
         "div",
         { style: { textAlign: "right", marginTop: 4 } },
-        React.createElement(Button, { size: "small", onClick: onClear }, "Clear"),
+        React.createElement(Button, { size: "small", onClick: onClear }, tr("Clear")),
       ),
   );
 
@@ -1348,9 +1572,54 @@ const InstallmentPickerModal = ({ open, options, value, onSelect, onClear, onClo
 //     projects.contractId catch-up trigger for tasks marked done before
 //     that happens).
 // See docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
+// ---- by-case one-time contract check (pure; tested by scripts/tests/task-trigger-visibility.test.js) ----
+// By Case + One time (billingCycle not "multiple_payments") bills through a
+// single payment that waits for the Case to be Done — or, once tasks are
+// linked to it, for ALL of them (by_case_one_time_sync_trigger_mode,
+// 2026-09-29). Its tasks get the installment picker, offering that payment.
+const isByCaseOneTimeContract = (contract) =>
+  contract?.contractType === "byCase" &&
+  String(contract?.billingCycle || "one_time") !== "multiple_payments";
+// Requests loaded for the picker; a One time payment with no task linked yet
+// is still "on_case_done".
+const LINKABLE_TRIGGER_TYPES = ["on_task_done", "on_case_done"];
+const linkableTriggerRequests = (prs, contract) => {
+  const oneTime = isByCaseOneTimeContract(contract);
+  return (prs || []).filter(
+    (pr) => pr?.triggerType === "on_task_done" || (oneTime && pr?.triggerType === "on_case_done"),
+  );
+};
+// ---- end by-case one-time contract check ----
+
+// ---- item payment request lookup (pure; tested by scripts/tests/service-payment-badge.test.js) ----
+// By Service + Combo pricing (2026-09-25): each combo / standalone service is
+// billed by ONE pending Payment Request tagged (paymentRequestServices) with
+// the item's contractServices. Returns that request for a Case service, or
+// null when the service isn't in any such item (plain By Service →
+// isPaymentTrigger checkbox, per-service request).
+const itemPaymentRequestFor = (projectServiceId, maps = {}) => {
+  if (projectServiceId === null || projectServiceId === undefined) return null;
+  const csId = (maps.contractServiceIdByProjectServiceId || {})[projectServiceId];
+  if (csId === null || csId === undefined) return null;
+  const prIdEntry = Object.entries(maps.paymentRequestServiceIdsByPrId || {}).find(([, ids]) =>
+    (ids || []).some((id) => String(id) === String(csId)),
+  );
+  if (!prIdEntry) return null;
+  return (
+    (maps.linkablePaymentRequests || []).find((pr) => String(pr?.id?.id ?? pr?.id) === String(prIdEntry[0])) ||
+    null
+  );
+};
+// ---- end item payment request lookup ----
+
+// contractType value used for such a case (only TriggerCell reads
+// contractType in this file).
+const CONTRACT_MODE_BY_CASE_ONE_TIME = "byCase:oneTime";
+
 const TriggerCell = ({
   task,
   contractType,
+  hasContract,
   linkablePaymentRequests,
   contractServiceIdByProjectServiceId,
   paymentRequestServiceIdsByPrId,
@@ -1367,7 +1636,60 @@ const TriggerCell = ({
     justifyContent: "center",
   };
 
-  if (contractType === "byCase") {
+  // No contract linked to the case yet → no payment control at all. The slot
+  // falls back to its original "Updated" date (same as subtask/meeting rows
+  // in this column), so the column stays aligned without exposing finance.
+  if (!hasContract) {
+    return React.createElement(
+      "div",
+      {
+        style: {
+          ...cellStyle,
+          fontSize: 12,
+          fontFamily: FONT,
+          color: task.updatedAt ? "#8c8c8c" : "#d9d9d9",
+        },
+      },
+      task.updatedAt ? fmt(task.updatedAt, "full") : "—",
+    );
+  }
+
+  // By Service + Combo pricing: a task whose service belongs to a billing
+  // item (combo / standalone service) links to that item's Payment Request —
+  // same picker and AND activation as a By Case installment.
+  const coveredByItem =
+    contractType === "byService" &&
+    !!itemPaymentRequestFor(extractId(task.projectServiceId), {
+      contractServiceIdByProjectServiceId,
+      paymentRequestServiceIdsByPrId,
+      linkablePaymentRequests,
+    });
+  // Requests + their tags not loaded yet: don't guess picker vs checkbox.
+  if (contractType === "byService" && linkablePaymentRequests === null) {
+    return React.createElement(
+      "div",
+      { style: { ...cellStyle, fontSize: 12, color: "#d9d9d9", fontFamily: FONT } },
+      "…",
+    );
+  }
+  // Combo pricing contract billed per item, but this service belongs to no
+  // item (e.g. added to the Case later): no request can ever be created for
+  // it, so no control that would do nothing.
+  const itemBilling =
+    contractType === "byService" && Object.keys(paymentRequestServiceIdsByPrId || {}).length > 0;
+  if (itemBilling && !coveredByItem) {
+    return React.createElement(
+      "div",
+      {
+        style: { ...cellStyle, fontSize: 11.5, color: "#8c8c8c", fontFamily: FONT, textAlign: "center" },
+        title: tr("This service isn't part of any Payment Request item of the contract, so it isn't billed."),
+      },
+      tr("Not billed"),
+    );
+  }
+
+  const oneTime = contractType === CONTRACT_MODE_BY_CASE_ONE_TIME;
+  if (contractType === "byCase" || oneTime || coveredByItem) {
     // §6h — same "always keep the already-linked option, else filter by the
     // row's own service (via the paymentRequestServices junction
     // collection, not a JSON field)" logic as TaskDetailView.js's Select.
@@ -1387,6 +1709,8 @@ const TriggerCell = ({
     const options = (linkablePaymentRequests || [])
       .filter((pr) => {
         if (extractId(pr.id) === extractId(task.linkedPaymentRequestId)) return true;
+        // One time: its single payment is tagged with no service — any task
+        if (oneTime) return true;
         const taggedServiceIds = (paymentRequestServiceIdsByPrId || {})[extractId(pr.id)];
         if (!taggedServiceIds || !taggedServiceIds.length) return false;
         return (
@@ -1396,7 +1720,7 @@ const TriggerCell = ({
       })
       .map((pr) => ({
         id: extractId(pr.id),
-        title: pr.title || `Đợt ${pr.installmentNo || ""}`,
+        title: pr.title || tr("Installment {0}", { 0: pr.installmentNo || "" }),
         requestedAmount: pr.requestedAmount,
         status: pr.status,
         dueDate: pr.dueDate,
@@ -1415,7 +1739,7 @@ const TriggerCell = ({
           type: "button",
           disabled,
           onClick: () => !disabled && setModalOpen(true),
-          title: selected ? selected.title : "Select payment installment",
+          title: selected ? selected.title : tr("Select payment installment"),
           style: {
             width: "100%",
             textAlign: "left",
@@ -1432,7 +1756,13 @@ const TriggerCell = ({
             whiteSpace: "nowrap",
           },
         },
-        selected ? selected.title : "Select installment...",
+        selected
+          ? selected.title
+          : coveredByItem
+            ? tr("Select Payment Request...")
+            : oneTime
+              ? tr("Select payment...")
+              : tr("Select installment..."),
       ),
       modalOpen &&
         React.createElement(InstallmentPickerModal, {
@@ -1464,9 +1794,9 @@ const TriggerCell = ({
       "div",
       {
         style: { ...cellStyle, fontSize: 11, color: "#bfbfbf", textAlign: "center", lineHeight: 1.3 },
-        title: "Retainer billing is fully automatic, on its own schedule — no task drives it.",
+        title: tr("Retainer billing is fully automatic, on its own schedule — no task drives it."),
       },
-      "Not applicable — auto on schedule",
+      tr("Not applicable — auto on schedule"),
     );
   }
 
@@ -1476,8 +1806,8 @@ const TriggerCell = ({
     {
       style: cellStyle,
       title: hasService
-        ? "This task's completion counts toward its service's payment trigger"
-        : "Task has no linked service — ticking this has no effect yet",
+        ? tr("This task's completion counts toward its service's payment trigger")
+        : tr("Task has no linked service — ticking this has no effect yet"),
     },
     React.createElement("input", {
       type: "checkbox",
@@ -1498,9 +1828,12 @@ const StatusBtn = ({
   const [open, setOpen] = useState(false);
   const cfg = STATUS_CFG[status] || STATUS_CFG.toDo;
   const allowedKeys = getStatusKeys(isRequiredApproval);
+  const statusAnchorRef = useRef(null);
+  const statusMenuRef = useRef(null);
+  const menuUp = useDropdownFlip(open, statusAnchorRef, statusMenuRef);
   return React.createElement(
     "div",
-    { style: { position: "relative", flexShrink: 0 } },
+    { ref: statusAnchorRef, style: { position: "relative", flexShrink: 0 } },
     React.createElement(
       "span",
       {
@@ -1509,16 +1842,16 @@ const StatusBtn = ({
           // 🌟 NẾU BỊ CHẶN QUYỀN SẼ BÁO LỖI NGAY TẠI ĐÂY
           if (readOnly) {
             message.warning(
-              "🔒 Only managers or the assignee can change the status",
+              tr("🔒 Only managers or the assignee can change the status"),
             );
             return;
           }
           setOpen((v) => !v);
         },
         title: readOnly
-          ? "No edit permission"
+          ? tr("No edit permission")
           : isBlocked
-            ? "Task is blocked by a previous task"
+            ? tr("Task is blocked by a previous task")
             : cfg.label,
         style: {
           display: "inline-flex",
@@ -1550,10 +1883,10 @@ const StatusBtn = ({
       React.createElement(
         "div",
         {
+          ref: statusMenuRef,
           style: {
             position: "absolute",
-            top: "100%",
-            marginTop: 4,
+            ...(menuUp ? { bottom: "100%", marginBottom: 4 } : { top: "100%", marginTop: 4 }),
             left: 0,
             zIndex: 9999,
             background: "#fff",
@@ -1610,7 +1943,8 @@ const StatusBtn = ({
   );
 };
 
-const ColHeader = () =>
+// hasContract — see TriggerCell: without a contract the column is "Updated".
+const ColHeader = ({ hasContract = false } = {}) =>
   React.createElement(
     "div",
     {
@@ -1633,18 +1967,18 @@ const ColHeader = () =>
     React.createElement(
       "div",
       { style: { width: COL.stt, flexShrink: 0, textAlign: "center" } },
-      "STT",
+      tr("No."),
     ),
     React.createElement("div", { style: { width: COL.toggle, flexShrink: 0 } }),
     React.createElement(
       "div",
       { style: { flex: 1, padding: "0 10px", minWidth: 200 } },
-      "Title",
+      tr("Title"),
     ),
     React.createElement(
       "div",
       { style: { flex: `0 1 ${COL.status}px`, minWidth: 0, padding: "0 8px" } },
-      "Status",
+      tr("Status"),
     ),
     React.createElement(
       "div",
@@ -1655,26 +1989,26 @@ const ColHeader = () =>
           textAlign: "center",
         },
       },
-      "Trigger Payment",
+      hasContract ? tr("Trigger Payment") : tr("Updated"),
     ),
     React.createElement(
       "div",
       {
         style: { flex: `0 1 ${COL.assign}px`, minWidth: 0, textAlign: "center" },
       },
-      "Assignee",
+      tr("Assignee"),
     ),
     React.createElement(
       "div",
       { style: { flex: `0 1 ${COL.desc}px`, minWidth: 0, padding: "0 8px" } },
-      "Description",
+      tr("Description"),
     ),
     React.createElement(
       "div",
       {
         style: { flex: `0 1 ${COL.start}px`, minWidth: 0, textAlign: "center" },
       },
-      "Start",
+      tr("Start"),
     ),
     React.createElement(
       "div",
@@ -1685,21 +2019,21 @@ const ColHeader = () =>
           textAlign: "center",
         },
       },
-      "Deadline",
+      tr("Deadline"),
     ),
     React.createElement(
       "div",
       {
         style: { flex: `0 1 ${COL.pendingIssue}px`, minWidth: 0, padding: "0 8px" },
       },
-      "Pending Issue",
+      tr("Pending Issue"),
     ),
     React.createElement(
       "div",
       {
         style: { flex: `0 1 ${COL.nextStep}px`, minWidth: 0, padding: "0 8px" },
       },
-      "Next Step",
+      tr("Next Step"),
     ),
     React.createElement("div", {
       style: { width: COL.approval, flexShrink: 0 },
@@ -1708,6 +2042,62 @@ const ColHeader = () =>
 // ============================================================
 // §6 PICKERS
 // ============================================================
+
+// ---- dropdown placement helpers (pure; tested by scripts/tests/task-dropdown-placement.test.js) ----
+// Row dropdowns near the last task rows hung below the table and stretched
+// it (2026-09-25). Open upward when the room below is too small for the
+// menu and there is more room above.
+const shouldOpenUp = ({ anchorTop, anchorBottom, limitTop, limitBottom, height }) => {
+  const below = limitBottom - anchorBottom;
+  const above = anchorTop - limitTop;
+  return below < height && above > below;
+};
+// ---- end dropdown placement helpers ----
+
+// RunJS sandbox (JS item): window.innerHeight / getComputedStyle and
+// document.documentElement / document.body are blocked — only
+// document.querySelector & co. are allowed. The viewport height comes from
+// the <html> element, and a scroll container is recognised by its inline
+// overflow style (how this block styles its lists) or an antd scroll body.
+const viewportHeight = () => document.querySelector("html")?.clientHeight || 0;
+const isScrollContainer = (el) => {
+  const style = el.style || {};
+  if (/auto|scroll/.test(`${style.overflow || ""} ${style.overflowY || ""} ${style.overflowX || ""}`)) return true;
+  return typeof el.matches === "function" && el.matches(".ant-modal-body, .ant-drawer-body, .ant-table-body");
+};
+
+// Room is measured inside the nearest scrolling ancestor (the task list)
+// and the viewport, whichever is tighter.
+const dropdownOpensUp = (anchorEl, height) => {
+  if (!anchorEl || typeof anchorEl.getBoundingClientRect !== "function") return false;
+  const rect = anchorEl.getBoundingClientRect();
+  let limitTop = 0;
+  let limitBottom = viewportHeight() || rect.bottom + height;
+  for (let el = anchorEl.parentElement; el && el.tagName !== "BODY"; el = el.parentElement) {
+    if (isScrollContainer(el)) {
+      const bounds = el.getBoundingClientRect();
+      limitTop = Math.max(limitTop, bounds.top);
+      limitBottom = Math.min(limitBottom, bounds.bottom);
+      break;
+    }
+  }
+  return shouldOpenUp({ anchorTop: rect.top, anchorBottom: rect.bottom, limitTop, limitBottom, height });
+};
+
+// Flips an absolutely positioned menu upward before it paints, using the
+// rendered menu's real height.
+const useFlipLayoutEffect = React.useLayoutEffect || useEffect;
+const useDropdownFlip = (open, anchorRef, menuRef) => {
+  const [up, setUp] = useState(false);
+  useFlipLayoutEffect(() => {
+    if (!open) {
+      setUp(false);
+      return;
+    }
+    setUp(dropdownOpensUp(anchorRef.current, menuRef.current?.offsetHeight || 0));
+  }, [open]);
+  return up;
+};
 
 const PortalDropdown = ({
   anchorRef,
@@ -1721,9 +2111,19 @@ const PortalDropdown = ({
   useEffect(() => {
     if (!open || !anchorRef.current) return;
     const rect = anchorRef.current.getBoundingClientRect();
-    const openUp = rect.top > 400;
+    const viewport = viewportHeight() || rect.bottom + 344;
+    const openUp = shouldOpenUp({
+      anchorTop: rect.top,
+      anchorBottom: rect.bottom,
+      limitTop: 0,
+      limitBottom: viewport,
+      height: 344,
+    });
+    // Up: pinned by its bottom edge, so a short list sits right above the
+    // anchor instead of floating 344px up.
     setPos({
-      top: openUp ? rect.top - 344 : rect.bottom + 4,
+      top: openUp ? "auto" : rect.bottom + 4,
+      bottom: openUp ? viewport - rect.top + 4 : "auto",
       left: align === "left" ? rect.left : rect.right - width,
     });
   }, [open]);
@@ -1741,6 +2141,7 @@ const PortalDropdown = ({
         style: {
           position: "fixed",
           top: pos.top,
+          bottom: pos.bottom,
           left: pos.left,
           zIndex: 99999,
           background: "#fff",
@@ -1769,7 +2170,10 @@ const LawyerPicker = ({
   size = 20,
   readOnly = false,
   bordered = false,
-  placeholder = "Select assignee",
+  placeholder = tr("Select assignee"),
+  // Hourly rate under each name is financial info — shown only when the
+  // caller confirms the case has a contract (hidden by default).
+  showRate = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -1838,11 +2242,12 @@ const LawyerPicker = ({
           },
           l.lawyerName,
         ),
+        showRate &&
         l.unitPrice > 0 &&
           React.createElement(
             "div",
             { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-            `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/hr`,
+            tr("{0} ₫/hr", { 0: Number(l.unitPrice).toLocaleString("vi-VN") }),
           ),
       ),
     );
@@ -1857,7 +2262,7 @@ const LawyerPicker = ({
         autoFocus: true,
         value: q,
         onChange: (e) => setQ(e.target.value),
-        placeholder: "Search lawyer...",
+        placeholder: tr("Search lawyer..."),
         style: {
           width: "100%",
           border: "1px solid #e8e8e8",
@@ -1899,7 +2304,7 @@ const LawyerPicker = ({
               (e.currentTarget.style.background = "transparent"),
           },
           React.createElement("span", null, "×"),
-          React.createElement("span", null, "Unassign"),
+          React.createElement("span", null, tr("Unassign")),
         ),
       ...grouped.map(({ type, cfg, items }) =>
         React.createElement(
@@ -1945,7 +2350,7 @@ const LawyerPicker = ({
                 borderTop: "1px solid #f0f0f0",
               },
             },
-            "Other",
+            tr("Other"),
           ),
           ...others.map(renderLawyerRow),
         ),
@@ -2088,7 +2493,7 @@ const LawyerPicker = ({
           : React.createElement(
               "div",
               {
-                title: "Assign lawyer",
+                title: tr("Assign lawyer"),
                 style: {
                   width: size,
                   height: size,
@@ -2124,7 +2529,9 @@ const TaskPicker = ({
   const [q, setQ] = useState("");
   const [anchorRight, setAnchorRight] = useState(false);
   const wrapperRef = useRef(null);
+  const pickerMenuRef = useRef(null);
   const DROPDOWN_WIDTH = 460;
+  const menuUp = useDropdownFlip(open, wrapperRef, pickerMenuRef);
 
   // The trigger can sit in a narrow grid column (e.g. sharing a row with
   // Estimated duration) — measure against the modal's own bounds each time
@@ -2148,10 +2555,10 @@ const TaskPicker = ({
   );
   // Key thống nhất: ps.serviceId (catalog) hoặc ps.id (custom service)
   const serviceMap = useMemo(() => {
-    const m = { __none__: "No service assigned" };
+    const m = { __none__: tr("No service assigned") };
     services.forEach((ps) => {
       const key = ps.serviceId ? String(ps.serviceId) : String(ps.id);
-      m[key] = ps.serviceName || `Service #${ps.id}`;
+      m[key] = ps.serviceName || tr("Service #{0}", { 0: ps.id });
     });
     return m;
   }, [services]);
@@ -2180,7 +2587,7 @@ const TaskPicker = ({
     const noneKey = map["__none__"] ? ["__none__"] : [];
     return [...serviceKeys, ...noneKey].map((k) => ({
       key: k,
-      label: serviceMap[k] || "Service #" + k,
+      label: serviceMap[k] || tr("Service #") + k,
       tasks: map[k],
     }));
   }, [filtered, services, serviceMap]);
@@ -2324,9 +2731,10 @@ const TaskPicker = ({
     return React.createElement(
       "div",
       {
+        ref: pickerMenuRef,
         style: {
           position: "absolute",
-          top: "100%",
+          ...(menuUp ? { bottom: "100%", marginBottom: 4 } : { top: "100%", marginTop: 4 }),
           left: anchorRight ? "auto" : 0,
           right: anchorRight ? 0 : "auto",
           zIndex: 9999,
@@ -2335,7 +2743,6 @@ const TaskPicker = ({
           borderRadius: 6,
           boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           width: `min(${DROPDOWN_WIDTH}px, calc(100vw - 32px))`,
-          marginTop: 4,
           display: "flex",
           flexDirection: "column",
           maxHeight: 440,
@@ -2348,7 +2755,7 @@ const TaskPicker = ({
           autoFocus: true,
           value: q,
           onChange: (e) => setQ(e.target.value),
-          placeholder: "Search tasks by name...",
+          placeholder: tr("Search tasks by name..."),
           style: {
             width: "100%",
             border: "1px solid #e8e8e8",
@@ -2376,7 +2783,7 @@ const TaskPicker = ({
                   textAlign: "center",
                 },
               },
-              "No tasks found",
+              tr("No tasks found"),
             )
           : grouped.map((g) =>
               React.createElement(
@@ -2512,7 +2919,7 @@ const TaskPicker = ({
                 flex: 1,
               },
             },
-            "Select a prerequisite task...",
+            tr("Select a prerequisite task..."),
           ),
     ),
     renderDropdown(),
@@ -2527,7 +2934,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const fileUrl = attachment?.url || attachment?.preview;
   const fullUrl = getFullUrl(fileUrl);
   const rawName =
-    doc.title || attachment?.title || attachment?.filename || "File";
+    doc.title || attachment?.title || attachment?.filename || tr("File");
   const extFromAtt = attachment?.extname
     ? attachment.extname.startsWith(".")
       ? attachment.extname.toLowerCase()
@@ -2540,7 +2947,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const baseName = rawName.toLowerCase().endsWith(fileExt)
     ? rawName.slice(0, rawName.length - fileExt.length)
     : rawName;
-  const displayName = (baseName || "File") + fileExt;
+  const displayName = (baseName || tr("File")) + fileExt;
   const isPdf = fileExt === ".pdf";
   const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
   const isOffice = [
@@ -2584,9 +2991,9 @@ const PreviewModal = ({ doc, onClose }) => {
               key: "dl",
               onClick: () => window.open(fullUrl, "_blank"),
             },
-            "⬇️ Download",
+            tr("⬇️ Download"),
           ),
-        React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
+        React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
       ].filter(Boolean),
     },
     renderTaskFilePreviewFrame({
@@ -2610,7 +3017,7 @@ const PreviewModal = ({ doc, onClose }) => {
         },
         React.createElement(Empty, {
           description:
-            "Cannot preview this file type — please download to open",
+            tr("Cannot preview this file type — please download to open"),
         }),
       ),
   );
@@ -2655,7 +3062,7 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
     color: "#8c8c8c",
     bg: "#f5f5f5",
     border: "#d9d9d9",
-    label: "N/A",
+    label: tr("N/A"),
   };
   const assignedLawyer = lawyers?.find((l) => l.id === prevTask.lawyerId);
   const lawyerName = assignedLawyer ? assignedLawyer.lawyerName : null;
@@ -2670,9 +3077,9 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
     React.createElement(
       "div",
       null,
-      `Assignee: ${lawyerName || "Not assigned"}`,
+      tr("Assignee: {0}", { 0: lawyerName || tr("Not assigned") }),
     ),
-    React.createElement("div", null, `Status: ${statusInfo.label}`),
+    React.createElement("div", null, tr("Status: {0}", { 0: statusInfo.label })),
   );
   return React.createElement(
     "div",
@@ -2845,12 +3252,12 @@ const SaveTaskToTemplateModal = ({
     const refIndex = sortedTemplates.findIndex((t) => t.id === action.template.id);
     if (action.type === "insertAbove") {
       return refIndex <= 0
-        ? `Placed at the top of the list, above "${action.template.templateName}".`
-        : `Placed between "${sortedTemplates[refIndex - 1].templateName}" and "${action.template.templateName}".`;
+        ? tr("Placed at the top of the list, above \"{0}\".", { 0: action.template.templateName })
+        : tr("Placed between \"{0}\" and \"{1}\".", { 0: sortedTemplates[refIndex - 1].templateName, 1: action.template.templateName });
     }
     return refIndex === -1 || refIndex >= sortedTemplates.length - 1
-      ? `Placed at the bottom of the list, below "${action.template.templateName}".`
-      : `Placed between "${action.template.templateName}" and "${sortedTemplates[refIndex + 1].templateName}".`;
+      ? tr("Placed at the bottom of the list, below \"{0}\".", { 0: action.template.templateName })
+      : tr("Placed between \"{0}\" and \"{1}\".", { 0: action.template.templateName, 1: sortedTemplates[refIndex + 1].templateName });
   };
 
   // Replaces one existing template's content in place (same id, same
@@ -2863,11 +3270,11 @@ const SaveTaskToTemplateModal = ({
         description: draftDescription || null,
         priority: draftPriority || null,
       });
-      message.success("✅ Template overridden");
+      message.success(tr("✅ Template overridden"));
       onSaved();
     } catch (e) {
       console.error(e);
-      message.error("Failed to override template");
+      message.error(tr("Failed to override template"));
     }
     setSaving(false);
   };
@@ -2910,11 +3317,11 @@ const SaveTaskToTemplateModal = ({
         }),
         ...reindexOps,
       ]);
-      message.success("✅ Saved to template");
+      message.success(tr("✅ Saved to template"));
       onSaved();
     } catch (e) {
       console.error(e);
-      message.error("Failed to save to template");
+      message.error(tr("Failed to save to template"));
     }
     setSaving(false);
   };
@@ -2926,7 +3333,7 @@ const SaveTaskToTemplateModal = ({
     else if (pendingAction.type === "insertBelow") executeInsertAt("below", pendingAction.template);
   };
 
-  const PRIORITY_LABELS = { high: "High", medium: "Medium", low: "Low" };
+  const PRIORITY_LABELS = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
   const fmtField = (value) => (value === null || value === undefined || value === "" ? "—" : String(value));
   const fmtPriority = (value) => PRIORITY_LABELS[value] || fmtField(value);
 
@@ -2968,35 +3375,35 @@ const SaveTaskToTemplateModal = ({
       React.createElement(
         "div",
         { style: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#262626" } },
-        isOverride ? "Override this template?" : "Save as new template?",
+        isOverride ? tr("Override this template?") : tr("Save as new template?"),
       ),
       isOverride &&
         React.createElement(
           "div",
           { style: { fontSize: 12, color: "#8c8c8c", marginBottom: 12 } },
-          `Replacing "${pendingAction.template.templateName}". Edit the fields below if needed before confirming.`,
+          tr("Replacing \"{0}\". Edit the fields below if needed before confirming.", { 0: pendingAction.template.templateName }),
         ),
       renderEditableField(
-        "Title",
+        tr("Title"),
         isOverride ? pendingAction.template.templateName : undefined,
         React.createElement(Input, {
           value: draftTitle,
           onChange: (e) => setDraftTitle(e.target.value),
-          placeholder: "Template title",
+          placeholder: tr("Template title"),
         }),
       ),
       renderEditableField(
-        "Description",
+        tr("Description"),
         isOverride ? pendingAction.template.description : undefined,
         React.createElement(Input.TextArea, {
           value: draftDescription,
           onChange: (e) => setDraftDescription(e.target.value),
           rows: 3,
-          placeholder: "Description (optional)",
+          placeholder: tr("Description (optional)"),
         }),
       ),
       renderEditableField(
-        "Priority",
+        tr("Priority"),
         isOverride ? fmtPriority(pendingAction.template.priority) : undefined,
         React.createElement(Select, {
           value: draftPriority,
@@ -3008,7 +3415,7 @@ const SaveTaskToTemplateModal = ({
       React.createElement(
         "div",
         { style: { marginTop: 10, fontSize: 12, color: isOverride ? "#cf1322" : "#595959" } },
-        isOverride ? "This cannot be undone." : describePosition(pendingAction),
+        isOverride ? tr("This cannot be undone.") : describePosition(pendingAction),
       ),
       React.createElement(
         "div",
@@ -3020,7 +3427,7 @@ const SaveTaskToTemplateModal = ({
             disabled: saving,
             onClick: () => setPendingAction(null),
           },
-          "Back",
+          tr("Back"),
         ),
         React.createElement(
           Button,
@@ -3031,7 +3438,7 @@ const SaveTaskToTemplateModal = ({
             disabled: !draftTitle.trim(),
             onClick: handleConfirmPendingAction,
           },
-          saving ? "Saving..." : isOverride ? "Override" : "Confirm",
+          saving ? tr("Saving...") : isOverride ? tr("Override") : tr("Confirm"),
         ),
       ),
     );
@@ -3047,7 +3454,7 @@ const SaveTaskToTemplateModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "Save to template?",
+        tr("Save to template?"),
       ),
     },
     pendingAction
@@ -3055,14 +3462,14 @@ const SaveTaskToTemplateModal = ({
       : React.createElement(
       "div",
       { style: { fontFamily: FONT } },
-      renderFieldLabel("Standardized service", true),
+      renderFieldLabel(tr("Standardized service"), true),
       React.createElement(Select, {
         value: selectedServiceId,
         onChange: setSelectedServiceId,
         showSearch: true,
         optionFilterProp: "label",
         style: { width: "100%" },
-        placeholder: "-- Select a catalog service --",
+        placeholder: tr("-- Select a catalog service --"),
         options: serviceCatalog.map((s) => ({
           value: s.id,
           label: s.serviceName,
@@ -3072,14 +3479,14 @@ const SaveTaskToTemplateModal = ({
         React.createElement(
           "div",
           { style: { marginTop: 16 } },
-          renderFieldLabel("Existing templates — override one, or insert above/below it"),
+          renderFieldLabel(tr("Existing templates — override one, or insert above/below it")),
           loadingTemplates
             ? React.createElement(Spin, { size: "small" })
             : sortedTemplates.length === 0
               ? React.createElement(
                   "div",
                   { style: { fontSize: 12, color: "#bfbfbf", padding: "8px 0" } },
-                  "No existing templates yet for this service — nothing to override or insert relative to.",
+                  tr("No existing templates yet for this service — nothing to override or insert relative to."),
                 )
               : React.createElement(
                   "div",
@@ -3126,7 +3533,7 @@ const SaveTaskToTemplateModal = ({
                           style: { flexShrink: 0 },
                           onClick: () => setPendingAction({ type: "override", template: t }),
                         },
-                        "Override",
+                        tr("Override"),
                       ),
                       React.createElement(
                         Button,
@@ -3136,7 +3543,7 @@ const SaveTaskToTemplateModal = ({
                           style: { flexShrink: 0 },
                           onClick: () => setPendingAction({ type: "insertAbove", template: t }),
                         },
-                        "↑ Above",
+                        tr("↑ Above"),
                       ),
                       React.createElement(
                         Button,
@@ -3146,7 +3553,7 @@ const SaveTaskToTemplateModal = ({
                           style: { flexShrink: 0 },
                           onClick: () => setPendingAction({ type: "insertBelow", template: t }),
                         },
-                        "↓ Below",
+                        tr("↓ Below"),
                       ),
                     ),
                   ),
@@ -3163,7 +3570,7 @@ const SaveTaskToTemplateModal = ({
             React.createElement(
               Button,
               { style: TASK_DS.secondaryButton, onClick: onClose },
-              "Close",
+              tr("Close"),
             ),
           ),
         ),
@@ -3180,7 +3587,7 @@ const SaveTaskToTemplateModal = ({
           React.createElement(
             Button,
             { style: TASK_DS.secondaryButton, onClick: onClose },
-            "Close",
+            tr("Close"),
           ),
         ),
     ),
@@ -3199,6 +3606,7 @@ const AddTaskModal = ({
   onSave,
   onClose,
   currentUser,
+  hasContract = false,
 }) => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -3273,7 +3681,7 @@ const AddTaskModal = ({
     );
     if (selectedService && isDeletedServiceRecord(selectedService)) {
       message.warning(
-        "This service has been deleted; a new task cannot be created.",
+        tr("This service has been deleted; a new task cannot be created."),
       );
       return;
     }
@@ -3321,11 +3729,11 @@ const AddTaskModal = ({
       }
       await Promise.all(requests);
 
-      message.success("✅ Task created");
+      message.success(tr("✅ Task created"));
       onSave();
       handleClose();
     } catch {
-      message.error("Creation failed");
+      message.error(tr("Creation failed"));
     }
     setSaving(false);
   };
@@ -3381,8 +3789,8 @@ const AddTaskModal = ({
             },
           },
           prevTask.status === "done"
-            ? "Done"
-            : 'New task will start as "Waiting"',
+            ? tr("Done")
+            : tr("New task will start as \"Waiting\""),
         ),
       )
     : null;
@@ -3397,15 +3805,15 @@ const AddTaskModal = ({
       onCancel: handleClose,
       onOk: handleSave,
       confirmLoading: saving,
-      okText: saving ? "Saving..." : "Submit",
-      cancelText: "Cancel",
+      okText: saving ? tr("Saving...") : tr("Submit"),
+      cancelText: tr("Cancel"),
       width: isMobile ? "94vw" : 900,
       okButtonProps: { style: TASK_DS.primaryButton },
       cancelButtonProps: { style: TASK_DS.secondaryButton },
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "New task",
+        tr("New task"),
       ),
     },
     React.createElement(
@@ -3434,40 +3842,41 @@ const AddTaskModal = ({
           Form.Item,
           {
             name: "title",
-            label: renderFieldLabel("Title", true),
-            rules: [{ required: true, message: "Please enter a task name" }],
+            label: renderFieldLabel(tr("Title"), true),
+            rules: [{ required: true, message: tr("Please enter a task name") }],
             style: fullFieldStyle,
           },
-          React.createElement(Input, { placeholder: "Enter title..." }),
+          React.createElement(Input, { placeholder: tr("Enter title...") }),
         ),
         React.createElement(
           Form.Item,
-          { name: "lawyerId", label: "Assignee", style: fieldStyle },
+          { name: "lawyerId", label: tr("Assignee"), style: fieldStyle },
           React.createElement(LawyerPicker, {
             lawyers,
             size: 20,
             bordered: true,
-            placeholder: "Select assignee",
+            showRate: hasContract,
+            placeholder: tr("Select assignee"),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "serviceId",
-            label: renderFieldLabel("Service", true),
-            rules: [{ required: true, message: "Please select a service" }],
+            label: renderFieldLabel(tr("Service"), true),
+            rules: [{ required: true, message: tr("Please select a service") }],
             style: fieldStyle,
             extra:
               services.length === 0
                 ? React.createElement(
                     "span",
                     { style: { color: "#d46b08" } },
-                    "No services in this case yet",
+                    tr("No services in this case yet"),
                   )
                 : undefined,
           },
           React.createElement(Select, {
-            placeholder: "-- Select service --",
+            placeholder: tr("-- Select service --"),
             allowClear: true,
             disabled: services.length === 0,
             // Hiển thị TẤT CẢ projectServices (cả catalog và custom)
@@ -3475,7 +3884,7 @@ const AddTaskModal = ({
             // Custom service: value = ps.id (projectService id, dùng làm key thống nhất)
             options: services.map((ps) => {
               const disabled = isDeletedServiceRecord(ps);
-              const serviceLabel = ps.serviceName || `Service #${ps.id}`;
+              const serviceLabel = ps.serviceName || tr("Service #{0}", { 0: ps.id });
               return {
                 value: getProjectServiceTaskKey(ps),
                 label: `${serviceLabel}${disabled ? " (Locked)" : ""}`,
@@ -3486,7 +3895,7 @@ const AddTaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "startDate", label: "Start date", style: fieldStyle },
+          { name: "startDate", label: tr("Start date"), style: fieldStyle },
           React.createElement(DatePicker, {
             style: { width: "100%" },
             format: "DD/MM/YYYY",
@@ -3494,7 +3903,7 @@ const AddTaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "dueDate", label: "Deadline", style: fieldStyle },
+          { name: "dueDate", label: tr("Deadline"), style: fieldStyle },
           React.createElement(DatePicker, {
             style: { width: "100%" },
             format: "DD/MM/YYYY",
@@ -3502,35 +3911,35 @@ const AddTaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "description", label: "Description", style: fullFieldStyle },
+          { name: "description", label: tr("Description"), style: fullFieldStyle },
           React.createElement(Input.TextArea, {
             rows: 3,
-            placeholder: "Description...",
+            placeholder: tr("Description..."),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "nextStepDescription",
-            label: "Next Step",
+            label: tr("Next Step"),
             style: fullFieldStyle,
           },
           React.createElement(Input.TextArea, {
             rows: 2,
-            placeholder: "Next step after completion...",
+            placeholder: tr("Next step after completion..."),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "estimatedDuration",
-            label: "Estimated duration",
+            label: tr("Estimated duration"),
             style: fieldStyle,
           },
           React.createElement(InputNumber, {
             style: { width: "100%" },
             min: 0,
-            placeholder: "e.g., 4",
+            placeholder: tr("e.g., 4"),
             addonAfter: "hours",
           }),
         ),
@@ -3538,7 +3947,7 @@ const AddTaskModal = ({
           Form.Item,
           {
             name: "previousTaskId",
-            label: "Pending Issue (optional)",
+            label: tr("Pending Issue (optional)"),
             style: fieldStyle,
             extra: prevTaskInfo,
           },
@@ -3550,7 +3959,7 @@ const AddTaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "priority", label: "Priority", style: fieldStyle },
+          { name: "priority", label: tr("Priority"), style: fieldStyle },
           React.createElement(Segmented, { options: priorityOptions }),
         ),
         React.createElement(
@@ -3576,13 +3985,13 @@ const AddTaskModal = ({
               Form.Item,
               {
                 name: "isRequiredApproval",
-                label: "Approval required",
+                label: tr("Approval required"),
                 valuePropName: "checked",
                 style: { marginBottom: 0 },
               },
               React.createElement(Switch, {
-                checkedChildren: "On",
-                unCheckedChildren: "Off",
+                checkedChildren: tr("On"),
+                unCheckedChildren: tr("Off"),
                 onChange: (checked) => {
                   if (!checked) form.setFieldValue("approvedById", null);
                 },
@@ -3593,15 +4002,16 @@ const AddTaskModal = ({
                 Form.Item,
                 {
                   name: "approvedById",
-                  label: "Approver",
+                  label: tr("Approver"),
                   style: { marginBottom: 0, marginTop: isMobile ? 14 : 0 },
-                  extra: "Required because approval is enabled for this task.",
+                  extra: tr("Required because approval is enabled for this task."),
                 },
                 React.createElement(LawyerPicker, {
                   lawyers,
                   size: 20,
                   bordered: true,
-                  placeholder: "Select approver",
+                  showRate: hasContract,
+                  placeholder: tr("Select approver"),
                 }),
               ),
           ),
@@ -3618,6 +4028,7 @@ const AddSubtaskModal = ({
   onSave,
   onClose,
   currentUser,
+  hasContract = false,
 }) => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
@@ -3669,11 +4080,11 @@ const AddSubtaskModal = ({
       if (values.nextStepDescription)
         payload.nextStepDescription = values.nextStepDescription;
       await apiReq("subTasks:create", "POST", payload);
-      message.success("✅ Subtask created");
+      message.success(tr("✅ Subtask created"));
       onSave();
       handleClose();
     } catch {
-      message.error("Creation failed");
+      message.error(tr("Creation failed"));
     }
     setSaving(false);
   };
@@ -3697,15 +4108,15 @@ const AddSubtaskModal = ({
       onCancel: handleClose,
       onOk: handleSave,
       confirmLoading: saving,
-      okText: saving ? "Saving..." : "Submit",
-      cancelText: "Cancel",
+      okText: saving ? tr("Saving...") : tr("Submit"),
+      cancelText: tr("Cancel"),
       width: isMobile ? "94vw" : 640,
       okButtonProps: { style: TASK_DS.primaryButton },
       cancelButtonProps: { style: TASK_DS.secondaryButton },
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "New subtask",
+        tr("New subtask"),
       ),
     },
     React.createElement(
@@ -3734,63 +4145,64 @@ const AddSubtaskModal = ({
           Form.Item,
           {
             name: "title",
-            label: renderFieldLabel("Title", true),
-            rules: [{ required: true, message: "Please enter a subtask name" }],
+            label: renderFieldLabel(tr("Title"), true),
+            rules: [{ required: true, message: tr("Please enter a subtask name") }],
             style: fullFieldStyle,
           },
-          React.createElement(Input, { placeholder: "Enter title..." }),
+          React.createElement(Input, { placeholder: tr("Enter title...") }),
         ),
         React.createElement(
           Form.Item,
-          { name: "lawyerId", label: "Assignee", style: fieldStyle },
+          { name: "lawyerId", label: tr("Assignee"), style: fieldStyle },
           React.createElement(LawyerPicker, {
             lawyers,
             size: 20,
             bordered: true,
-            placeholder: "Select assignee",
+            showRate: hasContract,
+            placeholder: tr("Select assignee"),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "description",
-            label: "Detailed Description",
+            label: tr("Detailed Description"),
             style: fullFieldStyle,
           },
           React.createElement(Input.TextArea, {
             rows: 3,
-            placeholder: "Describe the subtask in detail...",
+            placeholder: tr("Describe the subtask in detail..."),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "nextStepDescription",
-            label: "Next Step",
+            label: tr("Next Step"),
             style: fullFieldStyle,
           },
           React.createElement(Input.TextArea, {
             rows: 2,
-            placeholder: "Next step after completion...",
+            placeholder: tr("Next step after completion..."),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "estimatedDuration",
-            label: "Estimated duration",
+            label: tr("Estimated duration"),
             style: fieldStyle,
           },
           React.createElement(InputNumber, {
             style: { width: "100%" },
             min: 0,
-            placeholder: "e.g., 4",
+            placeholder: tr("e.g., 4"),
             addonAfter: "hours",
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "startDate", label: "Start date", style: fieldStyle },
+          { name: "startDate", label: tr("Start date"), style: fieldStyle },
           React.createElement(DatePicker, {
             style: { width: "100%" },
             format: "DD/MM/YYYY",
@@ -3798,7 +4210,7 @@ const AddSubtaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "deadline", label: "Deadline", style: fieldStyle },
+          { name: "deadline", label: tr("Deadline"), style: fieldStyle },
           React.createElement(DatePicker, {
             style: { width: "100%" },
             format: "DD/MM/YYYY",
@@ -3806,7 +4218,7 @@ const AddSubtaskModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "priority", label: "Priority", style: fieldStyle },
+          { name: "priority", label: tr("Priority"), style: fieldStyle },
           React.createElement(Segmented, { options: priorityOptions }),
         ),
         React.createElement(
@@ -3832,13 +4244,13 @@ const AddSubtaskModal = ({
               Form.Item,
               {
                 name: "isRequiredApproval",
-                label: "Approval required",
+                label: tr("Approval required"),
                 valuePropName: "checked",
                 style: { marginBottom: 0 },
               },
               React.createElement(Switch, {
-                checkedChildren: "On",
-                unCheckedChildren: "Off",
+                checkedChildren: tr("On"),
+                unCheckedChildren: tr("Off"),
                 onChange: (checked) => {
                   if (!checked) form.setFieldValue("approvedById", null);
                 },
@@ -3849,16 +4261,17 @@ const AddSubtaskModal = ({
                 Form.Item,
                 {
                   name: "approvedById",
-                  label: "Approver",
+                  label: tr("Approver"),
                   style: { marginBottom: 0, marginTop: isMobile ? 14 : 0 },
                   extra:
-                    "Required because approval is enabled for this subtask.",
+                    tr("Required because approval is enabled for this subtask."),
                 },
                 React.createElement(LawyerPicker, {
                   lawyers,
                   size: 20,
                   bordered: true,
-                  placeholder: "Select approver",
+                  showRate: hasContract,
+                  placeholder: tr("Select approver"),
                 }),
               ),
           ),
@@ -3931,7 +4344,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
               color: "#096dd9",
             },
           },
-          `📎 ${files.length} documents`,
+          tr("📎 {0} documents", { 0: files.length }),
         ),
         React.createElement(
           "span",
@@ -4020,8 +4433,8 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                   textUnderlineOffset: "2px",
                 },
                 title: canPreview
-                  ? "Click to preview"
-                  : "This format doesn't support preview",
+                  ? tr("Click to preview")
+                  : tr("This format doesn't support preview"),
                 onClick: canPreview
                   ? (e) => {
                       e.stopPropagation();
@@ -4040,7 +4453,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                 React.createElement(
                   "span",
                   {
-                    title: "Download",
+                    title: tr("Download"),
                     onClick: (e) => {
                       e.stopPropagation();
                       window.open(fullUrl, "_blank");
@@ -4078,6 +4491,7 @@ const TaskRow = ({
   onOpen,
   onAssign,
   contractType,
+  hasContract,
   linkablePaymentRequests,
   contractServiceIdByProjectServiceId,
   paymentRequestServiceIdsByPrId,
@@ -4100,6 +4514,9 @@ const TaskRow = ({
   const [hov, setHov] = useState(false);
   const [dragOverPos, setDragOverPos] = useState(null); // "before" | "after" | null
   const [showMenu, setShowMenu] = useState(false);
+  const rowMenuAnchorRef = useRef(null);
+  const rowMenuRef = useRef(null);
+  const rowMenuUp = useDropdownFlip(showMenu, rowMenuAnchorRef, rowMenuRef);
   // Closing on the trigger+dropdown wrapper's mouseleave right away is too
   // sensitive: the gap between the 22px trigger and the dropdown (top: 28)
   // isn't covered by any element from this widget, so a slower mouse path
@@ -4143,7 +4560,7 @@ const TaskRow = ({
 
     if (!taskRecordId) {
       setShowMenu(false);
-      message.error("Task ID not found for this action.");
+      message.error(tr("Task ID not found for this action."));
       return;
     }
 
@@ -4156,7 +4573,7 @@ const TaskRow = ({
 
     if (action === "insertAbove" || action === "insertBelow") {
       if (typeof onInsertTask !== "function") {
-        message.error("The insert task action has not been configured.");
+        message.error(tr("The insert task action has not been configured."));
         setShowMenu(false);
         return;
       }
@@ -4167,7 +4584,7 @@ const TaskRow = ({
 
     if (action === "saveAsTemplate") {
       if (typeof onSaveTaskAsTemplate !== "function") {
-        message.error("The save as template action has not been configured.");
+        message.error(tr("The save as template action has not been configured."));
         setShowMenu(false);
         return;
       }
@@ -4182,7 +4599,7 @@ const TaskRow = ({
           taskRecordId,
           task,
         });
-        message.error("The delete task action has not been configured.");
+        message.error(tr("The delete task action has not been configured."));
         setShowMenu(false);
         return;
       }
@@ -4287,6 +4704,7 @@ const TaskRow = ({
       React.createElement(
         "div",
         {
+          ref: rowMenuAnchorRef,
           style: {
             width: COL.menu,
             flexShrink: 0,
@@ -4343,10 +4761,11 @@ const TaskRow = ({
           React.createElement(
             "div",
             {
+              ref: rowMenuRef,
               style: {
                 position: "absolute",
                 left: 0,
-                top: 28,
+                ...(rowMenuUp ? { bottom: 28 } : { top: 28 }),
                 zIndex: 9999,
                 background: "#fff",
                 border: "1px solid #e8e8e8",
@@ -4382,7 +4801,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "⬆️"),
-                "Insert task above",
+                tr("Insert task above"),
               ),
             canEdit &&
               React.createElement(
@@ -4405,7 +4824,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "⬇️"),
-                "Insert task below",
+                tr("Insert task below"),
               ),
             canEdit &&
               React.createElement(
@@ -4428,7 +4847,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "➕"),
-                "Create subtask",
+                tr("Create subtask"),
               ),
             canEdit &&
               React.createElement(
@@ -4451,7 +4870,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "📋"),
-                "Save as template",
+                tr("Save as template"),
               ),
             canEdit &&
               React.createElement(
@@ -4474,7 +4893,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "🗑️"),
-                "Delete task",
+                tr("Delete task"),
               ),
           ),
       ),
@@ -4530,7 +4949,7 @@ const TaskRow = ({
           onClick: serviceDeleted
             ? undefined
             : () => onOpen(task, "task", tasksInService),
-          title: serviceDeleted ? "Service is locked" : undefined,
+          title: serviceDeleted ? tr("Service is locked") : undefined,
           style: {
             flex: 1,
             padding: "4px 10px",
@@ -4593,6 +5012,7 @@ const TaskRow = ({
       React.createElement(TriggerCell, {
         task,
         contractType,
+        hasContract,
         linkablePaymentRequests,
         contractServiceIdByProjectServiceId,
         paymentRequestServiceIdsByPrId,
@@ -4617,6 +5037,7 @@ const TaskRow = ({
           value: task.lawyerId,
           size: 22,
           readOnly: serviceDeleted || !isManager || isAssigneeOnly,
+          showRate: hasContract,
           onChange: (id, n, c) => onAssign(task.id, id, n, c, "task"),
         }),
       ),
@@ -4796,7 +5217,7 @@ const TaskRow = ({
                         color: "#cf1322",
                         cursor: "pointer",
                       },
-                      title: "Delete subtask",
+                      title: tr("Delete subtask"),
                       onClick: (e) => {
                         e.stopPropagation();
                         onDeleteTask(subTaskRecordId, "subTask", s.subTaskName);
@@ -4839,7 +5260,7 @@ const TaskRow = ({
                 onClick: serviceDeleted
                   ? undefined
                   : () => onOpen(s, "subTask"),
-                title: serviceDeleted ? "Service is locked" : undefined,
+                title: serviceDeleted ? tr("Service is locked") : undefined,
                 style: {
                   flex: 1,
                   padding: "0 10px",
@@ -4910,6 +5331,7 @@ const TaskRow = ({
                 value: s.lawyerId,
                 size: 20,
                 readOnly: serviceDeleted || !isManager || isAssigneeOnly,
+                showRate: hasContract,
                 onChange: (id, n, c) => onAssign(s.id, id, n, c, "subTask"),
               }),
             ),
@@ -5106,7 +5528,7 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
           fontWeight: 500,
         },
       },
-      React.createElement("span", { title: "Meeting" }, "📅"),
+      React.createElement("span", { title: tr("Meeting") }, "📅"),
       React.createElement(
         "span",
         {
@@ -5116,7 +5538,7 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
             whiteSpace: "nowrap",
           },
         },
-        meeting.title || "Meeting",
+        meeting.title || tr("Meeting"),
       ),
     ),
     React.createElement(
@@ -5167,7 +5589,7 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
           whiteSpace: "nowrap",
         },
       },
-      meeting._hostName || "Unassigned host",
+      meeting._hostName || tr("Unassigned host"),
     ),
     React.createElement(
       "div",
@@ -5196,7 +5618,7 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
           fontSize: 12,
           color: "#262626",
         },
-        title: "Start Time",
+        title: tr("Start Time"),
       },
       fmt(combineDateTime(meeting.meetingDate, meeting.startTime), "date") || "-",
     ),
@@ -5210,7 +5632,7 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
           fontSize: 12,
           color: "#262626",
         },
-        title: "End Time",
+        title: tr("End Time"),
       },
       fmt(combineDateTime(meeting.meetingDate, meeting.endTime), "date") || "-",
     ),
@@ -5239,6 +5661,37 @@ const MeetingRow = ({ meeting, stt, onOpen, onReorderTask, groupServiceKey }) =>
 };
 
 // ── Service Section ────────────────────────────────────────
+// ---- service payment badge (pure; tested by scripts/tests/service-payment-badge.test.js) ----
+// By Service: what this service's Payment Request is / will be, shown in its
+// section header so the amount can be checked before ticking triggers and
+// marking tasks Done. info = { allocated, lineTotal, pricingMode, request }:
+// allocated = projectServices.paymentAllocatedAmount (locked in the Contract
+// form for Combo pricing), request = the Payment Request already created.
+// See docs/superpowers/specs/2026-09-25-by-service-package-allocation-ui-design.md.
+const servicePaymentBadge = (info, formatAmount) => {
+  if (!info) return null;
+  if (info.notBilled) {
+    return { text: tr("Not part of any Payment Request item — not billed"), tone: "warn" };
+  }
+  if (info.request) {
+    return {
+      text: tr("Payment Request: {0} · {1}", { 0: formatAmount(Number(info.request.requestedAmount) || 0), 1: info.request.status || "created" }),
+      tone: "created",
+    };
+  }
+  const planned = Number(info.allocated) > 0 ? Number(info.allocated) : Number(info.lineTotal) > 0 ? Number(info.lineTotal) : 0;
+  // No trigger task → the SQL never creates this service's request.
+  if (planned > 0 && info.hasTrigger === false) {
+    return { text: tr("Payment Request: {0} · no trigger task yet", { 0: formatAmount(planned) }), tone: "warn" };
+  }
+  if (planned > 0) return { text: tr("Payment Request: {0}", { 0: formatAmount(planned) }), tone: "planned" };
+  if (info.pricingMode === "package") {
+    return { text: tr("Payment Request: share of the package, computed when created"), tone: "warn" };
+  }
+  return null;
+};
+// ---- end service payment badge ----
+
 const ServiceSection = ({
   serviceId,
   serviceName,
@@ -5252,6 +5705,7 @@ const ServiceSection = ({
   onOpenMeeting,
   onAssign,
   contractType,
+  hasContract,
   linkablePaymentRequests,
   contractServiceIdByProjectServiceId,
   paymentRequestServiceIdsByPrId,
@@ -5274,9 +5728,35 @@ const ServiceSection = ({
   onOpenTemplateAction,
   onCreateTask,
   onCreateMeeting,
+  paymentInfo = null,
 }) => {
   const [collapsed, setCollapsed] = useState(serviceDeleted);
+  const paymentBadge = servicePaymentBadge(
+    (() => {
+      // Combo pricing: this service is billed by its item's request (combo /
+      // standalone service), already created pending on contract submit.
+      const itemPr =
+        contractType === "byService"
+          ? itemPaymentRequestFor(extractId(ps?.id), {
+              contractServiceIdByProjectServiceId,
+              paymentRequestServiceIdsByPrId,
+              linkablePaymentRequests,
+            })
+          : null;
+      if (itemPr) return { ...(paymentInfo || {}), request: itemPr };
+      if (contractType === "byService" && linkablePaymentRequests === null) return null; // still loading
+      // Contract billed per item but this service is in none → not billed.
+      if (contractType === "byService" && Object.keys(paymentRequestServiceIdsByPrId || {}).length > 0) {
+        return { notBilled: true };
+      }
+      return paymentInfo && { ...paymentInfo, hasTrigger: tasks.some((task) => !!task.isPaymentTrigger) };
+    })(),
+    (value) => `${Number(value || 0).toLocaleString("vi-VN")} ₫`,
+  );
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const serviceMenuAnchorRef = useRef(null);
+  const serviceMenuRef = useRef(null);
+  const serviceMenuUp = useDropdownFlip(actionMenuOpen, serviceMenuAnchorRef, serviceMenuRef);
   const doneCnt = tasks.filter((t) => t.status === "done").length;
   const totalCnt = tasks.length;
   const isCollapsed = serviceDeleted || collapsed;
@@ -5289,15 +5769,15 @@ const ServiceSection = ({
   // existing zero-tasks rule.
   const actionsDisabled = hasNoTasks || !ps;
   const actionDisabledReason = hasNoTasks
-    ? "No tasks to save as template"
+    ? tr("No tasks to save as template")
     : !ps
-      ? "This group is not linked to a case service"
+      ? tr("This group is not linked to a case service")
       : "";
   // New Task/New Meeting don't need any existing tasks (that's how you'd add
   // the first one), only a real linked case-service to attach to.
   const creationDisabled = !ps;
   const creationDisabledReason = !ps
-    ? "This group is not linked to a case service"
+    ? tr("This group is not linked to a case service")
     : "";
 
   useEffect(() => {
@@ -5334,10 +5814,10 @@ const ServiceSection = ({
         tabIndex: serviceDeleted ? -1 : 0,
         "aria-expanded": serviceDeleted ? false : !isCollapsed,
         title: serviceDeleted
-          ? "This service has been deleted and locked. The task list cannot be opened."
+          ? tr("This service has been deleted and locked. The task list cannot be opened.")
           : isCollapsed
-            ? "Expand task list"
-            : "Collapse task list",
+            ? tr("Expand task list")
+            : tr("Collapse task list"),
         style: {
           display: "flex",
           width: "100%",
@@ -5382,10 +5862,37 @@ const ServiceSection = ({
       // title). This spacer (order 2) is what pushes the done-count/
       // meeting-badge (order 3/4) to the row's far right, same as before.
       React.createElement("div", { style: { flex: 1, order: 2 } }),
+      paymentBadge &&
+        React.createElement(
+          "span",
+          {
+            title: paymentBadge.text,
+            style: {
+              fontSize: 11.5,
+              fontWeight: 600,
+              order: 3,
+              marginRight: 10,
+              padding: "1px 8px",
+              borderRadius: 10,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              // Full text stays in the title tooltip on narrow screens.
+              maxWidth: "min(320px, 45vw)",
+              minWidth: 0,
+              ...(paymentBadge.tone === "created"
+                ? { color: "#389e0d", background: "#f6ffed", border: "1px solid #b7eb8f" }
+                : paymentBadge.tone === "warn"
+                  ? { color: "#ad6800", background: "#fffbe6", border: "1px solid #ffe58f" }
+                  : { color: "#0958d9", background: "#e6f4ff", border: "1px solid #91caff" }),
+            },
+          },
+          paymentBadge.text,
+        ),
       React.createElement(
         "span",
         { style: { fontSize: 12, order: 3 } },
-        `${doneCnt}/${totalCnt} done`,
+        tr("{0}/{1} done", { 0: doneCnt, 1: totalCnt }),
       ),
       meetings.length > 0 &&
         React.createElement(
@@ -5397,6 +5904,7 @@ const ServiceSection = ({
         React.createElement(
           "div",
           {
+            ref: serviceMenuAnchorRef,
             style: { position: "relative", marginLeft: 8, order: 1 },
             onClick: (e) => e.stopPropagation(),
           },
@@ -5412,7 +5920,7 @@ const ServiceSection = ({
                 e.stopPropagation();
                 setActionMenuOpen((v) => !v);
               },
-              title: "Service actions",
+              title: tr("Service actions"),
               style: {
                 width: 22,
                 height: 22,
@@ -5435,10 +5943,11 @@ const ServiceSection = ({
             React.createElement(
               "div",
               {
+                ref: serviceMenuRef,
                 style: {
                   position: "absolute",
                   left: 0,
-                  top: 28,
+                  ...(serviceMenuUp ? { bottom: 28 } : { top: 28 }),
                   zIndex: 9999,
                   background: "#fff",
                   border: "1px solid #e8e8e8",
@@ -5485,7 +5994,7 @@ const ServiceSection = ({
                     },
                   },
                   React.createElement("span", null, "➕"),
-                  "New Task",
+                  tr("New Task"),
                 ),
               ),
               React.createElement(
@@ -5520,7 +6029,7 @@ const ServiceSection = ({
                     },
                   },
                   React.createElement("span", null, "📅"),
-                  "New Meeting",
+                  tr("New Meeting"),
                 ),
               ),
               React.createElement("div", {
@@ -5567,7 +6076,7 @@ const ServiceSection = ({
                     },
                   },
                   React.createElement("span", null, "📋"),
-                  "Save as template",
+                  tr("Save as template"),
                 ),
               ),
               React.createElement(
@@ -5607,7 +6116,7 @@ const ServiceSection = ({
                     },
                   },
                   React.createElement("span", null, "🔁"),
-                  "Override existing template",
+                  tr("Override existing template"),
                 ),
               ),
             ),
@@ -5617,7 +6126,7 @@ const ServiceSection = ({
       React.createElement(
         "div",
         null,
-        React.createElement(ColHeader),
+        React.createElement(ColHeader, { hasContract }),
         // Tasks and meetings share one taskIndex sequence within a service
         // group, so they render interleaved (not tasks-then-meetings) and
         // can be dragged into any position relative to each other.
@@ -5653,6 +6162,7 @@ const ServiceSection = ({
                   onOpen,
                   onAssign,
                   contractType,
+                  hasContract,
                   linkablePaymentRequests,
                   contractServiceIdByProjectServiceId,
                   paymentRequestServiceIdsByPrId,
@@ -5690,6 +6200,7 @@ const ListView = ({
   handleOpenMeeting,
   handleAssign,
   contractType,
+  hasContract,
   linkablePaymentRequests,
   contractServiceIdByProjectServiceId,
   paymentRequestServiceIdsByPrId,
@@ -5708,6 +6219,7 @@ const ListView = ({
   onOpenTemplateAction,
   onCreateTask,
   onCreateMeeting,
+  servicePaymentInfoByPsId = {},
 }) => {
   // services = projectServices của case này
   // Key quy ước: nếu ps.serviceId có (catalog service) → dùng ps.serviceId
@@ -5719,7 +6231,7 @@ const ListView = ({
   services.forEach((ps) => {
     const key = getProjectServiceTaskKey(ps);
     const deleted = isDeletedServiceRecord(ps);
-    serviceMap[key] = ps.serviceName || `Service #${ps.id}`;
+    serviceMap[key] = ps.serviceName || tr("Service #{0}", { 0: ps.id });
     serviceDeletedMap[key] = deleted;
     psByKeyMap[key] = ps;
   });
@@ -5781,8 +6293,8 @@ const ListView = ({
             : SERVICE_COLORS[orderedKeys.indexOf(key) % SERVICE_COLORS.length];
       const svcName =
         key === "__none__"
-          ? "No service assigned"
-          : serviceMap[key] || `Service #${key}`;
+          ? tr("No service assigned")
+          : serviceMap[key] || tr("Service #{0}", { 0: key });
       return React.createElement(ServiceSection, {
         key,
         serviceId: key,
@@ -5797,6 +6309,7 @@ const ListView = ({
         onOpenMeeting: handleOpenMeeting,
         onAssign: handleAssign,
         contractType,
+        hasContract,
         linkablePaymentRequests,
         contractServiceIdByProjectServiceId,
         paymentRequestServiceIdsByPrId,
@@ -5815,6 +6328,7 @@ const ListView = ({
         onSaveTaskAsTemplate,
         groupServiceKey: key,
         ps: psByKeyMap[key] || null,
+        paymentInfo: servicePaymentInfoByPsId?.[String(extractId(psByKeyMap[key]?.id) || "")] || null,
         serviceCatalog,
         onOpenTemplateAction,
         onCreateTask,
@@ -5875,11 +6389,11 @@ const SaveAsTemplateModal = ({
           }),
         ),
       );
-      message.success(`✅ Saved "${trimmedName}" as a new standardized service`);
+      message.success(tr("✅ Saved \"{0}\" as a new standardized service", { 0: trimmedName }));
       onSaved();
     } catch (e) {
       console.error(e);
-      message.error("Failed to save as template");
+      message.error(tr("Failed to save as template"));
     }
     setSaving(false);
   };
@@ -5891,8 +6405,8 @@ const SaveAsTemplateModal = ({
       onCancel: onClose,
       onOk: handleSave,
       confirmLoading: saving,
-      okText: saving ? "Saving..." : "Save",
-      cancelText: "Cancel",
+      okText: saving ? tr("Saving...") : tr("Save"),
+      cancelText: tr("Cancel"),
       okButtonProps: {
         style: TASK_DS.primaryButton,
         disabled: !trimmedName || !!duplicate,
@@ -5901,28 +6415,28 @@ const SaveAsTemplateModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "Save as template",
+        tr("Save as template"),
       ),
     },
     React.createElement(
       "div",
       { style: { fontFamily: FONT } },
-      renderFieldLabel("New service name", true),
+      renderFieldLabel(tr("New service name"), true),
       React.createElement(Input, {
         value: name,
         onChange: (e) => setName(e.target.value),
-        placeholder: "Enter a name for the new standardized service",
+        placeholder: tr("Enter a name for the new standardized service"),
       }),
       duplicate &&
         React.createElement(
           "div",
           { style: { marginTop: 6, fontSize: 12, color: "#cf1322" } },
-          'This name already exists in the catalog. Rename it, or use "Override" instead if you want to update that service.',
+          tr("This name already exists in the catalog. Rename it, or use \"Override\" instead if you want to update that service."),
         ),
       React.createElement(
         "div",
         { style: { marginTop: 12, fontSize: 12, color: "#8c8c8c" } },
-        `${tasks.length} task${tasks.length === 1 ? "" : "s"} will be copied into this template.`,
+        tr("{0} task{1} will be copied into this template.", { 0: tasks.length, 1: tasks.length === 1 ? "" : "s" }),
       ),
     ),
   );
@@ -6027,12 +6541,12 @@ const OverrideTemplateModal = ({
       }
       await Promise.all(ops);
       message.success(
-        `✅ "${selectedService?.serviceName || ""}" templates updated`,
+        tr("✅ \"{0}\" templates updated", { 0: selectedService?.serviceName || "" }),
       );
       onOverridden();
     } catch (e) {
       console.error(e);
-      message.error("Failed to override template");
+      message.error(tr("Failed to override template"));
     }
     setSaving(false);
   };
@@ -6046,21 +6560,21 @@ const OverrideTemplateModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "Override existing template",
+        tr("Override existing template"),
       ),
     },
     !confirming
       ? React.createElement(
           "div",
           { style: { fontFamily: FONT } },
-          renderFieldLabel("Select the standardized service to override", true),
+          renderFieldLabel(tr("Select the standardized service to override"), true),
           React.createElement(Select, {
             value: selectedServiceId,
             onChange: setSelectedServiceId,
             showSearch: true,
             optionFilterProp: "label",
             style: { width: "100%" },
-            placeholder: "-- Select a catalog service --",
+            placeholder: tr("-- Select a catalog service --"),
             options: serviceCatalog.map((s) => ({
               value: s.id,
               label: s.serviceName,
@@ -6079,7 +6593,7 @@ const OverrideTemplateModal = ({
             React.createElement(
               Button,
               { style: TASK_DS.secondaryButton, onClick: onClose },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               Button,
@@ -6093,26 +6607,26 @@ const OverrideTemplateModal = ({
                   setConfirming(true);
                 },
               },
-              "Next",
+              tr("Next"),
             ),
           ),
         )
       : React.createElement(
           "div",
           { style: { fontFamily: FONT } },
-          renderFieldLabel("Service name"),
+          renderFieldLabel(tr("Service name")),
           React.createElement(Input, {
             value: renameTo,
             onChange: (e) => setRenameTo(e.target.value),
-            placeholder: "Service name",
+            placeholder: tr("Service name"),
             style: { marginBottom: 12 },
           }),
           React.createElement(
             "div",
             { style: { fontSize: 13, color: "#262626", lineHeight: 1.6 } },
             willRename
-              ? `This will rename "${selectedService?.serviceName || ""}" to "${trimmedRename}" and update its task templates to match the ${sortedTasks.length} task${sortedTasks.length === 1 ? "" : "s"} currently in this case. Existing templates not present here will be removed. This cannot be undone.`
-              : `This will update "${selectedService?.serviceName || ""}"'s task templates to match the ${sortedTasks.length} task${sortedTasks.length === 1 ? "" : "s"} currently in this case. Existing templates not present here will be removed. This cannot be undone.`,
+              ? tr("This will rename \"{0}\" to \"{1}\" and update its task templates to match the {2} task{3} currently in this case. Existing templates not present here will be removed. This cannot be undone.", { 0: selectedService?.serviceName || "", 1: trimmedRename, 2: sortedTasks.length, 3: sortedTasks.length === 1 ? "" : "s" })
+              : tr("This will update \"{0}\"'s task templates to match the {1} task{2} currently in this case. Existing templates not present here will be removed. This cannot be undone.", { 0: selectedService?.serviceName || "", 1: sortedTasks.length, 2: sortedTasks.length === 1 ? "" : "s" }),
           ),
           React.createElement(
             "div",
@@ -6131,7 +6645,7 @@ const OverrideTemplateModal = ({
                 disabled: saving,
                 onClick: () => setConfirming(false),
               },
-              "Back",
+              tr("Back"),
             ),
             React.createElement(
               Button,
@@ -6141,7 +6655,7 @@ const OverrideTemplateModal = ({
                 loading: saving,
                 onClick: handleConfirm,
               },
-              saving ? "Overriding..." : "Confirm override",
+              saving ? tr("Overriding...") : tr("Confirm override"),
             ),
           ),
         ),
@@ -6167,7 +6681,20 @@ const ProjectTasksTab = () => {
   // so both screens resolve the same case's contract the same way. See
   // docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
   const [contractType, setContractType] = useState("");
-  const [linkablePaymentRequests, setLinkablePaymentRequests] = useState([]);
+  // Case has a contract linked — gates every financial control/figure in
+  // this table (Trigger Payment column, lawyer hourly rates). Starts false
+  // so nothing financial flashes on screen before the case has loaded.
+  const [hasContract, setHasContract] = useState(false);
+  // By Service: { [projectServiceId]: { allocated, lineTotal, pricingMode,
+  // request } } for the service-header Payment Request badge.
+  const [servicePaymentInfoByPsId, setServicePaymentInfoByPsId] = useState({});
+  // Latest loader (set by reload for By Service cases) so a status change can
+  // refresh the badges — the SQL trigger creates the request in the same
+  // update — plus a sequence number so an older load can't overwrite a newer one.
+  const servicePaymentReloadRef = useRef(null);
+  const servicePaymentLoadSeqRef = useRef(0);
+  // null = not loaded yet (see the paymentRequests/paymentRequestServices load).
+  const [linkablePaymentRequests, setLinkablePaymentRequests] = useState(null);
   // projectServiceId -> contractServiceId — narrows TriggerCell's byCase
   // Select to installments tagged for the row's own service (§6h). Mirrors
   // TaskDetailView.js's own reverse-link fetch.
@@ -6267,6 +6794,52 @@ const ProjectTasksTab = () => {
           ),
         ]);
 
+      // By Service: per-service Payment Request amount (locked amount, else
+      // line total) and the request already created, for the service header
+      // badge (servicePaymentBadge). fetchAll swallows errors, so an empty
+      // result with paymentAllocatedAmount (field not registered yet) retries
+      // without it.
+      const loadServicePaymentInfo = async (contractIdForRequests = null) => {
+        const seq = ++servicePaymentLoadSeqRef.current;
+        // Combo pricing items' requests live in linkablePaymentRequests —
+        // refresh them too, so an item activated by the last Done trigger
+        // task shows as active without reloading the page.
+        if (contractIdForRequests) {
+          const prs = await fetchAll("paymentRequests:list", "id,title,installmentNo,requestedAmount,status,dueDate", {
+            $and: [{ contractId: { $eq: contractIdForRequests } }, { triggerType: { $eq: "on_task_done" } }],
+          });
+          if (seq === servicePaymentLoadSeqRef.current) setLinkablePaymentRequests(prs || []);
+        }
+        const psFilter = { projectId: { $eq: safeProjectId } };
+        let psRows = await fetchAll(
+          "projectServices:list",
+          ["id", "totalAmount", "pricingMode", "paymentAllocatedAmount"].join(","),
+          psFilter,
+        );
+        if (!psRows.length) {
+          psRows = await fetchAll("projectServices:list", "id,totalAmount,pricingMode", psFilter);
+        }
+        const psIds = psRows.map((row) => extractId(row.id)).filter(Boolean);
+        const prRows = psIds.length
+          ? await fetchAll("paymentRequests:list", "id,status,requestedAmount,projectServiceId", {
+              projectServiceId: { $in: psIds },
+            })
+          : [];
+        const info = {};
+        psRows.forEach((row) => {
+          const psId = String(extractId(row.id) || "");
+          if (!psId) return;
+          info[psId] = {
+            allocated: row.paymentAllocatedAmount ?? null,
+            lineTotal: row.totalAmount ?? null,
+            pricingMode: row.pricingMode || "",
+            request: prRows.find((pr) => String(extractId(pr.projectServiceId)) === psId) || null,
+          };
+        });
+        if (seq !== servicePaymentLoadSeqRef.current) return;
+        setServicePaymentInfoByPsId(info);
+      };
+
       try {
         const projRes = await ctx.api.request({
           url: "projects:get",
@@ -6276,30 +6849,52 @@ const ProjectTasksTab = () => {
         setProjectManagerId(projData?.projectManagerId || null);
 
         const linkedContractId = extractId(projData?.contractId);
+        setHasContract(!!linkedContractId);
         if (linkedContractId) {
-          fetchAll("contracts:list", "id,contractType", {
+          const contractRowsPromise = fetchAll("contracts:list", "id,contractType,billingCycle", {
             id: { $eq: linkedContractId },
-          })
-            .then((rows) => setContractType(rows?.[0]?.contractType || ""))
+          });
+          contractRowsPromise
+            .then((rows) => {
+              setContractType(
+                isByCaseOneTimeContract(rows?.[0])
+                  ? CONTRACT_MODE_BY_CASE_ONE_TIME
+                  : rows?.[0]?.contractType || "",
+              );
+              if (rows?.[0]?.contractType === "byService") {
+                servicePaymentReloadRef.current = () => loadServicePaymentInfo(linkedContractId);
+                loadServicePaymentInfo();
+              } else {
+                servicePaymentReloadRef.current = null;
+                setServicePaymentInfoByPsId({});
+              }
+            })
             .catch(() => setContractType(""));
           // No status filter — see TaskDetailView.js's own fetch (2026-09-21)
           // for why an already-active request must stay selectable.
-          fetchAll(
-            "paymentRequests:list",
-            "id,title,installmentNo,requestedAmount,status,dueDate",
-            {
-              $and: [
-                { contractId: { $eq: linkedContractId } },
-                { triggerType: { $eq: "on_task_done" } },
-              ],
-            },
-          )
-            .then((rows) => {
-              const prs = rows || [];
-              setLinkablePaymentRequests(prs);
+          Promise.all([
+            fetchAll(
+              "paymentRequests:list",
+              "id,title,installmentNo,requestedAmount,status,dueDate,triggerType",
+              {
+                $and: [
+                  { contractId: { $eq: linkedContractId } },
+                  { triggerType: { $in: LINKABLE_TRIGGER_TYPES } },
+                ],
+              },
+            ),
+            contractRowsPromise.catch(() => []),
+          ])
+            .then(([rows, contractRows]) => {
+              const prs = linkableTriggerRequests(rows, contractRows?.[0]);
               const prIds = prs.map((pr) => extractId(pr.id)).filter(Boolean);
+              // linkablePaymentRequests is published only together with its
+              // tags map: it starts null ("not loaded"), and TriggerCell waits
+              // for it before choosing between the item picker and the
+              // per-service checkbox (Combo pricing, 2026-09-25).
               if (!prIds.length) {
                 setPaymentRequestServiceIdsByPrId({});
+                setLinkablePaymentRequests(prs);
                 return;
               }
               // §6h — junction collection (not a JSON field).
@@ -6316,8 +6911,12 @@ const ProjectTasksTab = () => {
                     map[prId].push(csId);
                   });
                   setPaymentRequestServiceIdsByPrId(map);
+                  setLinkablePaymentRequests(prs);
                 })
-                .catch(() => setPaymentRequestServiceIdsByPrId({}));
+                .catch(() => {
+                  setPaymentRequestServiceIdsByPrId({});
+                  setLinkablePaymentRequests(prs);
+                });
             })
             .catch(() => {
               setLinkablePaymentRequests([]);
@@ -6337,7 +6936,7 @@ const ProjectTasksTab = () => {
                 const psId = extractId(row.projectServiceId);
                 const csId = extractId(row.id);
                 if (psId) map[psId] = csId;
-                if (csId) nameMap[csId] = row.serviceName || `Service #${csId}`;
+                if (csId) nameMap[csId] = row.serviceName || tr("Service #{0}", { 0: csId });
               });
               setContractServiceIdByProjectServiceId(map);
               setServiceNameByContractServiceId(nameMap);
@@ -6352,8 +6951,12 @@ const ProjectTasksTab = () => {
           setPaymentRequestServiceIdsByPrId({});
           setContractServiceIdByProjectServiceId({});
           setServiceNameByContractServiceId({});
+          servicePaymentReloadRef.current = null;
+          setServicePaymentInfoByPsId({});
         }
-      } catch {}
+      } catch {
+        setHasContract(false);
+      }
 
       const lMap = {};
       allLawyers.forEach((l, i) => {
@@ -6449,7 +7052,7 @@ const ProjectTasksTab = () => {
       setMeetings(enrichedMeetings);
       setCurrentUser(user);
     } catch (error) {
-      message.error("Error loading data, please refresh!");
+      message.error(tr("Error loading data, please refresh!"));
       console.error(error);
     } finally {
       setLoading(false);
@@ -6497,7 +7100,7 @@ const ProjectTasksTab = () => {
 
       const isAllowed = currentMyLawyerId && taskLawyerId === currentMyLawyerId;
       if (!isAllowed) {
-        console.log("🛑 BỊ CHẶN Ở FRONTEND - Không khớp ID:", {
+        console.log("🛑 BLOCKED ON FRONTEND - ID mismatch:", {
           taskLawyerId,
           currentMyLawyerId,
         });
@@ -6532,7 +7135,7 @@ const ProjectTasksTab = () => {
               "Not started",
               "System (auto-unblock)",
             );
-            message.success(`🔓 "${t.title}" has been unblocked`);
+            message.success(tr("🔓 \"{0}\" has been unblocked", { 0: t.title }));
           } catch {}
         }),
       );
@@ -6565,14 +7168,14 @@ const ProjectTasksTab = () => {
 
       if (isTaskServiceDeleted(targetItem)) {
         message.warning(
-          "This service has been deleted; the task cannot be updated.",
+          tr("This service has been deleted; the task cannot be updated."),
         );
         return;
       }
 
       if (!checkCanEditTask(targetItem)) {
         message.warning(
-          "You are not the assignee and do not have permission to change the status.",
+          tr("You are not the assignee and do not have permission to change the status."),
         );
         return;
       }
@@ -6588,7 +7191,7 @@ const ProjectTasksTab = () => {
         ) {
           if (!["cancelled", "blocked"].includes(newStatus)) {
             message.warning(
-              `⛓ Task is waiting for "${prevTask.title}" to complete first`,
+              tr("⛓ Task is waiting for \"{0}\" to complete first", { 0: prevTask.title }),
             );
             return;
           }
@@ -6597,7 +7200,7 @@ const ProjectTasksTab = () => {
 
       const resolvedSt = resolveStatus(newStatus, targetItem);
       if (resolvedSt === "pending" && newStatus === "done")
-        message.info('📋 Task requires approval — moved to "Pending approval"');
+        message.info(tr("📋 Task requires approval — moved to \"Pending approval\""));
 
       const url =
         type === "subTask"
@@ -6632,7 +7235,8 @@ const ProjectTasksTab = () => {
           "updated",
           "status",
           null,
-          STATUS_CFG[resolvedSt]?.label,
+          // the log keeps the English label, whatever the UI language
+          Object.keys(VI).find((key) => VI[key] === STATUS_CFG[resolvedSt]?.label) || STATUS_CFG[resolvedSt]?.label,
           currentUser?.nickname || currentUser?.username || "Super Admin",
         );
         if (resolvedSt === "done" && type === "task")
@@ -6641,10 +7245,13 @@ const ProjectTasksTab = () => {
             tasks,
             currentUser?.nickname || currentUser?.username,
           );
+        // By Service: this change may have just created the service's
+        // Payment Request (SQL trigger, same update) — refresh the badges.
+        if (type === "task") servicePaymentReloadRef.current?.();
       } catch (e) {
-        console.error("🛑 LỖI API BACKEND (NocoBase):", e);
+        console.error("🛑 BACKEND API ERROR (NocoBase):", e);
         message.error(
-          "Backend error: your account has not been granted permission (Role) to edit data!",
+          tr("Backend error: your account has not been granted permission (Role) to edit data!"),
         );
         reload();
       }
@@ -6667,7 +7274,7 @@ const ProjectTasksTab = () => {
       const targetItem = tasks.find((t) => extractId(t.id) === extractId(id));
       if (!checkCanEditTask(targetItem)) {
         message.warning(
-          "You are not the assignee and do not have permission to change this task.",
+          tr("You are not the assignee and do not have permission to change this task."),
         );
         return;
       }
@@ -6682,10 +7289,15 @@ const ProjectTasksTab = () => {
 
       try {
         await apiReq(url, "POST", data);
+        // Linking/unlinking a request (or flagging a trigger) can activate a
+        // Payment Request in the same update — refresh the service badges.
+        if (field === "linkedPaymentRequestId" || field === "isPaymentTrigger") {
+          servicePaymentReloadRef.current?.();
+        }
       } catch (e) {
-        console.error("🛑 LỖI API BACKEND (NocoBase):", e);
+        console.error("🛑 BACKEND API ERROR (NocoBase):", e);
         message.error(
-          "Backend error: your account has not been granted permission (Role) to edit data!",
+          tr("Backend error: your account has not been granted permission (Role) to edit data!"),
         );
         reload();
       }
@@ -6697,7 +7309,7 @@ const ProjectTasksTab = () => {
   const handleAssign = useCallback(
     async (id, lawyerId, lawyerName, lawyerColor, type) => {
       if (!isManager) {
-        message.warning("You do not have permission to assign an assignee.");
+        message.warning(tr("You do not have permission to assign an assignee."));
         return;
       }
       const url =
@@ -6712,7 +7324,7 @@ const ProjectTasksTab = () => {
           : tasks.find((t) => extractId(t.id) === extractId(id));
       if (isTaskServiceDeleted(targetItem)) {
         message.warning(
-          "This service has been deleted; the task cannot be updated.",
+          tr("This service has been deleted; the task cannot be updated."),
         );
         return;
       }
@@ -6747,9 +7359,9 @@ const ProjectTasksTab = () => {
       );
       try {
         await apiReq(url, "POST", payload);
-        message.success(lawyerName ? `✅ ${lawyerName}` : "Assignment removed");
+        message.success(lawyerName ? `✅ ${lawyerName}` : tr("Assignment removed"));
       } catch {
-        message.error("Failed");
+        message.error(tr("Failed"));
         reload();
       }
     },
@@ -6758,7 +7370,7 @@ const ProjectTasksTab = () => {
 
   const destroyTaskRecord = useCallback(async (recordId, recordType) => {
     const safeId = extractId(recordId);
-    if (!safeId) throw new Error("Missing record id.");
+    if (!safeId) throw new Error(tr("Missing record id."));
 
     const resource = recordType === "subTask" ? "subTasks" : "tasks";
     console.info("[TaskManagement] destroy request", {
@@ -6796,7 +7408,7 @@ const ProjectTasksTab = () => {
       }
     }
 
-    throw lastError || new Error("Delete request failed.");
+    throw lastError || new Error(tr("Delete request failed."));
   }, []);
 
   const removeDeletedTaskFromState = useCallback((recordId, recordType) => {
@@ -6837,27 +7449,27 @@ const ProjectTasksTab = () => {
             : getTaskRecordId(targetItem),
       });
       if (!safeId) {
-        message.error("Task ID not found for deletion.");
+        message.error(tr("Task ID not found for deletion."));
         return;
       }
       if (isTaskServiceDeleted(targetItem)) {
         message.warning(
-          "This service has been deleted; the task cannot be deleted.",
+          tr("This service has been deleted; the task cannot be deleted."),
         );
         return;
       }
       Modal.confirm({
-        title: `Confirm deletion of ${type === "task" ? "task" : "subtask"}`,
+        title: tr("Confirm deletion of {0}", { 0: type === "task" ? "task" : "subtask" }),
         content: React.createElement(
           "div",
           { style: { fontFamily: FONT } },
-          "Are you sure you want to delete ",
+          tr("Are you sure you want to delete "),
           React.createElement("b", null, taskName),
-          "? This action cannot be undone.",
+          tr("? This action cannot be undone."),
         ),
-        okText: "Delete permanently",
+        okText: tr("Delete permanently"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             const childSubTaskIds =
@@ -6879,12 +7491,12 @@ const ProjectTasksTab = () => {
             }
             await destroyTaskRecord(safeId, type);
 
-            message.success("✅ Deleted successfully");
+            message.success(tr("✅ Deleted successfully"));
             removeDeletedTaskFromState(safeId, type);
             reload();
           } catch (e) {
             console.error("[TaskManagement] delete task failed", e);
-            message.error("Delete failed, please try again");
+            message.error(tr("Delete failed, please try again"));
           }
         },
       });
@@ -7037,7 +7649,7 @@ const ProjectTasksTab = () => {
         await Promise.all(requests);
       } catch (e) {
         console.error("[TaskManagement] reorder persist failed", e);
-        message.error("Failed to save the new order.");
+        message.error(tr("Failed to save the new order."));
       } finally {
         // Resync with the server regardless of outcome: on success this
         // picks up the sorted order via the fetch/sort change; on failure
@@ -7057,7 +7669,7 @@ const ProjectTasksTab = () => {
       );
       if (isTaskServiceDeleted(targetTask)) {
         message.warning(
-          "This service has been deleted; a subtask cannot be created.",
+          tr("This service has been deleted; a subtask cannot be created."),
         );
         return;
       }
@@ -7093,7 +7705,7 @@ const ProjectTasksTab = () => {
   const handleOpen = useCallback((item, type) => {
     if (isTaskServiceDeleted(item)) {
       message.warning(
-        "This service has been deleted and locked; task details cannot be opened.",
+        tr("This service has been deleted and locked; task details cannot be opened."),
       );
       return;
     }
@@ -7138,7 +7750,7 @@ const ProjectTasksTab = () => {
     ctx.openView(popupUid, {
       mode: "dialog",
       size: "large",
-      title: ctx.t ? ctx.t("Task detail") : "Task detail",
+      title: ctx.t ? ctx.t(tr("Task detail")) : tr("Task detail"),
       navigation: false,
       ...sharedIdKeys,
       inputArgs: sharedIdKeys,
@@ -7179,7 +7791,7 @@ const ProjectTasksTab = () => {
     ctx.openView(MEETING_DETAIL_POPUP_UID, {
       mode: "dialog",
       size: "large",
-      title: meeting?.title || "Meeting detail",
+      title: meeting?.title || tr("Meeting detail"),
       navigation: false,
       ...sharedIdKeys,
       inputArgs: sharedIdKeys,
@@ -7226,7 +7838,7 @@ const ProjectTasksTab = () => {
     ctx.openView(meetingCreateFormUid, {
       mode: "dialog",
       size: "large",
-      title: ctx.t ? ctx.t("Create meeting") : "Create meeting",
+      title: ctx.t ? ctx.t(tr("Create meeting")) : tr("Create meeting"),
       navigation: false,
       ...params,
       inputArgs: params,
@@ -7330,7 +7942,7 @@ const ProjectTasksTab = () => {
     return React.createElement(
       "div",
       { style: { padding: 20, color: "#ff4d4f", fontFamily: FONT } },
-      "⚠️ Project ID not found",
+      tr("⚠️ Project ID not found"),
     );
   // ── Render ────────────────────────────────────────────────
   return React.createElement(
@@ -7377,7 +7989,7 @@ const ProjectTasksTab = () => {
             strong: true,
             style: { fontSize: 12, fontFamily: FONT, color: "#1a1a1a" },
           },
-          "📋 Tasks",
+          tr("📋 Tasks"),
         ),
         React.createElement(
           "span",
@@ -7391,7 +8003,7 @@ const ProjectTasksTab = () => {
               padding: "2px 8px",
             },
           },
-          `${done}/${total} done`,
+          tr("{0}/{1} done", { 0: done, 1: total }),
         ),
         blocked > 0 &&
           React.createElement(
@@ -7407,7 +8019,7 @@ const ProjectTasksTab = () => {
                 border: "1px solid #d3adf7",
               },
             },
-            `⏸ ${blocked} waiting`,
+            tr("⏸ {0} waiting", { 0: blocked }),
           ),
         overdue > 0 &&
           React.createElement(
@@ -7423,7 +8035,7 @@ const ProjectTasksTab = () => {
                 border: "1px solid #ffa39e",
               },
             },
-            `⚠ ${overdue} overdue`,
+            tr("⚠ {0} overdue", { 0: overdue }),
           ),
         React.createElement(
           "div",
@@ -7484,7 +8096,7 @@ const ProjectTasksTab = () => {
               fontWeight: 600,
             },
           },
-          "＋ New Task",
+          tr("＋ New Task"),
         ),
         React.createElement(
           "div",
@@ -7501,12 +8113,12 @@ const ProjectTasksTab = () => {
               fontWeight: 600,
             },
           },
-          "＋ New Meeting",
+          tr("＋ New Meeting"),
         ),
         React.createElement(ReloadButton, {
           onReload: reload,
           loading: loading,
-          text: "Refresh",
+          text: tr("Refresh"),
         }),
       ),
     ),
@@ -7540,7 +8152,7 @@ const ProjectTasksTab = () => {
                   fontFamily: FONT,
                 },
               },
-              "📭 No tasks yet",
+              tr("📭 No tasks yet"),
             )
           : React.createElement(ListView, {
               tasks,
@@ -7555,6 +8167,7 @@ const ProjectTasksTab = () => {
               handleOpenMeeting,
               handleAssign,
               contractType,
+              hasContract,
               linkablePaymentRequests,
               contractServiceIdByProjectServiceId,
               paymentRequestServiceIdsByPrId,
@@ -7573,6 +8186,7 @@ const ProjectTasksTab = () => {
               onOpenTemplateAction: setTemplateAction,
               onCreateTask: handleCreateTaskForService,
               onCreateMeeting: handleCreateMeeting,
+              servicePaymentInfoByPsId,
             }),
     ),
 
@@ -7586,6 +8200,7 @@ const ProjectTasksTab = () => {
       services,
       allTasksInProject: tasks,
       currentUser,
+      hasContract,
       onSave: reload,
       onClose: () => {
         setShowAddTask(false);
@@ -7603,6 +8218,7 @@ const ProjectTasksTab = () => {
         parentTaskId: addSubForTaskId,
         lawyers: assignableLawyers,
         currentUser: currentUser,
+        hasContract,
         onSave: () => {
           reload();
         },

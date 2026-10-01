@@ -1,3 +1,35 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Upload failed": "Tải lên thất bại",
+  "Saved to Documents!": "Đã lưu vào Tài liệu!",
+  "Error: ": "Lỗi: ",
+  "Try again": "Thử lại",
+  "Record ID not found in URL": "Không tìm thấy Record ID trong URL",
+  "Failed to load quotation data": "Không thể tải dữ liệu báo giá",
+  "Create New Invoice": "Tạo hóa đơn mới",
+  "Create New Contract": "Tạo hợp đồng mới",
+  "View Quotation": "Xem báo giá",
+  "⏳ Saving...": "⏳ Đang lưu...",
+  "💾 Save to Documents": "💾 Lưu vào Tài liệu",
+  "🔄 Refresh": "🔄 Làm mới",
+  "Close": "Đóng",
+  "Preview Quotation": "Xem trước báo giá",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback } = React;
 const { Spin, Modal, Button } = ctx.antd;
@@ -656,7 +688,7 @@ const QuotationPDFBlock = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const att = uploadRes?.data?.data;
-      if (!att?.id) throw new Error("Upload failed");
+      if (!att?.id) throw new Error(tr("Upload failed"));
 
       // Lấy thông tin User hiện tại để ghi nhận người upload
       let currentUserId = null;
@@ -689,10 +721,10 @@ const QuotationPDFBlock = () => {
           fileAttachment: { id: att.id },
         },
       });
-      message.success("Saved to Documents!");
+      message.success(tr("Saved to Documents!"));
     } catch (e) {
       console.error(e);
-      message.error("Error: " + (e?.message || "Try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Try again")));
     }
     setSaving(false);
   }, [data, services, svcDetails, saving]);
@@ -723,7 +755,7 @@ const QuotationPDFBlock = () => {
       {
         style: { padding: 16, color: "#ff4d4f", fontSize: 13 },
       },
-      "Record ID not found in URL",
+      tr("Record ID not found in URL"),
     );
 
   if (loading)
@@ -741,7 +773,7 @@ const QuotationPDFBlock = () => {
       {
         style: { padding: 16, color: "#ff4d4f", fontSize: 13 },
       },
-      "Failed to load quotation data",
+      tr("Failed to load quotation data"),
     );
 
   const btnSave = Object.assign({}, btnStyle, {
@@ -774,7 +806,7 @@ const QuotationPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "Create New Invoice",
+      tr("Create New Invoice"),
     ),
     isOrder && React.createElement(
       "div",
@@ -788,7 +820,7 @@ const QuotationPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "Create New Contract",
+      tr("Create New Contract"),
     ),
     React.createElement(
       "div",
@@ -802,7 +834,7 @@ const QuotationPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "View Quotation",
+      tr("View Quotation"),
     ),
     React.createElement(
       "div",
@@ -817,7 +849,7 @@ const QuotationPDFBlock = () => {
             e.currentTarget.style.background = saving ? "#8c8c8c" : "#1a3a5c";
         },
       },
-      saving ? "⏳ Saving..." : "💾 Save to Documents",
+      saving ? tr("⏳ Saving...") : tr("💾 Save to Documents"),
     ),
     React.createElement(
       "div",
@@ -831,7 +863,7 @@ const QuotationPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "🔄 Refresh",
+      tr("🔄 Refresh"),
     ),
     React.createElement(Modal, {
       open: !!previewHtml,
@@ -841,11 +873,11 @@ const QuotationPDFBlock = () => {
       footer: [
         React.createElement(Button, { key: 'close', onClick: () => {
           setPreviewHtml(null);
-        } }, 'Close')
+        } }, tr("Close"))
       ],
       width: '85%',
       centered: true,
-      title: React.createElement('span', { style: { fontFamily: "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif" } }, 'Preview Quotation'),
+      title: React.createElement('span', { style: { fontFamily: "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif" } }, tr("Preview Quotation")),
       bodyStyle: { padding: 0, height: '80vh', background: '#f5f5f5', position: 'relative' }
     },
       previewHtml && React.createElement('iframe', { id: 'preview-iframe-quotation', srcDoc: previewHtml, style: { width: '100%', height: '100%', border: 'none', backgroundColor: '#fff' } })

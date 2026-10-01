@@ -49,12 +49,36 @@ AS $function$
   );
 $function$;
 
+-- 2026-09-30: a retainer's totalAmount (contract and plan) is the fee of EVERY
+-- period (retainer_cycle_amount), so the contract is worth fee × the plan's
+-- periods — open-ended: the periods billed so far, at least 1 (a new plan is
+-- not "paid" before its first bill). The active plan wins, else the newest.
+-- NULL = not a retainer, no plan yet, or a zero fee: the contract's own total.
+-- A new contract's row (contract_resolved_total_from_row, BEFORE INSERT) has
+-- no plan yet; the plan's own trigger (finance_retainer_schedule.sql)
+-- recomputes the balance once the plan exists.
+CREATE OR REPLACE FUNCTION public.contract_retainer_value(p_contract_id BIGINT)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+AS $function$
+  SELECT NULLIF(
+           ROUND(COALESCE(p."totalAmount", 0)::numeric)
+             * COALESCE(NULLIF(p."retainerTotalCycles", 0), GREATEST(COALESCE(p."retainerCyclesBilled", 0), 1)),
+           0)
+  FROM contracts c
+  JOIN "contractBillingPlans" p ON p."contractId" = c.id AND p."planType" = 'retainer'
+  WHERE c.id = p_contract_id AND c."contractType" = 'retainer'
+  ORDER BY (p.status = 'active') DESC NULLS LAST, p.id DESC
+  LIMIT 1;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.contract_resolved_total(p_contract_id BIGINT)
 RETURNS NUMERIC
 LANGUAGE sql
 STABLE
 AS $function$
-  SELECT contract_resolved_total_from_row(c)
+  SELECT COALESCE(contract_retainer_value(c.id), contract_resolved_total_from_row(c))
   FROM contracts c
   WHERE c.id = p_contract_id;
 $function$;
@@ -77,35 +101,61 @@ CREATE TRIGGER trg_contract_init_outstanding
   FOR EACH ROW
   EXECUTE FUNCTION public.contract_init_outstanding();
 
--- ---- Trigger: recompute the contract whenever a payment's status changes -
-CREATE OR REPLACE FUNCTION public.contract_recompute_outstanding()
-RETURNS trigger
+-- ---- Money helpers shared with pgsql/finance_foundation.sql (2026-09-28) ----
+-- Payment statuses are now exactly Received / Cancelled (spec
+-- docs/superpowers/specs/2026-09-28-case-finance-tab-business-rules-design.md §6):
+-- "partial" describes an invoice or request, not a sum of money received.
+CREATE OR REPLACE FUNCTION public.finance_is_received(p_status text)
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $function$
+  SELECT lower(btrim(COALESCE(p_status, ''))) = 'received';
+$function$;
+
+-- VND value of a payment: amount x exchangeRateToBase (VND per 1 unit of the
+-- payment's currency; VND rows carry 1). NULL/0 rate -> 1.
+CREATE OR REPLACE FUNCTION public.finance_payment_base_amount(p_amount double precision, p_rate double precision)
+RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+AS $function$
+  SELECT COALESCE(p_amount, 0)::numeric * COALESCE(NULLIF(p_rate, 0), 1)::numeric;
+$function$;
+
+-- Same, for a whole payments row passed as to_jsonb(p). Reading through jsonb
+-- keeps every money function working on a database where
+-- payments."exchangeRateToBase" does not exist (pgsql/multi_currency_migration.sql
+-- not applied — e.g. law306 on dev, 2026-09-28): the rate is then 1 (VND).
+CREATE OR REPLACE FUNCTION public.finance_payment_vnd(p_row jsonb)
+RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+AS $function$
+  SELECT COALESCE(NULLIF(p_row->>'amount', '')::numeric, 0)
+       * COALESCE(NULLIF(NULLIF(p_row->>'exchangeRateToBase', '')::numeric, 0), 1);
+$function$;
+
+-- ---- Recompute one contract's balance from its Received payments -------
+CREATE OR REPLACE FUNCTION public.contract_recompute_outstanding_for(p_contract_id BIGINT)
+RETURNS void
 LANGUAGE plpgsql
 AS $function$
 DECLARE
-  v_contract_id BIGINT;
   v_total NUMERIC;
   v_received NUMERIC;
 BEGIN
-  v_contract_id := COALESCE(NEW."contractId", OLD."contractId");
-  IF v_contract_id IS NULL THEN
-    RETURN COALESCE(NEW, OLD);
+  IF p_contract_id IS NULL THEN
+    RETURN;
   END IF;
 
-  v_total := contract_resolved_total(v_contract_id);
+  v_total := contract_resolved_total(p_contract_id);
 
-  -- 2026-09-22 fix: was `= 'received'` only — PaymentCreateBlock.js's own
-  -- ACTUAL_PAYMENT_STATUSES already treats 'partial' as real money received
-  -- (a customer paying part of an installment is still real cash in hand,
-  -- just not enough to fully settle that one request), so this contract-
-  -- level rollup was silently under-counting whenever a payment was
-  -- recorded as 'Partial' — outStandingAmount stayed at the full total
-  -- until/unless that same payment row later got bumped to exactly
-  -- 'received'. Matches ACTUAL_PAYMENT_STATUSES exactly now.
-  SELECT COALESCE(SUM(p.amount), 0) INTO v_received
+  SELECT COALESCE(SUM(finance_payment_vnd(to_jsonb(p))), 0)
+  INTO v_received
   FROM payments p
-  WHERE p."contractId" = v_contract_id
-    AND LOWER(p."paymentStatus") IN ('received', 'paid', 'completed', 'partial');
+  WHERE p."contractId" = p_contract_id
+    AND finance_is_received(p."paymentStatus");
 
   UPDATE contracts
   SET "outStandingAmount" = GREATEST(v_total - v_received, 0),
@@ -114,15 +164,33 @@ BEGIN
         WHEN v_received > 0 THEN 'partial'
         ELSE 'unpaid'
       END
-  WHERE id = v_contract_id;
+  WHERE id = p_contract_id;
+END;
+$function$;
 
-  RETURN COALESCE(NEW, OLD);
+-- ---- Trigger: recompute the contract whenever a payment changes ---------
+-- 2026-09-28: fires on every insert/update/delete (it used to fire only on a
+-- paymentStatus change, so an edited amount or a deleted payment left the
+-- contract balance wrong), and recomputes both contracts when a payment is
+-- moved from one contract to another.
+CREATE OR REPLACE FUNCTION public.contract_recompute_outstanding()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    PERFORM contract_recompute_outstanding_for(NEW."contractId");
+  END IF;
+  IF TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND OLD."contractId" IS DISTINCT FROM NEW."contractId") THEN
+    PERFORM contract_recompute_outstanding_for(OLD."contractId");
+  END IF;
+  RETURN NULL;
 END;
 $function$;
 
 DROP TRIGGER IF EXISTS trg_payment_recompute_contract ON payments;
 CREATE TRIGGER trg_payment_recompute_contract
-  AFTER INSERT OR UPDATE OF "paymentStatus" ON payments
+  AFTER INSERT OR UPDATE OR DELETE ON payments
   FOR EACH ROW
   EXECUTE FUNCTION public.contract_recompute_outstanding();
 
@@ -145,59 +213,20 @@ CREATE TRIGGER trg_contract_cascade_case_status
   FOR EACH ROW
   EXECUTE FUNCTION public.cascade_payment_status_to_case();
 
--- ---- Trigger: auto-create a Payment Request when a Case finishes unpaid -
-CREATE OR REPLACE FUNCTION public.auto_create_payment_request_on_case_done()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $function$
-DECLARE
-  v_contract RECORD;
-  v_new_id BIGINT;
-BEGIN
-  IF NEW.status <> 'done' OR OLD.status IS NOT DISTINCT FROM 'done' THEN
-    RETURN NEW;
-  END IF;
-
-  IF NEW."contractId" IS NULL THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT id, "contractCode", "contractName", "customerId", "internalCompanyId",
-         "paymentStatus", "outStandingAmount"
-  INTO v_contract
-  FROM contracts
-  WHERE id = NEW."contractId";
-
-  IF v_contract.id IS NULL OR v_contract."paymentStatus" = 'paid' THEN
-    RETURN NEW;
-  END IF;
-
-  -- "paymentRequests".id has no DB-side default (Nocobase snowflake id,
-  -- normally assigned by the app) — same id-generation convention already
-  -- used by pgsql/AutoCreateTaskFromTemplate.sql for the same situation.
-  v_new_id := (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::BIGINT * 1000 + (random() * 999)::INT;
-
-  INSERT INTO "paymentRequests" (
-    id, title, status, "contractId", "customerId", "internalCompanyId",
-    "requestedAmount", "createdAt", "updatedAt"
-  ) VALUES (
-    v_new_id,
-    'Auto: Case hoàn thành - ' || COALESCE(v_contract."contractCode", '') || ' - ' || COALESCE(v_contract."contractName", ''),
-    'submitted',
-    v_contract.id, v_contract."customerId", v_contract."internalCompanyId",
-    v_contract."outStandingAmount",
-    now(), now()
-  );
-
-  RETURN NEW;
-END;
-$function$;
-
+-- ---- REMOVED 2026-09-25 (user decision): legacy lump-sum case-done trigger
+-- trg_case_done_payment_request / auto_create_payment_request_on_case_done()
+-- created an "Auto: Case hoàn thành - …" Payment Request for the contract's
+-- whole outstanding balance whenever a Case became done, on every contract
+-- type — duplicating the requests the current finance pipeline creates
+-- (By Case installments, By Service per-service requests, Retainer billing
+-- plans). By Case "One time" now gets its single on_case_done request when a
+-- Case is linked (by_case_one_time_ensure_payment_request,
+-- unified_contract_payment_schedule.sql), activated by
+-- by_case_case_done_activates_payment_request when the Case is Done.
+-- Only DROPped here (never recreated), so re-running this file keeps it gone.
+-- Standalone equivalent: pgsql/drop_case_done_lump_sum_payment_request.sql.
 DROP TRIGGER IF EXISTS trg_case_done_payment_request ON projects;
-CREATE TRIGGER trg_case_done_payment_request
-  AFTER UPDATE OF "status" ON projects
-  FOR EACH ROW
-  EXECUTE FUNCTION public.auto_create_payment_request_on_case_done();
+DROP FUNCTION IF EXISTS public.auto_create_payment_request_on_case_done();
 
 -- ---- Trigger: auto-complete a Case once all its tasks are finished ------
 -- "Finished" = status 'done' or 'cancelled'. Requires at least 1 task to
@@ -205,9 +234,10 @@ CREATE TRIGGER trg_case_done_payment_request
 -- auto-completes on that basis alone). Only drives the case FORWARD into
 -- 'done' — adding a new not-yet-done task to an already-'done' case, or
 -- reopening a task, does not revert it; not asked for, not built.
--- Feeds directly into trg_case_done_payment_request above: this trigger
--- only sets projects.status, the existing trigger reacts to that same
--- column changing, so the payment-request chain needs no changes here.
+-- Only sets projects.status; by_case_case_done_activates_payment_request
+-- (by_case_payment_request_automation.sql) reacts to that same column to
+-- activate on_case_done installments. (It used to feed
+-- trg_case_done_payment_request above — disabled 2026-09-24.)
 -- No backfill for this one (by request) — only fires on a task's status
 -- changing from here on; pre-existing cases keep whatever status they
 -- already have, even if their tasks already all qualify today.
@@ -263,10 +293,10 @@ CREATE TRIGGER trg_case_auto_complete_when_tasks_done
 -- Re-run again after the 2026-09-22 'partial' fix above — this backfill
 -- has its own copy of the same filter and needs to match.
 WITH received AS (
-  SELECT "contractId", COALESCE(SUM(amount), 0) AS total_received
-  FROM payments
-  WHERE "contractId" IS NOT NULL AND LOWER("paymentStatus") IN ('received', 'paid', 'completed', 'partial')
-  GROUP BY "contractId"
+  SELECT p."contractId", COALESCE(SUM(finance_payment_vnd(to_jsonb(p))), 0) AS total_received
+  FROM payments p
+  WHERE p."contractId" IS NOT NULL AND finance_is_received(p."paymentStatus")
+  GROUP BY p."contractId"
 )
 UPDATE contracts c
 SET "outStandingAmount" = GREATEST(contract_resolved_total(c.id) - COALESCE(r.total_received, 0), 0),

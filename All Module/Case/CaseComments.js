@@ -14,7 +14,228 @@
     // Thay đổi riêng cho Case: sửa scripts/case-comments/wrapper.js hoặc
     // các patch [CASE] trong build.mjs.
     // ============================================================
-    const CASE_COMMENT_CONFIG = {
+    // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Reference": "Reference",
+  "Legal Reference": "Legal Reference",
+  "Document": "Tài liệu",
+  "Library": "Library",
+  "Internal Work Document": "Tài liệu Internal Work",
+  "Customer": "Khách hàng",
+  "Preparing {0} files...": "Đang chuẩn bị {0} tệp...",
+  "Could not fetch any of the selected files — see console for details.": "Không tải được tệp nào đã chọn — xem console để biết chi tiết.",
+  "{0}: {1}/{2} files included — the rest couldn't be fetched (see console).": "{0}: đã gồm {1}/{2} tệp — số còn lại không tải được (xem console).",
+  "Could not build the zip — see console for details.": "Không tạo được file zip — xem console để biết chi tiết.",
+  "Upload file failed": "Tải tệp lên thất bại",
+  "Folder #{0}": "Thư mục #{0}",
+  "Moved to": "Đã chuyển sang",
+  "Moved to Legal Study": "Đã chuyển sang Reference",
+  "Moved to Legal Reference": "Đã chuyển sang Legal Reference",
+  "Root": "Thư mục gốc",
+  "Moved to Document:": "Đã chuyển sang Tài liệu:",
+  "Moved to Document / {0}": "Đã chuyển sang Tài liệu / {0}",
+  "Moved to Library:": "Đã chuyển sang Library:",
+  "Moved to Library / {0}": "Đã chuyển sang Library / {0}",
+  "Moved to Internal Work:": "Đã chuyển sang Internal Work:",
+  "Moved to Internal Work's Document / {0}": "Đã chuyển sang Tài liệu Internal Work / {0}",
+  "Moved to Customer:": "Đã chuyển sang Khách hàng:",
+  "Moved to Customer / {0}": "Đã chuyển sang Khách hàng / {0}",
+  "Document #{0}": "Tài liệu #{0}",
+  "Shared directly": "Được chia sẻ trực tiếp",
+  "Current case": "Hồ sơ hiện tại",
+  "Linked cases": "Hồ sơ liên kết",
+  "Knowledge": "Knowledge",
+  "My Documents": "My Documents",
+  "Refresh": "Làm mới",
+  "Write a comment... (@ to mention someone)": "Viết bình luận... (gõ @ để nhắc tên)",
+  "Attach document": "Đính kèm tài liệu",
+  "Bold (Ctrl+B)": "In đậm (Ctrl+B)",
+  "Italic (Ctrl+I)": "In nghiêng (Ctrl+I)",
+  "Underline (Ctrl+U)": "Gạch chân (Ctrl+U)",
+  "Strikethrough": "Gạch ngang",
+  "Decrease indent": "Giảm thụt lề",
+  "Increase indent": "Tăng thụt lề",
+  "Blockquote": "Trích dẫn",
+  "Code block": "Khối mã",
+  "Numbered list": "Danh sách đánh số",
+  "Bullet list": "Danh sách gạch đầu dòng",
+  "Insert link": "Chèn liên kết",
+  "Clear formatting": "Xóa định dạng",
+  "Could not load editor. Please check your network connection.": "Không thể tải editor. Vui lòng kiểm tra kết nối mạng.",
+  "Loading editor...": "Đang tải editor...",
+  "Ctrl+Enter to send": "Ctrl+Enter để gửi",
+  "Sending...": "Đang gửi...",
+  "Comment": "Bình luận",
+  "User #{0}": "Người dùng #{0}",
+  "Anonymous": "Ẩn danh",
+  "Please enter a comment before mentioning someone.": "Vui lòng nhập nội dung bình luận trước khi nhắc tên.",
+  "Comment posted": "Đã đăng bình luận",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Vui lòng thử lại",
+  "Comment updated": "Đã cập nhật bình luận",
+  "Update failed": "Cập nhật thất bại",
+  "Confirm deletion": "Xác nhận xóa",
+  "Are you sure you want to delete this comment and its attached files?": "Bạn có chắc chắn muốn xóa bình luận này và các tệp đính kèm không?",
+  "Are you sure you want to delete these files?": "Bạn có chắc chắn muốn xóa các tệp này không?",
+  "Delete": "Xóa",
+  "Cancel": "Hủy",
+  "Deleted successfully": "Đã xóa thành công",
+  "Delete failed": "Xóa thất bại",
+  "Document name updated": "Đã cập nhật tên tài liệu",
+  "Failed to update name": "Cập nhật tên thất bại",
+  "File": "Tệp",
+  "Hide preview": "Ẩn xem trước",
+  "Preview": "Xem trước",
+  "Download": "Tải về",
+  "Move to Case's Document": "Chuyển sang Tài liệu của hồ sơ",
+  "Move to Internal Work's Document": "Chuyển sang Tài liệu Internal Work",
+  "Move to Library": "Chuyển sang Library",
+  "Rename": "Đổi tên",
+  "Replace file": "Thay thế tệp",
+  "Original file: {0}": "Tệp gốc: {0}",
+  "Save": "Lưu",
+  "Actions": "Thao tác",
+  "Select files": "Chọn tệp",
+  "{0} selected": "Đã chọn {0}",
+  "Move to Document": "Chuyển sang Tài liệu",
+  "System": "Hệ thống",
+  "Save changes": "Lưu thay đổi",
+  "Quote:": "Trích dẫn:",
+  "Reply": "Phản hồi",
+  "Edit": "Chỉnh sửa",
+  "▲ Collapse replies": "▲ Thu gọn phản hồi",
+  "▼ View {0} replies": "▼ Xem {0} phản hồi",
+  "File replaced": "Đã thay thế tệp",
+  "Failed to replace file: ": "Thay thế tệp thất bại: ",
+  "Pending": "Chờ gửi",
+  "Note content:": "Nội dung ghi chú:",
+  "Folder": "Thư mục",
+  "Folder: {0}": "Thư mục: {0}",
+  "{0} attached files": "{0} tệp đính kèm",
+  "+{0} more files": "+{0} tệp khác",
+  "Replying to ": "Đang trả lời ",
+  "Attached document": "Tài liệu đính kèm",
+  "✕ Cancel reply": "✕ Hủy trả lời",
+  "Today": "Hôm nay",
+  "Yesterday": "Hôm qua",
+  "Someone": "Ai đó",
+  "{0} files": "{0} tệp",
+  "Download all files in this folder": "Tải về tất cả tệp trong thư mục này",
+  "No comments or documents yet": "Chưa có bình luận hay tài liệu nào",
+  "No comments match your search": "Không có bình luận nào khớp tìm kiếm",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "Cannot preview this file format — please download to open": "Không thể xem trước định dạng này — vui lòng tải về để mở",
+  "{0} / Folder #{1}": "{0} / Thư mục #{1}",
+  "No file selected": "Chưa chọn tệp nào",
+  "Cannot determine the current case": "Không xác định được hồ sơ hiện tại",
+  "Cannot determine the current Internal Work item": "Không xác định được mục Internal Work hiện tại",
+  "Please select a {0} record": "Vui lòng chọn một bản ghi {0}",
+  "Moved {0} files to {1}": "Đã chuyển {0} tệp sang {1}",
+  "Moved to {0}": "Đã chuyển sang {0}",
+  "Cannot move to {0}": "Không thể chuyển sang {0}",
+  "Move {0} files to {1}": "Chuyển {0} tệp sang {1}",
+  "Move to {0}": "Chuyển sang {0}",
+  "{0} files selected": "Đã chọn {0} tệp",
+  "Source: ": "Nguồn: ",
+  "Category": "Danh mục",
+  "Select {0}": "Chọn {0}",
+  "Select {0} record...": "Chọn bản ghi {0}...",
+  "Destination folder": "Thư mục đích",
+  "Root level (no subfolder)": "Cấp gốc (không có thư mục con)",
+  "Files remain traceable from Task Notes after this move.": "Sau khi chuyển, các tệp vẫn truy vết được từ Ghi chú của công việc.",
+  "{0} remains traceable from Task Notes after this move.": "Sau khi chuyển, {0} vẫn truy vết được từ Ghi chú của công việc.",
+  "Folder and child documents": "Thư mục và tài liệu con",
+  "Click to expand or collapse": "Bấm để mở rộng hoặc thu gọn",
+  "Upload failed": "Tải lên thất bại",
+  "Original attachment not found": "Không tìm thấy tệp đính kèm gốc",
+  "Please select a file or enter a Drive URL": "Vui lòng chọn tệp hoặc nhập Drive URL",
+  "Upload error: {0}": "Lỗi tải lên: {0}",
+  "✅ Updated successfully!": "✅ Cập nhật thành công!",
+  "✅ Upload successful!": "✅ Tải lên thành công!",
+  "Updating a document only supports replacing 1 file, folder upload is not supported.": "Cập nhật tài liệu chỉ cho thay 1 tệp, không hỗ trợ tải lên thư mục.",
+  "Updating a document only supports replacing 1 file.": "Cập nhật tài liệu chỉ cho thay 1 tệp.",
+  "Updated successfully!": "Cập nhật thành công!",
+  "Uploaded {0} files successfully!": "Đã tải lên {0} tệp thành công!",
+  "Upload successful!": "Tải lên thành công!",
+  "Document type": "Loại văn bản",
+  "Please enter the document type": "Vui lòng nhập loại văn bản",
+  "e.g.: Contract, Minutes...": "VD: Hợp đồng, Biên bản...",
+  "✏️ Update document": "✏️ Cập nhật tài liệu",
+  "📎 Attach document": "📎 Đính kèm tài liệu",
+  "Updating...": "Đang cập nhật...",
+  "Processing...": "Đang xử lý...",
+  "Update": "Cập nhật",
+  "Submit": "Gửi",
+  "Upload": "Tải lên",
+  "Identification": "Định danh",
+  "Document name": "Tên tài liệu",
+  "Enter the full document name (uses the file name if left blank)": "Nhập tên đầy đủ của tài liệu (để trống sẽ lấy tên tệp)",
+  "Reference number": "Số hiệu",
+  "VD: 123/2024/HĐ": "e.g.: 123/2024/HĐ",
+  "Issue date": "Ngày ban hành",
+  "Signed date": "Ngày ký",
+  "Effective date": "Ngày hiệu lực",
+  "Related parties": "Bên liên quan",
+  "Sender": "Người gửi",
+  "Name of sending person / organization": "Tên cá nhân / tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Name of receiving person / organization": "Tên cá nhân / tổ chức nhận",
+  "Content summary": "Tóm tắt nội dung",
+  "Briefly describe the main content...": "Mô tả ngắn gọn nội dung chính...",
+  "Attached file": "Tệp đính kèm",
+  "Upload files": "Tải tệp lên",
+  "Upload files from your computer": "Tải tệp lên từ máy tính",
+  "Replace with new file (optional)": "Thay bằng tệp mới (tùy chọn)",
+  "Choose file": "Chọn tệp",
+  "Drag & drop or ": "Kéo thả hoặc ",
+  "click to select": "bấm để chọn",
+  "Upload folder": "Tải thư mục lên",
+  "Upload a whole folder, keeping its structure": "Tải cả thư mục lên, giữ nguyên cấu trúc",
+  "Choose folder": "Chọn thư mục",
+  "Choose a folder to preserve the folder structure when rendered in Task Notes": "Chọn thư mục để giữ cấu trúc thư mục khi hiển thị trong Ghi chú của công việc",
+  "Internal Docs": "Tài liệu Internal Work",
+  "Choose from this Internal Work's documents": "Chọn từ tài liệu của Internal Work này",
+  "Loading Internal Work documents...": "Đang tải tài liệu Internal Work...",
+  "Search this Internal Work's documents...": "Tìm trong tài liệu của Internal Work này...",
+  "No accessible documents in this Internal Work": "Không có tài liệu nào bạn được truy cập trong Internal Work này",
+  "Choose from Knowledge or My Documents": "Chọn từ Knowledge hoặc My Documents",
+  "Case Docs": "Tài liệu hồ sơ",
+  "Choose from this case, linked cases or reference material": "Chọn từ hồ sơ này, hồ sơ liên kết hoặc tài liệu tham khảo",
+  "Loading library...": "Đang tải thư viện...",
+  "Search Knowledge or My Documents...": "Tìm trong Knowledge hoặc My Documents...",
+  "Search case, linked cases or references...": "Tìm trong hồ sơ, hồ sơ liên kết hoặc tài liệu tham khảo...",
+  "No accessible Knowledge or My Documents files found": "Không tìm thấy tệp Knowledge hoặc My Documents nào bạn được truy cập",
+  "No accessible documents found": "Không tìm thấy tài liệu nào bạn được truy cập",
+  "Google Drive URL (optional)": "Google Drive URL (tùy chọn)",
+  "Note": "Ghi chú",
+  "Enter a note...": "Nhập ghi chú...",
+  "Case not found for this block.": "Không tìm thấy hồ sơ cho block này.",
+  "Comments & Reports ({0})": "Bình luận & Báo cáo ({0})",
+  "Search comments...": "Tìm bình luận...",
+  "List": "Danh sách",
+  "Tree": "Cây",
+  "Newest": "Mới nhất",
+  "Oldest": "Cũ nhất",
+  "👤 Updated by: ": "👤 Cập nhật bởi: ",
+  "👤 Attached by: ": "👤 Đính kèm bởi: ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const CASE_COMMENT_CONFIG = {
       // Collection của Case trong notes.collectionName / documents.collectionName
       COLLECTION_NAME: "Project",
       // folders.type của folder gốc Case (nơi file upload từ comment rơi vào)
@@ -67,10 +288,10 @@
     const PROJECT_INTERNAL_MODULE_SCOPE = "project_internal";
     const LEGAL_STUDY_MODULE_SCOPE = "legal_study";
     const LEGAL_STUDY_STORAGE_TYPE = "legal_study";
-    const LEGAL_STUDY_LABEL = "Reference";
+    const LEGAL_STUDY_LABEL = tr("Reference");
     const LEGAL_REFERENCE_MODULE_SCOPE = "legal_reference";
     const LEGAL_REFERENCE_STORAGE_TYPE = "legal_reference";
-    const LEGAL_REFERENCE_LABEL = "Legal Reference";
+    const LEGAL_REFERENCE_LABEL = tr("Legal Reference");
     const MY_DOCUMENT_STORAGE_TYPE = "personal";
     const KNOWLEDGE_STORAGE_TYPE = "knowledge";
     const LIBRARY_DESTINATION = {
@@ -112,7 +333,7 @@
       // No "parent record" picker step — the parent is always the current
       // case (sourceContext.caseId). Only the folder-tree picker applies.
       [LIBRARY_DESTINATION.CASE_DOCUMENT]: {
-        label: "Document",
+        label: tr("Document"),
         moduleScope: CASE_DOCUMENT_SCOPE,
         storageType: "cases",
         relationField: "folderId",
@@ -125,7 +346,7 @@
       // tree lists every Knowledge folder directly and internalCompanyId is
       // inherited from whichever folder gets picked (see LibraryMoveModal).
       [LIBRARY_DESTINATION.KNOWLEDGE]: {
-        label: "Library",
+        label: tr("Library"),
         moduleScope: "knowledge",
         storageType: "knowledge",
         relationField: "folderId",
@@ -135,7 +356,7 @@
       // always the current Internal Work item (sourceContext.projectInternalId).
       // Matches ProjectDocument.js's own DASHBOARD_CONFIG scope for this space.
       [LIBRARY_DESTINATION.PROJECT_INTERNAL_DOCUMENT]: {
-        label: "Internal Work Document",
+        label: tr("Internal Work Document"),
         moduleScope: PROJECT_INTERNAL_MODULE_SCOPE,
         storageType: "project_internal",
         relationField: "folderId",
@@ -148,7 +369,7 @@
       // moduleScope filter there either, since Customer folders share
       // moduleScope with Case folders — see fetchCustomerDocumentFolders).
       [LIBRARY_DESTINATION.CUSTOMER_DOCUMENT]: {
-        label: "Customer",
+        label: tr("Customer"),
         // Matches CustomerDocument.js's own DASHBOARD_CONFIG.moduleScope —
         // Customer folders/documents are written under the same scope Case
         // folders use; only folders.customerId actually distinguishes them
@@ -525,7 +746,7 @@
         return;
       }
       const hideLoading = message.loading(
-        `Preparing ${list.length} files...`,
+        tr("Preparing {0} files...", { 0: list.length }),
         0,
       );
       try {
@@ -578,7 +799,7 @@
         }
         if (fetched === 0) {
           message.error(
-            "Could not fetch any of the selected files — see console for details.",
+            tr("Could not fetch any of the selected files — see console for details."),
           );
           return;
         }
@@ -596,12 +817,12 @@
         });
         if (fetched < list.length) {
           message.warning(
-            `${zipName}: ${fetched}/${list.length} files included — the rest couldn't be fetched (see console).`,
+            tr("{0}: {1}/{2} files included — the rest couldn't be fetched (see console).", { 0: zipName, 1: fetched, 2: list.length }),
           );
         }
       } catch (e) {
         console.error("[downloadFilesAsZip] failed", e);
-        message.error("Could not build the zip — see console for details.");
+        message.error(tr("Could not build the zip — see console for details."));
       } finally {
         hideLoading();
       }
@@ -1237,7 +1458,7 @@
         data: formData,
       });
       const attachment = uploadRes?.data?.data;
-      if (!attachment?.id) throw new Error("Upload file failed");
+      if (!attachment?.id) throw new Error(tr("Upload file failed"));
       return attachment;
     }
 
@@ -1461,7 +1682,7 @@
       while (currentId && folderLookup[String(currentId)] && !seen.has(String(currentId))) {
         seen.add(String(currentId));
         const folder = folderLookup[String(currentId)];
-        parts.unshift(folder.name || folder.title || `Folder #${currentId}`);
+        parts.unshift(folder.name || folder.title || tr("Folder #{0}", { 0: currentId }));
         currentId = extractId(folder.parentId);
       }
       return parts;
@@ -1524,18 +1745,18 @@
       if (isLinkedToLegalStudy(record)) {
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalStudy,
-          prefix: "Moved to",
+          prefix: tr("Moved to"),
           value: "Legal Study",
-          tooltip: "Moved to Legal Study",
+          tooltip: tr("Moved to Legal Study"),
           accent: "#9254de",
         };
       }
       if (isLinkedToLegalReference(record)) {
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-          prefix: "Moved to",
+          prefix: tr("Moved to"),
           value: "Legal Reference",
-          tooltip: "Moved to Legal Reference",
+          tooltip: tr("Moved to Legal Reference"),
           accent: "#36cfc9",
         };
       }
@@ -1543,14 +1764,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Document:",
+          prefix: tr("Moved to Document:"),
           value: folderName,
-          tooltip: `Moved to Document / ${fullPath}`,
+          tooltip: tr("Moved to Document / {0}", { 0: fullPath }),
           accent: "#4096ff",
         };
       }
@@ -1562,7 +1783,7 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
@@ -1570,9 +1791,9 @@
           // not a fixed category placeholder like "Legal Study"/"Legal
           // Reference" — use the folder icon so it reads the same way.
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Library:",
+          prefix: tr("Moved to Library:"),
           value: folderName,
-          tooltip: `Moved to Library / ${fullPath}`,
+          tooltip: tr("Moved to Library / {0}", { 0: fullPath }),
           accent: "#fa8c16",
         };
       }
@@ -1580,14 +1801,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.folder,
-          prefix: "Moved to Internal Work:",
+          prefix: tr("Moved to Internal Work:"),
           value: folderName,
-          tooltip: `Moved to Internal Work's Document / ${fullPath}`,
+          tooltip: tr("Moved to Internal Work's Document / {0}", { 0: fullPath }),
           accent: "#4096ff",
         };
       }
@@ -1595,14 +1816,14 @@
         const folderId = extractId(record?.folderId);
         const folder = folderId ? folderLookup[String(folderId)] : null;
         const folderName =
-          folder?.name || folder?.title || (folderId ? `Folder #${folderId}` : "Root");
+          folder?.name || folder?.title || (folderId ? tr("Folder #{0}", { 0: folderId }) : tr("Root"));
         const fullPath =
           getFolderPathParts(folderId, folderLookup).join(" / ") || folderName;
         return {
           icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-          prefix: "Moved to Customer:",
+          prefix: tr("Moved to Customer:"),
           value: folderName,
-          tooltip: `Moved to Customer / ${fullPath}`,
+          tooltip: tr("Moved to Customer / {0}", { 0: fullPath }),
           accent: "#36cfc9",
         };
       }
@@ -1756,7 +1977,7 @@
       folders.forEach((folder) => {
         const id = extractId(folder.id || folder);
         if (!id) return;
-        const folderTitle = folder.name || folder.title || `Folder #${id}`;
+        const folderTitle = folder.name || folder.title || tr("Folder #{0}", { 0: id });
         nodeMap[String(id)] = {
           title: renderLibraryTreeTitle(folderTitle),
           searchText: folderTitle,
@@ -2653,7 +2874,7 @@
       document?.documentCode ||
       attachment?.title ||
       attachment?.filename ||
-      `Document #${extractId(document) || ""}`;
+      tr("Document #{0}", { 0: extractId(document) || "" });
 
     const getLibraryDocumentExtension = (document, attachment) => {
       const explicitExtension = String(attachment?.extname || "").trim();
@@ -2886,7 +3107,7 @@
         );
         sortedFolders.forEach((folder) => {
           const folderId = extractId(folder);
-          const folderTitle = folder?.name || folder?.title || `Folder #${folderId}`;
+          const folderTitle = folder?.name || folder?.title || tr("Folder #{0}", { 0: folderId });
           nodeMap.set(String(folderId), {
             title: renderLibraryTreeTitle(folderTitle),
             searchText: folderTitle,
@@ -2952,7 +3173,7 @@
 
         const children = [...rootDocuments, ...pruneEmptyFolderNodes(flattenedRoots)];
         if (directShareDocuments.length > 0) {
-          const sharedTitle = "Shared directly";
+          const sharedTitle = tr("Shared directly");
           children.push({
             title: renderLibraryTreeTitle(sharedTitle),
             searchText: sharedTitle,
@@ -3037,7 +3258,7 @@
         const currentCaseLabel =
           currentCaseRootFolder?.name ||
           currentCaseRootFolder?.title ||
-          "Current case";
+          tr("Current case");
         groups.push({
           title: renderLibraryTreeTitle(currentCaseLabel),
           searchText: currentCaseLabel,
@@ -3054,8 +3275,8 @@
       );
       if (linkedCaseChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Linked cases"),
-          searchText: "Linked cases",
+          title: renderLibraryTreeTitle(tr("Linked cases")),
+          searchText: tr("Linked cases"),
           value: "library_group_linked_cases",
           key: "library_group_linked_cases",
           selectable: false,
@@ -3081,8 +3302,8 @@
       );
       if (referenceChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Reference"),
-          searchText: "Reference",
+          title: renderLibraryTreeTitle(tr("Reference")),
+          searchText: tr("Reference"),
           value: "library_group_reference",
           key: "library_group_reference",
           selectable: false,
@@ -3148,8 +3369,8 @@
       );
       if (knowledgeChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("Knowledge"),
-          searchText: "Knowledge",
+          title: renderLibraryTreeTitle(tr("Knowledge")),
+          searchText: tr("Knowledge"),
           value: "library_group_knowledge",
           key: "library_group_knowledge",
           selectable: false,
@@ -3166,8 +3387,8 @@
       );
       if (myDocumentsChildren.length > 0) {
         groups.push({
-          title: renderLibraryTreeTitle("My Documents"),
-          searchText: "My Documents",
+          title: renderLibraryTreeTitle(tr("My Documents")),
+          searchText: tr("My Documents"),
           value: "library_group_my_documents",
           key: "library_group_my_documents",
           selectable: false,
@@ -3220,7 +3441,7 @@
     // §5 ATOMS
     // ============================================================
 
-    const ReloadButton = ({ onReload, loading, text = "Refresh", style = {} }) => {
+    const ReloadButton = ({ onReload, loading, text = tr("Refresh"), style = {} }) => {
       return React.createElement(
         Button,
         {
@@ -3549,7 +3770,7 @@
 
             const q = new Quill(containerRef.current, {
               theme: "snow",
-              placeholder: placeholder || "Write a comment... (@ to mention someone)",
+              placeholder: placeholder || tr("Write a comment... (@ to mention someone)"),
               modules: {
                 toolbar: {
                   container: [
@@ -3594,23 +3815,23 @@
             if (uploadBtn) {
               uploadBtn.innerHTML =
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>';
-              uploadBtn.title = "Attach document";
+              uploadBtn.title = tr("Attach document");
             }
 
             // Add Tooltips to Quill toolbar buttons
             const tooltipMap = {
-              ".ql-bold": "Bold (Ctrl+B)",
-              ".ql-italic": "Italic (Ctrl+I)",
-              ".ql-underline": "Underline (Ctrl+U)",
-              ".ql-strike": "Strikethrough",
-              '.ql-indent[value="-1"]': "Decrease indent",
-              '.ql-indent[value="+1"]': "Increase indent",
-              ".ql-blockquote": "Blockquote",
-              ".ql-code-block": "Code block",
-              '.ql-list[value="ordered"]': "Numbered list",
-              '.ql-list[value="bullet"]': "Bullet list",
-              ".ql-link": "Insert link",
-              ".ql-clean": "Clear formatting",
+              ".ql-bold": tr("Bold (Ctrl+B)"),
+              ".ql-italic": tr("Italic (Ctrl+I)"),
+              ".ql-underline": tr("Underline (Ctrl+U)"),
+              ".ql-strike": tr("Strikethrough"),
+              '.ql-indent[value="-1"]': tr("Decrease indent"),
+              '.ql-indent[value="+1"]': tr("Increase indent"),
+              ".ql-blockquote": tr("Blockquote"),
+              ".ql-code-block": tr("Code block"),
+              '.ql-list[value="ordered"]': tr("Numbered list"),
+              '.ql-list[value="bullet"]': tr("Bullet list"),
+              ".ql-link": tr("Insert link"),
+              ".ql-clean": tr("Clear formatting"),
             };
             Object.entries(tooltipMap).forEach(([selector, title]) => {
               const el = containerRef.current.parentElement.querySelector(selector);
@@ -3775,7 +3996,9 @@
               const MARGIN = 12;
               const MIN_HEIGHT = 120;
               const MAX_HEIGHT = 360;
-              const spaceBelow = window.innerHeight - viewportCaretBottom - GAP - MARGIN;
+              // window.innerHeight is blocked in the RunJS sandbox.
+              const viewportHeight = document.querySelector("html")?.clientHeight || viewportCaretBottom + MAX_HEIGHT;
+              const spaceBelow = viewportHeight - viewportCaretBottom - GAP - MARGIN;
               const spaceAbove = viewportCaretTop - GAP - MARGIN;
               // Prefer opening below (matches where the user is typing); only
               // flip upward when below doesn't even fit the minimum useful
@@ -3849,7 +4072,7 @@
           })
           .catch((e) => {
             console.error("Quill load error:", e);
-            setError("Could not load editor. Please check your network connection.");
+            setError(tr("Could not load editor. Please check your network connection."));
           });
 
         return () => {
@@ -3910,7 +4133,7 @@
                     fontFamily: FONT,
                   },
                 },
-                "Loading editor...",
+                tr("Loading editor..."),
               )
             : null,
         React.createElement("div", { ref: containerRef }),
@@ -4071,7 +4294,7 @@
                   whiteSpace: "nowrap",
                 },
               },
-              "Ctrl+Enter to send",
+              tr("Ctrl+Enter to send"),
             ),
             React.createElement(
               "div",
@@ -4089,7 +4312,7 @@
                   border: "none",
                 },
               },
-              sending ? "Sending..." : "Comment",
+              sending ? tr("Sending...") : tr("Comment"),
             ),
           ),
       );
@@ -4330,9 +4553,9 @@
         n.createdBy?.nickname ||
         n.createdBy?.username ||
         n.createdBy?.email ||
-        (n.createdById ? `User #${n.createdById}` : "Anonymous");
+        (n.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
       const warnMentionOnly = () => {
-        message.warning("Please enter a comment before mentioning someone.");
+        message.warning(tr("Please enter a comment before mentioning someone."));
       };
       const handleSend = async () => {
         if (sendingRef.current) return;
@@ -4502,9 +4725,9 @@
           // open refetches instead of serving a list without them.
           if (hasFiles) invalidateTaskLibraryData();
           reload();
-          message.success("Comment posted");
+          message.success(tr("Comment posted"));
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         }
         sendingRef.current = false;
         setSending(false);
@@ -4598,21 +4821,21 @@
           setEditingNoteId(null);
           setEditBody("");
           setEditAssignedIds([]);
-          message.success("Comment updated");
+          message.success(tr("Comment updated"));
         } catch (e) {
-          message.error("Update failed");
+          message.error(tr("Update failed"));
         }
       };
 
       const handleDeleteNote = (item) => {
         const { note, files } = item;
         Modal.confirm({
-          title: "Confirm deletion",
+          title: tr("Confirm deletion"),
           content: note
-            ? "Are you sure you want to delete this comment and its attached files?"
-            : "Are you sure you want to delete these files?",
-          okText: "Delete",
-          cancelText: "Cancel",
+            ? tr("Are you sure you want to delete this comment and its attached files?")
+            : tr("Are you sure you want to delete these files?"),
+          okText: tr("Delete"),
+          cancelText: tr("Cancel"),
           okType: "danger",
           onOk: async () => {
             try {
@@ -4675,9 +4898,9 @@
                 }
               }
               setFeed((prev) => prev.filter((i) => i !== item));
-              message.success("Deleted successfully");
+              message.success(tr("Deleted successfully"));
             } catch (e) {
-              message.error("Delete failed");
+              message.error(tr("Delete failed"));
             }
           },
         });
@@ -4770,9 +4993,9 @@
               ),
             })),
           );
-          message.success("Document name updated");
+          message.success(tr("Document name updated"));
         } catch (e) {
-          message.error("Failed to update name");
+          message.error(tr("Failed to update name"));
         }
         setEditingFileId(null);
         setEditFileTitle("");
@@ -4795,7 +5018,7 @@
             ? att.extname.toLowerCase()
             : "." + att.extname.toLowerCase()
           : "";
-        const rawFilename = att?.filename || "File";
+        const rawFilename = att?.filename || tr("File");
         const displayTitle = f.title || f.name || att?.title || rawFilename;
         const fullUrl = getFullUrl(att?.url || att?.preview);
         const isPdf = ext === ".pdf";
@@ -4824,13 +5047,13 @@
           {
             key: "preview",
             icon: TASK_FILE_ACTION_ICONS.preview,
-            label: isExpanded ? "Hide preview" : "Preview",
+            label: isExpanded ? tr("Hide preview") : tr("Preview"),
             disabled: !fullUrl,
           },
           {
             key: "download",
             icon: TASK_FILE_ACTION_ICONS.download,
-            label: "Download",
+            label: tr("Download"),
             disabled: !fullUrl,
           },
           // Replaces the old "Move to Legal Reference" action — moving into
@@ -4841,14 +5064,14 @@
           canEdit && !isProjectInternalContext && {
             key: "move_to_document",
             icon: TASK_FILE_ACTION_ICONS.folder,
-            label: "Move to Case's Document",
+            label: tr("Move to Case's Document"),
           },
           // Internal Work equivalent of "Move to Case's Document" above —
           // moves into the current Internal Work item's own Document tree.
           canEdit && isProjectInternalContext && {
             key: "move_to_project_internal_document",
             icon: TASK_FILE_ACTION_ICONS.folder,
-            label: "Move to Internal Work's Document",
+            label: tr("Move to Internal Work's Document"),
           },
           // Single umbrella entry for every destination that lives outside
           // the current workspace (Reference, and — for Internal Work tasks
@@ -4859,17 +5082,17 @@
           canEdit && {
             key: "move_to_library",
             icon: TASK_FILE_ACTION_ICONS.moveLegalReference,
-            label: "Move to Library",
+            label: tr("Move to Library"),
           },
           isMine && canEdit && {
             key: "edit",
             icon: TASK_FILE_ACTION_ICONS.edit,
-            label: "Rename",
+            label: tr("Rename"),
           },
           isMine && canEdit && {
             key: "replace_file",
             icon: TASK_FILE_ACTION_ICONS.replace,
-            label: "Replace file",
+            label: tr("Replace file"),
           },
         ].filter(Boolean);
         const handleFileActionClick = ({ key, domEvent }) => {
@@ -4995,7 +5218,7 @@
                       : fullUrl
                         ? () => setPreviewDoc(f)
                         : undefined,
-                    title: `Original file: ${rawFilename}`,
+                    title: tr("Original file: {0}", { 0: rawFilename }),
                     style: {
                       fontSize: 13,
                       fontFamily: FONT,
@@ -5032,7 +5255,7 @@
                         flexShrink: 0,
                       },
                     },
-                    "Save",
+                    tr("Save"),
                   ),
                   React.createElement(
                     "span",
@@ -5048,7 +5271,7 @@
                         flexShrink: 0,
                       },
                     },
-                    "Cancel",
+                    tr("Cancel"),
                   ),
                 )
               : bulkSelectActive
@@ -5067,7 +5290,7 @@
                     "button",
                     {
                       type: "button",
-                      title: "Actions",
+                      title: tr("Actions"),
                       onClick: (e) => e.stopPropagation(),
                       style: {
                         width: 28,
@@ -5131,7 +5354,7 @@
                 textUnderlineOffset: "2px",
               },
             },
-            "Select files",
+            tr("Select files"),
           );
         }
         const selectedFiles = files.filter((f) => state.ids.has(f.id));
@@ -5153,7 +5376,7 @@
           React.createElement(
             "span",
             { style: { fontSize: 12, fontFamily: FONT, color: "#262626", fontWeight: 600 } },
-            `${selectedCount} selected`,
+            tr("{0} selected", { 0: selectedCount }),
           ),
           React.createElement(
             Button,
@@ -5182,7 +5405,7 @@
                 );
               },
             },
-            "Download",
+            tr("Download"),
           ),
           ...(isProjectInternalContext
             ? [
@@ -5199,7 +5422,7 @@
                         itemKey,
                       }),
                   },
-                  "Move to Internal Work's Document",
+                  tr("Move to Internal Work's Document"),
                 ),
               ]
             : [
@@ -5216,7 +5439,7 @@
                         itemKey,
                       }),
                   },
-                  "Move to Document",
+                  tr("Move to Document"),
                 ),
               ]),
           React.createElement(
@@ -5237,7 +5460,7 @@
                 });
               },
             },
-            "Move to Library",
+            tr("Move to Library"),
           ),
           React.createElement(
             "span",
@@ -5250,7 +5473,7 @@
                 cursor: "pointer",
               },
             },
-            "Cancel",
+            tr("Cancel"),
           ),
         );
       };
@@ -5262,7 +5485,7 @@
           ? authorName(note)
           : firstFile?.createdBy
             ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-            : "System";
+            : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -5389,7 +5612,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Cancel",
+                        tr("Cancel"),
                       ),
                       React.createElement(
                         "span",
@@ -5406,7 +5629,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Save changes",
+                        tr("Save changes"),
                       ),
                     ),
                   )
@@ -5453,7 +5676,7 @@
                             React.createElement(
                               "b",
                               { style: { color: "#8c8c8c", marginRight: 4 } },
-                              "Quote:",
+                              tr("Quote:"),
                             ),
                             " ",
                             note.replyText,
@@ -5502,7 +5725,7 @@
                               onMouseLeave: (e) =>
                                 (e.currentTarget.style.color = "#52c41a"),
                             },
-                            "Reply",
+                            tr("Reply"),
                           ),
                           isMyItem &&
                             note &&
@@ -5531,7 +5754,7 @@
                                 onMouseLeave: (e) =>
                                   (e.currentTarget.style.color = "#595959"),
                               },
-                              "Edit",
+                              tr("Edit"),
                             ),
                           isMyItem &&
                             React.createElement(
@@ -5551,7 +5774,7 @@
                                 onMouseLeave: (e) =>
                                   (e.currentTarget.style.color = "#ff4d4f"),
                               },
-                              "Delete",
+                              tr("Delete"),
                             ),
                         ),
                     ),
@@ -5585,8 +5808,8 @@
                   },
                 },
                 isExpanded
-                  ? "▲ Collapse replies"
-                  : `▼ View ${replies.length} replies`,
+                  ? tr("▲ Collapse replies")
+                  : tr("▼ View {0} replies", { 0: replies.length }),
                 !isExpanded &&
                   React.createElement(
                     Avatar.Group,
@@ -5646,9 +5869,9 @@
               };
             }),
           );
-          message.success("File replaced");
+          message.success(tr("File replaced"));
         } catch (e) {
-          message.error("Failed to replace file: " + (e?.message || "Please try again"));
+          message.error(tr("Failed to replace file: ") + (e?.message || tr("Please try again")));
         } finally {
           setReplacingPendingIndex(null);
         }
@@ -5667,7 +5890,7 @@
             },
           },
           ...pendingDocs.map((doc, i) => {
-            const name = doc.metadata.title || doc.fileName || "Document";
+            const name = doc.metadata.title || doc.fileName || tr("Document");
             return React.createElement(
               "div",
               {
@@ -5713,13 +5936,13 @@
                       fontWeight: 600,
                     },
                   },
-                  "Pending",
+                  tr("Pending"),
                 ),
                 React.createElement(
                   "button",
                   {
                     type: "button",
-                    title: "Replace file",
+                    title: tr("Replace file"),
                     disabled: replacingPendingIndex === i,
                     onClick: () => triggerReplacePendingFile(i),
                     style: {
@@ -5770,7 +5993,7 @@
                     {
                       style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
                     },
-                    "Note content:",
+                    tr("Note content:"),
                   ),
                   doc.metadata.note,
                 ),
@@ -5812,10 +6035,10 @@
             const isFolder = first.uploadKind === "folder";
             const folderName =
               String(first.relativePath || "").split("/").filter(Boolean)[0] ||
-              "Folder";
+              tr("Folder");
             const groupTitle = isFolder
-              ? `Folder: ${folderName}`
-              : `${group.items.length} attached files`;
+              ? tr("Folder: {0}", { 0: folderName })
+              : tr("{0} attached files", { 0: group.items.length });
             const totalSize = group.items.reduce(
               (sum, item) => sum + (Number(item.fileSize) || 0),
               0,
@@ -5891,7 +6114,7 @@
                       fontWeight: 600,
                     },
                   },
-                  "Pending",
+                  tr("Pending"),
                 ),
                 React.createElement(
                   "button",
@@ -5950,13 +6173,13 @@
                           whiteSpace: "nowrap",
                         },
                       },
-                      item.docTitle || item.fileName || "Document",
+                      item.docTitle || item.fileName || tr("Document"),
                     ),
                     React.createElement(
                       "button",
                       {
                         type: "button",
-                        title: "Replace file",
+                        title: tr("Replace file"),
                         disabled: replacingPendingIndex === item._index,
                         onClick: () => triggerReplacePendingFile(item._index),
                         style: {
@@ -5982,7 +6205,7 @@
                   React.createElement(
                     "div",
                     { style: { color: "#6B7280" } },
-                    `+${group.items.length - 4} more files`,
+                    tr("+{0} more files", { 0: group.items.length - 4 }),
                   ),
               ),
             );
@@ -6082,8 +6305,8 @@
                       fontFamily: FONT,
                     },
                   },
-                  "Replying to ",
-                  replyingTo.note ? authorName(replyingTo.note) : "Document",
+                  tr("Replying to "),
+                  replyingTo.note ? authorName(replyingTo.note) : tr("Document"),
                 ),
                 React.createElement(
                   "div",
@@ -6102,7 +6325,7 @@
                   },
                   replyingTo.note?.body
                     ? replyingTo.note.body.replace(/<[^>]*>?/gm, "").trim()
-                    : "Attached document",
+                    : tr("Attached document"),
                 ),
               ),
               React.createElement(
@@ -6140,7 +6363,7 @@
                   marginBottom: 6,
                 },
               },
-              "✕ Cancel reply",
+              tr("✕ Cancel reply"),
             ),
           React.createElement(CommentComposer, {
             // List mode keeps this composer permanently mounted (see the
@@ -6200,8 +6423,8 @@
           a.getFullYear() === b.getFullYear() &&
           a.getMonth() === b.getMonth() &&
           a.getDate() === b.getDate();
-        if (sameDay(d, now)) return "Today";
-        if (sameDay(d, yesterday)) return "Yesterday";
+        if (sameDay(d, now)) return tr("Today");
+        if (sameDay(d, yesterday)) return tr("Yesterday");
         return fmt(date, "date");
       };
 
@@ -6257,8 +6480,8 @@
           : targetFile
             ? userName(targetFile.createdBy) ||
               targetFile.createdBy?.email ||
-              "Someone"
-            : "Someone";
+              tr("Someone")
+            : tr("Someone");
         const quotedSnippet = targetNote?.body
           ? getCommentText(stripLeadingQuoteHtml(targetNote.body), false)
               .trim()
@@ -6321,7 +6544,7 @@
           ? authorName(note)
           : firstFile?.createdBy
             ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-            : "System";
+            : tr("System");
         const time = note?.createdAt || firstFile?.createdAt;
         const hasBody = !!note?.body;
         const hasFiles = files.length > 0;
@@ -6452,7 +6675,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Cancel",
+                        tr("Cancel"),
                       ),
                       React.createElement(
                         "span",
@@ -6469,7 +6692,7 @@
                             fontFamily: FONT,
                           },
                         },
-                        "Save changes",
+                        tr("Save changes"),
                       ),
                     ),
                   )
@@ -6530,7 +6753,7 @@
                           React.createElement(
                             "b",
                             { style: { color: "#8c8c8c", marginRight: 4 } },
-                            "Quote:",
+                            tr("Quote:"),
                           ),
                           " ",
                           note.replyText,
@@ -6566,7 +6789,7 @@
                               const folderName =
                                 folderLookup[group.folderId]?.name ||
                                 folderLookup[group.folderId]?.title ||
-                                "Folder";
+                                tr("Folder");
                               return React.createElement(
                                 "div",
                                 { key: groupKey },
@@ -6631,13 +6854,13 @@
                                         flexShrink: 0,
                                       },
                                     },
-                                    `${group.files.length} files`,
+                                    tr("{0} files", { 0: group.files.length }),
                                   ),
                                   React.createElement(
                                     "button",
                                     {
                                       type: "button",
-                                      title: "Download all files in this folder",
+                                      title: tr("Download all files in this folder"),
                                       onClick: (e) => {
                                         e.stopPropagation();
                                         downloadFilesAsZip(
@@ -6759,7 +6982,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Reply",
+                      tr("Reply"),
                     ),
                   isMyItem &&
                     note &&
@@ -6781,7 +7004,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Edit",
+                      tr("Edit"),
                     ),
                   isMyItem &&
                     React.createElement(
@@ -6795,7 +7018,7 @@
                           textUnderlineOffset: "2px",
                         },
                       },
-                      "Delete",
+                      tr("Delete"),
                     ),
                 ),
             ),
@@ -6888,7 +7111,7 @@
                         color: "#bfbfbf",
                       },
                     },
-                    "No comments or documents yet",
+                    tr("No comments or documents yet"),
                   )
                 : visibleFeed.length === 0
                   ? React.createElement(
@@ -6902,7 +7125,7 @@
                           color: "#bfbfbf",
                         },
                       },
-                      "No comments match your search",
+                      tr("No comments match your search"),
                     )
                   : React.createElement("div", null, ...feedBodyNodes),
           ),
@@ -7014,7 +7237,7 @@
       const fileUrl = attachment?.url || attachment?.preview;
       const fullUrl = getFullUrl(fileUrl);
       const rawName =
-        doc.title || attachment?.title || attachment?.filename || "File";
+        doc.title || attachment?.title || attachment?.filename || tr("File");
       const extFromAtt = attachment?.extname
         ? attachment.extname.startsWith(".")
           ? attachment.extname.toLowerCase()
@@ -7027,7 +7250,7 @@
       const baseName = rawName.toLowerCase().endsWith(fileExt)
         ? rawName.slice(0, rawName.length - fileExt.length)
         : rawName;
-      const displayName = (baseName || "File") + fileExt;
+      const displayName = (baseName || tr("File")) + fileExt;
       const isPdf = fileExt === ".pdf";
       const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
       const isOffice = [
@@ -7071,9 +7294,9 @@
                   key: "dl",
                   onClick: () => window.open(fullUrl, "_blank"),
                 },
-                "⬇️ Download",
+                tr("⬇️ Download"),
               ),
-            React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
+            React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
           ].filter(Boolean),
         },
         renderTaskFilePreviewFrame({
@@ -7097,7 +7320,7 @@
             },
             React.createElement(Empty, {
               description:
-                "Cannot preview this file format — please download to open",
+                tr("Cannot preview this file format — please download to open"),
             }),
           ),
       );
@@ -7170,7 +7393,7 @@
         primaryRecord?.name ||
         primaryAtt?.title ||
         primaryAtt?.filename ||
-        (primaryIsFolder ? "Folder" : "Document");
+        (primaryIsFolder ? tr("Folder") : tr("Document"));
       const selectedParentRecord = hasImplicitScope
         ? null
         : parentRecords.find(
@@ -7288,8 +7511,8 @@
                     // Plain category label, not a folder icon — "Knowledge" is
                     // the space/category these folders live under, not a
                     // folder itself. The real folders are rawTree's children.
-                    title: renderLibraryCategoryTitle("Knowledge"),
-                    searchText: "Knowledge",
+                    title: renderLibraryCategoryTitle(tr("Knowledge")),
+                    searchText: tr("Knowledge"),
                     value: "__knowledge_root__",
                     key: "__knowledge_root__",
                     selectable: false,
@@ -7334,18 +7557,18 @@
                 config.label;
         }
         const folder = folders.find((item) => String(extractId(item.id)) === id);
-        return folder?.name || folder?.title || `${config.label} / Folder #${id}`;
+        return folder?.name || folder?.title || tr("{0} / Folder #{1}", { 0: config.label, 1: id });
       };
 
       const handleSubmit = async () => {
         if (targetRecords.length === 0) {
-          message.warning("No file selected");
+          message.warning(tr("No file selected"));
           return;
         }
         const parentRecordId = extractId(selectedRecordId);
         if (isCaseDocument) {
           if (!parentRecordId) {
-            message.warning("Cannot determine the current case");
+            message.warning(tr("Cannot determine the current case"));
             return;
           }
         } else if (isKnowledge) {
@@ -7353,11 +7576,11 @@
           // is a valid target.
         } else if (isProjectInternalDoc) {
           if (!parentRecordId) {
-            message.warning("Cannot determine the current Internal Work item");
+            message.warning(tr("Cannot determine the current Internal Work item"));
             return;
           }
         } else if (!parentRecordId || !selectedParentRecord) {
-          message.warning(`Please select a ${config.label} record`);
+          message.warning(tr("Please select a {0} record", { 0: config.label }));
           return;
         }
         setSaving(true);
@@ -7559,14 +7782,14 @@
 
           message.success(
             targetRecords.length > 1
-              ? `Moved ${targetRecords.length} files to ${config.label}`
-              : `Moved to ${config.label}`,
+              ? tr("Moved {0} files to {1}", { 0: targetRecords.length, 1: config.label })
+              : tr("Moved to {0}", { 0: config.label }),
           );
           onSuccess?.(isBulk ? updatedRecords : updatedRecords[0]);
           onClose?.();
         } catch (e) {
           console.error(`Cannot move record(s) to ${config.label}`, e);
-          message.error(`Cannot move to ${config.label}`);
+          message.error(tr("Cannot move to {0}", { 0: config.label }));
         } finally {
           setSaving(false);
         }
@@ -7577,8 +7800,8 @@
         {
           open,
           title: isBulk
-            ? `Move ${targetRecords.length} files to ${config.label}`
-            : `Move to ${config.label}`,
+            ? tr("Move {0} files to {1}", { 0: targetRecords.length, 1: config.label })
+            : tr("Move to {0}", { 0: config.label }),
           onCancel: saving ? undefined : onClose,
           width: 520,
           destroyOnClose: true,
@@ -7586,7 +7809,7 @@
             React.createElement(
               Button,
               { key: "cancel", onClick: onClose, disabled: saving },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               Button,
@@ -7597,7 +7820,7 @@
                 onClick: handleSubmit,
                 disabled: !selectedRecordId || targetRecords.length === 0,
               },
-              `Move to ${config.label}`,
+              tr("Move to {0}", { 0: config.label }),
             ),
           ],
         },
@@ -7611,7 +7834,7 @@
                 React.createElement(
                   "div",
                   { style: { fontWeight: 700, marginBottom: 4 } },
-                  `${targetRecords.length} files selected`,
+                  tr("{0} files selected", { 0: targetRecords.length }),
                 ),
                 React.createElement(
                   "div",
@@ -7628,7 +7851,7 @@
                   ...targetRecords.map((rec, idx) => {
                     const recAtt = getPrimaryAttachment(rec);
                     const recName =
-                      rec?.title || rec?.name || recAtt?.title || recAtt?.filename || "Document";
+                      rec?.title || rec?.name || recAtt?.title || recAtt?.filename || tr("Document");
                     return React.createElement("div", { key: idx }, `• ${recName}`);
                   }),
                 ),
@@ -7642,7 +7865,7 @@
                   primaryRecordName,
                 ),
                 sourceLabel &&
-                  React.createElement("div", { style: { color: "#6B7280" } }, "Source: ", sourceLabel),
+                  React.createElement("div", { style: { color: "#6B7280" } }, tr("Source: "), sourceLabel),
               ),
           // Category switch — only rendered when "Move to Library" bundles
           // more than one destination for this context (see
@@ -7656,7 +7879,7 @@
               React.createElement(
                 "div",
                 { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-                "Category",
+                tr("Category"),
               ),
               React.createElement(Segmented, {
                 block: true,
@@ -7675,7 +7898,7 @@
               React.createElement(
                 "div",
                 { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-                `Select ${config.label}`,
+                tr("Select {0}", { 0: config.label }),
               ),
               React.createElement(Select, {
                 value: selectedRecordId,
@@ -7683,7 +7906,7 @@
                 showSearch: true,
                 optionFilterProp: "label",
                 style: { width: "100%" },
-                placeholder: `Select ${config.label} record...`,
+                placeholder: tr("Select {0} record...", { 0: config.label }),
                 options: parentRecords.map((item) => ({
                   value: String(getLibraryRecordId(item, destinationType)),
                   label: getLibraryRecordDisplayName(item, destinationType),
@@ -7700,7 +7923,7 @@
             React.createElement(
               "div",
               { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: "#374151" } },
-              `Destination folder`,
+              tr("Destination folder"),
             ),
             React.createElement(TreeSelect, {
               value: targetFolderId === "root" ? undefined : targetFolderId,
@@ -7719,7 +7942,7 @@
               },
               style: { width: "100%" },
               dropdownStyle: { maxHeight: 360, overflow: "auto" },
-              placeholder: `Root level (no subfolder)`,
+              placeholder: tr("Root level (no subfolder)"),
               onChange: (value) => setTargetFolderId(value || "root"),
             }),
           ),
@@ -7736,8 +7959,8 @@
               },
             },
             isBulk
-              ? "Files remain traceable from Task Notes after this move."
-              : `${primaryIsFolder ? "Folder and child documents" : "File"} remains traceable from Task Notes after this move.`,
+              ? tr("Files remain traceable from Task Notes after this move.")
+              : tr("{0} remains traceable from Task Notes after this move.", { 0: primaryIsFolder ? tr("Folder and child documents") : tr("File") }),
           ),
         ),
       );
@@ -8055,7 +8278,7 @@
                       toggleNode(event);
                     }
                   },
-                  title: "Click to expand or collapse",
+                  title: tr("Click to expand or collapse"),
                   style: {
                     display: "inline-flex",
                     alignItems: "center",
@@ -8203,7 +8426,7 @@
         const pathParts = String(relativePath || file?.name || "")
           .split("/")
           .filter(Boolean);
-        let fileName = pathParts[pathParts.length - 1] || file?.name || "File";
+        let fileName = pathParts[pathParts.length - 1] || file?.name || tr("File");
         if (usedNames) {
           fileName = getUniqueFileName(fileName, usedNames);
           usedNames.add(fileName.toLowerCase());
@@ -8261,7 +8484,7 @@
           // headers: { "Content-Type": "multipart/form-data" }, // Để trình duyệt tự set kèm boundary
         });
         const att = uploadRes?.data?.data;
-        if (!att?.id) throw new Error("Upload failed");
+        if (!att?.id) throw new Error(tr("Upload failed"));
         return [{ id: att.id }];
       };
 
@@ -8269,7 +8492,7 @@
         // Reference the existing attachment directly — no re-upload needed
         // This avoids FormData restrictions and is equally valid since the
         // document record created is independent from the library document record.
-        if (!attData?.id) throw new Error("Original attachment not found");
+        if (!attData?.id) throw new Error(tr("Original attachment not found"));
         return [{ id: attData.id }];
       };
 
@@ -8292,7 +8515,7 @@
         const hasDrive = !!values.googleDriveUrl?.trim();
 
         if (!isEdit && !hasFile && !hasDrive) {
-          message.error("Please select a file or enter a Drive URL");
+          message.error(tr("Please select a file or enter a Drive URL"));
           return;
         }
 
@@ -8319,7 +8542,7 @@
             onAddPending({ attIds, fileName, metadata: values });
             handleClose();
           } catch (e) {
-            message.error(`Upload error: ${e.message}`);
+            message.error(tr("Upload error: {0}", { 0: e.message }));
           } finally {
             setUploading(false);
           }
@@ -8364,7 +8587,7 @@
               params: { filterByTk: editDoc.id },
               data: payload,
             });
-            message.success("✅ Updated successfully!");
+            message.success(tr("✅ Updated successfully!"));
           } else {
             await apiReq("documents:create", "POST", {
               ...payload,
@@ -8375,13 +8598,13 @@
               createdAt: now,
               batchId: `upd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             });
-            message.success("✅ Upload successful!");
+            message.success(tr("✅ Upload successful!"));
           }
           invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         }
         setUploading(false);
       };
@@ -8402,19 +8625,19 @@
         const hasDrive = !!values.googleDriveUrl?.trim();
 
         if (isEdit && activeTab === "folder" && hasSelectedUpload) {
-          message.warning("Updating a document only supports replacing 1 file, folder upload is not supported.");
+          message.warning(tr("Updating a document only supports replacing 1 file, folder upload is not supported."));
           return;
         }
         if (isEdit && activeTab === "local" && fileList.length > 1) {
-          message.warning("Updating a document only supports replacing 1 file.");
+          message.warning(tr("Updating a document only supports replacing 1 file."));
           return;
         }
         if (isEdit && isPickingFromLibrary && selectedLibDocs.length > 1) {
-          message.warning("Updating a document only supports replacing 1 file.");
+          message.warning(tr("Updating a document only supports replacing 1 file."));
           return;
         }
         if (!isEdit && !hasUploadFile && !hasDrive) {
-          message.error("Please select a file or enter a Drive URL");
+          message.error(tr("Please select a file or enter a Drive URL"));
           return;
         }
 
@@ -8523,7 +8746,7 @@
               params: { filterByTk: editDoc.id },
               data: payload,
             });
-            message.success("Updated successfully!");
+            message.success(tr("Updated successfully!"));
           } else {
             const batchId = createTaskUploadBatchId("upd");
             const folderIdMap = await createTaskUploadFoldersFromEntries(
@@ -8548,15 +8771,15 @@
             }
             message.success(
               uploadEntries.length > 1
-                ? `Uploaded ${uploadEntries.length} files successfully!`
-                : "Upload successful!",
+                ? tr("Uploaded {0} files successfully!", { 0: uploadEntries.length })
+                : tr("Upload successful!"),
             );
           }
           invalidateTaskLibraryData();
           handleClose();
           if (onSuccess) onSuccess();
         } catch (e) {
-          message.error("Error: " + (e?.message || "Please try again"));
+          message.error(tr("Error: ") + (e?.message || tr("Please try again")));
         } finally {
           setUploading(false);
         }
@@ -8567,10 +8790,10 @@
         Form.Item,
         {
           name: "documentType",
-          label: "Document type",
+          label: tr("Document type"),
           rules: isCompact
             ? []
-            : [{ required: true, message: "Please enter the document type" }],
+            : [{ required: true, message: tr("Please enter the document type") }],
         },
         React.createElement(
           "div",
@@ -8578,7 +8801,7 @@
           React.createElement(Input, {
             allowClear: true,
             maxLength: 150,
-            placeholder: "e.g.: Contract, Minutes...",
+            placeholder: tr("e.g.: Contract, Minutes..."),
             list: "doc-type-list",
             style: inpStyle,
           }),
@@ -8620,7 +8843,7 @@
           title: React.createElement(
             Text,
             { strong: true, style: { fontFamily: FONT, fontSize: 14 } },
-            isEdit ? "✏️ Update document" : "📎 Attach document",
+            isEdit ? tr("✏️ Update document") : tr("📎 Attach document"),
           ),
           footer: [
             React.createElement(
@@ -8631,7 +8854,7 @@
                 disabled: uploading,
                 style: { fontFamily: FONT },
               },
-              "Cancel",
+              tr("Cancel"),
             ),
             React.createElement(
               Button,
@@ -8644,13 +8867,13 @@
               },
               uploading
                 ? isEdit
-                  ? "Updating..."
-                  : "Processing..."
+                  ? tr("Updating...")
+                  : tr("Processing...")
                 : isEdit
-                  ? "Update"
+                  ? tr("Update")
                   : onAddPending
-                    ? "Submit"
-                    : "Upload",
+                    ? tr("Submit")
+                    : tr("Upload"),
             ),
           ],
         },
@@ -8670,7 +8893,7 @@
                 fontFamily: FONT,
               },
             },
-            `👤 ${isEdit ? "Updated" : "Attached"} by: `,
+            isEdit ? tr("👤 Updated by: ") : tr("👤 Attached by: "),
             React.createElement(
               "strong",
               null,
@@ -8680,7 +8903,7 @@
         React.createElement(
           Form,
           { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
-          !isCompact && divider("Identification"),
+          !isCompact && divider(tr("Identification")),
           !isCompact &&
             React.createElement(
                 "div",
@@ -8688,11 +8911,11 @@
                 documentTypeField,
                 React.createElement(
                   Form.Item,
-                  { name: "title", label: "Document name" },
+                  { name: "title", label: tr("Document name") },
                   React.createElement(Input, {
                     allowClear: true,
                     placeholder:
-                      "Enter the full document name (uses the file name if left blank)",
+                      tr("Enter the full document name (uses the file name if left blank)"),
                     style: inpStyle,
                   }),
                 ),
@@ -8703,16 +8926,16 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "documentCode", label: "Reference number" },
+                { name: "documentCode", label: tr("Reference number") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "e.g.: 123/2024/HĐ",
+                  placeholder: tr("VD: 123/2024/HĐ"),
                   style: inpStyle,
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { name: "openingDate", label: "Issue date" },
+                { name: "openingDate", label: tr("Issue date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
@@ -8725,7 +8948,7 @@
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "signedAt", label: "Signed date" },
+                { name: "signedAt", label: tr("Signed date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
@@ -8733,33 +8956,33 @@
               ),
               React.createElement(
                 Form.Item,
-                { name: "effectiveAt", label: "Effective date" },
+                { name: "effectiveAt", label: tr("Effective date") },
                 React.createElement(Input, {
                   type: "date",
                   style: { width: "100%", ...inpStyle },
                 }),
               ),
             ),
-          !isCompact && divider("Related parties"),
+          !isCompact && divider(tr("Related parties")),
           !isCompact &&
             React.createElement(
               "div",
               { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
               React.createElement(
                 Form.Item,
-                { name: "senderName", label: "Sender" },
+                { name: "senderName", label: tr("Sender") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "Name of sending person / organization",
+                  placeholder: tr("Name of sending person / organization"),
                   style: inpStyle,
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { name: "recipientName", label: "Recipient" },
+                { name: "recipientName", label: tr("Recipient") },
                 React.createElement(Input, {
                   allowClear: true,
-                  placeholder: "Name of receiving person / organization",
+                  placeholder: tr("Name of receiving person / organization"),
                   style: inpStyle,
                 }),
               ),
@@ -8768,14 +8991,14 @@
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "description", label: "Content summary" },
+              { name: "description", label: tr("Content summary") },
               React.createElement(Input.TextArea, {
                 rows: 3,
                 allowClear: true,
-                placeholder: "Briefly describe the main content...",
+                placeholder: tr("Briefly describe the main content..."),
               }),
             ),
-          divider("Attached file"),
+          divider(tr("Attached file")),
           React.createElement(ctx.antd.Tabs, {
             // Short labels + tighter gutter so all tabs fit the modal width
             // without antd collapsing the last ones into a "..." overflow menu.
@@ -8790,11 +9013,11 @@
             items: [
               {
                 key: "local",
-                label: renderTabLabel("Upload files", "Upload files from your computer"),
+                label: renderTabLabel(tr("Upload files"), tr("Upload files from your computer")),
                 children: React.createElement(
                   Form.Item,
                   {
-                    label: isEdit ? "Replace with new file (optional)" : "Choose file",
+                    label: isEdit ? tr("Replace with new file (optional)") : tr("Choose file"),
                     style: { marginBottom: 0 },
                   },
                   React.createElement(
@@ -8836,11 +9059,11 @@
                           fontFamily: FONT,
                         },
                       },
-                      "Drag & drop or ",
+                      tr("Drag & drop or "),
                       React.createElement(
                         "span",
                         { style: { color: "#1890ff" } },
-                        "click to select",
+                        tr("click to select"),
                       ),
                     ),
                   ),
@@ -8848,11 +9071,11 @@
               },
               !isEdit && {
                 key: "folder",
-                label: renderTabLabel("Upload folder", "Upload a whole folder, keeping its structure"),
+                label: renderTabLabel(tr("Upload folder"), tr("Upload a whole folder, keeping its structure")),
                 children: React.createElement(
                   Form.Item,
                   {
-                    label: "Choose folder",
+                    label: tr("Choose folder"),
                     style: { marginBottom: 0 },
                   },
                   React.createElement(
@@ -8881,35 +9104,35 @@
                           fontFamily: FONT,
                         },
                       },
-                      "Choose a folder to preserve the folder structure when rendered in Task Notes",
+                      tr("Choose a folder to preserve the folder structure when rendered in Task Notes"),
                     ),
                   ),
                 ),
               },
               showInternalDocsTab && {
                 key: "internalDocs",
-                label: renderTabLabel("Internal Docs", "Choose from this Internal Work's documents"),
+                label: renderTabLabel(tr("Internal Docs"), tr("Choose from this Internal Work's documents")),
                 children: renderLibraryPicker({
                   tabKey: "internalDocs",
-                  loadingText: "Loading Internal Work documents...",
-                  placeholder: "Search this Internal Work's documents...",
-                  notFoundContent: "No accessible documents in this Internal Work",
+                  loadingText: tr("Loading Internal Work documents..."),
+                  placeholder: tr("Search this Internal Work's documents..."),
+                  notFoundContent: tr("No accessible documents in this Internal Work"),
                 }),
               },
               {
                 key: "library",
                 label: isProjectInternalContext
-                  ? renderTabLabel("Library", "Choose from Knowledge or My Documents")
-                  : renderTabLabel("Case Docs", "Choose from this case, linked cases or reference material"),
+                  ? renderTabLabel(tr("Library"), tr("Choose from Knowledge or My Documents"))
+                  : renderTabLabel(tr("Case Docs"), tr("Choose from this case, linked cases or reference material")),
                 children: renderLibraryPicker({
                   tabKey: "library",
-                  loadingText: "Loading library...",
+                  loadingText: tr("Loading library..."),
                   placeholder: isProjectInternalContext
-                    ? "Search Knowledge or My Documents..."
-                    : "Search case, linked cases or references...",
+                    ? tr("Search Knowledge or My Documents...")
+                    : tr("Search case, linked cases or references..."),
                   notFoundContent: isProjectInternalContext
-                    ? "No accessible Knowledge or My Documents files found"
-                    : "No accessible documents found",
+                    ? tr("No accessible Knowledge or My Documents files found")
+                    : tr("No accessible documents found"),
                 }),
               },
             ].filter(Boolean),
@@ -8917,22 +9140,22 @@
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "googleDriveUrl", label: "Google Drive URL (optional)" },
+              { name: "googleDriveUrl", label: tr("Google Drive URL (optional)") },
               React.createElement(Input, {
                 placeholder: "https://docs.google.com/...",
                 allowClear: true,
                 style: inpStyle,
               }),
             ),
-          !isCompact && divider("Note"),
+          !isCompact && divider(tr("Note")),
           !isCompact &&
             React.createElement(
               Form.Item,
-              { name: "note", label: "Note" },
+              { name: "note", label: tr("Note") },
               React.createElement(Input.TextArea, {
                 rows: 2,
                 allowClear: true,
-                placeholder: "Enter a note...",
+                placeholder: tr("Enter a note..."),
                 style: inpStyle,
               }),
             ),
@@ -9025,7 +9248,7 @@
         return React.createElement(
           Text,
           { type: "secondary", style: { padding: 16, display: "block", fontFamily: FONT } },
-          "Case not found for this block.",
+          tr("Case not found for this block."),
         );
 
       if (loadingContext)
@@ -9068,7 +9291,7 @@
               alignItems: "center",
             },
           },
-          `Comments & Reports (${commentCount})`,
+          tr("Comments & Reports ({0})", { 0: commentCount }),
           React.createElement(
             "div",
             {
@@ -9082,7 +9305,7 @@
             React.createElement(Input, {
               size: "small",
               allowClear: true,
-              placeholder: "Search comments...",
+              placeholder: tr("Search comments..."),
               style: { width: 160 },
               value: commentSearchText,
               onChange: (e) => setCommentSearchText(e.target.value),
@@ -9092,8 +9315,8 @@
               value: commentViewMode,
               onChange: (value) => setCommentViewMode(value),
               options: [
-                { label: "List", value: "list" },
-                { label: "Tree", value: "tree" },
+                { label: tr("List"), value: "list" },
+                { label: tr("Tree"), value: "tree" },
               ],
             }),
             React.createElement(Segmented, {
@@ -9101,8 +9324,8 @@
               value: commentSortOrder,
               onChange: (value) => setCommentSortOrder(value),
               options: [
-                { label: "Newest", value: "newest" },
-                { label: "Oldest", value: "oldest" },
+                { label: tr("Newest"), value: "newest" },
+                { label: tr("Oldest"), value: "oldest" },
               ],
             }),
             React.createElement(ReloadButton, {

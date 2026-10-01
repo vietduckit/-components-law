@@ -1,5 +1,10 @@
 # SRS — Logic nghiệp vụ Multi-Currency (Case / Contract / Quotation)
 
+> **2026-09-29:** who computes line and document money (FR-3, FR-4) and the real
+> `exchangeRates` shape are superseded by
+> `docs/superpowers/specs/2026-09-29-money-flow-unification-design.md`: the database
+> computes every stored amount; the JS only previews with the same rules. INV-1 stands.
+
 ## 1. Mục đích & Phạm vi
 
 Ba module Case (Hồ sơ), Contract (Hợp đồng), Quotation (Báo giá) đều có bảng dịch vụ cho phép **mỗi dòng dịch vụ mang một loại tiền tệ riêng**. Mô hình hiện tại giữ currency ở cấp dòng dịch vụ, nhưng mọi số tiền tổng hợp được lưu vào DB đều được chuẩn hóa về VND.

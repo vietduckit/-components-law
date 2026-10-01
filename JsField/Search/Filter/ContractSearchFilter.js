@@ -88,6 +88,47 @@
 // ===================================================================
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Status": "Trạng thái",
+  "Draft": "Nháp",
+  "Negotiation": "Đang đàm phán",
+  "Pending": "Chờ gửi",
+  "Approved": "Đã duyệt",
+  "Rejected": "Bị từ chối",
+  "Execution": "Đang thực hiện",
+  "Closed": "Đã đóng",
+  "Expired": "Hết hạn",
+  "Contract Type": "Loại hợp đồng",
+  "By case": "Theo hồ sơ",
+  "Retainer": "Retainer",
+  "Requires Approval": "Cần phê duyệt",
+  "Yes": "Có",
+  "No": "Không",
+  "Internal Company": "Công ty nội bộ",
+  "All": "Tất cả",
+  "Customer": "Khách hàng",
+  "Person Responsible": "Người phụ trách",
+  "Approved By": "Người phê duyệt",
+  "Search": "Tìm kiếm",
+  "Search by contract code, name, description...": "Tìm theo mã hợp đồng, tên, mô tả...",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
   targetBlockUid: "",
   tableName: "contracts",
@@ -98,16 +139,16 @@ const CONFIG = {
       type: "status",
       key: "status",
       field: "status",
-      label: "Status",
+      label: tr("Status"),
       options: [
-        { value: "draft", label: "Draft" },
-        { value: "negotiation", label: "Negotiation" },
-        { value: "pending", label: "Pending" },
-        { value: "approval", label: "Approved" },
-        { value: "rejected", label: "Rejected" },
-        { value: "execution", label: "Execution" },
-        { value: "closed", label: "Closed" },
-        { value: "expired", label: "Expired" },
+        { value: "draft", label: tr("Draft") },
+        { value: "negotiation", label: tr("Negotiation") },
+        { value: "pending", label: tr("Pending") },
+        { value: "approval", label: tr("Approved") },
+        { value: "rejected", label: tr("Rejected") },
+        { value: "execution", label: tr("Execution") },
+        { value: "closed", label: tr("Closed") },
+        { value: "expired", label: tr("Expired") },
       ],
       showCounts: true,
     },
@@ -115,10 +156,10 @@ const CONFIG = {
       type: "status",
       key: "contractType",
       field: "contractType",
-      label: "Contract Type",
+      label: tr("Contract Type"),
       options: [
-        { value: "byCase", label: "By case" },
-        { value: "retainer", label: "Retainer" },
+        { value: "byCase", label: tr("By case") },
+        { value: "retainer", label: tr("Retainer") },
       ],
       showCounts: true,
     },
@@ -126,10 +167,10 @@ const CONFIG = {
       type: "status",
       key: "isRequiredApproval",
       field: "isRequiredApproval",
-      label: "Requires Approval",
+      label: tr("Requires Approval"),
       options: [
-        { value: true, label: "Yes" },
-        { value: false, label: "No" },
+        { value: true, label: tr("Yes") },
+        { value: false, label: tr("No") },
       ],
       showCounts: true,
     },
@@ -137,8 +178,8 @@ const CONFIG = {
       type: "relation",
       key: "company",
       field: "internalCompanyId",
-      label: "Internal Company",
-      placeholder: "All",
+      label: tr("Internal Company"),
+      placeholder: tr("All"),
       source: {
         collection: "internalCompany",
         labelFields: ["shortName"],
@@ -149,8 +190,8 @@ const CONFIG = {
       type: "relation",
       key: "customer",
       field: "customerId",
-      label: "Customer",
-      placeholder: "All",
+      label: tr("Customer"),
+      placeholder: tr("All"),
       source: {
         collection: "customers",
         labelFields: ["shortName", "customerName"],
@@ -169,8 +210,8 @@ const CONFIG = {
       type: "relation",
       key: "lawyer",
       field: "lawyerId",
-      label: "Person Responsible",
-      placeholder: "All",
+      label: tr("Person Responsible"),
+      placeholder: tr("All"),
       source: {
         collection: "lawyers",
         labelFields: ["lawyerName"],
@@ -181,8 +222,8 @@ const CONFIG = {
       type: "relation",
       key: "approvedBy",
       field: "approvedById",
-      label: "Approved By",
-      placeholder: "All",
+      label: tr("Approved By"),
+      placeholder: tr("All"),
       source: {
         collection: "lawyers",
         labelFields: ["lawyerName"],
@@ -192,9 +233,9 @@ const CONFIG = {
     {
       type: "search",
       key: "search",
-      label: "Search",
+      label: tr("Search"),
       fields: ["contractCode", "contractName", "description"],
-      placeholder: "Search by contract code, name, description...",
+      placeholder: tr("Search by contract code, name, description..."),
     },
   ],
 
@@ -304,7 +345,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: tr("All") }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -703,7 +744,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'All',
+        placeholder: filterDef.placeholder || tr("All"),
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -721,7 +762,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Search...',
+        placeholder: filterDef.placeholder || tr("Search..."),
         allowClear: true,
         enterButton: true,
         size: 'small',

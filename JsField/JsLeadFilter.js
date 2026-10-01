@@ -1,3 +1,41 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Overdue": "Quá hạn",
+  "Search": "Tìm kiếm",
+  "Search by full name, short name, source...": "Tìm theo fullName, shortName, source...",
+  "Expand": "Mở rộng",
+  "Show less": "Thu gọn",
+  "Company": "Công ty",
+  "Assignees": "Người phụ trách",
+  "All": "Tất cả",
+  "Referral": "Giới thiệu",
+  "Partner": "Đối tác",
+  "Lawyer": "Luật sư",
+  "Staff": "Nhân viên",
+  "Nearly Overdue": "Sắp quá hạn",
+  "On Time": "Đúng hạn",
+  "Not Started": "Chưa bắt đầu",
+  "No Deadline": "Không có hạn",
+  "Status:": "Trạng thái:",
+  "Company:": "Công ty:",
+  "Assignees:": "Người phụ trách:",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
     targetBlockUid: 'lkefg2nclcb',
     viewMode: 'all',
@@ -11,36 +49,36 @@ const CONFIG = {
     userFilterKey: 'lead-user-filter',
     overdueFilter: {
         enable: false,
-        label: 'Overdue',
+        label: tr("Overdue"),
         filterKey: 'lead-overdue-filter',
     },
     searchFilter: {
         enable: true,
-        label: 'Search',
-        placeholder: 'Tìm theo fullName, shortName, source...',
+        label: tr("Search"),
+        placeholder: tr("Search by full name, short name, source..."),
         filterKey: 'lead-search-filter',
     },
     advancedPanel: {
         enable: true,
         defaultExpanded: true,
-        expandLabel: 'Mở rộng',
-        collapseLabel: 'Thu gọn',
+        expandLabel: tr("Expand"),
+        collapseLabel: tr("Show less"),
     },
     extraFilter: {},
     companyFilter: {
         enable: true,
         fieldName: 'internalCompanyId',
-        placeholder: 'Công ty',
+        placeholder: tr("Company"),
         dropdownWidth: 150,
         filterKey: 'lead-company-filter',
     },
     userFilter: {
         enable: true,
-        placeholder: 'Assignees',
+        placeholder: tr("Assignees"),
         dropdownWidth: 150,
         userFields: [],
         lawyerFields: ['lawyerId'],
-        assigneeRelationField: 'Assignees',
+        assigneeRelationField: tr("Assignees"),
         assigneeRelationTargetField: 'userId',
         assigneeRelationValueSource: 'user',
         excludeUserIds: [1, 53],
@@ -50,8 +88,8 @@ const CONFIG = {
         filterKey: 'lead-current-user-scope-filter',
         userFields: ['createdById'],
         lawyerFields: [],
-        assigneeRelationField: 'Assignees',
-        assigneeRelationFields: ['Assignees', 'assignees'],
+        assigneeRelationField: tr("Assignees"),
+        assigneeRelationFields: [tr("Assignees"), 'assignees'],
         assigneeRelationTargetField: 'userId',
         assigneeRelationValueSource: 'user',
         emptyWhenUnknown: true,
@@ -336,26 +374,26 @@ const getUserFilter = (userId, lawyerIds = []) => {
 };
 
 const STATUS_ITEMS = [
-    { key: 'all', label: 'All' },
+    { key: 'all', label: tr("All") },
     { key: 'googleAds', label: 'Google Ads', color: '#8c8c8c' }, 
     { key: 'facebookAds', label: 'Facebook Ads', color: '#fa8c16' },
     { key: 'zalo', label: 'Zalo', color: '#52c41a' }, 
-    { key: 'website', label: 'Referral', color: '#52c41a' }, 
+    { key: 'website', label: tr("Referral"), color: '#52c41a' }, 
     { key: 'referral', label: 'Website', color: '#ff4d4f' }, 
     { key: 'hotline', label: 'Hotline', color: '#52c41a' }, 
-    { key: 'partner', label: 'Partner', color: '#52c41a' }, 
-    { key: 'lawyer', label: 'Lawyer', color: '#52c41a' }, 
-    { key: 'staff', label: 'Staff', color: '#52c41a' },
+    { key: 'partner', label: tr("Partner"), color: '#52c41a' }, 
+    { key: 'lawyer', label: tr("Lawyer"), color: '#52c41a' }, 
+    { key: 'staff', label: tr("Staff"), color: '#52c41a' },
 ];
 
 
 const OVERDUE_ITEMS = [
-    { key: 'all', label: 'All' },
-    { key: 'overdue', label: 'Overdue' },
-    { key: 'nearlyOverdue', label: 'Nearly Overdue' },
-    { key: 'onTime', label: 'On Time' },
-    { key: 'notStarted', label: 'Not Started' },
-    { key: 'noDeadline', label: 'No Deadline' }
+    { key: 'all', label: tr("All") },
+    { key: 'overdue', label: tr("Overdue") },
+    { key: 'nearlyOverdue', label: tr("Nearly Overdue") },
+    { key: 'onTime', label: tr("On Time") },
+    { key: 'notStarted', label: tr("Not Started") },
+    { key: 'noDeadline', label: tr("No Deadline") }
 ];
 
 const isOverdueFilterEnabled = () => CONFIG.overdueFilter?.enable !== false;
@@ -776,7 +814,7 @@ const UnifiedFilterDropdown = () => {
 
             {/* Status */}
             <div style={wrapStyle}>
-                <Text style={labelStyle}>Status:</Text>
+                <Text style={labelStyle}>{tr("Status:")}</Text>
                 <Select value={activeStatus} onChange={handleStatusChange} style={{ width: 150 }} size="small"
                     options={STATUS_ITEMS.map(s => ({ value: s.key, label: `${s.label} (${displayStatusCounts[s.key] ?? 0})` }))} />
             </div>
@@ -784,7 +822,7 @@ const UnifiedFilterDropdown = () => {
             {/* Overdue */}
             {overdueEnabled && (
                 <div style={wrapStyle}>
-                    <Text style={labelStyle}>{CONFIG.overdueFilter?.label || 'Overdue'}:</Text>
+                    <Text style={labelStyle}>{CONFIG.overdueFilter?.label || tr("Overdue")}:</Text>
                     <Select value={activeOverdue} onChange={handleOverdueChange} style={{ width: 150 }} size="small"
                         options={OVERDUE_ITEMS.map(s => ({ value: s.key, label: `${s.label} (${overdueCounts[s.key] ?? 0})` }))} />
                 </div>
@@ -792,8 +830,8 @@ const UnifiedFilterDropdown = () => {
             {/* Company */}
             {showAdvancedFilters && CONFIG.companyFilter.enable && (
                 <div style={wrapStyle}>
-                    <Text style={labelStyle}>Company:</Text>
-                    <Select placeholder="All" allowClear value={activeCompany} onChange={handleCompanyChange}
+                    <Text style={labelStyle}>{tr("Company:")}</Text>
+                    <Select placeholder={tr("All")} allowClear value={activeCompany} onChange={handleCompanyChange}
                         style={{ width: CONFIG.companyFilter.dropdownWidth }} size="small"
                         options={companies.map(c => ({ value: c.id, label: c.shortName || c.name || `#${c.id}` }))} />
                 </div>
@@ -802,8 +840,8 @@ const UnifiedFilterDropdown = () => {
             {/* User */}
             {showAdvancedFilters && CONFIG.userFilter.enable && (
                 <div style={wrapStyle}>
-                    <Text style={labelStyle}>Assignees:</Text>
-                    <Select placeholder="All" allowClear showSearch value={activeUser} onChange={handleUserChange}
+                    <Text style={labelStyle}>{tr("Assignees:")}</Text>
+                    <Select placeholder={tr("All")} allowClear showSearch value={activeUser} onChange={handleUserChange}
                         style={{ width: CONFIG.userFilter.dropdownWidth }} size="small"
                         optionFilterProp="label" options={users} />
                 </div>
@@ -811,9 +849,9 @@ const UnifiedFilterDropdown = () => {
             {/* Search */}
             {showAdvancedFilters && searchEnabled && (
                 <div style={{ ...wrapStyle, flex: 1, minWidth: 200 }}>
-                    <Text style={labelStyle}>{CONFIG.searchFilter?.label || 'Search'}:</Text>
+                    <Text style={labelStyle}>{CONFIG.searchFilter?.label || tr("Search")}:</Text>
                     <Input.Search
-                        placeholder={CONFIG.searchFilter?.placeholder || 'Tìm kiếm...'}
+                        placeholder={CONFIG.searchFilter?.placeholder || tr("Search...")}
                         allowClear enterButton size="small"
                         onSearch={handleSearch}
                         style={{ flex: 1, maxWidth: 380 }}

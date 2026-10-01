@@ -2804,7 +2804,7 @@ const CalendarWorkspaceDemo = () => {
       return;
     }
 
-    if (window.confirm(`${title}\n${content}`)) confirmExit();
+    if (((message) => { try { return window.confirm(message); } catch { return false; } })(`${title}\n${content}`)) confirmExit();
     else keepEditing();
   };
 

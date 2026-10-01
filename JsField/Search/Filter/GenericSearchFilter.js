@@ -22,6 +22,26 @@
 // ===================================================================
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "All": "Tất cả",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
   targetBlockUid: '',   // UID of the table/kanban/list block to filter
   tableName: '',          // collection name, e.g. "cases", "contracts"
@@ -174,7 +194,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'Tất cả' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: tr("All") }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -573,7 +593,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'Tất cả',
+        placeholder: filterDef.placeholder || tr("All"),
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -591,7 +611,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Tìm kiếm...',
+        placeholder: filterDef.placeholder || tr("Search..."),
         allowClear: true,
         enterButton: true,
         size: 'small',

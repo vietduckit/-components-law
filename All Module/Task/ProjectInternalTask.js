@@ -1,6 +1,133 @@
 // ============================================================
 // §1 CONFIG — không import, không side-effect
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Not Start": "Chưa bắt đầu",
+  "In Progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "Refresh": "Làm mới",
+  "Approval required": "Cần duyệt",
+  "🔒 Only managers or the assignee can change the status": "🔒 Chỉ quản lý hoặc người phụ trách mới đổi được trạng thái",
+  "No edit permission": "Không có quyền chỉnh sửa",
+  "Task is blocked by a previous task": "Công việc đang bị chặn bởi công việc trước",
+  "STT": "No.",
+  "Title": "Tiêu đề",
+  "Updated date": "Ngày cập nhật",
+  "Assignee": "Người phụ trách",
+  "Description": "Mô tả",
+  "Start": "Bắt đầu",
+  "Deadline": "Hạn",
+  "Pending Issue": "Vấn đề tồn đọng",
+  "Next Step": "Bước tiếp theo",
+  "Documents": "Tài liệu",
+  "{0} ₫/hr": "{0} ₫/giờ",
+  "Search lawyer...": "Tìm luật sư...",
+  "Unassign": "Bỏ phân công",
+  "Other": "Khác",
+  "Assign lawyer": "Phân công luật sư",
+  "No Group": "Chưa có nhóm",
+  "Search tasks by name...": "Tìm công việc theo tên...",
+  "No tasks found": "Không tìm thấy công việc nào",
+  "Select a prerequisite task...": "Chọn công việc tiên quyết...",
+  "File": "Tệp",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "Cannot preview this file type — please download to open": "Không thể xem trước loại tệp này — vui lòng tải về để mở",
+  "N/A": "N/A",
+  "Assignee: {0}": "Người phụ trách: {0}",
+  "Not assigned": "Chưa phân công",
+  "Status: {0}": "Trạng thái: {0}",
+  "Please enter a task name": "Vui lòng nhập tên công việc",
+  "Please select a start date": "Vui lòng chọn ngày bắt đầu",
+  "✅ Task created": "✅ Đã tạo công việc",
+  "Creation failed": "Tạo thất bại",
+  "📋 New Task": "📋 Công việc mới",
+  "Title *": "Tiêu đề *",
+  "Enter title...": "Nhập tiêu đề...",
+  "👨‍⚖️ Assignee": "👨‍⚖️ Người phụ trách",
+  "-- Assign --": "-- Phân công --",
+  "🗂 Task Group (Section)": "🗂 Nhóm công việc (Section)",
+  "Select or enter a group name...": "Chọn hoặc nhập tên nhóm...",
+  "📅 Start date *": "📅 Ngày bắt đầu *",
+  "🏁 Deadline": "🏁 Hạn",
+  "⏱ Estimated duration (hours)": "⏱ Thời lượng dự kiến (giờ)",
+  "⛓ Pending Issue (optional)": "⛓ Vấn đề tồn đọng (tùy chọn)",
+  "✓ Done": "✓ Xong",
+  "⏸ New task will start as \"Waiting\"": "⏸ Công việc mới sẽ bắt đầu ở trạng thái \"Chờ\"",
+  "⚡ Priority": "⚡ Ưu tiên",
+  "🔐 Approval required": "🔐 Cần duyệt",
+  "🔐 On — approval required": "🔐 Bật — cần duyệt",
+  "Require approval before marking as done": "Cần duyệt trước khi đánh dấu hoàn thành",
+  "👤 Approver": "👤 Người duyệt",
+  "Select approver...": "Chọn người duyệt...",
+  "📝 Description": "📝 Mô tả",
+  "Description...": "Mô tả...",
+  "👣 Next Step": "👣 Bước tiếp theo",
+  "Next step after completion...": "Bước tiếp theo sau khi hoàn thành...",
+  "Cancel": "Hủy",
+  "Saving...": "Đang lưu...",
+  "Create task": "Tạo công việc",
+  "Please enter a subtask name": "Vui lòng nhập tên công việc con",
+  "✅ Subtask created": "✅ Đã tạo công việc con",
+  "📋 New Subtask": "📋 Công việc con mới",
+  "📝 Detailed Description": "📝 Mô tả chi tiết",
+  "Describe the subtask in detail...": "Mô tả chi tiết công việc con...",
+  "Create subtask": "Tạo công việc con",
+  "📎 {0} documents": "📎 {0} tài liệu",
+  "Click to preview": "Bấm để xem trước",
+  "This format doesn't support preview": "Định dạng này không hỗ trợ xem trước",
+  "Download": "Tải về",
+  "Delete task": "Xóa công việc",
+  "{0} documents — click to view": "{0} tài liệu — bấm để xem",
+  "No documents yet — open details to upload": "Chưa có tài liệu — mở chi tiết để tải lên",
+  "Delete subtask": "Xóa công việc con",
+  "Rename task group": "Đổi tên nhóm công việc",
+  "{0}/{1} done": "{0}/{1} hoàn thành",
+  "Please complete \"{0}\" first": "Vui lòng hoàn thành \"{0}\" trước",
+  "Backend error: unable to update status": "Lỗi máy chủ: không cập nhật được trạng thái",
+  "Assigned successfully": "Đã phân công",
+  "Assignment failed": "Phân công thất bại",
+  "Confirm delete {0}": "Xác nhận xóa {0}",
+  "Are you sure you want to delete \"{0}\"? This action cannot be undone.": "Bạn có chắc chắn muốn xóa \"{0}\"? Thao tác này không thể hoàn tác.",
+  "Delete permanently": "Xóa vĩnh viễn",
+  "✅ Deleted successfully": "✅ Đã xóa thành công",
+  "Delete failed": "Xóa thất bại",
+  "Group name cannot be empty": "Tên nhóm không được để trống",
+  "Renamed group from \"{0}\" to \"{1}\"": "Đã đổi tên nhóm từ \"{0}\" thành \"{1}\"",
+  "Failed to rename group": "Đổi tên nhóm thất bại",
+  "Task detail": "Chi tiết công việc",
+  "⚠️ Project not found": "⚠️ Không tìm thấy dự án",
+  "＋ New Task": "＋ Công việc mới",
+  "Loading...": "Đang tải...",
+  "📭 No tasks yet": "📭 Chưa có công việc nào",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -99,43 +226,43 @@ const DEEP_LINK_CONFIG = {
 
 const STATUS_CFG = {
   toDo: {
-    label: "Not Start",
+    label: tr("Not Start"),
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
   },
   inProgress: {
-    label: "In Progress",
+    label: tr("In Progress"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   blocked: {
-    label: "Blocked",
+    label: tr("Blocked"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
   },
   pending: {
-    label: "Pending approval",
+    label: tr("Pending approval"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   approval: {
-    label: "Approved",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   done: {
-    label: "Done",
+    label: tr("Done"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -161,9 +288,9 @@ const STATUS_KEYS_WITHOUT_APPROVAL = [
 const getStatusKeys = (isRequiredApproval) =>
   isRequiredApproval ? STATUS_KEYS_WITH_APPROVAL : STATUS_KEYS_WITHOUT_APPROVAL;
 const PRIORITY_CFG = {
-  high: { label: "High", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Medium", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Low", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 
 const LAWYER_COLORS = [
@@ -177,10 +304,10 @@ const LAWYER_COLORS = [
   "#003a8c",
 ];
 const LAWYER_TYPE_CFG = {
-  partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
-  lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
-  associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
-  suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
+  partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+  lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+  associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+  suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
 };
 
 const FILE_EXT_ICON = {
@@ -479,7 +606,7 @@ const resolveStatus = (newStatus, item) => {
 // §5 ATOMS
 // ============================================================
 
-const ReloadButton = ({ onReload, loading, text = "Refresh", style = {} }) => {
+const ReloadButton = ({ onReload, loading, text = tr("Refresh"), style = {} }) => {
   return React.createElement(
     Button,
     {
@@ -559,7 +686,7 @@ const ApprovalIcon = ({ isRequiredApproval }) => {
         alignItems: "center",
         justifyContent: "center",
       },
-      title: "Approval required",
+      title: tr("Approval required"),
     },
     React.createElement("span", { style: { fontSize: 12 } }, "🔐"),
   );
@@ -587,16 +714,16 @@ const StatusBtn = ({
           // 🌟 NẾU BỊ CHẶN QUYỀN SẼ BÁO LỖI NGAY TẠI ĐÂY
           if (readOnly) {
             message.warning(
-              "🔒 Only managers or the assignee can change the status",
+              tr("🔒 Only managers or the assignee can change the status"),
             );
             return;
           }
           setOpen((v) => !v);
         },
         title: readOnly
-          ? "No edit permission"
+          ? tr("No edit permission")
           : isBlocked
-            ? "Task is blocked by a previous task"
+            ? tr("Task is blocked by a previous task")
             : cfg.label,
         style: {
           width: size,
@@ -725,54 +852,54 @@ const ColHeader = () =>
     React.createElement(
       "div",
       { style: { width: COL.stt, flexShrink: 0, textAlign: "center" } },
-      "STT",
+      tr("STT"),
     ),
     React.createElement("div", { style: { width: COL.toggle, flexShrink: 0 } }),
     React.createElement("div", { style: { width: 22, flexShrink: 0 } }),
     React.createElement(
       "div",
       { style: { flex: 1, padding: "0 10px", minWidth: 120 } },
-      "Title",
+      tr("Title"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.updatedAt, textAlign: "center", flexShrink: 0 } },
-      "Updated date",
+      tr("Updated date"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.assign, textAlign: "center", flexShrink: 0 } },
-      "Assignee",
+      tr("Assignee"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.desc, flexShrink: 0, padding: "0 8px" } },
-      "Description",
+      tr("Description"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.start, textAlign: "center", flexShrink: 0 } },
-      "Start",
+      tr("Start"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.deadline, textAlign: "center", flexShrink: 0 } },
-      "Deadline",
+      tr("Deadline"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.pendingIssue, flexShrink: 0, padding: "0 8px" } },
-      "Pending Issue",
+      tr("Pending Issue"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.nextStep, flexShrink: 0, padding: "0 8px" } },
-      "Next Step",
+      tr("Next Step"),
     ),
     React.createElement(
       "div",
       { style: { width: COL.files, textAlign: "center", flexShrink: 0 } },
-      "Documents",
+      tr("Documents"),
     ),
     React.createElement("div", {
       style: { width: COL.approval, flexShrink: 0 },
@@ -906,7 +1033,7 @@ const LawyerPicker = ({
           React.createElement(
             "div",
             { style: { fontSize: 12, fontFamily: FONT, color: "#8c8c8c" } },
-            `${Number(l.unitPrice).toLocaleString("vi-VN")} ₫/hr`,
+            tr("{0} ₫/hr", { 0: Number(l.unitPrice).toLocaleString("vi-VN") }),
           ),
       ),
     );
@@ -921,7 +1048,7 @@ const LawyerPicker = ({
         autoFocus: true,
         value: q,
         onChange: (e) => setQ(e.target.value),
-        placeholder: "Search lawyer...",
+        placeholder: tr("Search lawyer..."),
         style: {
           width: "100%",
           border: "1px solid #e8e8e8",
@@ -963,7 +1090,7 @@ const LawyerPicker = ({
               (e.currentTarget.style.background = "transparent"),
           },
           React.createElement("span", null, "×"),
-          React.createElement("span", null, "Unassign"),
+          React.createElement("span", null, tr("Unassign")),
         ),
       ...grouped.map(({ type, cfg, items }) =>
         React.createElement(
@@ -1009,7 +1136,7 @@ const LawyerPicker = ({
                 borderTop: "1px solid #f0f0f0",
               },
             },
-            "Other",
+            tr("Other"),
           ),
           ...others.map(renderLawyerRow),
         ),
@@ -1079,7 +1206,7 @@ const LawyerPicker = ({
           : React.createElement(
               "div",
               {
-                title: "Assign lawyer",
+                title: tr("Assign lawyer"),
                 style: {
                   width: size,
                   height: size,
@@ -1145,7 +1272,7 @@ const TaskPicker = ({
     const noneKey = map["__none__"] ? ["__none__"] : [];
     return [...sectionKeys, ...noneKey].map((k) => ({
       key: k,
-      label: k === "__none__" ? "No Group" : k,
+      label: k === "__none__" ? tr("No Group") : k,
       tasks: map[k],
     }));
   }, [filtered, allTasks]);
@@ -1312,7 +1439,7 @@ const TaskPicker = ({
           autoFocus: true,
           value: q,
           onChange: (e) => setQ(e.target.value),
-          placeholder: "Search tasks by name...",
+          placeholder: tr("Search tasks by name..."),
           style: {
             width: "100%",
             border: "1px solid #e8e8e8",
@@ -1340,7 +1467,7 @@ const TaskPicker = ({
                   textAlign: "center",
                 },
               },
-              "No tasks found",
+              tr("No tasks found"),
             )
           : grouped.map((g) =>
               React.createElement(
@@ -1477,7 +1604,7 @@ const TaskPicker = ({
                 flex: 1,
               },
             },
-            "Select a prerequisite task...",
+            tr("Select a prerequisite task..."),
           ),
     ),
     renderDropdown(),
@@ -1492,7 +1619,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const fileUrl = attachment?.url || attachment?.preview;
   const fullUrl = getFullUrl(fileUrl);
   const rawName =
-    doc.title || attachment?.title || attachment?.filename || "File";
+    doc.title || attachment?.title || attachment?.filename || tr("File");
   const extFromAtt = attachment?.extname
     ? attachment.extname.startsWith(".")
       ? attachment.extname.toLowerCase()
@@ -1505,7 +1632,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const baseName = rawName.toLowerCase().endsWith(fileExt)
     ? rawName.slice(0, rawName.length - fileExt.length)
     : rawName;
-  const displayName = (baseName || "File") + fileExt;
+  const displayName = (baseName || tr("File")) + fileExt;
   const isPdf = fileExt === ".pdf";
   const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
   const isOffice = [
@@ -1544,9 +1671,9 @@ const PreviewModal = ({ doc, onClose }) => {
               key: "dl",
               onClick: () => window.open(fullUrl, "_blank"),
             },
-            "⬇️ Download",
+            tr("⬇️ Download"),
           ),
-        React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
+        React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
       ].filter(Boolean),
     },
     // PDF
@@ -1605,7 +1732,7 @@ const PreviewModal = ({ doc, onClose }) => {
         },
         React.createElement(Empty, {
           description:
-            "Cannot preview this file type — please download to open",
+            tr("Cannot preview this file type — please download to open"),
         }),
       ),
   );
@@ -1647,7 +1774,7 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
     color: "#8c8c8c",
     bg: "#f5f5f5",
     border: "#d9d9d9",
-    label: "N/A",
+    label: tr("N/A"),
   };
   const assignedLawyer = lawyers?.find((l) => l.id === prevTask.lawyerId);
   const lawyerName = assignedLawyer ? assignedLawyer.lawyerName : null;
@@ -1662,9 +1789,9 @@ const PendingIssueCell = ({ task, allTasksInProject, lawyers }) => {
     React.createElement(
       "div",
       null,
-      `Assignee: ${lawyerName || "Not assigned"}`,
+      tr("Assignee: {0}", { 0: lawyerName || tr("Not assigned") }),
     ),
-    React.createElement("div", null, `Status: ${statusInfo.label}`),
+    React.createElement("div", null, tr("Status: {0}", { 0: statusInfo.label })),
   );
   return React.createElement(
     "div",
@@ -1822,11 +1949,11 @@ const AddTaskModal = ({
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      message.warning("Please enter a task name");
+      message.warning(tr("Please enter a task name"));
       return;
     }
     if (!form.startDate) {
-      message.warning("Please select a start date");
+      message.warning(tr("Please select a start date"));
       return;
     }
     setSaving(true);
@@ -1864,12 +1991,12 @@ const AddTaskModal = ({
       if (form.nextStepDescription)
         payload.nextStepDescription = form.nextStepDescription;
       await apiReq("tasks:create", "POST", payload);
-      message.success("✅ Task created");
+      message.success(tr("✅ Task created"));
       onSave();
       onClose();
       setForm(INIT_FORM);
     } catch {
-      message.error("Creation failed");
+      message.error(tr("Creation failed"));
     }
     setSaving(false);
   };
@@ -1957,23 +2084,23 @@ const AddTaskModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "📋 New Task",
+        tr("📋 New Task"),
       ),
     },
     React.createElement(
       "div",
       { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
       fld(
-        "Title *",
-        inp("Enter title...", form.title, (v) => set("title", v)),
+        tr("Title *"),
+        inp(tr("Enter title..."), form.title, (v) => set("title", v)),
       ),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         fld(
-          "👨‍⚖️ Assignee",
+          tr("👨‍⚖️ Assignee"),
           sel(
-            "-- Assign --",
+            tr("-- Assign --"),
             form.lawyerId,
             (v) => set("lawyerId", v ? Number(v) : null),
             lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
@@ -1982,9 +2109,9 @@ const AddTaskModal = ({
         React.createElement(
           "div",
           { style: { marginBottom: 12, position: "relative" } },
-          lbl("🗂 Task Group (Section)"),
+          lbl(tr("🗂 Task Group (Section)")),
           React.createElement("input", {
-            placeholder: "Select or enter a group name...",
+            placeholder: tr("Select or enter a group name..."),
             value: form.titleSection || "",
             onChange: (e) => set("titleSection", e.target.value),
             style: {
@@ -2056,15 +2183,15 @@ const AddTaskModal = ({
             ),
         ),
         fld(
-          "📅 Start date *",
+          tr("📅 Start date *"),
           inp("", form.startDate, (v) => set("startDate", v), "date"),
         ),
         fld(
-          "🏁 Deadline",
+          tr("🏁 Deadline"),
           inp("", form.dueDate, (v) => set("dueDate", v), "date"),
         ),
         fld(
-          "⏱ Estimated duration (hours)",
+          tr("⏱ Estimated duration (hours)"),
           inp(
             "e.g. 4",
             form.estimatedDuration,
@@ -2076,7 +2203,7 @@ const AddTaskModal = ({
       React.createElement(
         "div",
         { style: { marginBottom: 12 } },
-        lbl("⛓ Pending Issue (optional)"),
+        lbl(tr("⛓ Pending Issue (optional)")),
         React.createElement(TaskPicker, {
           allTasks: tasksForDependency,
           currentTaskId: null,
@@ -2126,7 +2253,7 @@ const AddTaskModal = ({
                       fontWeight: 600,
                     },
                   },
-                  "✓ Done",
+                  tr("✓ Done"),
                 )
               : React.createElement(
                   "span",
@@ -2138,12 +2265,12 @@ const AddTaskModal = ({
                       fontWeight: 600,
                     },
                   },
-                  '⏸ New task will start as "Waiting"',
+                  tr("⏸ New task will start as \"Waiting\""),
                 ),
           ),
       ),
       fld(
-        "⚡ Priority",
+        tr("⚡ Priority"),
         React.createElement(
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -2171,7 +2298,7 @@ const AddTaskModal = ({
         ),
       ),
       fld(
-        "🔐 Approval required",
+        tr("🔐 Approval required"),
         React.createElement(
           "label",
           {
@@ -2216,14 +2343,14 @@ const AddTaskModal = ({
               },
             },
             form.isRequiredApproval
-              ? "🔐 On — approval required"
-              : "Require approval before marking as done",
+              ? tr("🔐 On — approval required")
+              : tr("Require approval before marking as done"),
           ),
         ),
       ),
       form.isRequiredApproval &&
         fld(
-          "👤 Approver",
+          tr("👤 Approver"),
           React.createElement(
             "div",
             {
@@ -2252,16 +2379,16 @@ const AddTaskModal = ({
               React.createElement(
                 "span",
                 { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                "Select approver...",
+                tr("Select approver..."),
               ),
           ),
         ),
       fld(
-        "📝 Description",
+        tr("📝 Description"),
         React.createElement("textarea", {
           value: form.description,
           onChange: (e) => set("description", e.target.value),
-          placeholder: "Description...",
+          placeholder: tr("Description..."),
           rows: 3,
           style: {
             width: "100%",
@@ -2280,11 +2407,11 @@ const AddTaskModal = ({
         }),
       ),
       fld(
-        "👣 Next Step",
+        tr("👣 Next Step"),
         React.createElement("textarea", {
           value: form.nextStepDescription,
           onChange: (e) => set("nextStepDescription", e.target.value),
-          placeholder: "Next step after completion...",
+          placeholder: tr("Next step after completion..."),
           rows: 2,
           style: {
             width: "100%",
@@ -2328,7 +2455,7 @@ const AddTaskModal = ({
               color: "#595959",
             },
           },
-          "Cancel",
+          tr("Cancel"),
         ),
         React.createElement(
           "div",
@@ -2345,7 +2472,7 @@ const AddTaskModal = ({
               fontWeight: 600,
             },
           },
-          saving ? "Saving..." : "Create task",
+          saving ? tr("Saving...") : tr("Create task"),
         ),
       ),
     ),
@@ -2379,11 +2506,11 @@ const AddSubtaskModal = ({
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      message.warning("Please enter a subtask name");
+      message.warning(tr("Please enter a subtask name"));
       return;
     }
     if (!form.startDate) {
-      message.warning("Please select a start date");
+      message.warning(tr("Please select a start date"));
       return;
     }
     setSaving(true);
@@ -2411,12 +2538,12 @@ const AddSubtaskModal = ({
       if (form.nextStepDescription)
         payload.nextStepDescription = form.nextStepDescription;
       await apiReq("subTasks:create", "POST", payload);
-      message.success("✅ Subtask created");
+      message.success(tr("✅ Subtask created"));
       onSave();
       onClose();
       setForm(INIT_FORM);
     } catch {
-      message.error("Creation failed");
+      message.error(tr("Creation failed"));
     }
     setSaving(false);
   };
@@ -2500,30 +2627,30 @@ const AddSubtaskModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontSize: 15, fontFamily: FONT } },
-        "📋 New Subtask",
+        tr("📋 New Subtask"),
       ),
     },
     React.createElement(
       "div",
       { style: { maxHeight: "75vh", overflowY: "auto", paddingRight: 4 } },
       fld(
-        "Title *",
-        inp("Enter title...", form.title, (v) => set("title", v)),
+        tr("Title *"),
+        inp(tr("Enter title..."), form.title, (v) => set("title", v)),
       ),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         fld(
-          "👨‍⚖️ Assignee",
+          tr("👨‍⚖️ Assignee"),
           sel(
-            "-- Assign --",
+            tr("-- Assign --"),
             form.lawyerId,
             (v) => set("lawyerId", v ? Number(v) : null),
             lawyers.map((l) => ({ value: l.id, label: l.lawyerName })),
           ),
         ),
         fld(
-          "⏱ Estimated duration (hours)",
+          tr("⏱ Estimated duration (hours)"),
           inp(
             "e.g. 4",
             form.estimatedDuration,
@@ -2532,16 +2659,16 @@ const AddSubtaskModal = ({
           ),
         ),
         fld(
-          "📅 Start date *",
+          tr("📅 Start date *"),
           inp("", form.startDate, (v) => set("startDate", v), "date"),
         ),
         fld(
-          "🏁 Deadline",
+          tr("🏁 Deadline"),
           inp("", form.deadline, (v) => set("deadline", v), "date"),
         ),
       ),
       fld(
-        "⚡ Priority",
+        tr("⚡ Priority"),
         React.createElement(
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
@@ -2569,7 +2696,7 @@ const AddSubtaskModal = ({
         ),
       ),
       fld(
-        "🔐 Approval required",
+        tr("🔐 Approval required"),
         React.createElement(
           "label",
           {
@@ -2615,14 +2742,14 @@ const AddSubtaskModal = ({
               },
             },
             form.isRequiredApproval
-              ? "🔐 On — approval required"
-              : "Require approval before marking as done",
+              ? tr("🔐 On — approval required")
+              : tr("Require approval before marking as done"),
           ),
         ),
       ),
       form.isRequiredApproval &&
         fld(
-          "👤 Approver",
+          tr("👤 Approver"),
           React.createElement(
             "div",
             {
@@ -2651,16 +2778,16 @@ const AddSubtaskModal = ({
               React.createElement(
                 "span",
                 { style: { fontSize: 12, color: "#bfbfbf", fontFamily: FONT } },
-                "Select approver...",
+                tr("Select approver..."),
               ),
           ),
         ),
       fld(
-        "📝 Detailed Description",
+        tr("📝 Detailed Description"),
         React.createElement("textarea", {
           value: form.description,
           onChange: (e) => set("description", e.target.value),
-          placeholder: "Describe the subtask in detail...",
+          placeholder: tr("Describe the subtask in detail..."),
           rows: 3,
           style: {
             width: "100%",
@@ -2679,11 +2806,11 @@ const AddSubtaskModal = ({
         }),
       ),
       fld(
-        "👣 Next Step",
+        tr("👣 Next Step"),
         React.createElement("textarea", {
           value: form.nextStepDescription,
           onChange: (e) => set("nextStepDescription", e.target.value),
-          placeholder: "Next step after completion...",
+          placeholder: tr("Next step after completion..."),
           rows: 2,
           style: {
             width: "100%",
@@ -2727,7 +2854,7 @@ const AddSubtaskModal = ({
               color: "#595959",
             },
           },
-          "Cancel",
+          tr("Cancel"),
         ),
         React.createElement(
           "div",
@@ -2744,7 +2871,7 @@ const AddSubtaskModal = ({
               fontWeight: 600,
             },
           },
-          saving ? "Saving..." : "Create subtask",
+          saving ? tr("Saving...") : tr("Create subtask"),
         ),
       ),
     ),
@@ -2814,7 +2941,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
               color: "#096dd9",
             },
           },
-          `📎 ${files.length} documents`,
+          tr("📎 {0} documents", { 0: files.length }),
         ),
         React.createElement(
           "span",
@@ -2904,8 +3031,8 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                   textUnderlineOffset: "2px",
                 },
                 title: canPreview
-                  ? "Click to preview"
-                  : "This format doesn't support preview",
+                  ? tr("Click to preview")
+                  : tr("This format doesn't support preview"),
                 onClick: canPreview
                   ? (e) => {
                       e.stopPropagation();
@@ -2924,7 +3051,7 @@ const TaskFilePreviewPopup = ({ files, onClose, anchorRect }) => {
                 React.createElement(
                   "span",
                   {
-                    title: "Download",
+                    title: tr("Download"),
                     onClick: (e) => {
                       e.stopPropagation();
                       window.open(fullUrl, "_blank");
@@ -3102,7 +3229,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement("span", null, "➕"),
-                "Create subtask",
+                tr("Create subtask"),
               ),
             canEdit &&
               React.createElement(
@@ -3129,7 +3256,7 @@ const TaskRow = ({
                     (e.currentTarget.style.background = "transparent"),
                 },
                 React.createElement(DeleteIcon),
-                "Delete task",
+                tr("Delete task"),
               ),
           ),
       ),
@@ -3424,7 +3551,7 @@ const TaskRow = ({
                     setFileAnchorRect(rect || null);
                     setFilePopup((v) => !v);
                   },
-                  title: `${task._files.length} documents — click to view`,
+                  title: tr("{0} documents — click to view", { 0: task._files.length }),
                   style: {
                     fontSize: 12,
                     fontFamily: FONT,
@@ -3468,7 +3595,7 @@ const TaskRow = ({
                   e.stopPropagation();
                   onOpen(task, "task", tasksInService);
                 },
-                title: "No documents yet — open details to upload",
+                title: tr("No documents yet — open details to upload"),
                 style: {
                   fontSize: 12,
                   padding: "3px 8px",
@@ -3541,7 +3668,7 @@ const TaskRow = ({
                         color: "#cf1322",
                         cursor: "pointer",
                       },
-                      title: "Delete subtask",
+                      title: tr("Delete subtask"),
                       onClick: (e) => {
                         e.stopPropagation();
                         onDeleteTask(s.id, "subTask", s.subTaskName);
@@ -3910,7 +4037,7 @@ const ServiceSection = ({
                     },
                     onMouseEnter: (e) => (e.currentTarget.style.opacity = 1),
                     onMouseLeave: (e) => (e.currentTarget.style.opacity = 0.7),
-                    title: "Rename task group",
+                    title: tr("Rename task group"),
                   },
                   React.createElement(EditIcon),
                 ),
@@ -3919,7 +4046,7 @@ const ServiceSection = ({
       React.createElement(
         "span",
         { style: { fontSize: 12 } },
-        `${doneCnt}/${totalCnt} done`,
+        tr("{0}/{1} done", { 0: doneCnt, 1: totalCnt }),
       ),
     ),
     !collapsed &&
@@ -4012,7 +4139,7 @@ const ListView = ({
               dot: "#bfbfbf",
             }
           : SERVICE_COLORS[index % SERVICE_COLORS.length];
-      const svcName = key === "__none__" ? "No Group" : key;
+      const svcName = key === "__none__" ? tr("No Group") : key;
       return React.createElement(ServiceSection, {
         key,
         serviceId: key,
@@ -4203,7 +4330,7 @@ const ProjectInternalTasksTab = () => {
           prevTask.status !== "cancelled"
         ) {
           if (!["cancelled", "blocked"].includes(newSt)) {
-            message.warning(`Please complete "${prevTask.title}" first`);
+            message.warning(tr("Please complete \"{0}\" first", { 0: prevTask.title }));
             return;
           }
         }
@@ -4256,9 +4383,9 @@ const ProjectInternalTasksTab = () => {
           );
         }
 
-        message.success(`Status: ${STATUS_CFG[resolvedSt]?.label}`);
+        message.success(tr("Status: {0}", { 0: STATUS_CFG[resolvedSt]?.label }));
       } catch (e) {
-        message.error("Backend error: unable to update status");
+        message.error(tr("Backend error: unable to update status"));
         reload();
       }
     },
@@ -4333,9 +4460,9 @@ const ProjectInternalTasksTab = () => {
 
       try {
         await apiReq(url, "POST", payload);
-        message.success("Assigned successfully");
+        message.success(tr("Assigned successfully"));
       } catch (e) {
-        message.error("Assignment failed");
+        message.error(tr("Assignment failed"));
         reload();
       }
     },
@@ -4347,11 +4474,11 @@ const ProjectInternalTasksTab = () => {
       const isSub = type === "subTask";
       const label = isSub ? "subtask" : "task";
       Modal.confirm({
-        title: `Confirm delete ${label}`,
-        content: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
-        okText: "Delete permanently",
+        title: tr("Confirm delete {0}", { 0: label }),
+        content: tr("Are you sure you want to delete \"{0}\"? This action cannot be undone.", { 0: title }),
+        okText: tr("Delete permanently"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             await ctx.api.request({
@@ -4359,10 +4486,10 @@ const ProjectInternalTasksTab = () => {
               method: "POST",
               params: { filterByTk: extractId(id) },
             });
-            message.success("✅ Deleted successfully");
+            message.success(tr("✅ Deleted successfully"));
             reload();
           } catch (e) {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         },
       });
@@ -4373,7 +4500,7 @@ const ProjectInternalTasksTab = () => {
   const handleRenameSection = useCallback(
     async (oldName, newName, sectionTasks) => {
       if (!newName || !newName.trim()) {
-        message.warning("Group name cannot be empty");
+        message.warning(tr("Group name cannot be empty"));
         return;
       }
       const cleanNewName = newName.trim();
@@ -4405,11 +4532,11 @@ const ProjectInternalTasksTab = () => {
         }
 
         message.success(
-          `Renamed group from "${oldName}" to "${cleanNewName}"`,
+          tr("Renamed group from \"{0}\" to \"{1}\"", { 0: oldName, 1: cleanNewName }),
         );
         reload();
       } catch (e) {
-        message.error("Failed to rename group");
+        message.error(tr("Failed to rename group"));
         reload();
       }
     },
@@ -4524,7 +4651,7 @@ const ProjectInternalTasksTab = () => {
     ctx.openView(popupUid, {
       mode: "dialog",
       size: "large",
-      title: ctx.t ? ctx.t("Task detail") : "Task detail",
+      title: ctx.t ? ctx.t(tr("Task detail")) : tr("Task detail"),
       navigation: false,
       ...sharedIdKeys,
       inputArgs: sharedIdKeys,
@@ -4538,7 +4665,7 @@ const ProjectInternalTasksTab = () => {
     return React.createElement(
       "div",
       { style: { padding: 24, fontFamily: FONT, color: "#8c8c8c" } },
-      "⚠️ Project not found",
+      tr("⚠️ Project not found"),
     );
 
   return React.createElement(
@@ -4594,7 +4721,7 @@ const ProjectInternalTasksTab = () => {
                 fontWeight: 600,
               },
             },
-            "＋ New Task",
+            tr("＋ New Task"),
           ),
           React.createElement(ReloadButton, { onReload: reload, loading }),
       ),
@@ -4626,7 +4753,7 @@ const ProjectInternalTasksTab = () => {
                 fontSize: 12,
               },
             },
-            React.createElement(Spin, { tip: "Loading..." }),
+            React.createElement(Spin, { tip: tr("Loading...") }),
           )
         : tasks.length === 0
           ? React.createElement(
@@ -4640,7 +4767,7 @@ const ProjectInternalTasksTab = () => {
                   fontFamily: FONT,
                 },
               },
-              "📭 No tasks yet",
+              tr("📭 No tasks yet"),
             )
           : React.createElement(ListView, {
               tasks,

@@ -1,3 +1,94 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Discard payment request?": "Bỏ yêu cầu thanh toán?",
+  "Changes in this payment request form will be lost if you close it.": "Các thay đổi trong biểu mẫu yêu cầu thanh toán sẽ bị mất nếu bạn đóng lại.",
+  "Discard": "Bỏ",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Create request failed.": "Tạo yêu cầu thất bại.",
+  "Could not load contract payment schedule.": "Không thể tải lịch thanh toán của hợp đồng.",
+  "Could not load payment request form data.": "Không thể tải dữ liệu biểu mẫu yêu cầu thanh toán.",
+  "Please select a contract.": "Vui lòng chọn hợp đồng.",
+  "Please enter a payment request title.": "Vui lòng nhập tiêu đề yêu cầu thanh toán.",
+  "Please select an assignee.": "Vui lòng chọn người phụ trách.",
+  "Please select a due date.": "Vui lòng chọn hạn.",
+  "Please select at least one request line.": "Vui lòng chọn ít nhất một dòng yêu cầu.",
+  "Payment request was created but no id was returned.": "Đã tạo yêu cầu thanh toán nhưng không nhận được ID.",
+  "Payment request created.": "Đã tạo yêu cầu thanh toán.",
+  "Could not create payment request.": "Không thể tạo yêu cầu thanh toán.",
+  "Line": "Dòng",
+  "Basis": "Căn cứ",
+  "Due date": "Hạn",
+  "Paid": "Đã thanh toán",
+  "Request amount": "Số tiền yêu cầu",
+  "Create payment request": "Tạo yêu cầu thanh toán",
+  "Title": "Tiêu đề",
+  "Enter payment request title": "Nhập tiêu đề yêu cầu thanh toán",
+  "Contract": "Hợp đồng",
+  "Select contract": "Chọn hợp đồng",
+  "Payment basis": "Căn cứ thanh toán",
+  "Auto after selecting contract": "Tự động sau khi chọn hợp đồng",
+  "Request type": "Loại yêu cầu",
+  "Assignee": "Người phụ trách",
+  "Select lawyer": "Chọn luật sư",
+  "Priority": "Ưu tiên",
+  "Low": "Thấp",
+  "Normal": "Bình thường",
+  "High": "Cao",
+  "Urgent": "Khẩn",
+  "Client": "Khách hàng",
+  "Contract type": "Loại hợp đồng",
+  "Fee model": "Mô hình phí",
+  "Billing cycle": "Chu kỳ thanh toán",
+  "Contract total": "Tổng giá trị hợp đồng",
+  "Remaining": "Còn lại",
+  "Selected basis": "Căn cứ đã chọn",
+  "No payable schedule lines": "Không có dòng lịch cần thanh toán",
+  "Select a contract to load payment schedule": "Chọn hợp đồng để tải lịch thanh toán",
+  "Note": "Ghi chú",
+  "Add payment request note...": "Thêm ghi chú cho yêu cầu thanh toán...",
+  "Create request": "Tạo yêu cầu",
+  "By case": "Theo hồ sơ",
+  "Retainer": "Retainer",
+  "Fixed amount": "Số tiền cố định",
+  "Hourly": "Theo giờ",
+  "Monthly retainer": "Retainer hàng tháng",
+  "Success fee": "Phí thành công",
+  "Hybrid": "Kết hợp",
+  "One time": "Một lần",
+  "Multiple payments": "Nhiều đợt",
+  "Monthly": "Hàng tháng",
+  "Quarterly": "Hàng quý",
+  "Milestone": "Theo mốc",
+  "Manual": "Thủ công",
+  "Recurring": "Định kỳ",
+  "Payment schedule": "Lịch thanh toán",
+  "Contract balance": "Số dư hợp đồng",
+  "Retainer cycle": "Kỳ retainer",
+  "Hourly fee": "Phí theo giờ",
+  "Hybrid fee components": "Các thành phần phí kết hợp",
+  "Create payment": "Tạo khoản thanh toán",
+  "Create invoice": "Tạo hóa đơn",
+  "Create invoice and payment": "Tạo hóa đơn và khoản thanh toán",
+  "Check payment": "Kiểm tra thanh toán",
+  "Installment": "Đợt thanh toán",
+  "Balance": "Số dư",
+  "Fixed": "Cố định",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const {
@@ -447,10 +538,10 @@ const showDiscardConfirm = (onOk) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: "Discard payment request?",
-      content: "Changes in this payment request form will be lost if you close it.",
-      okText: "Discard",
-      cancelText: "Keep editing",
+      title: tr("Discard payment request?"),
+      content: tr("Changes in this payment request form will be lost if you close it."),
+      okText: tr("Discard"),
+      cancelText: tr("Keep editing"),
       okButtonProps: { danger: true },
       maskClosable: false,
       onCancel: () => {
@@ -575,7 +666,7 @@ const createWithPayloadFallback = async (resources, payloadVariants = []) => {
       console.warn("[PaymentRequestCreateBlock] create fallback failed", error);
     }
   }
-  throw lastError || new Error("Create request failed.");
+  throw lastError || new Error(tr("Create request failed."));
 };
 
 const listPaymentsByContract = async (contractId) => {
@@ -606,6 +697,32 @@ const installmentAmountFromPercent = (percentage, baseAmount) => {
   return Math.round(base * percent / 100);
 };
 
+// ---- percent remainder helpers (pure; tested by scripts/tests/money-rounding.test.js) ----
+// Legacy schedules that store only percentages get each amount rounded on
+// its own, so 30/30/40 of 10,000,001 showed 10,000,000. When every amount is
+// derived from a percentage and they add up to 100%, the last installment
+// takes the remainder (cumulative totals follow). Stored amounts are never
+// changed.
+const absorbPercentRemainder = (installments, baseAmount) => {
+  const base = Math.round(Number(baseAmount) || 0);
+  if (!Array.isArray(installments) || installments.length < 2 || base <= 0) return installments;
+  if (!installments.every((row) => row.amountFromPercent)) return installments;
+  const percentSum = installments.reduce((sum, row) => sum + (Number(row.percentage) || 0), 0);
+  if (Math.abs(percentSum - 100) > 0.01) return installments;
+  const lastIndex = installments.length - 1;
+  const others = installments.reduce(
+    (sum, row, index) => (index === lastIndex ? sum : sum + (Number(row.amount) || 0)),
+    0,
+  );
+  let running = 0;
+  return installments.map((row, index) => {
+    const amount = index === lastIndex ? base - others : row.amount;
+    running += Number(amount) || 0;
+    return row.cumulativeTotal === undefined ? { ...row, amount } : { ...row, amount, cumulativeTotal: running };
+  });
+};
+// ---- end percent remainder helpers ----
+
 const normalizeSchedule = (contract) => {
   const raw = safeJsonParse(contract?.paymentSchedule);
   if (!raw) return { mode: normalizeModeKey(contract?.billingCycle), firstPaymentDate: contract?.paymentDate || "", retainerRule: null, totalAmount: parseNum(contract?.totalAmount), installments: [] };
@@ -614,12 +731,11 @@ const normalizeSchedule = (contract) => {
     : raw;
   const baseAmount = parseNum(schedule.baseAmount ?? schedule.totalAmount ?? contract?.totalAmount);
   let runningTotal = 0;
-  const installments = (Array.isArray(schedule.installments) ? schedule.installments : [])
+  const normalizedInstallments = (Array.isArray(schedule.installments) ? schedule.installments : [])
     .map((row, index) => {
       const percentage = row?.percentage ?? null;
-      const amount =
-        parseNum(row?.amount ?? row?.totalAmount ?? row?.paymentAmount) ||
-        installmentAmountFromPercent(percentage, baseAmount);
+      const storedAmount = parseNum(row?.amount ?? row?.totalAmount ?? row?.paymentAmount);
+      const amount = storedAmount || installmentAmountFromPercent(percentage, baseAmount);
       const cumulativeTotal = parseNum(row?.cumulativeTotal) || runningTotal + amount;
       runningTotal = cumulativeTotal;
       return {
@@ -632,10 +748,12 @@ const normalizeSchedule = (contract) => {
         amount,
         cumulativeTotal,
         percentage,
+        amountFromPercent: !storedAmount && amount > 0,
         status: row?.status || "planned",
       };
     })
     .filter((row) => row.content || row.paymentDate || row.amount > 0 || row.label);
+  const installments = absorbPercentRemainder(normalizedInstallments, baseAmount);
 
   // Prefer the live contractBillingPlans record when present (via
   // contract.billingPlans) — the single source of truth the
@@ -712,6 +830,23 @@ const paidContractTotal = (payments = []) =>
     return sum + parseNum(payment?.amount);
   }, 0);
 
+// ---- retainer contract value (pure; tested by scripts/tests/retainer-per-period.test.js) ----
+// JS twin of contract_retainer_value (pgsql/contract_payment_status_workflow.sql,
+// 2026-09-30): a retainer's totalAmount is the fee of EVERY period, so the
+// contract is worth fee × the plan's periods (open-ended: the periods billed
+// so far, at least 1). The active plan wins, else the newest. 0 = not a
+// retainer, or no plan yet.
+const retainerContractValue = (contract) => {
+  if (String(contract?.contractType || "") !== "retainer") return 0;
+  const plans = (contract?.billingPlans || [])
+    .filter((p) => String(p?.planType || "") === "retainer")
+    .sort((a, b) => (b.status === "active") - (a.status === "active") || parseNum(b.id) - parseNum(a.id));
+  const plan = plans[0];
+  if (!plan) return 0;
+  const periods = parseNum(plan.retainerTotalCycles) || Math.max(parseNum(plan.retainerCyclesBilled), 1);
+  return Math.round(parseNum(plan.totalAmount)) * periods;
+};
+// ---- end retainer contract value ----
 const contractMoneyInfo = (contract = {}, payments = []) => {
   const feeModel = normalizeFeeModel(contract?.feeModel);
   const directFixedAmount = parseNum(firstPresent(contract, ["fixedAmount", "packageTotalAmount"]));
@@ -733,6 +868,7 @@ const contractMoneyInfo = (contract = {}, payments = []) => {
   // priority fallback — hourly billing isn't used by this business and
   // isn't being extended, but removing working behavior wasn't asked for.
   const totalAmount =
+    retainerContractValue(contract) ||
     parseNum(
       firstPresent(contract, [
         "totalAmount",
@@ -950,7 +1086,7 @@ const availablePaymentBasisOptions = (contract = {}, schedule = null, payments =
 
   return Array.from(new Set(options)).map((value) => ({
     value,
-    label: PAYMENT_BASIS_LABELS[value] || value,
+    label: tr(PAYMENT_BASIS_LABELS[value] || value),
   }));
 };
 
@@ -1174,7 +1310,7 @@ const PaymentRequestCreateBlock = () => {
       }));
     } catch (error) {
       console.error("[PaymentRequestCreateBlock] load contract failed", error);
-      message.error("Could not load contract payment schedule.");
+      message.error(tr("Could not load contract payment schedule."));
     } finally {
       setLoading(false);
     }
@@ -1200,7 +1336,7 @@ const PaymentRequestCreateBlock = () => {
       .catch((error) => {
         console.error("[PaymentRequestCreateBlock] initial load failed", error);
         if (mounted) {
-          message.error("Could not load payment request form data.");
+          message.error(tr("Could not load payment request form data."));
           setLoading(false);
         }
       });
@@ -1231,23 +1367,23 @@ const PaymentRequestCreateBlock = () => {
 
   const submit = async () => {
     if (!selectedContract) {
-      message.warning("Please select a contract.");
+      message.warning(tr("Please select a contract."));
       return;
     }
     if (!String(form.title || "").trim()) {
-      message.warning("Please enter a payment request title.");
+      message.warning(tr("Please enter a payment request title."));
       return;
     }
     if (!form.assignedLawyerId) {
-      message.warning("Please select an assignee.");
+      message.warning(tr("Please select an assignee."));
       return;
     }
     if (!form.dueDate) {
-      message.warning("Please select a due date.");
+      message.warning(tr("Please select a due date."));
       return;
     }
     if (!selectedItems.length) {
-      message.warning("Please select at least one request line.");
+      message.warning(tr("Please select at least one request line."));
       return;
     }
 
@@ -1266,7 +1402,7 @@ const PaymentRequestCreateBlock = () => {
     const requestPayload = {
       title: String(form.title || "").trim(),
       requestType: form.requestType,
-      status: "submitted",
+      status: "active",
       priority: form.priority,
       contractId,
       contracts: contractId || undefined,
@@ -1293,7 +1429,7 @@ const PaymentRequestCreateBlock = () => {
         paymentRequestPayloadVariants(requestPayload),
       );
       const requestId = extractId(createdRequest);
-      if (!requestId) throw new Error("Payment request was created but no id was returned.");
+      if (!requestId) throw new Error(tr("Payment request was created but no id was returned."));
 
       for (const item of selectedItems) {
         const itemPayload = {
@@ -1324,7 +1460,7 @@ const PaymentRequestCreateBlock = () => {
         );
       }
 
-      message.success("Payment request created.");
+      message.success(tr("Payment request created."));
       isDirtyRef.current = false;
       setForm((prev) => ({
         ...prev,
@@ -1335,7 +1471,7 @@ const PaymentRequestCreateBlock = () => {
       await closePopupAfterSubmit();
     } catch (error) {
       console.error("[PaymentRequestCreateBlock] submit failed", error);
-      message.error(error?.message || "Could not create payment request.");
+      message.error(error?.message || tr("Could not create payment request."));
     } finally {
       setSaving(false);
     }
@@ -1370,7 +1506,7 @@ const PaymentRequestCreateBlock = () => {
         },
         columns: [
           {
-            title: "Line",
+            title: tr("Line"),
             dataIndex: "lineLabel",
             render: (value, row) =>
               React.createElement(
@@ -1383,14 +1519,14 @@ const PaymentRequestCreateBlock = () => {
               ),
           },
           {
-            title: "Basis",
+            title: tr("Basis"),
             dataIndex: "lineType",
             width: 120,
-            render: (value) => LINE_TYPE_LABELS[value] || String(value || "").replace(/_/g, " "),
+            render: (value) => (LINE_TYPE_LABELS[value] ? tr(LINE_TYPE_LABELS[value]) : String(value || "").replace(/_/g, " ")),
           },
-          { title: "Due date", dataIndex: "plannedPaymentDate", width: 130, render: formatDate },
-          { title: "Paid", dataIndex: "paidAmountSnapshot", width: 130, align: "right", render: formatMoney },
-          { title: "Request amount", dataIndex: "requestedAmount", width: 160, align: "right", render: formatMoney },
+          { title: tr("Due date"), dataIndex: "plannedPaymentDate", width: 130, render: formatDate },
+          { title: tr("Paid"), dataIndex: "paidAmountSnapshot", width: 130, align: "right", render: formatMoney },
+          { title: tr("Request amount"), dataIndex: "requestedAmount", width: 160, align: "right", render: formatMoney },
         ],
       })
     : React.createElement(
@@ -1413,7 +1549,7 @@ const PaymentRequestCreateBlock = () => {
   return React.createElement(
     Card,
     {
-      title: "Create payment request",
+      title: tr("Create payment request"),
       bordered: true,
       style: { width: "100%" },
     },
@@ -1432,10 +1568,10 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "1 / -1" } },
-          fieldLabel("Title", true),
+          fieldLabel(tr("Title"), true),
           React.createElement(Input, {
             value: form.title,
-            placeholder: "Enter payment request title",
+            placeholder: tr("Enter payment request title"),
             onChange: (event) => setF("title", event.target.value),
           }),
         ),
@@ -1446,13 +1582,13 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 7" } },
-          fieldLabel("Contract", true),
+          fieldLabel(tr("Contract"), true),
           React.createElement(Select, {
             showSearch: true,
             allowClear: true,
             style: { width: "100%" },
             value: form.contractId || undefined,
-            placeholder: "Select contract",
+            placeholder: tr("Select contract"),
             optionFilterProp: "label",
             options: contractOptions,
             onChange: (value) => loadContractContext(value),
@@ -1461,11 +1597,11 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 5" } },
-          fieldLabel("Payment basis"),
+          fieldLabel(tr("Payment basis")),
           React.createElement(Select, {
             style: { width: "100%" },
             value: form.paymentBasis || undefined,
-            placeholder: "Auto after selecting contract",
+            placeholder: tr("Auto after selecting contract"),
             disabled: !selectedContract || !basisOptions.length,
             options: basisOptions,
             onChange: handleBasisChange,
@@ -1476,15 +1612,15 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
-          fieldLabel("Request type"),
+          fieldLabel(tr("Request type")),
           React.createElement(Select, {
             style: { width: "100%" },
             value: form.requestType,
             options: [
-              { value: "create_payment", label: REQUEST_TYPE_LABELS.create_payment },
-              { value: "create_invoice", label: REQUEST_TYPE_LABELS.create_invoice },
-              { value: "create_invoice_and_payment", label: REQUEST_TYPE_LABELS.create_invoice_and_payment },
-              { value: "check_payment", label: REQUEST_TYPE_LABELS.check_payment },
+              { value: "create_payment", label: tr(REQUEST_TYPE_LABELS.create_payment) },
+              { value: "create_invoice", label: tr(REQUEST_TYPE_LABELS.create_invoice) },
+              { value: "create_invoice_and_payment", label: tr(REQUEST_TYPE_LABELS.create_invoice_and_payment) },
+              { value: "check_payment", label: tr(REQUEST_TYPE_LABELS.check_payment) },
             ],
             onChange: (value) =>
               {
@@ -1500,13 +1636,13 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
-          fieldLabel("Assignee", true),
+          fieldLabel(tr("Assignee"), true),
           React.createElement(Select, {
             showSearch: true,
             allowClear: true,
             style: { width: "100%" },
             value: form.assignedLawyerId || undefined,
-            placeholder: "Select lawyer",
+            placeholder: tr("Select lawyer"),
             optionFilterProp: "label",
             options: lawyerOptions,
             onChange: (value) => setF("assignedLawyerId", value || ""),
@@ -1515,15 +1651,15 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
-          fieldLabel("Priority"),
+          fieldLabel(tr("Priority")),
           React.createElement(Select, {
             style: { width: "100%" },
             value: form.priority,
             options: [
-              { value: "low", label: "Low" },
-              { value: "normal", label: "Normal" },
-              { value: "high", label: "High" },
-              { value: "urgent", label: "Urgent" },
+              { value: "low", label: tr("Low") },
+              { value: "normal", label: tr("Normal") },
+              { value: "high", label: tr("High") },
+              { value: "urgent", label: tr("Urgent") },
             ],
             onChange: (value) => setF("priority", value),
           }),
@@ -1531,7 +1667,7 @@ const PaymentRequestCreateBlock = () => {
         React.createElement(
           "label",
           { style: { display: "grid", gap: 6, gridColumn: "span 3" } },
-          fieldLabel("Due date", true),
+          fieldLabel(tr("Due date"), true),
           React.createElement(Input, {
             type: "date",
             style: { width: "100%" },
@@ -1554,31 +1690,31 @@ const PaymentRequestCreateBlock = () => {
                 background: "#fafafa",
               },
             },
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Contract"), React.createElement("div", { style: { fontWeight: 600 } }, contractLabel(selectedContract))),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Client"), React.createElement("div", { style: { fontWeight: 600 } }, customerLabel(relationRecord(selectedContract.customers) || relationRecord(selectedContract.customer)) || "-")),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Contract type"), React.createElement("div", { style: { fontWeight: 600 } }, CONTRACT_TYPE_LABELS[profile.contractType] || profile.contractType || "-")),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Fee model"), React.createElement("div", { style: { fontWeight: 600 } }, FEE_MODEL_LABELS[profile.feeModel] || profile.feeModel || "-")),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Billing cycle"), React.createElement("div", { style: { fontWeight: 600 } }, BILLING_CYCLE_LABELS[profile.billingCycle] || profile.billingCycle || "-")),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Contract total"), React.createElement("div", { style: { fontWeight: 700 } }, formatMoney(moneyInfo.totalAmount))),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Paid"), React.createElement("div", { style: { fontWeight: 600 } }, formatMoney(moneyInfo.paidAmount))),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Remaining"), React.createElement("div", { style: { fontWeight: 700 } }, formatMoney(moneyInfo.remainingAmount))),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Selected basis"), React.createElement("div", { style: { fontWeight: 700 } }, PAYMENT_BASIS_LABELS[form.paymentBasis] || "-")),
-            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, "Request amount"), React.createElement("div", { style: { fontWeight: 700, color: "#1677ff" } }, formatMoney(requestTotal))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Contract")), React.createElement("div", { style: { fontWeight: 600 } }, contractLabel(selectedContract))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Client")), React.createElement("div", { style: { fontWeight: 600 } }, customerLabel(relationRecord(selectedContract.customers) || relationRecord(selectedContract.customer)) || "-")),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Contract type")), React.createElement("div", { style: { fontWeight: 600 } }, tr(CONTRACT_TYPE_LABELS[profile.contractType] || profile.contractType || "-"))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Fee model")), React.createElement("div", { style: { fontWeight: 600 } }, tr(FEE_MODEL_LABELS[profile.feeModel] || profile.feeModel || "-"))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Billing cycle")), React.createElement("div", { style: { fontWeight: 600 } }, tr(BILLING_CYCLE_LABELS[profile.billingCycle] || profile.billingCycle || "-"))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Contract total")), React.createElement("div", { style: { fontWeight: 700 } }, formatMoney(moneyInfo.totalAmount))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Paid")), React.createElement("div", { style: { fontWeight: 600 } }, formatMoney(moneyInfo.paidAmount))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Remaining")), React.createElement("div", { style: { fontWeight: 700 } }, formatMoney(moneyInfo.remainingAmount))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Selected basis")), React.createElement("div", { style: { fontWeight: 700 } }, tr(PAYMENT_BASIS_LABELS[form.paymentBasis] || "-"))),
+            React.createElement("div", null, React.createElement(Typography.Text, { type: "secondary" }, tr("Request amount")), React.createElement("div", { style: { fontWeight: 700, color: "#1677ff" } }, formatMoney(requestTotal))),
           )
         : null,
       selectedContract
         ? requestableItems.length
           ? requestLines
-          : React.createElement(Empty, { description: "No payable schedule lines" })
-        : React.createElement(Empty, { description: "Select a contract to load payment schedule" }),
+          : React.createElement(Empty, { description: tr("No payable schedule lines") })
+        : React.createElement(Empty, { description: tr("Select a contract to load payment schedule") }),
       React.createElement(
         "label",
         { style: { display: "grid", gap: 6 } },
-        "Note",
+        tr("Note"),
         React.createElement(Input.TextArea, {
           rows: 3,
           value: form.requestNote,
-          placeholder: "Add payment request note...",
+          placeholder: tr("Add payment request note..."),
           onChange: (event) => setF("requestNote", event.target.value),
         }),
       ),
@@ -1593,7 +1729,7 @@ const PaymentRequestCreateBlock = () => {
             disabled: !selectedContract || !requestableItems.length,
             onClick: submit,
           },
-          "Create request",
+          tr("Create request"),
         ),
       ),
     ),

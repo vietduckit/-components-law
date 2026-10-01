@@ -1,3 +1,84 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Case": "Vụ việc",
+  "Case code": "Số vụ việc",
+  "Case name": "Tên vụ việc",
+  "Case opening date": "Ngày mở vụ việc",
+  "Case deadline": "Hạn vụ việc",
+  "Customer": "Khách hàng",
+  "Customer full name": "Tên đầy đủ khách hàng",
+  "Customer short name": "Tên ngắn khách hàng",
+  "Address": "Địa chỉ",
+  "Phone number": "Số điện thoại",
+  "Tax code": "Mã số thuế",
+  "ID card number": "Số CCCD/CMND",
+  "ID card issue date": "Ngày cấp CCCD/CMND",
+  "ID card issue place": "Nơi cấp CCCD/CMND",
+  "Legal representative": "Người đại diện pháp luật",
+  "Quotation": "Báo giá",
+  "Quotation number": "Số báo giá",
+  "Quotation status": "Trạng thái báo giá",
+  "Quotation description": "Mô tả báo giá",
+  "Subtotal (before VAT)": "Tổng trước VAT",
+  "VAT amount": "Tổng VAT",
+  "Total (after VAT)": "Tổng sau VAT",
+  "VAT applied": "Có tính VAT",
+  "Contract": "Hợp đồng",
+  "Contract number": "Số hợp đồng",
+  "Contract language": "Ngôn ngữ hợp đồng",
+  "Contract status": "Trạng thái hợp đồng",
+  "Contract effective date": "Ngày hiệu lực hợp đồng",
+  "Invoice": "Hoá đơn",
+  "Invoice number": "Số hoá đơn",
+  "Invoice issue date": "Ngày phát hành hoá đơn",
+  "Invoice due date": "Hạn thanh toán hoá đơn",
+  "Invoice total": "Tổng tiền hoá đơn",
+  "Paid": "Đã thanh toán",
+  "Outstanding balance": "Còn lại phải thu",
+  "Invoice status": "Trạng thái hoá đơn",
+  "Payment": "Thanh toán",
+  "Payment number": "Số phiếu thanh toán",
+  "Payment date": "Ngày thanh toán",
+  "Amount paid": "Số tiền đã thanh toán",
+  "Payment method": "Hình thức thanh toán",
+  "Payment status": "Trạng thái thanh toán",
+  "Task": "Công việc",
+  "Task name": "Tên công việc",
+  "Start date": "Ngày bắt đầu",
+  "Task due date": "Hạn công việc",
+  "Progress details": "Nội dung diễn biến",
+  "User": "Người dùng",
+  "Lawyer name (nickname)": "Tên luật sư (nickname)",
+  "Username": "Tên đăng nhập",
+  "Date": "Ngày tháng",
+  "Today's date": "Ngày hiện tại",
+  "Day (dd)": "Ngày (dd)",
+  "Month (mm)": "Tháng (mm)",
+  "Year (yyyy)": "Năm (yyyy)",
+  "No variables yet": "Chưa có biến nào",
+  "Variable name (e.g. customer_name)": "Tên biến (VD: customer_name)",
+  "System": "Hệ thống",
+  "Manual": "Nhập tay",
+  "Select a system field": "Chọn field hệ thống",
+  "Label shown for manual input (e.g. Court name)": "Nhãn hiển thị khi nhập tay (VD: Tên tòa án)",
+  "Delete": "Xoá",
+  "+ Add variable": "+ Thêm biến",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState } = React;
 const { Input, Select, Button, Space, Empty } = ctx.antd;
@@ -9,97 +90,97 @@ const { Input, Select, Button, Space, Empty } = ctx.antd;
 // both copies must be kept in sync by hand if this catalog changes.
 const VARIABLE_CATALOG = {
   case: {
-    label: "Vụ việc",
+    label: tr("Case"),
     fields: [
-      { key: "case.caseCode", label: "Số vụ việc", format: "text" },
-      { key: "case.projectName", label: "Tên vụ việc", format: "text" },
-      { key: "case.date", label: "Ngày mở vụ việc", format: "date" },
-      { key: "case.deadline", label: "Hạn vụ việc", format: "date" },
+      { key: "case.caseCode", label: tr("Case code"), format: "text" },
+      { key: "case.projectName", label: tr("Case name"), format: "text" },
+      { key: "case.date", label: tr("Case opening date"), format: "date" },
+      { key: "case.deadline", label: tr("Case deadline"), format: "date" },
     ],
   },
   customer: {
-    label: "Khách hàng",
+    label: tr("Customer"),
     fields: [
-      { key: "customer.fullName", label: "Tên đầy đủ khách hàng", format: "text" },
-      { key: "customer.shortName", label: "Tên ngắn khách hàng", format: "text" },
-      { key: "customer.address", label: "Địa chỉ", format: "text" },
-      { key: "customer.phone", label: "Số điện thoại", format: "text" },
-      { key: "customer.taxCode", label: "Mã số thuế", format: "text" },
-      { key: "customer.identityNumber", label: "Số CCCD/CMND", format: "text" },
-      { key: "customer.identityIssuedDate", label: "Ngày cấp CCCD/CMND", format: "date" },
-      { key: "customer.identityIssuedPlace", label: "Nơi cấp CCCD/CMND", format: "text" },
-      { key: "customer.corporateRepresentative", label: "Người đại diện pháp luật", format: "text" },
+      { key: "customer.fullName", label: tr("Customer full name"), format: "text" },
+      { key: "customer.shortName", label: tr("Customer short name"), format: "text" },
+      { key: "customer.address", label: tr("Address"), format: "text" },
+      { key: "customer.phone", label: tr("Phone number"), format: "text" },
+      { key: "customer.taxCode", label: tr("Tax code"), format: "text" },
+      { key: "customer.identityNumber", label: tr("ID card number"), format: "text" },
+      { key: "customer.identityIssuedDate", label: tr("ID card issue date"), format: "date" },
+      { key: "customer.identityIssuedPlace", label: tr("ID card issue place"), format: "text" },
+      { key: "customer.corporateRepresentative", label: tr("Legal representative"), format: "text" },
     ],
   },
   quotation: {
-    label: "Báo giá",
+    label: tr("Quotation"),
     fields: [
-      { key: "quotation.quotationNumber", label: "Số báo giá", format: "text" },
-      { key: "quotation.status", label: "Trạng thái báo giá", format: "text" },
-      { key: "quotation.description", label: "Mô tả báo giá", format: "text" },
-      { key: "quotation.subTotal", label: "Tổng trước VAT", format: "currency" },
-      { key: "quotation.vatAmount", label: "Tổng VAT", format: "currency" },
-      { key: "quotation.totalAmount", label: "Tổng sau VAT", format: "currency" },
+      { key: "quotation.quotationNumber", label: tr("Quotation number"), format: "text" },
+      { key: "quotation.status", label: tr("Quotation status"), format: "text" },
+      { key: "quotation.description", label: tr("Quotation description"), format: "text" },
+      { key: "quotation.subTotal", label: tr("Subtotal (before VAT)"), format: "currency" },
+      { key: "quotation.vatAmount", label: tr("VAT amount"), format: "currency" },
+      { key: "quotation.totalAmount", label: tr("Total (after VAT)"), format: "currency" },
       // Computed by fetchGenerateContext (TaskDetailView.js) as vatAmount > 0 —
       // this JsField editor only builds the config list, it never resolves
       // values itself, so no matching computation needed here.
-      { key: "quotation.isTaxed", label: "Có tính VAT", format: "boolean" },
+      { key: "quotation.isTaxed", label: tr("VAT applied"), format: "boolean" },
     ],
   },
   contract: {
-    label: "Hợp đồng",
+    label: tr("Contract"),
     fields: [
-      { key: "contract.contractCode", label: "Số hợp đồng", format: "text" },
-      { key: "contract.language", label: "Ngôn ngữ hợp đồng", format: "text" },
-      { key: "contract.status", label: "Trạng thái hợp đồng", format: "text" },
-      { key: "contract.executedAt", label: "Ngày hiệu lực hợp đồng", format: "date" },
+      { key: "contract.contractCode", label: tr("Contract number"), format: "text" },
+      { key: "contract.language", label: tr("Contract language"), format: "text" },
+      { key: "contract.status", label: tr("Contract status"), format: "text" },
+      { key: "contract.executedAt", label: tr("Contract effective date"), format: "date" },
     ],
   },
   invoice: {
-    label: "Hoá đơn",
+    label: tr("Invoice"),
     fields: [
-      { key: "invoice.invoiceNumber", label: "Số hoá đơn", format: "text" },
-      { key: "invoice.issuedDate", label: "Ngày phát hành hoá đơn", format: "date" },
-      { key: "invoice.deadline", label: "Hạn thanh toán hoá đơn", format: "date" },
-      { key: "invoice.totalAmount", label: "Tổng tiền hoá đơn", format: "currency" },
-      { key: "invoice.amountPaid", label: "Đã thanh toán", format: "currency" },
-      { key: "invoice.outStandingAmount", label: "Còn lại phải thu", format: "currency" },
-      { key: "invoice.status", label: "Trạng thái hoá đơn", format: "text" },
+      { key: "invoice.invoiceNumber", label: tr("Invoice number"), format: "text" },
+      { key: "invoice.issuedDate", label: tr("Invoice issue date"), format: "date" },
+      { key: "invoice.deadline", label: tr("Invoice due date"), format: "date" },
+      { key: "invoice.totalAmount", label: tr("Invoice total"), format: "currency" },
+      { key: "invoice.amountPaid", label: tr("Paid"), format: "currency" },
+      { key: "invoice.outStandingAmount", label: tr("Outstanding balance"), format: "currency" },
+      { key: "invoice.status", label: tr("Invoice status"), format: "text" },
     ],
   },
   payment: {
-    label: "Thanh toán",
+    label: tr("Payment"),
     fields: [
-      { key: "payment.paymentNumber", label: "Số phiếu thanh toán", format: "text" },
-      { key: "payment.paymentDate", label: "Ngày thanh toán", format: "date" },
-      { key: "payment.amount", label: "Số tiền đã thanh toán", format: "currency" },
-      { key: "payment.paymentMethod", label: "Hình thức thanh toán", format: "text" },
-      { key: "payment.paymentStatus", label: "Trạng thái thanh toán", format: "text" },
+      { key: "payment.paymentNumber", label: tr("Payment number"), format: "text" },
+      { key: "payment.paymentDate", label: tr("Payment date"), format: "date" },
+      { key: "payment.amount", label: tr("Amount paid"), format: "currency" },
+      { key: "payment.paymentMethod", label: tr("Payment method"), format: "text" },
+      { key: "payment.paymentStatus", label: tr("Payment status"), format: "text" },
     ],
   },
   task: {
-    label: "Công việc",
+    label: tr("Task"),
     fields: [
-      { key: "task.title", label: "Tên công việc", format: "text" },
-      { key: "task.startDate", label: "Ngày bắt đầu", format: "date" },
-      { key: "task.dueDate", label: "Hạn công việc", format: "date" },
-      { key: "task.description", label: "Nội dung diễn biến", format: "text" },
+      { key: "task.title", label: tr("Task name"), format: "text" },
+      { key: "task.startDate", label: tr("Start date"), format: "date" },
+      { key: "task.dueDate", label: tr("Task due date"), format: "date" },
+      { key: "task.description", label: tr("Progress details"), format: "text" },
     ],
   },
   user: {
-    label: "Người dùng",
+    label: tr("User"),
     fields: [
-      { key: "user.nickname", label: "Tên luật sư (nickname)", format: "text" },
-      { key: "user.username", label: "Tên đăng nhập", format: "text" },
+      { key: "user.nickname", label: tr("Lawyer name (nickname)"), format: "text" },
+      { key: "user.username", label: tr("Username"), format: "text" },
     ],
   },
   date: {
-    label: "Ngày tháng",
+    label: tr("Date"),
     fields: [
-      { key: "date.today", label: "Ngày hiện tại", format: "date" },
-      { key: "date.day", label: "Ngày (dd)", format: "text" },
-      { key: "date.month", label: "Tháng (mm)", format: "text" },
-      { key: "date.year", label: "Năm (yyyy)", format: "text" },
+      { key: "date.today", label: tr("Today's date"), format: "date" },
+      { key: "date.day", label: tr("Day (dd)"), format: "text" },
+      { key: "date.month", label: tr("Month (mm)"), format: "text" },
+      { key: "date.year", label: tr("Year (yyyy)"), format: "text" },
     ],
   },
 };
@@ -138,7 +219,7 @@ function VariableConfigEditor() {
     { style: { display: "flex", flexDirection: "column", gap: 8 } },
     rows.length === 0
       ? React.createElement(Empty, {
-          description: "Chưa có biến nào",
+          description: tr("No variables yet"),
           image: Empty.PRESENTED_IMAGE_SIMPLE,
         })
       : rows.map((row, index) =>
@@ -146,7 +227,7 @@ function VariableConfigEditor() {
             Space.Compact,
             { key: index, style: { width: "100%" } },
             React.createElement(Input, {
-              placeholder: "Tên biến (VD: customer_name)",
+              placeholder: tr("Variable name (e.g. customer_name)"),
               value: row.key,
               style: { width: "22%" },
               onChange: (e) => updateRow(index, { key: e.target.value }),
@@ -155,14 +236,14 @@ function VariableConfigEditor() {
               value: row.source,
               style: { width: "18%" },
               options: [
-                { value: "system", label: "Hệ thống" },
-                { value: "manual", label: "Nhập tay" },
+                { value: "system", label: tr("System") },
+                { value: "manual", label: tr("Manual") },
               ],
               onChange: (value) => updateRow(index, { source: value }),
             }),
             row.source === "system"
               ? React.createElement(Select, {
-                  placeholder: "Chọn field hệ thống",
+                  placeholder: tr("Select a system field"),
                   value: row.sourceKey || undefined,
                   style: { width: "45%" },
                   showSearch: true,
@@ -171,7 +252,7 @@ function VariableConfigEditor() {
                   onChange: (value) => updateRow(index, { sourceKey: value }),
                 })
               : React.createElement(Input, {
-                  placeholder: "Nhãn hiển thị khi nhập tay (VD: Tên tòa án)",
+                  placeholder: tr("Label shown for manual input (e.g. Court name)"),
                   value: row.label,
                   style: { width: "45%" },
                   onChange: (e) => updateRow(index, { label: e.target.value }),
@@ -180,11 +261,11 @@ function VariableConfigEditor() {
               danger: true,
               onClick: () => removeRow(index),
               style: { width: "15%" },
-              children: "Xoá",
+              children: tr("Delete"),
             }),
           ),
         ),
-    React.createElement(Button, { type: "dashed", onClick: addRow }, "+ Thêm biến"),
+    React.createElement(Button, { type: "dashed", onClick: addRow }, tr("+ Add variable")),
   );
 }
 

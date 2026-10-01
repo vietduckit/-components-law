@@ -13,13 +13,20 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $function$
 BEGIN
-  -- Open-ended retainers (no retainerTotalCycles) stay out of automation —
-  -- periodAmount is totalAmount / retainerTotalCycles, undefined with no
-  -- cycle count to divide by. Letting this row schedule anyway would let
-  -- the Workflow's Calculation node silently divide by NULL and create a
-  -- paymentRequests row with requestedAmount = NULL. This guard is the
-  -- only thing preventing that.
-  IF NEW."planType" <> 'retainer' OR NEW."retainerTotalCycles" IS NULL THEN
+  -- 2026-09-24 (user decision): open-ended retainers (no
+  -- retainerTotalCycles) are now billed too — totalAmount is their amount
+  -- PER CYCLE, billed every cycle until the next date passes endDate (or
+  -- indefinitely with no endDate). Billing itself runs in
+  -- public.retainer_billing_run_due() (pgsql/retainer_billing_run_due.sql),
+  -- called hourly by JsField/Workflow/CreateRetainerBillingCronWorkflow.js —
+  -- deploy those first; the superseded date-field Workflow's expressions
+  -- throw on a null cycle count.
+  -- Still never scheduled: non-retainer plans, no startDate, or no positive
+  -- totalAmount (would create a request with requestedAmount NULL/0).
+  IF NEW."planType" <> 'retainer'
+     OR NEW."startDate" IS NULL
+     OR COALESCE(NEW."totalAmount", 0) <= 0
+  THEN
     NEW."nextBillingDate" := NULL;
     RETURN NEW;
   END IF;
@@ -36,6 +43,6 @@ $function$;
 
 DROP TRIGGER IF EXISTS trg_contract_billing_plan_init_retainer_state ON "contractBillingPlans";
 CREATE TRIGGER trg_contract_billing_plan_init_retainer_state
-  BEFORE INSERT OR UPDATE OF "retainerTotalCycles", "startDate", "planType" ON "contractBillingPlans"
+  BEFORE INSERT OR UPDATE OF "retainerTotalCycles", "startDate", "planType", "totalAmount" ON "contractBillingPlans"
   FOR EACH ROW
   EXECUTE FUNCTION public.contract_billing_plan_init_retainer_state();

@@ -1,0 +1,1272 @@
+[
+  {
+    "file": "All Module/Case/CaseNotes.js",
+    "allow": [
+      "Biên bản",
+      "Biên bản làm việc",
+      "Báo cáo",
+      "Bình luận",
+      "Chứng cứ / Hồ sơ",
+      "Công văn",
+      "File mẫu",
+      "Hợp đồng",
+      "Khác",
+      "Luật sư",
+      "Luật sư cộng sự",
+      "Luật sư đối tác",
+      "Phụ lục",
+      "Quill constructor not found in UMD export",
+      "Quyết định",
+      "Trợ lý pháp lý",
+      "Tài liệu đính kèm",
+      "Tờ trình",
+      "Đơn từ"
+    ]
+  },
+  {
+    "file": "All Module/Note/ProjectNote.js",
+    "allow": [
+      "Biên bản",
+      "Biên bản làm việc",
+      "Báo cáo",
+      "Bình luận",
+      "Chứng cứ / Hồ sơ",
+      "Công văn",
+      "File mẫu",
+      "Hợp đồng",
+      "Khác",
+      "Luật sư",
+      "Luật sư cộng sự",
+      "Luật sư đối tác",
+      "Phụ lục",
+      "Quill constructor not found in UMD export",
+      "Quyết định",
+      "Trợ lý pháp lý",
+      "Tài liệu đính kèm",
+      "Tờ trình",
+      "{0} tệp đính kèm",
+      "Đơn từ"
+    ]
+  },
+  {
+    "file": "All Module/Case/CaseComments.js",
+    "allow": [
+      "Quill constructor not found in UMD export",
+      "Comment"
+    ]
+  },
+  {
+    "file": "All Module/Project/ActivityTab.js",
+    "allow": [
+      "Hệ thống"
+    ]
+  },
+  {
+    "file": "All Module/Document/DocumentActivityLog.js",
+    "allow": [],
+    "compareOk": [
+      "title"
+    ]
+  },
+  {
+    "file": "All Module/Service/ServiceChangeLog.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Task/TaskManagement.js",
+    "allow": [
+      "services:create returned no id"
+    ]
+  },
+  {
+    "file": "All Module/Task/TaskDetailView.js",
+    "allow": [
+      "Quill constructor not found in UMD export",
+      "Comment",
+      "Có",
+      "Không"
+    ],
+    "compareOk": [
+      "Document",
+      "Task",
+      "Note",
+      "commented",
+      "deleted",
+      "uploaded"
+    ]
+  },
+  {
+    "file": "All Module/Task/MyTask.js",
+    "allow": [
+      "Quill constructor not found in UMD export",
+      "Hệ thống",
+      "Bình luận",
+      "Tài liệu đính kèm",
+      "Quyết định",
+      "Tờ trình",
+      "Báo cáo",
+      "Công văn",
+      "Đơn từ",
+      "Phụ lục",
+      "Biên bản làm việc",
+      "File mẫu",
+      "Hợp đồng",
+      "Biên bản",
+      "Chứng cứ / Hồ sơ",
+      "Khác",
+      "file mẫu",
+      "{0} tệp đính kèm"
+    ],
+    "compareOk": [
+      "Document",
+      "Task",
+      "Note",
+      "commented",
+      "deleted",
+      "uploaded"
+    ]
+  },
+  {
+    "file": "All Module/Task/ProjectInternalTask.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Task/AllTaskBlock.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Task/AllApprovalBlock.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Task/Kanban-MyTask.js",
+    "allow": [
+      "Comment",
+      "Minutes",
+      "Decision",
+      "Proposal",
+      "Report",
+      "Evidence / Profile",
+      "Official Dispatch",
+      "Application",
+      "Appendix",
+      "Working Minutes",
+      "Template",
+      "Google Drive Link"
+    ]
+  },
+  {
+    "file": "All Module/Task/Grantt-MyTask.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Payment/PaymentContractDetailBlock.js",
+    "allow": [
+      "{0} VND",
+      "No resource available for action {0}"
+    ],
+    "compareOk": [
+      "day",
+      "week",
+      "month",
+      "quarter",
+      "year"
+    ]
+  },
+  {
+    "file": "All Module/Invoice/InvoiceCreateBlock.js",
+    "allow": [
+      "{0} VND",
+      "No resource available for action {0}",
+      "VND"
+    ]
+  },
+  {
+    "file": "All Module/Payment/PaymentCreateBlock.js",
+    "allow": [
+      "{0} VND",
+      "No resource available for action {0}",
+      "VND"
+    ],
+    "compareOk": [
+      "day",
+      "week",
+      "month",
+      "quarter",
+      "year"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Payment/PaymentRequestCreateBlock.js",
+    "allow": [
+      "{0} VND",
+      "No resource available for action {0}",
+      "Installment {0}",
+      "Recurring retainer payment.",
+      "Remaining amount after existing received payments."
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Case/CaseFinanceBlock.js",
+    "allow": [
+      "{0} VND",
+      "Dịch vụ {0} - {1} - {2}",
+      "Payment request - {0} - {1} - Retainer period {2}"
+    ],
+    "dynamicKeys": true,
+    "viKeys": [
+      "A new payment request “Đợt {0} - {1} - {2}” is created as Active."
+    ],
+    "compareOk": [
+      "Bill now",
+      "Manual",
+      "Settlement",
+      "day",
+      "week",
+      "quarter",
+      "year",
+      "combo",
+      "invoice"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractCreateForm.js",
+    "allow": [
+      "làm mới",
+      "tải lại",
+      "Quotation #{0}",
+      "One-time payment",
+      "rgba(0, 0, 0, 0.88)",
+      "rgba(0, 0, 0, 0.45)"
+    ],
+    "dynamicKeys": true,
+    "compareOk": [
+      "item",
+      "installment",
+      "service"
+    ]
+  },
+  {
+    "file": "All Module/Quotation/QuotationCreateForm.js",
+    "allow": [
+      "làm mới",
+      "tải lại",
+      "rgba(0, 0, 0, 0.88)"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Case/CaseCreateForm.js",
+    "allow": [
+      "làm mới",
+      "tải lại",
+      "rgba(0, 0, 0, 0.88)"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Customer/CustomerOverviewBlock.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Customer/CustomerDeleteAction.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Quotation/QuotationStatus.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Document/CaseReferenceCreateBlock.js",
+    "allow": [
+      "No resource available for {0}",
+      "Create failed: {0}"
+    ]
+  },
+  {
+    "file": "All Module/Document/LegalStudyCreateBlock.js",
+    "allow": [
+      "No resource available for {0}",
+      "Create failed: {0}"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractPaymentScheduleDetailBlock.js",
+    "allow": [
+      "rgba(0, 0, 0, 0.88)",
+      "rgba(0, 0, 0, 0.45)",
+      "No resource available for action {0}",
+      "Recurring retainer payment",
+      "One-time payment for the full contract value",
+      "Installment {0}"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Meeting/MeetingBlock.js",
+    "allow": [],
+    "compareOk": [
+      "No date"
+    ]
+  },
+  {
+    "file": "All Module/Meeting/MeetingCreateForm.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Meeting/MeetingDetailView.js",
+    "allow": []
+  },
+  {
+    "file": "All Module/Quotation/QuotationPDFBlock.js",
+    "allow": [
+      "Thanh toán ngay khi nhận đề xuất",
+      "Thanh toán trong vòng 15 ngày",
+      "Thanh toán trong vòng 30 ngày",
+      "Thanh toán trong vòng 45 ngày",
+      "Thanh toán vào cuối tháng kế tiếp",
+      "Thanh toán theo số dư hợp đồng",
+      " VNĐ",
+      "Công ty Luật",
+      "Giám đốc điều hành",
+      "Phí dịch vụ nói trên <strong>chưa</strong> bao gồm thuế GTGT và chi phí cho bên thứ ba, bao gồm nhưng không giới hạn phí chứng thực, công chứng, dịch thuật, hợp pháp hóa lãnh sự. Thuế suất thuế GTGT sẽ được tính căn cứ theo quy định tại thời điểm xuất hóa đơn.",
+      "Một lần nữa, Chúng Tôi rất vui mừng khi biết Quý Khách Hàng quan tâm đến dịch vụ của Chúng Tôi và Chúng Tôi mong đợi sự tin tưởng từ phía Khách Hàng. Nếu Quý Khách Hàng có bất kỳ câu hỏi nào, xin vui lòng liên hệ với Chúng Tôi theo địa chỉ email: <strong>{0}</strong> hoặc số điện thoại <strong>{1}</strong>.",
+      "<tr><td colspan=\"4\" style=\"text-align:center;color:#999;font-style:italic;padding:16px 0\">Chưa có dịch vụ</td></tr>",
+      "Dịch vụ #{0}",
+      "<li>Tư vấn và hỗ trợ thực hiện theo yêu cầu của Khách Hàng.</li>",
+      "\n    <div style=\"margin-bottom:20px\">\n      <p style=\"font-weight:bold;text-decoration:underline;margin-bottom:6px\">Dịch vụ {0}: {1}</p>\n      <p style=\"font-style:italic;margin-bottom:4px\">Công việc cụ thể gồm:</p>\n      <ul style=\"margin:4px 0 8px 24px;padding:0\">\n        {2}\n      </ul>\n      <p style=\"font-style:italic;margin-top:6px\"><em>Thời gian thực hiện dự kiến:</em> <strong>15 ngày làm việc</strong> kể từ ngày nhận đủ hồ sơ hợp lệ.</p>\n    </div>",
+      "\n    <div style=\"page-break-before:always;padding-top:10mm\">\n      <p style=\"font-size:13pt;font-weight:bold;text-align:center;text-transform:uppercase;letter-spacing:1px;margin:0 0 24px;padding-bottom:10px;border-bottom:2px solid {0};color:{1}\">\n        PHỤ LỤC – ĐIỀU KHOẢN VÀ ĐIỀU KIỆN CHUNG\n      </p>\n      <div style=\"font-size:12pt;line-height:1.8\">{2}</div>\n      <p style=\"margin-top:24px;font-size:12pt;font-style:italic\">\n        Sau khi Ông/Bà đã đọc những Điều khoản và Điều kiện và các thư đính kèm cẩn thận, xin vui lòng xác nhận vào nội dung bên dưới và gửi lại cho Công ty.\n      </p>\n    </div>",
+      "<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n<meta charset=\"UTF-8\"/>\n<title>De Xuat Dich Vu Phap Ly - {0}</title>\n<style>\n  :root { --brand: {1}; --gold: #c9a84c; --text: #1a1a1a; --sub: #444; }\n  * { margin:0; padding:0; box-sizing:border-box; }\n  body { font-family: 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif; font-size:13pt; color:var(--text); background:#fff; line-height:1.7; }\n  .page { width:100%; padding:18mm 22mm 18mm 22mm; }\n  .section-h1 { font-size:13pt; font-weight:bold; color:var(--brand); text-transform:uppercase; letter-spacing:1px; margin:36px 0 14px; padding-bottom:5px; border-bottom:2px solid var(--brand); }\n  .body-text { text-align:justify; }\n  .body-text p { margin-bottom:12px; }\n  .toc { margin:16px 0 20px 28px; }\n  .toc li { margin-bottom:4px; }\n  .fee-table { width:100%; border-collapse:collapse; font-size:12pt; margin:14px 0; }\n  .fee-table thead tr { background:var(--brand); color:#fff; }\n  .fee-table thead th { padding:9px 12px; font-weight:bold; text-align:left; font-size:11pt; border:1px solid var(--brand); }\n  .fee-table thead th.r { text-align:right; }\n  .fee-table thead th.c { text-align:center; }\n  .fee-table tbody tr { border-bottom:1px solid #ddd; }\n  .fee-table tbody tr:nth-child(even) { background:#f9fafb; }\n  .fee-table tbody td { padding:8px 12px; border:1px solid #e0e0e0; vertical-align:top; }\n  .fee-table tbody td.r { text-align:right; }\n  .fee-table tfoot tr.subtotal td { padding:7px 12px; font-size:11.5pt; color:var(--sub); border:1px solid #e0e0e0; }\n  .fee-table tfoot tr.subtotal td.r { text-align:right; }\n  .fee-table tfoot tr.grand td { padding:10px 12px; font-weight:bold; font-size:13pt; background:var(--brand); color:#fff; border:1px solid var(--brand); }\n  .fee-table tfoot tr.grand td.r { text-align:right; color:var(--gold); font-size:14pt; }\n  .vat-note { margin:14px 0; font-size:12pt; text-align:justify; }\n  .scope-exclusion { margin:14px 0 18px; font-size:12pt; text-align:justify; }\n  .sig-block { margin:36px 0 20px; }\n  .payment-note { background:#fffbf0; border:1px solid #f0e0a0; border-radius:4px; padding:13px 16px; margin:14px 0; font-size:12pt; }\n  @media print {\n    .page { padding:0; }\n    body { padding:0; }\n    @page { size:A4; margin:18mm 22mm; }\n  }\n</style>\n</head>\n<body>\n<div class=\"page\">\n\n  <div style=\"min-height:250mm;display:flex;flex-direction:column;justify-content:space-between;padding:10mm 0 8mm\">\n    \n    <div style=\"width: 100%; text-align: center; margin-bottom: 30px;\">\n      {2}\n    </div>\n\n    <div style=\"display:flex;align-items:flex-start;justify-content:space-between;gap:30px\">\n      \n      <div style=\"flex:1;min-width:0;text-align: right;\">\n        <div style=\"font-size:11.5pt;font-weight:bold;color:var(--brand);line-height:1.6;text-transform:uppercase;margin-bottom:8px\">{3}</div>\n        <div style=\"font-size:9.5pt;color:var(--sub);line-height:1.8\">\n          {4}\n          {5}\n          {6}\n          {7}\n          {8}\n          {9}\n        </div>\n      </div>\n\n      <div style=\"flex:1;min-width:0;text-align:right\">\n        <div style=\"font-size:18pt;font-weight:bold;color:var(--brand);text-transform:uppercase;letter-spacing:1px;line-height:1.2;margin-bottom:12px\">ĐỀ XUẤT DỊCH VỤ PHÁP LÝ</div>\n        <div style=\"font-size:14pt;font-weight:bold;color:var(--gold);margin-bottom:10px\">{10}</div>\n        <div style=\"font-size:10pt;color:var(--sub);font-style:italic;margin-bottom:2px\">Số: {11}</div>\n        <div style=\"font-size:10pt;color:var(--sub);font-style:italic\">Ngày {12} tháng {13} năm {14}</div>\n      </div>\n\n    </div>\n\n    <div style=\"border-top:2px solid var(--brand);margin-top:auto;padding-top:10px\"></div>\n  </div>\n\n  <div style=\"page-break-before:always;padding-top:8mm\">\n    <p style=\"margin-bottom:20px\"><strong>Kính gửi {15},</strong></p>\n\n    <div style=\"text-align:justify\">\n      <p style=\"margin-bottom:14px\">\n        Trước hết, Chúng Tôi xin chân thành cảm ơn <strong>{16}</strong>\n        (sau đây gọi tắt là \"<strong>{17}</strong>\" hoặc \"<strong>Khách Hàng</strong>\")\n        đã quan tâm đến dịch vụ pháp lý của {18}\n        (sau đây gọi tắt là \"<strong>{19}</strong>\" hoặc \"<strong>Chúng Tôi</strong>\" hoặc \"<strong>Công Ty</strong>\").\n      </p>\n      {20}\n    </div>\n\n    <ol class=\"toc\">\n      <li>Kinh nghiệm của {21};</li>\n      <li>Các dịch vụ mà {22} có thể cung cấp</li>\n      <li>Phụ lục - Điều khoản và điều kiện chung.</li>\n    </ol>\n\n    <div class=\"section-h1\">I. Kinh nghiệm của {23}</div>\n    <div class=\"body-text\">\n      {24}\n    </div>\n\n    {25}\n\n    <div class=\"section-h1\">{26}. Các dịch vụ và chi phí</div>\n\n    <p style=\"margin-bottom:16px\">Trong bản đề xuất dịch vụ này, Chúng Tôi đề xuất cung cấp các dịch vụ sau:</p>\n\n    {27}\n\n    <div class=\"scope-exclusion\">\n      {28}\n    </div>\n\n    <p style=\"margin-bottom:14px\">Dựa trên kinh nghiệm thực tiễn của Chúng Tôi, phí dịch vụ áp dụng cho các vụ việc tương tự được tính cụ thể như sau:</p>\n\n    <table class=\"fee-table\">\n      <thead>\n        <tr>\n          <th style=\"width:40px;text-align:center\">STT</th>\n          <th>Nội dung dịch vụ</th>\n          <th class=\"r\" style=\"width:200px\">Phí dịch vụ (VNĐ)</th>\n          <th class=\"c\" style=\"width:120px\">Ghi chú</th>\n        </tr>\n      </thead>\n      <tbody>{29}</tbody>\n      <tfoot>\n        <tr class=\"subtotal\">\n          <td colspan=\"2\" style=\"text-align:right;font-weight:bold\">Tổng cộng (chưa VAT)</td>\n          <td class=\"r\">{30}</td>\n          <td></td>\n        </tr>\n        {31}\n        <tr class=\"grand\">\n          <td colspan=\"2\" style=\"text-align:right\">TỔNG CỘNG</td>\n          <td class=\"r\">{32}</td>\n          <td></td>\n        </tr>\n      </tfoot>\n    </table>\n\n    <p class=\"vat-note\">{33}</p>\n\n    <p style=\"margin-bottom:14px;font-size:12pt\">\n      Xin lưu ý rằng kết quả thực hiện dịch vụ sẽ phụ thuộc vào việc đáp ứng các điều kiện luật định của Khách Hàng và tùy thuộc vào việc xem xét, đánh giá của cơ quan có thẩm quyền tùy từng thời điểm, tùy từng trường hợp cụ thể. {34} có trách nhiệm tư vấn cụ thể các điều kiện Khách Hàng cần đáp ứng và sẽ nỗ lực hết sức trong việc giải trình và làm việc với cơ quan nhà nước để đạt được kết quả tốt nhất.\n    </p>\n\n    <p style=\"margin-bottom:14px;font-size:12pt\">\n      Để biết thêm thông tin về thời hạn và điều kiện, vui lòng xem <strong>PHỤ LỤC - ĐIỀU KHOẢN VÀ ĐIỀU KIỆN CHUNG</strong> của Chúng Tôi.\n    </p>\n\n    {35}\n\n    <div style=\"margin:20px 0;text-align:justify\">\n      {36}\n    </div>\n\n    <div class=\"sig-block\">\n      <div style=\"position:relative;display:inline-block;width:180px;height:120px;margin-bottom:8px\">\n        {37}\n        {38}\n      </div>\n      <div style=\"font-weight:bold;font-size:13pt\">{39}</div>\n      <div style=\"font-size:12pt;color:var(--sub)\">{40}</div>\n    </div>\n\n    {41}\n\n  </div>\n</div>\n</body>\n</html>",
+      "<p style=\"margin-bottom:14px\">Chúng Tôi được biết hiện nay <strong>{0}</strong> đang có nhu cầu <strong>{1}</strong>. Để hỗ trợ <strong>{2}</strong> trong việc thực hiện các công việc trên, Chúng Tôi hân hạnh đệ trình Bản đề xuất dịch vụ của {3}. Bản đề xuất bao gồm các phần sau:</p>",
+      "<p>{0} là công ty luật cung cấp dịch vụ pháp lý toàn diện cho khách hàng trong và ngoài nước.</p>",
+      "\n    <div class=\"section-h1\">II. Tổng quan</div>\n    <div class=\"body-text\">\n      {0}\n    </div>",
+      "<p style=\"font-style:italic;color:#999\">Chưa có dịch vụ nào được thêm.</p>",
+      "<p>Để tránh hiểu nhầm, các dịch vụ pháp lý nêu trên không bao gồm (1) các vụ việc pháp lý, vụ án hoặc tranh chấp phát sinh liên quan đến Khách Hàng và (2) các vấn đề pháp lý khác ngoài phạm vi trong Mục này. Trong trường hợp này Các Bên sẽ thống nhất và xác lập một thoả thuận dịch vụ pháp lý khác liên quan.</p>",
+      "<tr class=\"subtotal\">\n          <td colspan=\"2\" style=\"text-align:right\">Thuế GTGT</td>\n          <td class=\"r\">{0}</td>\n          <td></td>\n        </tr>",
+      "\n    <div class=\"payment-note\">\n      <strong>Điều khoản thanh toán:</strong> {0} đề nghị {1}.\n      {2}\n    </div>",
+      "<br/><strong>Báo giá có hiệu lực đến:</strong> {0}.",
+      "{0} / Proposal / CBI - {1}"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractPDFBlock.js",
+    "allow": [
+      "ngày {0} tháng {1} năm {2}",
+      " VNĐ",
+      "một",
+      "bốn",
+      "năm",
+      "sáu",
+      "bảy",
+      "tám",
+      "chín",
+      "mười",
+      "hai mươi",
+      "ba mươi",
+      "bốn mươi",
+      "năm mươi",
+      "sáu mươi",
+      "bảy mươi",
+      "tám mươi",
+      "chín mươi",
+      " trăm",
+      "không đồng",
+      " tỷ",
+      " triệu",
+      " nghìn",
+      " đồng",
+      "Giám Đốc",
+      "Công ty Luật",
+      "Giám đốc",
+      "tiếng Anh",
+      "tiếng Việt và tiếng Anh",
+      "tiếng Việt",
+      "Dịch vụ #{0}",
+      "<li>Tư vấn và hỗ trợ thực hiện theo yêu cầu của Khách Hàng.</li>",
+      "<p style=\"margin-bottom:6px\">Mã số thuế: <strong>{0}</strong>; địa chỉ trụ sở đăng ký tại <strong>{1}</strong>, Việt Nam.</p>",
+      "<p style=\"margin-bottom:6px\">Đại diện bởi: Ông/Bà: <strong>{0}</strong> chức vụ: <strong>{1}</strong></p>",
+      "\n    <p style=\"margin-bottom:8px\"><strong>Ông/Bà: {0}</strong></p>\n    {1}\n    {2}\n    {3}\n  ",
+      "<p style=\"margin-bottom:6px\">CCCD Số/Passport Số: <strong>{0}</strong></p>",
+      "<p style=\"margin-bottom:6px\">Nơi cấp: <strong>{0}</strong>{1}</p>",
+      "; ngày cấp: <strong>{0}</strong>",
+      "<p style=\"margin-bottom:6px\">Chỗ ở hiện tại: <strong>{0}</strong></p>",
+      "<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n<meta charset=\"UTF-8\"/>\n<title>Hop Dong Dich Vu Phap Ly - {0}</title>\n<style>\n  :root { --brand: {1}; --text: #1a1a1a; --sub: #444; }\n  * { margin:0; padding:0; box-sizing:border-box; }\n  body { font-family: 'Times New Roman', Times, serif; font-size:13pt; color:var(--text); background:#fff; line-height:1.8; }\n  .page { width:100%; padding:20mm 25mm 20mm 30mm; }\n  h1.doc-title { font-size:14pt; font-weight:bold; text-align:center; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }\n  .doc-number { text-align:center; font-size:12pt; margin-bottom:20px; }\n  .article-title { font-size:13pt; font-weight:bold; text-transform:uppercase; margin:24px 0 10px; }\n  .sub-title { font-size:13pt; font-weight:bold; margin:16px 0 8px; }\n  p { margin-bottom:10px; text-align:justify; }\n  ol.alpha { list-style-type:lower-alpha; margin-left:28px; }\n  ol.alpha li { margin-bottom:8px; text-align:justify; }\n  ol.decimal { list-style-type:decimal; margin-left:28px; }\n  ol.decimal li { margin-bottom:8px; text-align:justify; }\n  .indent { margin-left:28px; }\n  .fee-table { width:100%; border-collapse:collapse; font-size:12pt; margin:12px 0; }\n  .fee-table th { padding:8px 10px; background:var(--brand); color:#fff; border:1px solid var(--brand); font-size:12pt; }\n  .fee-table tfoot td { padding:8px 10px; font-weight:bold; border:1px solid #ddd; }\n  .fee-table tfoot tr.grand td { background:var(--brand); color:#fff; border-color:var(--brand); }\n  .fee-table tfoot tr.grand td.r { text-align:right; }\n  .sig-table { width:100%; margin-top:40px; }\n  .sig-table td { width:50%; vertical-align:top; padding:0 10px; text-align:center; }\n  .sig-label { font-weight:bold; text-transform:uppercase; margin-bottom:6px; }\n  .sig-wrap { position:relative; display:inline-block; width:180px; height:120px; margin:10px auto; }\n  .page-break { page-break-before:always; }\n  .annex-title { font-size:14pt; font-weight:bold; text-align:center; text-transform:uppercase; margin:0 0 20px; padding-bottom:8px; border-bottom:2px solid var(--brand); color:var(--brand); }\n  .payment-schedule { background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:14px 18px; margin:12px 0; }\n  .payment-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }\n  .payment-label { font-weight:bold; }\n  .payment-amount { color:var(--brand); font-weight:bold; }\n  @media print {\n    .page { padding:0; }\n    body { padding:0; }\n    @page { size:A4; margin:20mm 25mm 20mm 30mm; }\n  }\n</style>\n</head>\n<body>\n<div class=\"page\">\n\n  <div style=\"display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px\">\n    <div>\n      {2}\n    </div>\n    <div style=\"text-align:right;font-size:10pt;color:var(--sub);line-height:1.9\">\n      <div><strong>{3}</strong></div>\n      {4}\n      {5}\n      {6}\n      {7}\n      {8}\n    </div>\n  </div>\n\n  <div style=\"text-align:center;margin-bottom:6px\">\n    <div style=\"font-size:11pt;font-weight:bold;text-transform:uppercase;letter-spacing:2px;color:var(--sub)\">Cộng Hòa Xã Hội Chủ Nghĩa Việt Nam</div>\n    <div style=\"font-size:11pt;font-style:italic;margin-bottom:16px\">Độc lập – Tự do – Hạnh phúc</div>\n    <div style=\"border-bottom:1px solid #ccc;width:200px;margin:0 auto 20px\"></div>\n  </div>\n\n  <h1 class=\"doc-title\">Hợp Đồng Dịch Vụ Pháp Lý</h1>\n  <div class=\"doc-number\">Số: <strong>{9}</strong></div>\n\n  <p style=\"text-align:center;margin-bottom:6px\">GIỮA</p>\n  <p style=\"text-align:center;font-weight:bold;font-size:24pt;margin-bottom:6px\">{10}</p>\n  <p style=\"text-align:center;margin-bottom:6px\">VÀ</p>\n  <p style=\"text-align:center;font-weight:bold;font-size:24pt;margin-bottom:20px\">{11}</p>\n\n  <div style=\"border:1px solid #ccc;padding:16px 20px;margin-bottom:24px;font-size:12pt\">\n    <p style=\"margin-bottom:8px\">\n      <strong>HỢP ĐỒNG DỊCH VỤ PHÁP LÝ Số: {12}</strong>\n      NÀY (cùng các phụ lục kèm theo, gọi chung là \"<strong>Hợp Đồng</strong>\") được ký {13} (\"<strong>Ngày Ký</strong>\"):\n    </p>\n    <p style=\"text-align:center;font-weight:bold;margin:12px 0 8px\">GIỮA</p>\n    <div style=\"margin-bottom:12px\">\n      {14}\n      <p style=\"margin-top:6px\">(sau đây gọi là \"<strong>Khách Hàng</strong>\"),</p>\n    </div>\n    <p style=\"text-align:center;font-weight:bold;margin:8px 0\">VÀ</p>\n    <div style=\"margin-bottom:12px\">\n      <p style=\"margin-bottom:6px\"><strong>{15}</strong></p>\n      {16}\n      <p style=\"margin-bottom:6px\">Đại diện bởi: Ông <strong>{17}</strong> chức vụ: <strong>{18}</strong></p>\n      <p>(sau đây gọi là \"<strong>Công Ty</strong>\")</p>\n    </div>\n    <p>Nay, do đó, Khách Hàng và Công Ty (sau đây gọi chung là \"<strong>Các Bên</strong>\" hay gọi riêng là \"<strong>Bên</strong>\") đồng ý ký và xác lập Hợp Đồng này với các điều khoản và điều kiện sau đây:</p>\n  </div>\n\n  <div class=\"article-title\">Điều 1. Chỉ định Công Ty và Chấp Thuận Dịch Vụ</div>\n  <div class=\"sub-title\">1.1. Chỉ Định Công Ty</div>\n  <ol class=\"alpha\">\n    <li>Khách Hàng tại Hợp Đồng này chỉ định Công Ty cung cấp dịch vụ pháp lý cho Khách Hàng theo quy định tại Điều 1.2 (\"Dịch Vụ\") của Hợp Đồng này.</li>\n    <li>Các Bên đồng ý rằng Hợp Đồng này khi được Các Bên ký phê chuẩn không được coi là hợp đồng độc quyền giữa Khách Hàng và Công Ty liên quan đến các dịch vụ quy định tại Điều 1.2 dưới đây, tuy nhiên luôn luôn với điều kiện rằng Khách Hàng không được giao dịch vụ tương tự đã giao cho Công Ty theo Hợp Đồng này cho bất kỳ tổ chức, công ty hay cá nhân nào khác khi chưa có văn bản chấp thuận trước của Công Ty.</li>\n  </ol>\n  <div class=\"sub-title\">1.2. Chấp Thuận Dịch Vụ</div>\n  <ol class=\"alpha\">\n    <li>Khách Hàng đồng ý và chấp thuận thuê Công Ty cung cấp các dịch vụ tư vấn liên quan đến việc <strong>{19}</strong>, được liệt kê chi tiết tại Phụ Lục 1 của Hợp Đồng này.</li>\n    <li>Bất kỳ dịch vụ nào phát sinh thêm ngoài những dịch vụ quy định tại Khoản (a) Điều 1.2 này đều phải được Các Bên phê chuẩn trước bằng văn bản trước khi thực hiện.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 2. Phí Dịch Vụ, Thuế và Chi Phí</div>\n  <div class=\"sub-title\">2.1. Phí Dịch Vụ</div>\n  <p class=\"indent\">Phí dịch vụ bao gồm phí tư vấn pháp lý và phí thực hiện các công việc pháp lý theo phạm vi dịch vụ được mô tả chi tiết tại <strong>Phụ lục 1</strong> kèm theo Hợp Đồng này.</p>\n  <div class=\"sub-title\">2.2. Thuế và Chi Phí</div>\n  <p class=\"indent\">Phí dịch vụ quy định tại Điều 2.1 <strong>{20} bao gồm</strong> thuế giá trị gia tăng (VAT) và các chi phí phát sinh khác (nếu có).</p>\n  <p class=\"indent\">Thuế suất thuế giá trị gia tăng được áp dụng theo quy định pháp luật hiện hành tại thời điểm phát hành hóa đơn.</p>\n\n  <div class=\"article-title\">Điều 3. Thanh Toán</div>\n  <ol class=\"decimal\" style=\"margin-left:28px\">\n    <li>Khách Hàng đồng ý thanh toán cho Công Ty toàn bộ phí, thuế và chi phí theo khoản tiền và lịch biểu thanh toán quy định tại Điều 2.1 của Hợp Đồng này.</li>\n    <li>Công Ty sẽ gửi Khách Hàng Giấy Đề Nghị Thanh Toán và khoản tiền ghi trong Giấy Đề Nghị Thanh Toán sẽ đến hạn thanh toán và sẽ được Khách Hàng thanh toán cho Công Ty trong thời hạn chậm nhất là mười (10) ngày làm việc kể từ ngày ký của Giấy Đề Nghị Thanh Toán.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 4. Hiệu Lực và Thời Hạn</div>\n  <p class=\"indent\">Hợp Đồng này có hiệu lực pháp luật đầy đủ vào Ngày Ký ghi tại phần đầu của Hợp Đồng này (\"Ngày Hiệu Lực\") và tiếp tục có hiệu lực pháp lý đầy đủ cho đến khi Các Bên thỏa thuận chấm dứt và thanh lý Hợp Đồng này.</p>\n\n  <div class=\"article-title\">Điều 5. Cam Kết và Bảo Đảm</div>\n  <div class=\"sub-title\">5.1. Cam Kết và Đảm Bảo của Công Ty</div>\n  <p class=\"indent\">Công Ty cam kết và bảo đảm:</p>\n  <ol class=\"alpha\">\n    <li>rằng Công Ty có đầy đủ năng lực, thẩm quyền, giấy phép cần thiết để ký và thực hiện nghĩa vụ quy định tại Hợp Đồng này.</li>\n    <li>rằng dịch vụ được cung cấp theo Hợp Đồng này sẽ được thực hiện theo cách chuyên nghiệp bởi các Công Ty, chuyên gia tư vấn, người hành nghề có trình độ và kỹ năng trong việc thực hiện từng dịch vụ cụ thể. Nếu tư vấn không phù hợp với quy định của pháp luật hoặc dịch vụ quy định tại Hợp Đồng này không hoàn thành hoàn toàn do lỗi của Công Ty, theo yêu cầu của Khách hàng, Công Ty đồng ý bồi thường thiệt hại thực tế với mức bồi thường không vượt quá tổng khoản phí mà Công Ty đã nhận được theo Hợp Đồng này tính đến thời điểm bồi thường.</li>\n    <li>rằng Công Ty chỉ tư vấn và hành nghề tư vấn luật theo quy định của pháp luật Việt Nam.</li>\n  </ol>\n  <div class=\"sub-title\">5.2. Cam Kết và Bảo Đảm của Khách Hàng</div>\n  <p class=\"indent\">Khách Hàng cam kết và bảo đảm:</p>\n  <ol class=\"alpha\">\n    <li>rằng sẽ cung cấp đầy đủ và kịp thời các thông tin và tài liệu liên quan đến công việc gửi cho Công Ty hoặc theo yêu cầu của Công Ty để Công Ty thực hiện dịch vụ quy định tại Hợp Đồng này.</li>\n    <li>tính chính xác của thông tin và tài liệu cung cấp cho Công Ty. Trường hợp xảy ra thiệt hại cho Khách Hàng do tư vấn hoặc dịch vụ của Công Ty không chính xác xuất phát từ nguyên nhân thông tin, tài liệu do Khách Hàng cung cấp không chính xác, không đầy đủ và không kịp thời, Khách Hàng tự chịu trách nhiệm về toàn bộ những thiệt hại đó.</li>\n    <li>thanh toán đầy đủ các khoản phí, thuế và chi phí cho Công Ty theo đúng quy định tại Hợp Đồng này và/hoặc Phụ Lục của nó.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 6. Bảo Mật</div>\n  <div class=\"sub-title\">6.1. Thông Tin Mật</div>\n  <ol class=\"alpha\">\n    <li>Trong quá trình thực hiện Hợp Đồng này, mỗi Bên có thể tiếp cận hoặc có được thông tin mật (\"Thông Tin Mật\") của Bên kia liên quan đến tổ chức, hoạt động và kinh doanh của Bên đó.</li>\n    <li>Mỗi Bên đồng ý, nếu chưa được sự chấp thuận trước bằng văn bản của Bên kia, sẽ không tiết lộ bất kỳ Thông Tin Mật nào cho bên thứ ba dưới bất kỳ hình thức nào, trừ khi việc tiết lộ đó là bắt buộc theo quy định của pháp luật.</li>\n    <li>Công Ty cam kết giữ bí mật tại mọi thời điểm bất kỳ thông tin bí mật nào mà Công Ty có được liên quan đến thỏa thuận giữa Công Ty và Khách Hàng.</li>\n    <li>Các nghĩa vụ bảo mật vẫn tiếp tục được áp dụng thêm hai (02) năm nữa kể từ ngày thỏa thuận này hết hạn.</li>\n  </ol>\n  <div class=\"sub-title\">6.2. Ngoại Trừ</div>\n  <p class=\"indent\">Khách Hàng đồng ý rằng Công Ty được phép sử dụng thông tin về dịch vụ mà Công Ty thực hiện theo Hợp Đồng này trong các tài liệu và phương tiện giới thiệu về hồ sơ năng lực của Công Ty.</p>\n\n  <div class=\"article-title\">Điều 7. Chấm Dứt</div>\n  <div class=\"sub-title\">7.1. Chấm Dứt Bởi Khách Hàng</div>\n  <p class=\"indent\">Khách Hàng không được quyền đơn phương chấm dứt Hợp Đồng này trước Thời Hạn Hiệu Lực tại ĐIỀU 4 của Hợp Đồng này, trừ khi Khách Hàng xuất trình được bằng chứng rõ ràng chứng minh Công Ty đã vi phạm quy định tại ĐIỀU 6 của Hợp Đồng này.</p>\n  <div class=\"sub-title\">7.2. Chấm Dứt Bởi Công Ty</div>\n  <p class=\"indent\">Công Ty có quyền đơn phương ngừng thực hiện Hợp Đồng này bằng một văn bản thông báo trước năm (5) ngày làm việc gửi Khách Hàng nếu các khoản phí và khoản tiền phải thanh toán cho Công Ty theo quy định tại Hợp Đồng này đã quá hạn thanh toán mười (10) ngày làm việc kể từ ngày đến hạn thanh toán.</p>\n\n  <div class=\"article-title\">Điều 8. Lưu Giữ Tài Liệu</div>\n  <ol class=\"decimal\" style=\"margin-left:28px\">\n    <li>Khách Hàng sẽ chủ động sao lưu tài liệu (bản gốc, bản sao) trước khi gửi cho Công Ty. Công Ty sẽ không chịu trách nhiệm sao lưu tài liệu cho Khách Hàng.</li>\n    <li>Cho mục đích quản lý hồ sơ khách hàng, Công Ty sẽ lưu giữ đầy đủ thông tin và tài liệu liên quan đến dịch vụ đã thực hiện theo Hợp Đồng này.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 9. Tư Cách Nhà Thầu Độc Lập</div>\n  <p class=\"indent\">Công Ty tuyên bố và đồng ý cung cấp dịch vụ với tư cách là bên tư vấn, Công Ty độc lập của Khách Hàng. Không một quy định nào trong Hợp Đồng này được hiểu hay diễn giải là tạo ra mối quan hệ liên danh, liên doanh, lao động, đại lý giữa Công Ty và Khách Hàng.</p>\n\n  <div class=\"article-title\">Điều 10. Thông Báo</div>\n  <p class=\"indent\">Tất cả các thông báo, tài liệu, yêu cầu và liên lạc của một Bên với Bên kia sẽ được thực hiện theo quy tắc sau đây: (i) nếu được gửi bằng thư điện tử (e-mail), chỉ được coi là đã nhận được nếu Bên nhận xác nhận đã nhận được; (iii) được coi là đã nhận ngay lập tức nếu được trao tận tay người nhận; (iv) được coi là đã nhận sau 02 ngày kể từ ngày gửi bưu điện nếu được gửi bằng dịch vụ chuyển phát nhanh:</p>\n  <ol class=\"alpha\">\n    <li>Địa chỉ nhận thư của Khách Hàng:<br/>\n      <span class=\"indent\">Gửi: <strong>{21}</strong></span><br/>\n      <span class=\"indent\">Địa chỉ: <strong>{22}</strong></span><br/>\n      <span class=\"indent\">Tên người nhận: <strong>{23}</strong> - {24}</span><br/>\n     <span class=\"indent\">Di động số: <strong>{25}</strong></span>\n    </li>\n    <li>Địa chỉ nhận thư của Công Ty:<br/>\n      <span class=\"indent\">Gửi: <strong>{26}</strong></span><br/>\n      <span class=\"indent\">Địa chỉ: <strong>{27}</strong></span><br/>\n      <span class=\"indent\">Người nhận: <strong>{28}</strong> - {29}</span><br/>\n      <span class=\"indent\">Di động số: <strong>{30}</strong></span>\n    </li>\n  </ol>\n\n  <div class=\"article-title\">Điều 11. Chuyển Nhượng</div>\n  <p class=\"indent\">Không Bên nào được quyền chuyển nhượng Hợp Đồng này hoặc bất kỳ quyền hoặc nghĩa vụ nào quy định tại Hợp Đồng này nếu không có văn bản chấp thuận trước của Bên kia.</p>\n\n  <div class=\"article-title\">Điều 12. Công Bố</div>\n  <ol class=\"decimal\" style=\"margin-left:28px\">\n    <li>Công Ty không công bố công khai các thông tin liên quan đến Hợp Đồng này hoặc liên quan đến Khách Hàng, ngoại trừ trường hợp quy định tại Điều 6 của Hợp Đồng này.</li>\n    <li>Công Ty không sử dụng tiêu đề thư, biểu tượng, nhãn hiệu hoặc logo của Khách Hàng trong các tài liệu quảng cáo nếu không có văn bản chấp thuận trước của Khách Hàng.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 13. Kế Thừa</div>\n  <p class=\"indent\">Hợp Đồng này ràng buộc những người thừa kế và nhận chuyển nhượng của Các Bên đối với tất cả các quyền, nghĩa vụ và cam kết quy định Hợp Đồng này.</p>\n\n  <div class=\"article-title\">Điều 14. Luật Điều Chỉnh và Giải Quyết Tranh Chấp</div>\n  <div class=\"sub-title\">14.1. Luật Điều Chỉnh</div>\n  <p class=\"indent\">Pháp luật Việt Nam điều chỉnh tất cả các khía cạnh của Hợp Đồng này.</p>\n  <div class=\"sub-title\">14.2. Giải Quyết Tranh Chấp</div>\n  <p class=\"indent\">Mọi tranh chấp phát sinh từ hay liên quan đến Hợp Đồng này sẽ được giải quyết bởi trọng tài tại Trung tâm Trọng tài Quốc tế Việt Nam (VIAC), Hội đồng Trọng tài gồm ba (03) Trọng tài viên. Địa điểm Trọng tài tại Thành Phố Hồ Chí Minh, Việt Nam. Ngôn ngữ sử dụng trong xét xử trọng tài là <strong>{31}</strong>.</p>\n\n  <div class=\"article-title\">Điều 15. Hiệu Lực Riêng Biệt của Từng Điều Khoản</div>\n  <p class=\"indent\">Nếu bất kỳ một điều khoản nào của Hợp Đồng này bị coi là không có hiệu lực theo quy định của pháp luật thì sự vô hiệu đó không làm vô hiệu hoặc không ảnh hưởng đến hiệu lực của các điều khoản khác của Hợp Đồng này.</p>\n\n  <div class=\"article-title\">Điều 16. Bổ Sung, Sửa Đổi hoặc Miễn Trừ</div>\n  <div class=\"sub-title\">16.1. Sửa Đổi, Bổ Sung</div>\n  <p class=\"indent\">Bất kỳ sửa đổi, bổ sung nào đối với bất kỳ quy định nào của Hợp Đồng này sẽ chỉ có hiệu lực pháp lý và ràng buộc Các Bên nếu sửa đổi, bổ sung đó được lập thành văn bản được đại diện có thẩm quyền của Các Bên ký hợp lệ.</p>\n  <div class=\"sub-title\">16.2. Miễn Trừ</div>\n  <p class=\"indent\">Việc một Bên không hoặc chậm đưa ra yêu cầu đối với Bên kia thực hiện một nghĩa vụ không được hiểu là Bên đó từ bỏ quyền yêu cầu đó.</p>\n\n  <div class=\"article-title\">Điều 17. Bất Khả Kháng</div>\n  <p class=\"indent\">Thay đổi luật, chính sách của cơ quan thẩm quyền Việt Nam; hành vi sai trái của công chức làm chậm tiến độ xử lý công việc; lệnh cấm vận; chiến tranh; và tất cả các sự kiện khác xảy ra một cách khách quan, không dự đoán trước được và nằm ngoài khả năng kiểm soát của một Bên, là Sự kiện Bất Khả Kháng.</p>\n\n  <div class=\"article-title\">Điều 18. Thoả Thuận Toàn Bộ</div>\n  <ol class=\"decimal\" style=\"margin-left:28px\">\n    <li>Hợp Đồng này có các Phụ Lục sau: Phụ Lục 1 – Dịch Vụ; Phụ Lục 2 – Phí, Chi Phí Và Thanh Toán; và các Phụ Lục khác được xác lập bằng văn bản theo sự thỏa thuận của các Bên.</li>\n    <li>Hợp Đồng này và các Phụ Lục của nó cấu thành toàn bộ sự thoả thuận giữa các bên liên quan và thay thế tất cả các thoả thuận trước đó của các bên dù là thoả thuận bằng miệng hay bằng văn bản.</li>\n  </ol>\n\n  <div class=\"article-title\">Điều 19. Ngôn Ngữ và Số Bản Hợp Đồng</div>\n  <p class=\"indent\">Hợp Đồng này được ký thành hai (02) bản gốc bằng tiếng Việt. Mỗi Bên giữ một (01) bản gốc có giá trị pháp lý như nhau.</p>\n\n  <p style=\"text-align:center;font-weight:bold;margin:30px 0 16px;text-transform:uppercase\">Xác Nhận Sự Nhất Trí Đối Với Nội Dung Của Hợp Đồng Này</p>\n  <p style=\"text-align:center;font-style:italic;margin-bottom:24px\">Đại diện có thẩm quyền của mỗi Bên đã đọc kỹ, hiểu rõ quyền và nghĩa vụ của mình quy định tại Hợp Đồng này.</p>\n\n  <table class=\"sig-table\">\n    <tr>\n      <td>\n        <div class=\"sig-label\">Đại Diện Khách Hàng</div>\n        <div style=\"height:110px;margin:8px 0\"></div>\n        <div style=\"font-weight:bold\">{32}</div>\n        <div style=\"color:var(--sub)\">{33}</div>\n      </td>\n      <td>\n        <div class=\"sig-label\">Đại Diện Công Ty</div>\n        <div class=\"sig-wrap\" style=\"margin:8px auto\">\n          {34}\n          {35}\n        </div>\n        <div style=\"font-weight:bold\">{36}</div>\n        <div style=\"color:var(--sub)\">{37}</div>\n      </td>\n    </tr>\n  </table>\n\n  <div class=\"page-break\"></div>\n\n  <p class=\"annex-title\">Phụ Lục 1 – Dịch Vụ</p>\n  <p style=\"text-align:center;font-style:italic;font-size:11pt;margin-bottom:20px\">(Phụ Lục 1 này là một phần không thể tách rời của Hợp Đồng Dịch Vụ Pháp Lý số {38} ký {39})</p>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin-bottom:8px\">A. Yêu Cầu Dịch Vụ Pháp Lý</p>\n  <p class=\"indent\">Khách Hàng yêu cầu Công Ty tư vấn pháp lý trọn gói các vấn đề pháp lý về <strong>{40}</strong>.</p>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin:20px 0 8px\">B. Dịch Vụ Pháp Lý</p>\n  <p class=\"indent\">Trên cơ sở thông tin yêu cầu dịch vụ pháp lý nêu tại Mục A của Phụ lục này, Công Ty sẽ cung cấp các dịch vụ sau đây tới Khách Hàng:</p>\n  <div class=\"indent\">{41}</div>\n  <p class=\"indent\">Để tránh hiểu nhầm, các dịch vụ pháp lý nêu trên <strong>không bao gồm</strong> (1) các vụ việc pháp lý, vụ án pháp lý phát sinh liên quan đến Khách Hàng và (2) các vấn đề pháp lý khác ngoài phạm vi trong Mục này.</p>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin:20px 0 8px\">C. Tuân Thủ</p>\n  <ul style=\"margin-left:24px;line-height:1.9\">\n    <li>Công Ty cung cấp các dịch vụ trên cơ sở thông tin do Khách Hàng cung cấp.</li>\n    <li>Công Ty tuân thủ pháp luật Việt Nam khi thực hiện Hợp Đồng này.</li>\n  </ul>\n\n  <div class=\"page-break\"></div>\n\n  <p class=\"annex-title\">Phụ Lục 2 – Phí, Chi Phí và Thanh Toán</p>\n  <p style=\"text-align:center;font-style:italic;font-size:11pt;margin-bottom:20px\">(Phụ Lục 2 này là một phần không thể tách rời của Hợp Đồng Dịch Vụ Pháp Lý số {42} ký {43})</p>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin-bottom:8px\">A. Phí Dịch Vụ</p>\n  <p class=\"indent\">Dựa trên kinh nghiệm của chúng tôi trong những vụ việc tương tự, mức phí của Công Ty để thực hiện các dịch vụ quy định tại Phụ lục 1 là <strong>{44}</strong>, cụ thể:</p>\n\n  <table class=\"fee-table\">\n    <thead>\n      <tr>\n        <th style=\"width:40px;text-align:center\">STT</th>\n        <th style=\"text-align:left\">Nội dung dịch vụ</th>\n        <th style=\"text-align:right;width:200px\">Phí dịch vụ (VNĐ)</th>\n        <th style=\"text-align:center;width:100px\">Ghi chú</th>\n      </tr>\n    </thead>\n    <tbody>{45}</tbody>\n    <tfoot>\n      <tr>\n        <td colspan=\"2\" style=\"text-align:right;font-weight:bold\">Tổng phí ({46} VAT)</td>\n        <td style=\"text-align:right\">{47}</td>\n        <td></td>\n      </tr>\n      {48}\n      <tr class=\"grand\">\n        <td colspan=\"2\" style=\"text-align:right\">TỔNG CỘNG</td>\n        <td class=\"r\">{49}</td>\n        <td></td>\n      </tr>\n    </tfoot>\n  </table>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin:20px 0 8px\">B. Thuế</p>\n  <p class=\"indent\">Phí dịch vụ quy định tại Phần A của Phụ lục này <strong>{50}</strong> bao gồm thuế GTGT.</p>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin:20px 0 8px\">C. Chi Phí</p>\n  <p class=\"indent\">Khách Hàng sẽ thanh toán trực tiếp bất kỳ khoản chi phí nào dưới đây phát sinh đối với Công Ty khi thực hiện các công việc quy định tại Hợp Đồng này:</p>\n  <ul style=\"margin-left:24px;line-height:1.9\">\n    <li>Phí và lệ phí nhà nước;</li>\n    <li>Phí và lệ phí công chứng, chứng thực tài liệu, bản dịch;</li>\n    <li>Các khoản chi phí hợp lý khác, có chứng từ hợp lệ.</li>\n  </ul>\n\n  <p style=\"font-weight:bold;text-transform:uppercase;margin:20px 0 8px\">D. Thanh Toán</p>\n  <p class=\"indent\">Phí dịch vụ, thuế và chi phí được thanh toán cho Công Ty theo lịch biểu thanh toán dưới đây:</p>\n\n  <div class=\"payment-schedule\">\n    <div class=\"payment-row\">\n      <span class=\"payment-label\">(a) Đợt 1 – 70%:</span>\n      <span class=\"payment-amount\">{51}</span>\n    </div>\n    <p style=\"font-size:11pt;color:var(--sub);margin:0 0 12px 16px;font-style:italic\">(Bằng chữ: {52}) — thanh toán ngay sau khi ký kết Hợp Đồng.</p>\n    <div class=\"payment-row\">\n      <span class=\"payment-label\">(b) Đợt 2 – 30%:</span>\n      <span class=\"payment-amount\">{53}</span>\n    </div>\n    <p style=\"font-size:11pt;color:var(--sub);margin:0 0 0 16px;font-style:italic\">(Bằng chữ: {54}) — trong vòng 05 ngày làm việc kể từ ngày Công Ty hoàn tất các dịch vụ.</p>\n  </div>\n\n  <p style=\"margin-top:16px\" class=\"indent\">Tổng phí hợp đồng: <strong>{55}</strong> (Bằng chữ: <strong>{56}</strong>).</p>\n\n</div>\n</body>\n</html>",
+      "<div><strong>SĐT: </strong>{0}</div>",
+      "Ông/Bà: {0}",
+      "<p style=\"margin-bottom:6px\">Mã số thuế: <strong>{0}</strong>{1}</p>",
+      "; địa chỉ trụ sở đăng ký tại <strong>{0}</strong>, Việt Nam.",
+      "[mô tả dịch vụ]",
+      "đã",
+      "chưa",
+      "[mô tả yêu cầu]",
+      "<p><em>Chưa có dịch vụ nào.</em></p>",
+      "<tr><td colspan=\"4\" style=\"text-align:center;padding:12px;color:#999\">Chưa có dịch vụ</td></tr>",
+      "không có",
+      "<tr>\n        <td colspan=\"2\" style=\"text-align:right\">Thuế GTGT</td>\n        <td style=\"text-align:right\">{0}</td>\n        <td></td>\n      </tr>",
+      "{0} / Contract / CBI - {1}"
+    ]
+  },
+  {
+    "file": "All Module/Quotation/QuotationDocxGenerator.js",
+    "allow": [
+      "Dịch vụ tự nhập",
+      "- {0}\n  Mô tả: {1}",
+      "Đã bao gồm trong gói",
+      "Tổng giá trị gói dịch vụ"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractDocxGenerator.js",
+    "allow": [
+      "không đồng",
+      " nghìn",
+      " triệu",
+      " tỷ",
+      " nghìn tỷ",
+      " triệu tỷ",
+      "không",
+      "một",
+      "bốn",
+      "năm",
+      "sáu",
+      "bảy",
+      "tám",
+      "chín",
+      " trăm ",
+      "lẻ ",
+      "mười ",
+      "một ",
+      "lăm ",
+      " mươi ",
+      "mốt ",
+      "tư ",
+      " đồng",
+      "# Hướng Dẫn Sử Dụng Quản Lý Tài Liệu\n\n## 1. Tổng quan\n\nMàn hình Quản lý tài liệu dùng để lưu trữ, phân loại, tìm kiếm, xem trước, chỉnh sửa thông tin và theo dõi lịch sử thao tác của tài liệu/thư mục.\n\nNgười dùng có thể:\n\n- Tạo thư mục và thư mục con.\n- Upload tài liệu hoặc upload cả thư mục.\n- Gắn metadata cho tài liệu.\n- Tìm kiếm, lọc và sắp xếp tài liệu.\n- Kéo thả để di chuyển hoặc đổi thứ tự.\n- Xem trước, tải xuống, chỉnh sửa hoặc xóa tài liệu.\n- Xem lịch sử hoạt động của tài liệu/thư mục.\n\n## 2. Giao diện chính\n\nBên trái là cây thư mục `DANH MỤC`.\n\nKhu vực chính hiển thị danh sách thư mục và tài liệu trong thư mục đang chọn.\n\nCác thông tin thường thấy gồm:\n\n- STT\n- Ngày ban hành\n- Loại văn bản\n- Tên văn bản\n- Người quản lý\n- Số hiệu\n- Người gửi\n- Người nhận\n- Tóm tắt nội dung\n- Ngôn ngữ\n- Hình thức tài liệu\n- Ghi chú\n- Dung lượng\n- Người upload\n- Ngày upload\n\n## 3. Quyền truy cập\n\nAdmin có toàn quyền quản lý.\n\nVới người dùng thường:\n\n- Người tạo thư mục có quyền quản lý thư mục đó.\n- Người được gán quyền `manager` có thể quản lý thư mục.\n- Người được gán quyền `editor` có thể chỉnh sửa nội dung trong thư mục.\n- Người chỉ có quyền xem sẽ không thể sửa, xóa hoặc di chuyển.\n- Quyền có thể được kế thừa từ thư mục cha.\n\nMột số thư mục có biểu tượng khóa chỉ dùng để điều hướng. Người dùng có thể nhìn thấy đường dẫn nhưng không thao tác trực tiếp trên thư mục đó.\n\n## 4. Tạo thư mục\n\nChọn nút `Mới`, sau đó chọn `Thư mục mới`.\n\nNhập tên thư mục và xác nhận để tạo thư mục trong vị trí hiện tại.\n\nSau khi tạo, thư mục sẽ xuất hiện trong cây thư mục và danh sách bên phải.\n\n## 5. Phân quyền thư mục\n\nMở menu thao tác của thư mục, chọn phần phân quyền hoặc chi tiết thư mục.\n\nCó thể thêm người dùng vào thư mục với vai trò phù hợp:\n\n- Quản lý\n- Thành viên chỉnh sửa\n- Thành viên chỉ xem\n\nSau khi lưu, quyền sẽ áp dụng cho thư mục hiện tại và ảnh hưởng đến khả năng thao tác của người dùng trong thư mục đó.\n\n## 6. Upload tài liệu\n\nChọn `Mới`, sau đó chọn `Tải tệp lên`.\n\nKhi upload, có thể nhập các thông tin tài liệu:\n\n- Tên văn bản\n- Loại văn bản\n- Số hiệu\n- Ngày ban hành\n- Ngày ký\n- Ngày hiệu lực\n- Người gửi\n- Người nhận\n- Tóm tắt nội dung\n- Ngôn ngữ\n- Hình thức tài liệu\n- Link Google Drive\n- Ghi chú\n- File đính kèm\n\nSau khi lưu, tài liệu được đưa vào thư mục hiện tại và tự động có STT trong danh sách.\n\n## 7. Upload cả thư mục\n\nCó thể upload một thư mục từ máy tính.\n\nHệ thống sẽ:\n\n- Giữ lại cấu trúc thư mục con.\n- Tạo các thư mục tương ứng trên hệ thống.\n- Upload các file bên trong.\n- Hiển thị tiến trình xử lý trong lúc upload.\n\nTính năng này phù hợp khi cần đưa một bộ hồ sơ lớn lên hệ thống.\n\n## 8. Tìm kiếm và lọc\n\nCó thể tìm kiếm theo tên thư mục, tên tài liệu hoặc metadata của tài liệu.\n\nCác trường có thể được dùng để tìm kiếm gồm:\n\n- Tên văn bản\n- Loại văn bản\n- Số hiệu\n- Người gửi\n- Người nhận\n- Tóm tắt nội dung\n- Ngôn ngữ\n- Hình thức tài liệu\n- Ghi chú\n\nNgoài ra có thể lọc theo:\n\n- Người upload\n- Khoảng ngày upload\n\n## 9. Thao tác với thư mục và tài liệu\n\nMỗi dòng có menu thao tác riêng.\n\nVới thư mục, có thể:\n\n- Mở thư mục\n- Xem chi tiết\n- Phân quyền\n- Di chuyển\n- Xóa\n- Xem lịch sử hoạt động, nếu có quyền\n\nVới tài liệu, có thể:\n\n- Xem trước\n- Tải xuống\n- Xem chi tiết\n- Chỉnh sửa metadata\n- Di chuyển\n- Xóa\n- Xem lịch sử hoạt động, nếu có quyền\n\n## 10. Kéo thả\n\nCó thể kéo thả để thao tác nhanh:\n\n- Kéo tài liệu vào thư mục để di chuyển.\n- Kéo thư mục vào thư mục khác để đổi vị trí.\n- Kéo lên hoặc xuống trong danh sách để đổi thứ tự.\n- Kéo vào breadcrumb để di chuyển lên thư mục cha.\n\nSau khi đổi thứ tự, hệ thống cập nhật lại STT.\n\n## 11. Chi tiết tài liệu\n\nKhi mở chi tiết tài liệu, có thể xem và chỉnh sửa thông tin.\n\nCác nhóm thông tin chính:\n\n- Thông tin văn bản\n- File đính kèm\n- Ghi chú\n- Lịch sử hoạt động\n\nCó thể sửa nhanh tên tài liệu, ghi chú và các metadata nếu có quyền chỉnh sửa.\n\n## 12. Xem trước và tải xuống\n\nTài liệu hỗ trợ xem trước tùy theo định dạng file.\n\nCác loại thường được hỗ trợ:\n\n- PDF\n- Hình ảnh\n- HTML\n- Một số file Office thông qua trình xem online\n\nNếu file không hỗ trợ xem trước, người dùng có thể tải xuống để mở bằng phần mềm phù hợp.\n\n## 13. Lịch sử hoạt động\n\nLịch sử hoạt động ghi lại các thao tác trên tài liệu và thư mục.\n\nCác hành động thường gặp:\n\n- Tạo mới\n- Upload\n- Cập nhật\n- Xóa\n\nMỗi log hiển thị:\n\n- Hành động\n- Người thao tác\n- Tệp hoặc thư mục liên quan\n- Nội dung thay đổi\n- Thời gian thao tác\n\nVới thao tác cập nhật, hệ thống hiển thị giá trị cũ và giá trị mới để người dùng dễ so sánh.\n\nCác thay đổi về STT nội bộ như `fileIndex` hoặc `folderIndex` không hiển thị trong lịch sử để tránh gây nhiễu.\n\n## 14. Làm mới lịch sử\n\nTrong màn hình lịch sử hoạt động, chọn `Làm mới` để tải lại dữ liệu mới nhất.\n\nBảng lịch sử có phân trang, giúp xem các thao tác cũ hơn khi số lượng log lớn.\n\n## 15. Lưu ý sử dụng\n\nNên nhập đầy đủ metadata khi upload tài liệu để dễ tìm kiếm về sau.\n\nKhi xóa thư mục, các thư mục con và tài liệu bên trong cũng có thể bị xóa theo.\n\nChỉ người có quyền phù hợp mới có thể chỉnh sửa, xóa, di chuyển hoặc phân quyền tài liệu/thư mục.\n\nLịch sử hoạt động giúp kiểm tra ai đã thao tác, thao tác vào lúc nào và nội dung đã thay đổi ra sao.\n\n",
+      "# Hướng Dẫn Sử Dụng Quản Lý Công Việc\n\n## 1. Tổng quan\n\nMàn hình Quản lý công việc dùng để theo dõi task, subtask, người phụ trách, tiến độ, tài liệu, bình luận, lịch sử hoạt động và timesheet trong một vụ việc/dự án.\n\nNgười dùng có thể:\n\n- Tạo công việc chính và công việc phụ.\n- Phân công luật sư phụ trách.\n- Theo dõi trạng thái, deadline, pending issue và next step.\n- Đính kèm tài liệu cho công việc.\n- Bình luận, nhắc tên và phản hồi theo luồng.\n- Ghi nhận giờ làm việc bằng timesheet.\n- Xem lịch sử thay đổi của task/subtask.\n\n## 2. Giao diện danh sách công việc\n\nDanh sách công việc được nhóm theo `Dịch vụ`.\n\nThanh trên cùng hiển thị:\n\n- Tổng số công việc đã hoàn thành.\n- Số công việc đang bị chặn.\n- Số công việc quá hạn.\n- Phần trăm tiến độ.\n- Nút tạo công việc.\n- Nút làm mới dữ liệu.\n\nCác cột chính trong danh sách:\n\n- STT\n- Trạng thái\n- Tiêu đề\n- Ngày cập nhật\n- Người phụ trách\n- Nội dung diễn biến\n- Ngày bắt đầu\n- Deadline\n- Pending Issue\n- Next Step\n- Tài liệu\n- Yêu cầu phê duyệt\n\n## 3. Quyền thao tác\n\nAdmin và quản lý dự án có quyền quản lý toàn bộ công việc.\n\nNgười phụ trách có thể chỉnh sửa công việc được phân công cho mình.\n\nMột số thao tác chỉ dành cho quản lý:\n\n- Phân công người phụ trách.\n- Xóa task/subtask.\n- Bật hoặc tắt yêu cầu phê duyệt.\n- Chọn người xét duyệt.\n- Xem lịch sử hoạt động từ màn hình chi tiết.\n\n## 4. Tạo công việc mới\n\nChọn `Tạo công việc`.\n\nCác trường có thể nhập:\n\n- Tên công việc, bắt buộc.\n- Luật sư phụ trách.\n- Dịch vụ.\n- Ngày bắt đầu.\n- Deadline.\n- Thời gian dự kiến.\n- Pending Issue.\n- Mức độ ưu tiên.\n- Yêu cầu phê duyệt.\n- Người xét duyệt.\n- Nội dung diễn biến.\n- Next Step.\n\nNếu chọn `Pending Issue` là một task chưa hoàn thành, công việc mới sẽ tự chuyển sang trạng thái `Bị chặn`.\n\n## 5. Công việc phụ\n\nCó thể tạo công việc phụ từ menu của task hoặc trong màn hình chi tiết task.\n\nCông việc phụ có các thông tin chính:\n\n- Tên công việc phụ.\n- Người phụ trách.\n- Thời gian dự kiến.\n- Ngày bắt đầu.\n- Deadline.\n- Mức độ ưu tiên.\n- Yêu cầu phê duyệt.\n- Người xét duyệt.\n- Nội dung diễn biến.\n- Next Step.\n\nTask chính có thể mở rộng hoặc thu gọn để xem danh sách công việc phụ.\n\n## 6. Trạng thái công việc\n\nCác trạng thái chính:\n\n- Chưa thực hiện.\n- Đang xử lý.\n- Bị chặn.\n- Chờ phê duyệt.\n- Đã phê duyệt.\n- Hoàn thành.\n- Đã hủy.\n\nNếu task có yêu cầu phê duyệt, khi chuyển sang `Hoàn thành`, hệ thống sẽ đưa task sang `Chờ phê duyệt`.\n\nNếu task đang phụ thuộc vào một `Pending Issue` chưa hoàn thành, người dùng không thể chuyển task sang trạng thái xử lý/hoàn thành cho đến khi task trước đó hoàn tất hoặc bị hủy.\n\nKhi task trước được hoàn thành, các task đang bị chặn bởi task đó sẽ được tự động mở khóa.\n\n## 7. Chi tiết công việc\n\nBấm vào tiêu đề task hoặc subtask để mở màn hình chi tiết.\n\nTrong màn hình chi tiết có thể xem hoặc chỉnh sửa:\n\n- Tên công việc.\n- Trạng thái.\n- Mức độ ưu tiên.\n- Thời gian dự kiến.\n- Người phụ trách.\n- Yêu cầu phê duyệt.\n- Người xét duyệt.\n- Ngày bắt đầu và deadline.\n- Nội dung diễn biến.\n- Pending Issue.\n- Next Step.\n- Tài liệu đính kèm.\n- Bình luận và báo cáo.\n\n## 8. Tài liệu đính kèm\n\nTài liệu có thể được đính kèm trong phần bình luận hoặc hiển thị trong chi tiết công việc.\n\nKhi đính kèm tài liệu, có thể chọn:\n\n- Upload từ máy tính.\n- Chọn từ thư viện tài liệu.\n- Nhập Google Drive URL.\n\nNếu `Loại văn bản` là `File mẫu`, tài liệu sẽ được tách riêng trong nhóm file mẫu.\n\n## 9. Bình luận và nhắc tên\n\nKhu vực `Bình luận & Báo cáo` nằm bên phải màn hình chi tiết.\n\nNgười dùng có thể:\n\n- Soạn bình luận rich text.\n- Nhắc tên luật sư liên quan.\n- Đính kèm tài liệu vào bình luận.\n- Phản hồi một bình luận hoặc tài liệu.\n- Chỉnh sửa bình luận của mình.\n- Xóa bình luận hoặc tài liệu của mình.\n\nPhím tắt gửi bình luận:\n\n- `Ctrl + Enter` trên Windows.\n- `Cmd + Enter` trên macOS.\n\nToolbar bình luận hỗ trợ:\n\n- Chọn font size: 12px, 14px, 16px, 18px, 20px, 24px.\n- In đậm, in nghiêng, gạch chân, gạch ngang.\n- Căn lề.\n- Tăng hoặc giảm thụt lề.\n- Trích dẫn.\n- Code block.\n- Danh sách số hoặc danh sách chấm.\n- Chèn link.\n- Đính kèm tài liệu.\n- Xóa định dạng.\n\nKhi đặt con trỏ rồi chọn font size, các chữ nhập tiếp theo sẽ dùng font size mới.\n\n## 10. Timesheet\n\nChọn `Ghi nhận Timesheet` trong màn hình chi tiết để ghi nhận giờ làm việc.\n\nThông tin timesheet gồm:\n\n- Luật sư phụ trách.\n- Ngày giờ thực hiện.\n- Số giờ thực hiện.\n- Đơn giá theo giờ, quản lý có thể chỉnh.\n- Nội dung mô tả công việc.\n\nHệ thống tự tính:\n\n- Giờ kết thúc dự kiến.\n- Tổng giờ.\n- Thành tiền, hiển thị cho quản lý.\n- Năng suất dựa trên thời gian dự kiến và thời gian thực tế.\n\n## 11. Lịch sử hoạt động\n\nQuản lý có thể mở `Lịch sử hoạt động` trong màn hình chi tiết.\n\nLịch sử ghi nhận các thay đổi như:\n\n- Đổi trạng thái.\n- Đổi người phụ trách.\n- Cập nhật nội dung diễn biến.\n- Cập nhật next step.\n- Tạo, sửa hoặc xóa bình luận.\n- Nhắc tên người dùng.\n- Thêm, đổi tên hoặc xóa tài liệu.\n\n## 12. Lưu ý sử dụng\n\nNên nhập deadline và thời gian dự kiến để hệ thống tính quá hạn và năng suất chính xác.\n\nNên dùng `Pending Issue` khi một công việc chỉ được bắt đầu sau khi công việc khác hoàn thành.\n\nNên nhập `Next Step` để người tiếp theo hiểu rõ bước cần làm sau đó.\n\nViệc xóa task/subtask là thao tác không thể hoàn tác, cần kiểm tra kỹ trước khi xác nhận.\n\n",
+      "# Hướng Dẫn Nghiệp Vụ Quản Lý Dịch Vụ Trong Vụ Việc\n\n## 1. Tổng quan\n\nMàn hình `Service List` dùng để quản lý các dịch vụ thuộc một vụ việc.\n\nMột dịch vụ trong vụ việc có thể liên kết với:\n\n- Dịch vụ trong danh mục chung.\n- Báo giá gốc.\n- Báo giá bổ sung.\n- Hợp đồng gốc.\n- Phụ lục hợp đồng.\n- Thư mục tài liệu tương ứng.\n\nMục tiêu nghiệp vụ là theo dõi vòng đời dịch vụ từ lúc phát sinh nhu cầu, lập báo giá, tạo hợp đồng, kích hoạt thực hiện và quản lý tài liệu liên quan.\n\n## 2. Giao diện danh sách dịch vụ\n\nBảng dịch vụ hiển thị:\n\n- STT.\n- Loại dịch vụ.\n- Phí dịch vụ.\n- Tên dịch vụ.\n- Mô tả chi tiết.\n- Trạng thái.\n- Hành động.\n\nMỗi dịch vụ có thể có nhãn:\n\n- `Main`: dịch vụ thuộc báo giá gốc.\n- `Sub`: dịch vụ phát sinh thuộc báo giá bổ sung.\n\n## 3. Trạng thái dịch vụ\n\nCác trạng thái chính:\n\n| Trạng thái | Ý nghĩa |\n|---|---|\n| `pending_quote` | Dịch vụ đang chờ báo giá hoặc báo giá chưa được đặt hàng |\n| `ordered` | Báo giá đã được khách hàng chấp nhận/ordered |\n| `contracted` | Đã tạo hợp đồng hoặc phụ lục ở trạng thái draft |\n| `active` | Hợp đồng đã vào giai đoạn thực hiện |\n| `completed` | Dịch vụ đã hoàn tất |\n| `cancelled` | Dịch vụ đã hủy |\n\nTrạng thái dịch vụ được xác định dựa trên tiến trình báo giá và hợp đồng liên quan.\n\n## 4. Logic xác định trạng thái\n\nKhi tải dữ liệu, hệ thống kiểm tra dịch vụ đang nằm trong báo giá nào.\n\nNếu dịch vụ thuộc báo giá chưa được chấp nhận:\n\n- Trạng thái là `pending_quote`.\n\nNếu báo giá có trạng thái như:\n\n- `order`\n- `ordered`\n- `won`\n- `done`\n- `approved`\n- `accepted`\n\nthì dịch vụ được xem là `ordered`.\n\nNếu báo giá đã có hợp đồng liên kết:\n\n- Hợp đồng còn draft thì dịch vụ là `contracted`.\n- Hợp đồng ở trạng thái `execution`, `active` hoặc `signed` thì dịch vụ là `active`.\n\n## 5. Thêm dịch vụ mới\n\nChọn `Add Service` để thêm dịch vụ vào vụ việc.\n\nCó thể chọn từ danh mục dịch vụ hoặc nhập thủ công.\n\nCác trường gồm:\n\n- Dịch vụ từ danh mục, tùy chọn.\n- Loại dịch vụ.\n- Phí dịch vụ.\n- Tên dịch vụ.\n- Mô tả chi tiết.\n\nNếu vụ việc đã có báo giá gốc, dịch vụ mới sẽ được đưa vào báo giá bổ sung.\n\nNếu vụ việc chưa có báo giá gốc, dịch vụ chỉ được lưu vào vụ việc và chưa đồng bộ sang báo giá.\n\n## 6. Quy tắc chống trùng dịch vụ\n\nHệ thống không cho thêm dịch vụ nếu tên dịch vụ đã tồn tại trong vụ việc.\n\nKhi chọn từ danh mục, các dịch vụ đã có trong vụ việc sẽ bị vô hiệu hóa và hiển thị ghi chú `Already added to Case`.\n\n## 7. Logic tạo báo giá bổ sung\n\nKhi thêm dịch vụ mới vào vụ việc đã có báo giá gốc, hệ thống sẽ:\n\n1. Kiểm tra có báo giá bổ sung nào còn chỉnh sửa được không.\n2. Nếu có, thêm dịch vụ vào báo giá bổ sung đó.\n3. Nếu không có, tạo báo giá bổ sung mới.\n4. Cập nhật tổng tiền báo giá.\n5. Tạo thư mục cho báo giá bổ sung.\n\nBáo giá bổ sung mới sẽ có mã dạng:\n\n`PL + số thứ tự + tháng + năm`\n\n## 8. Đồng bộ phí dịch vụ\n\nKhi sửa `Base Price`, hệ thống tính phần chênh lệch giữa giá mới và giá cũ.\n\nSau đó hệ thống cập nhật:\n\n- Phí dịch vụ trong báo giá.\n- Tổng tiền báo giá.\n- Tổng tiền hợp đồng nếu đã có hợp đồng liên quan.\n\nCách tính là cộng hoặc trừ phần chênh lệch, không tạo lại toàn bộ báo giá.\n\n## 9. Chỉnh sửa dịch vụ\n\nCó thể click trực tiếp vào các ô để sửa:\n\n- Loại dịch vụ.\n- Phí dịch vụ.\n- Tên dịch vụ.\n- Mô tả chi tiết.\n\nKhi sửa tên dịch vụ, hệ thống kiểm tra trùng tên trước khi lưu.\n\nNếu dịch vụ có liên kết với báo giá, thay đổi sẽ được đồng bộ sang báo giá tương ứng.\n\n## 10. Khi nào dịch vụ bị khóa chỉnh sửa\n\nDịch vụ sẽ không thể chỉnh sửa hoặc xóa nếu:\n\n- Dịch vụ thuộc báo giá gốc.\n- Báo giá bổ sung đã ở trạng thái `sent`, `order`, `ordered`, `won`, `done`, `cancelled`, `approved` hoặc `accepted`.\n\nNghiệp vụ này nhằm tránh thay đổi dịch vụ sau khi báo giá đã được gửi hoặc đã được khách hàng chấp nhận.\n\n## 11. Xóa dịch vụ\n\nChỉ có thể xóa dịch vụ phát sinh thuộc báo giá bổ sung còn chỉnh sửa được.\n\nKhi xóa, hệ thống sẽ:\n\n1. Gỡ dịch vụ khỏi báo giá bổ sung.\n2. Trừ giá trị dịch vụ khỏi tổng tiền báo giá.\n3. Trừ giá trị dịch vụ khỏi tổng tiền hợp đồng nếu có.\n4. Xóa dịch vụ khỏi vụ việc.\n\nDịch vụ thuộc báo giá gốc không được xóa tại màn hình này.\n\n## 12. Tạo hợp đồng\n\nKhi dịch vụ ở trạng thái `ordered`, hệ thống hiển thị nút tạo hợp đồng.\n\nNếu dịch vụ thuộc báo giá gốc:\n\n- Hệ thống tạo hợp đồng gốc.\n- Liên kết hợp đồng với vụ việc.\n- Liên kết báo giá với hợp đồng.\n- Tạo thư mục hợp đồng trong thư mục vụ việc.\n\nNếu dịch vụ thuộc báo giá bổ sung:\n\n- Vụ việc phải có hợp đồng gốc trước.\n- Hệ thống tạo phụ lục hợp đồng dưới hợp đồng gốc.\n- Phụ lục lấy một số thông tin từ hợp đồng gốc.\n- Liên kết báo giá bổ sung với phụ lục.\n- Tạo thư mục phụ lục trong thư mục hợp đồng gốc.\n\nSau khi tạo hợp đồng hoặc phụ lục, dịch vụ chuyển sang `contracted`.\n\n## 13. Kích hoạt dịch vụ\n\nKhi dịch vụ ở trạng thái `contracted`, hệ thống hiển thị nút `Activate`.\n\nKhi kích hoạt:\n\n- Dịch vụ được chuyển sang `active`.\n- Hợp đồng liên kết được chuyển sang trạng thái `execution`.\n- Nếu dịch vụ active chưa có thư mục, hệ thống tự tạo thư mục dịch vụ.\n\n## 14. Logic thư mục tài liệu\n\nHệ thống tự động tạo thư mục trong các trường hợp sau:\n\n- Tạo báo giá bổ sung.\n- Tạo hợp đồng gốc.\n- Tạo phụ lục hợp đồng.\n- Dịch vụ chuyển sang `active`.\n\n## 15. Luồng nghiệp vụ đề xuất\n\n1. Tạo hoặc kiểm tra báo giá gốc của vụ việc.\n2. Thêm dịch vụ phát sinh trong màn hình `Service List`.\n3. Hệ thống tạo hoặc cập nhật báo giá bổ sung.\n4. Khi báo giá được khách hàng chấp nhận, trạng thái dịch vụ chuyển thành `ordered`.\n5. Chọn tạo hợp đồng hoặc phụ lục.\n6. Sau khi hợp đồng được ký, chọn `Activate`.\n7. Dịch vụ chuyển sang thực hiện và thư mục tài liệu được tạo tự động.\n\n## 16. Lưu ý sử dụng\n\nKhông nên sửa dịch vụ sau khi báo giá đã gửi hoặc đã được chấp nhận.\n\nNếu cần thay đổi dịch vụ sau khi báo giá đã chốt, nên tạo một dịch vụ phát sinh mới để đi theo báo giá bổ sung mới.\n\nNên nhập đúng phí dịch vụ ngay từ đầu vì phí được đồng bộ sang báo giá và hợp đồng.\n\nNên dùng danh mục dịch vụ khi có thể để dữ liệu thống nhất giữa các vụ việc.\n\n",
+      "# Hướng Dẫn Nghiệp Vụ Phiếu Lương Và Xuất DOCX\n\n## 1. Tổng quan\n\nBộ tính năng phiếu lương gồm hai phần chính:\n\n- `Payroll Calculator`: nhập thông tin lương, phụ cấp, khấu trừ và tự động tính lương thực nhận.\n- `Payroll DOCX Generator`: lấy dữ liệu phiếu lương đã lưu, đưa vào mẫu DOCX, xem trước, tải xuống hoặc lưu file vào phiếu lương.\n\nLuồng sử dụng đề xuất:\n\n1. Nhập hoặc cập nhật phiếu lương.\n2. Kiểm tra kết quả tính lương.\n3. Lưu phiếu lương.\n4. Chọn mẫu DOCX.\n5. Xem trước file phiếu lương.\n6. Tải file hoặc lưu file vào phiếu lương.\n\n## 2. Thông tin phiếu lương\n\nPhần thông tin chung gồm:\n\n- Tiêu đề phiếu lương.\n- Công ty phát hành.\n- Mẫu phiếu lương DOCX.\n- Ngày phát hành.\n- Người lập phiếu.\n- Người nhận lương.\n- Ngày công chuẩn.\n- Ngày công đi làm.\n\nTiêu đề mặc định được tạo theo dạng:\n\n`Phiếu lương MM/YYYY - Tên người nhận`\n\nNếu người dùng chưa sửa tiêu đề thủ công, tiêu đề sẽ tự cập nhật khi đổi ngày phát hành hoặc người nhận.\n\n## 3. Ngày công chuẩn và ngày công thực tế\n\nNgày công chuẩn được hệ thống tự tính theo tháng phát hành.\n\nCách tính:\n\n- Đếm tất cả ngày trong tháng.\n- Loại trừ Chủ nhật.\n- Không tự loại trừ ngày lễ hoặc ngày nghỉ đặc biệt.\n\nTỷ lệ tính lương:\n\n`Ngày công đi làm / Ngày công chuẩn`\n\n## 4. Thu nhập\n\nCác khoản thu nhập gồm:\n\n- Lương chính.\n- Phụ cấp trách nhiệm.\n- Phụ cấp ăn trưa.\n- Phụ cấp điện thoại.\n- Phụ cấp đi lại, xăng xe.\n- Phụ cấp nhà ở.\n- Phụ cấp nuôi con nhỏ.\n- Phụ cấp khác.\n\nLương chính được tính theo ngày công:\n\n`Lương chính theo ngày công = Lương chính x Tỷ lệ tính lương`\n\nTổng thu nhập:\n\n`Tổng thu nhập = Lương chính theo ngày công + Tổng phụ cấp`\n\n## 5. Khấu trừ bảo hiểm\n\nNgười dùng có thể nhập `Lương đóng BHBB`.\n\nNếu bỏ trống, hệ thống dùng `Lương chính` làm cơ sở tính bảo hiểm.\n\nCác khoản bảo hiểm bắt buộc:\n\n| Khoản khấu trừ | Tỷ lệ |\n|---|---:|\n| Bảo hiểm xã hội | 8% |\n| Bảo hiểm y tế | 1,5% |\n| Bảo hiểm thất nghiệp | 1% |\n\n## 6. Thuế TNCN\n\nThu nhập tính thuế:\n\n`Thu nhập tính thuế = Tổng thu nhập - Tổng BHBB - 11.000.000`\n\nNếu kết quả nhỏ hơn 0, hệ thống tính là 0.\n\nThuế TNCN được tính theo biểu lũy tiến:\n\n| Bậc | Phần thu nhập tính thuế | Thuế suất |\n|---|---:|---:|\n| 1 | Đến 5 triệu | 5% |\n| 2 | Trên 5 đến 10 triệu | 10% |\n| 3 | Trên 10 đến 18 triệu | 15% |\n| 4 | Trên 18 đến 32 triệu | 20% |\n| 5 | Trên 32 đến 52 triệu | 25% |\n| 6 | Trên 52 đến 80 triệu | 30% |\n| 7 | Trên 80 triệu | 35% |\n\nHiện tại hệ thống chỉ áp dụng giảm trừ cá nhân 11 triệu, chưa có phần nhập giảm trừ người phụ thuộc.\n\n## 7. Lương thực nhận\n\nTổng khấu trừ:\n\n`Tổng BHBB + Thuế TNCN + Tạm ứng`\n\nLương thực nhận:\n\n`Thực nhận = Tổng thu nhập - Tổng khấu trừ`\n\nNếu kết quả nhỏ hơn 0, hệ thống hiển thị là 0.\n\nHệ thống cũng tự đổi số tiền thực nhận sang chữ để đưa vào phiếu lương DOCX.\n\n## 8. Lưu phiếu lương\n\nSau khi nhập đủ thông tin, chọn:\n\n- `Lưu phiếu lương` nếu là phiếu mới.\n- `Cập nhật` nếu đang sửa phiếu đã có.\n\nNút `Làm lại` sẽ đưa form về dữ liệu ban đầu của phiếu lương hiện tại.\n\n## 9. Chọn mẫu DOCX\n\nTrước khi xuất file, phiếu lương cần có mẫu DOCX.\n\nKhi chọn công ty, danh sách mẫu DOCX sẽ được lọc theo công ty đó nếu mẫu có gắn công ty.\n\nNếu đổi công ty, mẫu DOCX đang chọn sẽ được reset để tránh dùng sai mẫu.\n\nMẫu DOCX phải có file đính kèm hợp lệ.\n\n## 10. Biến dùng trong mẫu DOCX\n\nTrong file DOCX, đặt biến theo cú pháp:\n\n`{{ten_bien}}`\n\nCác biến thường dùng:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{name}}` | Tên công ty |\n| `{{address}}` | Địa chỉ công ty |\n| `{{issueDate}}` | Ngày phát hành dạng đầy đủ |\n| `{{title}}` | Tiêu đề phiếu lương |\n| `{{employeeCode}}` | Mã nhân sự |\n| `{{lawyerName}}` | Người nhận lương |\n| `{{lawyerType}}` | Chức danh / loại nhân sự |\n| `{{standard_work_days}}` | Ngày công chuẩn |\n| `{{actual_work_days}}` | Ngày công đi làm |\n| `{{basic_salary}}` | Lương chính |\n| `{{earned_basic_salary}}` | Lương chính theo ngày công |\n| `{{allowance}}` | Tổng phụ cấp |\n| `{{insurance_salary_basis}}` | Lương đóng BHBB |\n| `{{deduction_social_ins}}` | Bảo hiểm xã hội |\n| `{{deduction_health_ins}}` | Bảo hiểm y tế |\n| `{{deduction_unemp_ins}}` | Bảo hiểm thất nghiệp |\n| `{{deduction_pit}}` | Thuế TNCN |\n| `{{deduction_advance}}` | Tạm ứng |\n| `{{total_income}}` | Tổng thu nhập |\n| `{{total_deductions}}` | Tổng khấu trừ |\n| `{{net_salary}}` | Lương thực nhận |\n| `{{net_salary_in_words}}` | Lương thực nhận bằng chữ |\n\n## 11. Xem trước, tải và lưu DOCX\n\nChọn `Xem trước` để hệ thống tạo file DOCX tạm và mở bằng trình xem Office online.\n\nTrong màn hình xem trước có thể:\n\n- Đóng preview.\n- Tải file DOCX.\n- Lưu file vào phiếu lương.\n\nNếu đã xem trước trước đó, hệ thống dùng lại file preview để lưu.\n\nNếu chưa xem trước, hệ thống sẽ generate file mới rồi lưu.\n\n## 12. Lưu ý nghiệp vụ\n\nNên chọn công ty trước khi chọn mẫu DOCX.\n\nNên lưu phiếu lương sau khi kiểm tra kết quả tính toán rồi mới generate DOCX.\n\nNgày công chuẩn hiện tại chỉ loại trừ Chủ nhật, không tự loại trừ ngày lễ.\n\nPhụ cấp hiện tại được cộng nguyên khoản, không tự chia theo tỷ lệ ngày công.\n\n",
+      "# Hướng Dẫn Xuất Báo Giá DOCX\n\n## 1. Tổng quan\n\nTính năng này dùng để tạo file DOCX cho báo giá từ mẫu có sẵn.\n\nNgười dùng có thể:\n\n- Xem trước file báo giá.\n- Tải file DOCX về máy.\n- Lưu file đã generate vào thư mục tài liệu của báo giá.\n- Làm mới dữ liệu trước khi generate.\n\n## 2. Điều kiện cần có\n\nBáo giá cần có:\n\n- Mẫu DOCX đã được chọn.\n- Mẫu DOCX có file đính kèm.\n- Thông tin khách hàng hoặc lead.\n- Danh sách dịch vụ trong báo giá.\n\nNếu thiếu mẫu hoặc mẫu không có file, hệ thống sẽ báo lỗi khi generate.\n\n## 3. Cách hệ thống tạo file\n\nKhi bấm `Preview Quotation` hoặc `Save to Documents`, hệ thống sẽ:\n\n1. Tải dữ liệu báo giá hiện tại.\n2. Tải danh sách dịch vụ trong báo giá.\n3. Tải chi tiết dịch vụ để lấy tên dịch vụ, ngày dự kiến và danh sách task.\n4. Tải file mẫu DOCX đã chọn.\n5. Thay các biến `{{...}}` trong mẫu bằng dữ liệu thực tế.\n6. Tạo file DOCX mới.\n\n## 4. Dữ liệu dịch vụ\n\nMỗi dịch vụ trong báo giá được đưa vào biến `services`.\n\nCác biến trong từng dòng dịch vụ:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{stt}}` | Số thứ tự |\n| `{{service_name}}` | Tên dịch vụ |\n| `{{serviceName}}` | Tên dịch vụ |\n| `{{tasks_list}}` | Danh sách task dạng text |\n| `{{tasksList}}` | Danh sách task dạng text |\n| `{{estimated_days}}` | Số ngày dự kiến |\n| `{{estimatedDays}}` | Số ngày dự kiến |\n| `{{quantity}}` | Số lượng |\n| `{{price}}` | Đơn giá |\n| `{{total}}` | Thành tiền trước VAT |\n\n## 5. Công thức tính tiền\n\nVới mỗi dịch vụ:\n\n`Thành tiền = Đơn giá x Số lượng`\n\n`VAT dòng = Thành tiền x VAT%`\n\nTổng báo giá:\n\n`sub_total = Tổng thành tiền trước VAT`\n\n`vat_amount = Tổng VAT`\n\n`total_with_vat = Tổng thành tiền + VAT`\n\nLưu ý: `grand_total` hiện đang bằng `sub_total`. Nếu cần tổng sau VAT, dùng `total_with_vat`.\n\n## 6. Biến dùng trong mẫu DOCX\n\nCác biến chính:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{document_title}}` | Tiêu đề tài liệu |\n| `{{customer_name}}` | Tên khách hàng |\n| `{{customer_short_name}}` | Tên ngắn của khách hàng |\n| `{{company_name}}` | Tên công ty phát hành |\n| `{{short_name_company}}` | Tên ngắn công ty |\n| `{{quotation_number}}` | Số báo giá |\n| `{{date}}` | Ngày generate |\n| `{{date_day}}` | Ngày |\n| `{{date_month}}` | Tháng |\n| `{{date_year}}` | Năm |\n| `{{overview}}` | Nội dung tổng quan |\n| `{{services}}` | Danh sách dịch vụ |\n| `{{sub_total}}` | Tổng trước VAT |\n| `{{vat_amount}}` | Tổng VAT |\n| `{{grand_total}}` | Tổng trước VAT |\n| `{{total_with_vat}}` | Tổng sau VAT |\n\n## 7. Quy tắc đặt tên tài liệu\n\nTiêu đề tài liệu khi lưu vào hệ thống có dạng:\n\n`Số báo giá / Proposal / CBI - Tên khách hàng`\n\nFile DOCX generate có dạng:\n\n`Proposal_SốBáoGiá_ThờiGian.docx`\n\n## 8. Xem trước và lưu\n\nBấm `Preview Quotation` để tạo file tạm và mở bằng Microsoft Office Online trong popup preview.\n\nTrong popup có thể:\n\n- Đóng preview.\n- Tải DOCX.\n- Lưu file vào hệ thống.\n\nBấm `Save to Documents` để lưu file vào thư mục của báo giá nếu tìm thấy thư mục phù hợp.\n\n## 9. Lỗi thường gặp\n\nKhông generate được:\n\n- Báo giá chưa chọn mẫu DOCX.\n- Mẫu DOCX chưa có file đính kèm.\n- Biến trong Word sai cú pháp `{{ten_bien}}`.\n\nSố tiền không đúng:\n\n- Kiểm tra đơn giá.\n- Kiểm tra số lượng.\n- Kiểm tra VAT của từng dịch vụ.\n\n",
+      "# Hướng Dẫn Xuất Hợp Đồng DOCX\n\n## 1. Tổng quan\n\nTính năng này dùng để tạo file DOCX cho hợp đồng từ mẫu có sẵn.\n\nNgười dùng có thể:\n\n- Xem trước hợp đồng.\n- Tải file DOCX.\n- Lưu file đã generate vào thư mục tài liệu của hợp đồng.\n- Làm mới dữ liệu trước khi generate.\n\n## 2. Điều kiện cần có\n\nHợp đồng cần có:\n\n- Mẫu DOCX đã được chọn.\n- Mẫu DOCX có file đính kèm.\n- Thông tin khách hàng.\n- Báo giá liên kết để lấy danh sách dịch vụ.\n- Thông tin dịch vụ và phạm vi công việc.\n\nNếu thiếu mẫu hoặc mẫu không có file, hệ thống sẽ báo lỗi khi generate.\n\n## 3. Cách hệ thống tạo file\n\nKhi bấm `Preview Contract` hoặc `Save to Documents`, hệ thống sẽ:\n\n1. Tải dữ liệu hợp đồng hiện tại.\n2. Lấy báo giá liên kết với hợp đồng.\n3. Lấy danh sách dịch vụ từ báo giá.\n4. Lấy chi tiết dịch vụ để đưa phạm vi công việc vào hợp đồng.\n5. Tải file mẫu DOCX.\n6. Thay các biến `{{...}}` trong mẫu bằng dữ liệu thực tế.\n7. Tạo file DOCX mới.\n\n## 4. Dữ liệu dịch vụ\n\nMỗi dịch vụ trong hợp đồng được đưa vào biến `services`.\n\nCác biến trong từng dòng dịch vụ:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{service_stt}}` | Số thứ tự |\n| `{{service_name}}` | Tên dịch vụ |\n| `{{task_list}}` | Danh sách công việc dạng text |\n| `{{tasks}}` | Danh sách công việc dạng mảng |\n| `{{sub_total}}` | Thành tiền trước VAT |\n| `{{service_vat}}` | VAT của dịch vụ |\n\nNếu muốn format danh sách công việc đẹp trong Word, nên dùng biến mảng `tasks` với biến con:\n\n`{{task_name}}`\n\n## 5. Công thức tính tiền\n\nVới mỗi dịch vụ:\n\n`Thành tiền = Đơn giá x Số lượng`\n\n`VAT dòng = Thành tiền x VAT%`\n\nTổng hợp đồng:\n\n`sub_totalAmount = Tổng trước VAT`\n\n`vatAmount = Tổng VAT`\n\n`total_with_vat = Tổng sau VAT`\n\nHệ thống tự chia thanh toán thành 2 đợt:\n\n`Đợt 1 = 70% tổng sau VAT`\n\n`Đợt 2 = 30% tổng sau VAT`\n\n## 6. Biến thông tin hợp đồng\n\nCác biến chính:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{document_title}}` | Tiêu đề tài liệu |\n| `{{contract_code}}` | Số hợp đồng |\n| `{{language}}` | Ngôn ngữ hợp đồng |\n| `{{date_day}}` | Ngày generate |\n| `{{date_month}}` | Tháng generate |\n| `{{date_year}}` | Năm generate |\n| `{{quotation_description}}` | Mô tả hoặc overview từ báo giá |\n| `{{services}}` | Danh sách dịch vụ |\n| `{{sub_totalAmount}}` | Tổng trước VAT |\n| `{{vatAmount}}` | Tổng VAT |\n| `{{total_with_vat}}` | Tổng sau VAT |\n\n## 7. Biến thông tin khách hàng\n\nCác biến khách hàng:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{customer_name}}` | Tên đầy đủ khách hàng |\n| `{{customer_short_name}}` | Tên ngắn khách hàng |\n| `{{address}}` | Địa chỉ |\n| `{{phone}}` | Số điện thoại |\n| `{{customer_id_title}}` | Loại giấy tờ hoặc mã số doanh nghiệp |\n| `{{customer_id_number}}` | Số giấy tờ hoặc mã số doanh nghiệp |\n| `{{representative_title}}` | Nhãn người đại diện pháp luật |\n| `{{coporate_representative}}` | Người đại diện pháp luật |\n| `{{customer_issued_place}}` | Nơi cấp giấy tờ cá nhân |\n| `{{customer_issued_date}}` | Ngày cấp giấy tờ cá nhân |\n\nNếu khách hàng là công ty, hệ thống ưu tiên mã số doanh nghiệp và người đại diện pháp luật.\n\nNếu khách hàng là cá nhân, hệ thống ưu tiên CCCD/CMND, nơi cấp và ngày cấp.\n\n## 8. Biến thanh toán\n\nCác biến thanh toán:\n\n| Biến | Ý nghĩa |\n|---|---|\n| `{{total_amount_part_one}}` | Số tiền đợt 1 |\n| `{{total_amount_convert_text_part_one}}` | Số tiền đợt 1 bằng chữ |\n| `{{total_amount_part_two}}` | Số tiền đợt 2 |\n| `{{total_amount_convert_text_part_two}}` | Số tiền đợt 2 bằng chữ |\n\n## 9. Quy tắc đặt tên tài liệu\n\nTiêu đề tài liệu khi lưu vào hệ thống có dạng:\n\n`Số hợp đồng / Contract / CBI - Tên khách hàng`\n\nFile DOCX generate có dạng:\n\n`Contract_SốHợpĐồng_ThờiGian.docx`\n\n## 10. Xem trước và lưu\n\nBấm `Preview Contract` để tạo file tạm và mở bằng Microsoft Office Online trong popup preview.\n\nTrong popup có thể:\n\n- Đóng preview.\n- Tải DOCX.\n- Lưu file vào hệ thống.\n\nBấm `Save to Documents` để lưu file vào thư mục của hợp đồng nếu tìm thấy thư mục phù hợp.\n\n## 11. Lỗi thường gặp\n\nKhông generate được:\n\n- Hợp đồng chưa chọn mẫu DOCX.\n- Mẫu DOCX chưa có file đính kèm.\n- Hợp đồng chưa có báo giá liên kết.\n- Biến trong Word sai cú pháp `{{ten_bien}}`.\n\nSố tiền thanh toán không đúng:\n\n- Kiểm tra danh sách dịch vụ trong báo giá liên kết.\n- Kiểm tra đơn giá, số lượng và VAT.\n- Kiểm tra logic chia 70% và 30%.\n\n",
+      "Mã số doanh nghiệp",
+      "Số CCCD/CMND",
+      "Người đại diện theo pháp luật"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractServices.js",
+    "allow": [
+      "rgba(0, 0, 0, 0.88)"
+    ]
+  },
+  {
+    "file": "All Module/Quotation/QuotationServices.js",
+    "allow": [
+      "rgba(0, 0, 0, 0.88)"
+    ]
+  },
+  {
+    "file": "All Module/Contract/ContractDetailView.js",
+    "allow": [
+      "rgba(0, 0, 0, 0.88)",
+      "rgba(0, 0, 0, 0.45)",
+      "No resource available for action {0}",
+      "Recurring retainer payment",
+      "One-time payment for the full contract value",
+      "Installment {0}"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Case/CaseServices.js",
+    "allow": [
+      "rgba(0, 0, 0, 0.88)",
+      "ℹ️"
+    ]
+  },
+  {
+    "file": "All Module/Case/CaseDashboard.js",
+    "allow": [
+      "Chart.js constructor not found"
+    ]
+  },
+  {
+    "file": "All Module/Case/CaseMatterDashboardBlock.js",
+    "allow": [
+      "ctx.requireAsync is not available",
+      "Chart.js constructor not found",
+      "ctx.api.request is not available",
+      "{0} request failed"
+    ]
+  },
+  {
+    "file": "All Module/Case/DashboardManagementSystemBlock.js",
+    "allow": [
+      "Search",
+      "Pending",
+      "Active",
+      "Completed",
+      "Archived"
+    ],
+    "compareOk": [
+      "Pending",
+      "Active",
+      "Completed",
+      "Archived"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Case/LegalReferenceWorkspace.js",
+    "allow": [
+      "No API candidate worked",
+      "No create API candidate worked",
+      "Missing update id",
+      "No update API candidate worked",
+      "Missing destroy id",
+      "No destroy API candidate worked",
+      "Missing source or target ID",
+      "Missing source case id",
+      "Linked {0} for reference and study.",
+      "Missing case or reference id",
+      "Fetch failed"
+    ]
+  },
+  {
+    "file": "All Module/Document/DocumentRestore.js",
+    "allow": [
+      "FILE"
+    ]
+  },
+  {
+    "file": "All Module/Document/Library.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX"
+    ],
+    "dynamicKeys": true,
+    "compareOk": [
+      "Folder",
+      "folder"
+    ]
+  },
+  {
+    "file": "All Module/Document/CaseDocument.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/ProjectDocument.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/CustomerDocument.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/InternalTemplates.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX",
+      "Hệ thống"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document",
+      "name",
+      "title",
+      "upload"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/LegalReferenceDocument.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "QUICK",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX",
+      "Hệ thống"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document",
+      "name",
+      "title",
+      "upload"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/LegalStudyDocument.js",
+    "allow": [
+      "PDF",
+      "WORD",
+      "EXCEL",
+      "PPT",
+      "PNG",
+      "JPG",
+      "JPEG",
+      "GIF",
+      "WEBP",
+      "SVG",
+      "MP4",
+      "WEBM",
+      "MOV",
+      "MKV",
+      "MP3",
+      "WAV",
+      "AAC",
+      "M4A",
+      "FLAC",
+      "TXT",
+      "CSV",
+      "JSON",
+      "XML",
+      "HTML",
+      "MD",
+      "JS",
+      "TS",
+      "ZIP",
+      "RAR",
+      "fetch failed",
+      "DOC",
+      "DOCX",
+      "XLS",
+      "XLSX",
+      "PPTX",
+      "Hệ thống"
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document",
+      "name",
+      "title",
+      "upload"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "All Module/Document/DocumentDashboard.js",
+    "allow": [
+      "Làm mới",
+      "Khách hàng",
+      "Hồ sơ",
+      "Tham chiếu pháp lý",
+      "Tham chiếu",
+      "Nghiên cứu pháp lý",
+      "Nghiên cứu",
+      "Vừa xong",
+      "{0} phút trước",
+      "{0} giờ trước",
+      "{0} ngày trước",
+      "Tạo mới",
+      "Cập nhật",
+      "Xoá",
+      "Upload",
+      "Khác",
+      "Tên văn bản",
+      "Loại văn bản",
+      "Số hiệu",
+      "Ngày ban hành",
+      "Người gửi",
+      "Người nhận",
+      "Tóm tắt nội dung",
+      "Ngôn ngữ",
+      "Hình thức tài liệu",
+      "File đính kèm",
+      "Ngày ký",
+      "Ngày có hiệu lực",
+      "Ghi chú",
+      "Trạng thái",
+      "Quản trị viên",
+      "Chủ sở hữu",
+      "Quản lý",
+      "Chỉnh sửa",
+      "Chỉ xem",
+      "Được chia sẻ",
+      "Cập nhật phân quyền thành công",
+      "Có lỗi xảy ra",
+      "Phân quyền thư mục",
+      "Hủy",
+      "Lưu",
+      "Thêm người",
+      "Tìm và thêm người...",
+      "Những người có quyền truy cập",
+      "Chưa chia sẻ cho ai",
+      "Không rõ tên",
+      "Người chỉnh sửa",
+      "Người xem",
+      "Thu gọn",
+      "Xem thêm",
+      "Tải về",
+      "Đóng",
+      "Đang tải bản xem trước...",
+      "Không thể xem trước định dạng này trên trình duyệt",
+      "Tải xuống để xem",
+      "Đã lưu ghi chú",
+      "Lỗi lưu ghi chú",
+      "Ghi chú tài liệu",
+      "Nhập ghi chú cho tài liệu này... (Ctrl+Enter để lưu)",
+      "Chưa lưu",
+      "Lưu ghi chú",
+      "Hệ thống",
+      "thư mục",
+      "tài liệu",
+      " đã tải lên {0} ",
+      " lúc ",
+      " đã tạo {0} ",
+      " đã di chuyển {0} sang thư mục ",
+      " đã xóa {0} ",
+      "tiêu đề",
+      " đã cập nhật {0} từ ",
+      " thành ",
+      "Chưa có hoạt động",
+      "Cập nhật thành công!",
+      "Có lỗi: ",
+      "Vui lòng thử lại",
+      "Đã cập nhật tiêu đề",
+      "Lỗi cập nhật",
+      "STT",
+      "(Chưa có)",
+      "Google Drive",
+      "Mở link",
+      "Ngày upload",
+      "Người upload",
+      "Vui lòng nhập loại văn bản",
+      "VD: Hợp đồng, Biên bản...",
+      "Tên tài liệu",
+      "Nhập tên đầy đủ của tài liệu",
+      "VD: 123/2024/HĐ-SAMSET",
+      "Tên cá nhân hoặc tổ chức gửi",
+      "Tên cá nhân hoặc tổ chức nhận",
+      "VD: Tiếng Việt, EN...",
+      "VD: Bản gốc, Bản scan...",
+      "Mô tả ngắn gọn nội dung chính...",
+      "Google Drive URL",
+      "Lưu cập nhật",
+      "(Chưa có tên)",
+      "Thông tin & Ghi chú",
+      "Lịch sử",
+      "Lỗi tải dữ liệu",
+      "Cập nhật thư mục thành công!",
+      "Tạo thư mục thành công!",
+      "Cập nhật thư mục",
+      "Tạo thư mục mới",
+      "Tên thư mục",
+      "Vui lòng nhập tên thư mục",
+      "Nhập tên thư mục...",
+      "Nhập tóm tắt nội dung thư mục...",
+      "Thêm người truy cập",
+      "Upload file thất bại",
+      "Vui lòng chọn file hoặc nhập URL",
+      "Upload thành công!",
+      "Có lỗi xảy ra khi upload.",
+      "Upload tài liệu",
+      "Đang upload...",
+      "Định danh",
+      "Công ty nội bộ",
+      "Vui lòng chọn công ty nội bộ",
+      "Chọn công ty nội bộ",
+      "Bên liên quan",
+      "Tên cá nhân / tổ chức gửi",
+      "Tên cá nhân / tổ chức nhận",
+      "VD: Tiếng Việt, Tiếng Anh...",
+      "Mô tả ngắn gọn nội dung tài liệu...",
+      "Chọn file",
+      "Kéo thả hoặc click để chọn",
+      "Google Drive URL (tuỳ chọn)",
+      "Nhập ghi chú...",
+      "Home",
+      "Xác nhận Upload Thư mục",
+      "Hủy bỏ",
+      "Xác nhận Upload",
+      "Bạn đang chuẩn bị tải lên thư mục ",
+      " chứa ",
+      " tệp tin.",
+      "Chọn nơi lưu trữ:",
+      "Không có dữ liệu",
+      "Bạn không có quyền thao tác với một số mục đã chọn",
+      "Đã xoá các mục được chọn",
+      "Có lỗi xảy ra khi xoá",
+      "Đã di chuyển các mục được chọn",
+      "Có lỗi xảy ra khi di chuyển",
+      "Đã di chuyển file",
+      "Di chuyển thất bại",
+      "Khong tim thay folder Legal Study trong case nay",
+      "Da di chuyen file vao Legal Study",
+      "Di chuyen vao Legal Study that bai",
+      "Vui long chon cong ty noi bo",
+      "Da di chuyen file vao Legal Reference",
+      "Di chuyen vao Legal Reference that bai",
+      "Đã cập nhật tiêu đề file",
+      "Cập nhật thất bại",
+      "Đã di chuyển thư mục",
+      "Khong the thay doi STT thu muc",
+      "Đang phân tích cấu trúc thư mục...",
+      "Đang khởi tạo {0} thư mục...",
+      "Đang tải lên file {0}/{1}...",
+      "Upload thư mục hoàn tất!",
+      "Có lỗi xảy ra trong quá trình xử lý!",
+      "Vui long chon cong ty noi bo truoc",
+      "Upload thư mục",
+      "Bạn không có quyền truy cập thư mục này",
+      "Bạn không có quyền phân quyền thư mục này",
+      "Tài liệu",
+      "Bạn không có quyền di chuyển thư mục này",
+      "Bạn không có quyền di chuyển file này",
+      "Bạn không có quyền xem lịch sử hoạt động",
+      "Mở thư mục",
+      "Chi tiết / phân quyền",
+      "Không có quyền phân quyền",
+      "Di chuyển thư mục",
+      "Không có quyền di chuyển",
+      "Xóa thư mục",
+      "Không có quyền xóa",
+      "Lịch sử hoạt động",
+      "Không có quyền xem lịch sử",
+      "Xem trước",
+      "Chi tiết / chỉnh sửa",
+      "Không có quyền chỉnh sửa",
+      "Di chuyển file",
+      "Xóa file",
+      "Xóa file này?",
+      "Xóa",
+      "Thao tác",
+      "- {0} thư mục con",
+      "- {0} tệp tin",
+      "Xác nhận xóa thư mục \"{0}\"?",
+      "Bạn sắp xóa vĩnh viễn thư mục này. Các dữ liệu sau cũng sẽ bị xóa theo:",
+      "(Thư mục đang trống)",
+      "Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa?",
+      "Xóa vĩnh viễn",
+      "Đã xóa thành công thư mục và các dữ liệu bên trong",
+      "Xóa thất bại",
+      "Đã xóa file",
+      "Tên / Tiêu đề",
+      "Folder detail / permissions",
+      "No permission to open folder detail",
+      "Click để mở chi tiết / phân quyền",
+      "Bạn không có quyền truy cập thư mục",
+      "Click để mở thư mục",
+      "FILE",
+      "Người quản lý",
+      "Hình thức",
+      "{0} ghi chú",
+      "Dung lượng",
+      "DANH MỤC",
+      "Thư mục mới",
+      "Tải tệp lên",
+      "Mới",
+      "Mở rộng danh mục",
+      "Thu gọn danh mục",
+      "Tìm {0}...",
+      "({0} thư mục, {1} tệp tin)",
+      "(Bạn có quyền {0})",
+      "(Bạn không có quyền thao tác trong thư mục này)",
+      "Hủy chọn",
+      "Xóa các mục đã chọn?",
+      "Xóa ({0})",
+      "Di chuyển ({0})",
+      "Tìm kiếm...",
+      "Kết quả: {0}",
+      "Bạn không có quyền thao tác mục này",
+      "Khong the thay doi STT",
+      "{0}-{1} / {2} mục",
+      "Không tìm thấy dữ liệu phù hợp",
+      "Thư mục trống",
+      "Lịch sử hoạt động: {0}",
+      "Di chuyển",
+      "Bạn đang di chuyển: ",
+      "Thư mục/File",
+      "Bạn đang di chuyển {0} mục đã chọn.",
+      "Chọn thư mục đích:",
+      "Chọn thư mục",
+      "Move to Legal Reference",
+      "Move",
+      "File: ",
+      "File",
+      "Công ty nội bộ:",
+      "Legal Reference:",
+      "Chọn Legal Reference",
+      "Folder Legal Reference:",
+      "Legal Reference Home",
+      "Chọn thư mục Legal Reference",
+      "\n      .table-row-alt td { background: #fafbfc !important; }\n      .ant-table-thead > tr > th { background: #f5f7fa !important; font-weight: 600 !important; color: #595959 !important; }\n      .ant-tree-directory .ant-tree-node-selected { background-color: #e6f4ff !important; color: #1890ff !important; font-weight: 600; }\n      .ant-tree-directory .ant-tree-node-selected::before { background-color: #e6f4ff !important; }\n      \n      /* Force Tree Switcher Icon to be dark gray/black */\n      .ant-tree .ant-tree-switcher { color: #595959 !important; margin-top: 4px; }\n      .ant-tree .ant-tree-switcher:hover { color: #262626 !important; }\n      .ant-tree-directory .ant-tree-node-selected .ant-tree-switcher { color: #595959 !important; }\n\n      /* BẢO ĐẢM GIAO DIỆN TREE SIDEBAR KHÔNG BỊ BÓP MÉO KHI DEEP NESTING */\n      .ant-tree .ant-tree-node-content-wrapper { height: auto !important; min-height: 24px; padding-top: 4px; padding-bottom: 4px; display: flex; align-items: flex-start; gap: 4px; }\n      .ant-tree .ant-tree-title { white-space: normal !important; word-break: break-word; line-height: 1.4; padding-top: 2px; }\n    "
+    ],
+    "compareOk": [
+      "Folder",
+      "folder",
+      "Document",
+      "name",
+      "title",
+      "upload"
+    ],
+    "dynamicKeys": true
+  },
+  {
+    "file": "JsField/JsActionReloadData.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsActionSubmit.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsColumnCaseProgress.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsColumnOverdue.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsColumnServiceCompanies.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/OpenViewButton.js",
+    "allow": [
+      "Open view",
+      "Popup"
+    ]
+  },
+  {
+    "file": "JsField/JsLeadFilter.js",
+    "allow": [
+      "Google Ads",
+      "Facebook Ads",
+      "Zalo",
+      "Website",
+      "Hotline"
+    ]
+  },
+  {
+    "file": "JsField/JsProjectFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsStatusFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/CaseSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/ContractSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/CustomerSearchFilter.js",
+    "allow": [
+      "Google Ads",
+      "Facebook Ads",
+      "Zalo",
+      "Website",
+      "Hotline"
+    ]
+  },
+  {
+    "file": "JsField/Search/Filter/GenericSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/LeadSearchFilter.js",
+    "allow": [
+      "Google Ads",
+      "Facebook Ads",
+      "Zalo",
+      "Website",
+      "Hotline"
+    ]
+  },
+  {
+    "file": "JsField/Search/Filter/LegalReferenceSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/LegalStudySearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/ProjectInternalSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/Search/Filter/QuotationSearchFilter.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsLegalReferenceLinks.js",
+    "allow": [
+      "LegalStudy:list",
+      "120px minmax(190px, 1.5fr) minmax(160px, 1.25fr) 140px 120px 36px",
+      "No API candidate worked",
+      "dang xu ly"
+    ]
+  },
+  {
+    "file": "JsField/JsLegalStudyLinks.js",
+    "allow": [
+      "LegalStudy:get",
+      "LegalReference:list",
+      "120px minmax(190px, 1.5fr) minmax(160px, 1.25fr) 140px 120px 36px",
+      "No API candidate worked"
+    ]
+  },
+  {
+    "file": "JsField/VariableConfigEditor.js",
+    "allow": []
+  },
+  {
+    "file": "JsField/JsItemLegalReference.js",
+    "allow": [
+      "No API candidate worked",
+      "No create API candidate worked",
+      "Missing update id",
+      "No update API candidate worked",
+      "Missing destroy id",
+      "No destroy API candidate worked",
+      "Missing source or target ID",
+      "Missing source case id",
+      "Missing case or reference id",
+      "Fetch failed",
+      "Linked {0} for reference and study.",
+      "Case Reference",
+      "Case Reference #{0}",
+      "Case",
+      "Case #{0}",
+      "Folder",
+      "Legal Reference",
+      "Legal Study"
+    ]
+  }
+]

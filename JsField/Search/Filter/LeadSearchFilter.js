@@ -35,6 +35,41 @@
 // ===================================================================
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Status": "Trạng thái",
+  "New": "Mới",
+  "Opportunity": "Cơ hội",
+  "Won": "Thành công",
+  "Negotiation": "Đang đàm phán",
+  "Lost": "Thất bại",
+  "Source": "Nguồn",
+  "Referral": "Giới thiệu",
+  "Partner": "Đối tác",
+  "Lawyer": "Luật sư",
+  "Staff": "Nhân viên",
+  "Internal Company": "Công ty nội bộ",
+  "All": "Tất cả",
+  "Person Responsible": "Người phụ trách",
+  "Search": "Tìm kiếm",
+  "Search by full name, email, shortName, salesperson...": "Tìm theo họ tên, email, tên viết tắt, nhân viên kinh doanh...",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
   targetBlockUid: 'lkefg2nclcb',
   tableName: 'lead',
@@ -45,13 +80,13 @@ const CONFIG = {
       type: 'status',
       key: 'status',
       field: 'status',
-      label: 'Status',
+      label: tr("Status"),
       options: [
-        { value: 'new', label: 'New' },
-        { value: 'opportunity', label: 'Opportunity' },
-        { value: 'won', label: 'Won' },
-        { value: 'negotiation', label: 'Negotiation' },
-        { value: 'lost', label: 'Lost' },
+        { value: 'new', label: tr("New") },
+        { value: 'opportunity', label: tr("Opportunity") },
+        { value: 'won', label: tr("Won") },
+        { value: 'negotiation', label: tr("Negotiation") },
+        { value: 'lost', label: tr("Lost") },
       ],
       showCounts: true,
     },
@@ -59,17 +94,17 @@ const CONFIG = {
       type: 'status',
       key: 'source',
       field: 'source',
-      label: 'Source',
+      label: tr("Source"),
       options: [
         { value: 'googleAds', label: 'Google Ads' },
         { value: 'facebookAds', label: 'Facebook Ads' },
         { value: 'zalo', label: 'Zalo' },
-        { value: 'referral', label: 'Referral' },
+        { value: 'referral', label: tr("Referral") },
         { value: 'website', label: 'Website' },
         { value: 'hotline', label: 'Hotline' },
-        { value: 'partner', label: 'Partner' },
-        { value: 'lawyer', label: 'Lawyer' },
-        { value: 'staff', label: 'Staff' },
+        { value: 'partner', label: tr("Partner") },
+        { value: 'lawyer', label: tr("Lawyer") },
+        { value: 'staff', label: tr("Staff") },
       ],
       showCounts: true,
     },
@@ -77,8 +112,8 @@ const CONFIG = {
       type: 'relation',
       key: 'company',
       field: 'internalCompanyId',
-      label: 'Internal Company',
-      placeholder: 'All',
+      label: tr("Internal Company"),
+      placeholder: tr("All"),
       source: {
         collection: 'internalCompany',
         labelFields: ['shortName'],
@@ -90,8 +125,8 @@ const CONFIG = {
       key: 'assignees',
       field: 'Assignees',
       relationKey: 'id', // Assignees has no flat FK column, only the association
-      label: 'Person Responsible',
-      placeholder: 'All',
+      label: tr("Person Responsible"),
+      placeholder: tr("All"),
       source: {
         collection: 'lawyers',
         labelFields: ['lawyerName'],
@@ -108,9 +143,9 @@ const CONFIG = {
     {
       type: 'search',
       key: 'search',
-      label: 'Search',
+      label: tr("Search"),
       fields: ['fullName', 'email', 'shortName','salesperson'],
-      placeholder: 'Search by full name, email, shortName, salesperson...',
+      placeholder: tr("Search by full name, email, shortName, salesperson..."),
     },
   ],
 
@@ -201,7 +236,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: tr("All") }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -486,7 +521,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'All',
+        placeholder: filterDef.placeholder || tr("All"),
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -504,7 +539,7 @@ const FilterControl = ({ filterDef, value, onChange, counts }) => {
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Search...',
+        placeholder: filterDef.placeholder || tr("Search..."),
         allowClear: true,
         enterButton: true,
         size: 'small',

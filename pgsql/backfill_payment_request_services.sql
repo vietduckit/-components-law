@@ -12,6 +12,14 @@
 -- installments each have 1-2 real contractPaymentScheduleServices rows, but
 -- all 3 resulting paymentRequests have 0 paymentRequestServices rows.
 --
+-- CORRECTION (2026-09-24): late deployment was not the real cause — the
+-- insert-time copy loop can never see UI-written tags, because the UI
+-- writes contractPaymentScheduleServices AFTER the contractPaymentSchedules
+-- insert that fires the trigger. Every UI-created By Case contract hit this.
+-- Fixed going forward by trg_by_case_schedule_tag_copies_to_payment_request
+-- (pgsql/unified_contract_payment_schedule.sql); this backfill is still what
+-- repairs Payment Requests created before that trigger was deployed.
+--
 -- Combined with §6m (removing the "untagged = visible to everyone"
 -- fallback), those PRs are now invisible to EVERY task's installment picker
 -- until this backfill runs — this is urgent, not cosmetic.

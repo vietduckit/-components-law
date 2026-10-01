@@ -1,3 +1,88 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Scheduled": "Đã lên lịch",
+  "Ongoing": "Đang diễn ra",
+  "Completed": "Đã hoàn tất",
+  "Cancelled": "Đã hủy",
+  "Internal": "Nội bộ",
+  "Case review": "Rà soát hồ sơ",
+  "Strategy": "Chiến lược",
+  "Training": "Đào tạo",
+  "Other": "Khác",
+  "Pending": "Chờ gửi",
+  "Confirmed": "Đã xác nhận",
+  "Absent": "Vắng mặt",
+  "Excused": "Vắng có phép",
+  "Title": "Tiêu đề",
+  "Status": "Trạng thái",
+  "Date": "Ngày",
+  "Time": "Thời gian",
+  "Host": "Chủ trì",
+  "Attendees": "Người tham dự",
+  "Case": "Hồ sơ",
+  "Location": "Địa điểm",
+  "Updated": "Cập nhật",
+  "User #{0}": "Người dùng #{0}",
+  "Unassigned": "Chưa phân công",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Task #{0}": "Công việc #{0}",
+  "Could not load meetings.": "Không thể tải danh sách cuộc họp.",
+  "Could not save meeting view for this user.": "Không thể lưu chế độ xem cuộc họp cho người dùng này.",
+  "Resize column": "Đổi độ rộng cột",
+  "Could not update meeting status.": "Không thể cập nhật trạng thái cuộc họp.",
+  "Meeting create view is not configured.": "Chưa cấu hình view tạo cuộc họp.",
+  "Create meeting": "Tạo cuộc họp",
+  "Could not open create form.": "Không thể mở biểu mẫu tạo.",
+  "Could not resolve meeting id.": "Không xác định được ID cuộc họp.",
+  "Meeting detail view is not configured.": "Chưa cấu hình view chi tiết cuộc họp.",
+  "Meeting detail": "Chi tiết cuộc họp",
+  "Could not open meeting detail.": "Không thể mở chi tiết cuộc họp.",
+  "Meeting deleted.": "Đã xóa cuộc họp.",
+  "Could not delete meeting.": "Không thể xóa cuộc họp.",
+  "this meeting": "cuộc họp này",
+  "Delete \"{0}\"?": "Xóa \"{0}\"?",
+  "This action cannot be undone.": "Thao tác này không thể hoàn tác.",
+  "Delete": "Xóa",
+  "Cancel": "Hủy",
+  "Delete \"{0}\"?\nThis action cannot be undone.": "Xóa \"{0}\"?\nThao tác này không thể hoàn tác.",
+  "Meeting": "Cuộc họp",
+  "Actions": "Thao tác",
+  "Table": "Bảng",
+  "Kanban Board": "Bảng Kanban",
+  "Attendee": "Người tham dự",
+  "Type": "Loại",
+  "Search title, case, location...": "Tìm tiêu đề, hồ sơ, địa điểm...",
+  "Start date": "Ngày bắt đầu",
+  "End date": "Ngày kết thúc",
+  "View config": "Cấu hình hiển thị",
+  "Reset": "Đặt lại",
+  "{0} meetings": "{0} cuộc họp",
+  "Host: {0}": "Chủ trì: {0}",
+  "No meetings": "Không có cuộc họp",
+  "No meetings matched the current filters.": "Không có cuộc họp nào khớp bộ lọc hiện tại.",
+  "My Meetings": "Cuộc họp của tôi",
+  "All Meetings": "Tất cả cuộc họp",
+  "{0} scheduled": "{0} đã lên lịch",
+  "{0} completed this month": "{0} hoàn thành trong tháng",
+  "Refresh": "Làm mới",
+  "No date": "Không có ngày",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useState } = React;
 const {
@@ -67,26 +152,26 @@ const FALLBACK_TOKEN = {
 };
 
 const STATUS_CFG = {
-  scheduled: { label: "Scheduled", color: "processing" },
-  ongoing: { label: "Ongoing", color: "warning" },
-  completed: { label: "Completed", color: "success" },
-  cancelled: { label: "Cancelled", color: "default" },
-  canceled: { label: "Cancelled", color: "default" },
+  scheduled: { label: tr("Scheduled"), color: "processing" },
+  ongoing: { label: tr("Ongoing"), color: "warning" },
+  completed: { label: tr("Completed"), color: "success" },
+  cancelled: { label: tr("Cancelled"), color: "default" },
+  canceled: { label: tr("Cancelled"), color: "default" },
 };
 
 const TYPE_CFG = {
-  internal: { label: "Internal", color: "blue" },
-  case_review: { label: "Case review", color: "purple" },
-  strategy: { label: "Strategy", color: "cyan" },
-  training: { label: "Training", color: "green" },
-  other: { label: "Other", color: "default" },
+  internal: { label: tr("Internal"), color: "blue" },
+  case_review: { label: tr("Case review"), color: "purple" },
+  strategy: { label: tr("Strategy"), color: "cyan" },
+  training: { label: tr("Training"), color: "green" },
+  other: { label: tr("Other"), color: "default" },
 };
 
 const ATTENDANCE_CFG = {
-  pending: { label: "Pending", color: "default" },
-  confirmed: { label: "Confirmed", color: "success" },
-  absent: { label: "Absent", color: "error" },
-  excused: { label: "Excused", color: "warning" },
+  pending: { label: tr("Pending"), color: "default" },
+  confirmed: { label: tr("Confirmed"), color: "success" },
+  absent: { label: tr("Absent"), color: "error" },
+  excused: { label: tr("Excused"), color: "warning" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CFG).map(([value, cfg]) => ({
@@ -105,15 +190,15 @@ const ATTENDANCE_OPTIONS = Object.entries(ATTENDANCE_CFG).map(([value, cfg]) => 
 }));
 
 const COLUMN_OPTIONS = [
-  { value: "title", label: "Title", locked: true },
-  { value: "status", label: "Status" },
-  { value: "meetingDate", label: "Date" },
-  { value: "time", label: "Time" },
-  { value: "host", label: "Host" },
-  { value: "attendees", label: "Attendees" },
-  { value: "case", label: "Case" },
-  { value: "location", label: "Location" },
-  { value: "updatedAt", label: "Updated" },
+  { value: "title", label: tr("Title"), locked: true },
+  { value: "status", label: tr("Status") },
+  { value: "meetingDate", label: tr("Date") },
+  { value: "time", label: tr("Time") },
+  { value: "host", label: tr("Host") },
+  { value: "attendees", label: tr("Attendees") },
+  { value: "case", label: tr("Case") },
+  { value: "location", label: tr("Location") },
+  { value: "updatedAt", label: tr("Updated") },
 ];
 
 const DEFAULT_VISIBLE_COLUMNS = [
@@ -559,18 +644,18 @@ const userLabel = (record) =>
   record?.username ||
   record?.name ||
   record?.email ||
-  (record?.id ? `User #${record.id}` : "Unassigned");
+  (record?.id ? tr("User #{0}", { 0: record.id }) : tr("Unassigned"));
 
 const userInitial = (record) => {
   const label = userLabel(record);
-  return label && label !== "Unassigned" ? label.charAt(0).toUpperCase() : "?";
+  return label && label !== tr("Unassigned") ? label.charAt(0).toUpperCase() : "?";
 };
 
 const caseLabel = (record) =>
   compact([
     record?.caseCode || record?.projectCode || record?.code,
     record?.projectName || record?.caseName || record?.title || record?.name,
-  ]).join(" - ") || (record?.id ? `Case #${record.id}` : "-");
+  ]).join(" - ") || (record?.id ? tr("Case #{0}", { 0: record.id }) : "-");
 
 const customerLabel = (record) =>
   record?.customerName ||
@@ -578,7 +663,7 @@ const customerLabel = (record) =>
   record?.name ||
   record?.fullName ||
   record?.companyName ||
-  (record?.id ? `Customer #${record.id}` : "");
+  (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const caseCustomerLabel = (record, customerMap = {}) => {
   const directCustomer = record?.customer || record?.customers;
@@ -631,7 +716,7 @@ const caseOption = (record, customerMap = {}) => {
 };
 
 const taskLabel = (record) =>
-  record?.title || record?.taskName || record?.name || (record?.id ? `Task #${record.id}` : "-");
+  record?.title || record?.taskName || record?.name || (record?.id ? tr("Task #{0}", { 0: record.id }) : "-");
 
 const getResponseRecord = (res) => {
   const data = res?.data?.data || res?.data || res;
@@ -1054,7 +1139,7 @@ const MeetingBlock = () => {
       setRows(enriched);
     } catch (error) {
       console.error("[MeetingBlock] reload failed", error);
-      message.error(error?.message || "Could not load meetings.");
+      message.error(error?.message || tr("Could not load meetings."));
     } finally {
       setLoading(false);
     }
@@ -1122,7 +1207,7 @@ const MeetingBlock = () => {
       });
     } catch (error) {
       console.warn("[MeetingBlock] save user view config failed", error);
-      message.warning("Could not save meeting view for this user.");
+      message.warning(tr("Could not save meeting view for this user."));
     }
   };
 
@@ -1209,7 +1294,7 @@ const MeetingBlock = () => {
       ),
       React.createElement("span", {
         onPointerDown: (event) => startColumnResize(field, event),
-        title: "Resize column",
+        title: tr("Resize column"),
         style: {
           flex: "0 0 auto",
           width: 8,
@@ -1238,7 +1323,7 @@ const MeetingBlock = () => {
       emitMeetingChanged({ action: "status_updated", meetingId, status });
     } catch (error) {
       console.error("[MeetingBlock] update meeting status failed", error);
-      message.error(error?.message || "Could not update meeting status.");
+      message.error(error?.message || tr("Could not update meeting status."));
       reload();
     }
   };
@@ -1294,7 +1379,7 @@ const MeetingBlock = () => {
 
   const openMeetingCreate = async () => {
     if (!MEETING_CREATE_FORM_UID) {
-      message.error("Meeting create view is not configured.");
+      message.error(tr("Meeting create view is not configured."));
       return;
     }
     const route = buildMeetingCreateRoute();
@@ -1314,7 +1399,7 @@ const MeetingBlock = () => {
     };
     const openOptions = {
       mode: "dialog",
-      title: "Create meeting",
+      title: tr("Create meeting"),
       size: "large",
       navigation: false,
       ...params,
@@ -1336,19 +1421,19 @@ const MeetingBlock = () => {
       window.open(route.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       console.error("[MeetingBlock] open create route failed", error);
-      message.error("Could not open create form.");
+      message.error(tr("Could not open create form."));
     }
   };
 
   const openMeetingDetail = async (row) => {
     const meetingId = extractId(row?.id);
     if (!meetingId) {
-      message.warning("Could not resolve meeting id.");
+      message.warning(tr("Could not resolve meeting id."));
       return;
     }
     const route = buildMeetingDetailRoute(meetingId);
     if (!route) {
-      message.error("Meeting detail view is not configured.");
+      message.error(tr("Meeting detail view is not configured."));
       return;
     }
     const params = {
@@ -1366,7 +1451,7 @@ const MeetingBlock = () => {
     };
     const openOptions = {
       mode: "dialog",
-      title: row?.title || "Meeting detail",
+      title: row?.title || tr("Meeting detail"),
       size: "large",
       navigation: false,
       ...params,
@@ -1388,14 +1473,14 @@ const MeetingBlock = () => {
       window.open(route.url, "_blank", "noopener,noreferrer");
     } catch (error) {
       console.error("[MeetingBlock] open meeting detail route failed", error);
-      message.error(error?.message || "Could not open meeting detail.");
+      message.error(error?.message || tr("Could not open meeting detail."));
     }
   };
 
   const deleteMeeting = async (row) => {
     const meetingId = extractId(row?.id);
     if (!meetingId) {
-      message.warning("Could not resolve meeting id.");
+      message.warning(tr("Could not resolve meeting id."));
       return;
     }
 
@@ -1450,12 +1535,12 @@ const MeetingBlock = () => {
         params: { filterByTk: meetingId },
       });
       emitMeetingChanged({ action: "deleted", meetingId });
-      message.success("Meeting deleted.");
+      message.success(tr("Meeting deleted."));
       reload();
     } catch (error) {
       console.error("[MeetingBlock] delete meeting failed", error);
       setRows(previousRows);
-      message.error(error?.message || "Could not delete meeting.");
+      message.error(error?.message || tr("Could not delete meeting."));
       reload();
     } finally {
       setDeletingMeetingIds((prev) => prev.filter((id) => id !== meetingKey));
@@ -1463,20 +1548,20 @@ const MeetingBlock = () => {
   };
 
   const confirmDeleteMeeting = (row) => {
-    const title = row?.title || "this meeting";
+    const title = row?.title || tr("this meeting");
     const onOk = () => deleteMeeting(row);
     if (Modal && typeof Modal.confirm === "function") {
       Modal.confirm({
-        title: `Delete "${title}"?`,
-        content: "This action cannot be undone.",
-        okText: "Delete",
+        title: tr("Delete \"{0}\"?", { 0: title }),
+        content: tr("This action cannot be undone."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk,
       });
       return;
     }
-    if (window.confirm(`Delete "${title}"?\nThis action cannot be undone.`)) {
+    if (((message) => { try { return window.confirm(message); } catch { return false; } })(tr("Delete \"{0}\"?\nThis action cannot be undone.", { 0: title }))) {
       onOk();
     }
   };
@@ -1502,7 +1587,7 @@ const MeetingBlock = () => {
           onPointerDown: (event) => event?.stopPropagation?.(),
           onDragStart: (event) => event?.stopPropagation?.(),
         },
-        "Delete",
+        tr("Delete"),
       ),
     );
   };
@@ -1539,7 +1624,7 @@ const MeetingBlock = () => {
             display: "block",
           },
         },
-        row.title || "Meeting",
+        row.title || tr("Meeting"),
       ),
       React.createElement(
         Space,
@@ -1562,7 +1647,7 @@ const MeetingBlock = () => {
     });
     const all = {
       title: {
-        title: resizableTitle("title", "Title"),
+        title: resizableTitle("title", tr("Title")),
         dataIndex: "title",
         width: columnWidths.title,
         fixed: "left",
@@ -1575,7 +1660,7 @@ const MeetingBlock = () => {
         render: statusTag,
       },
       meetingDate: {
-        title: resizableTitle("meetingDate", "Date"),
+        title: resizableTitle("meetingDate", tr("Date")),
         dataIndex: "meetingDate",
         width: columnWidths.meetingDate,
         render: (value) =>
@@ -1586,7 +1671,7 @@ const MeetingBlock = () => {
           ),
       },
       time: {
-        title: resizableTitle("time", "Time"),
+        title: resizableTitle("time", tr("Time")),
         key: "time",
         width: columnWidths.time,
         render: (_, row) =>
@@ -1597,7 +1682,7 @@ const MeetingBlock = () => {
           ),
       },
       host: {
-        title: resizableTitle("host", "Host"),
+        title: resizableTitle("host", tr("Host")),
         dataIndex: "hostId",
         width: columnWidths.host,
         render: (value) => {
@@ -1627,7 +1712,7 @@ const MeetingBlock = () => {
         },
       },
       attendees: {
-        title: resizableTitle("attendees", "Attendees"),
+        title: resizableTitle("attendees", tr("Attendees")),
         key: "attendees",
         width: columnWidths.attendees,
         render: (_, row) =>
@@ -1647,7 +1732,7 @@ const MeetingBlock = () => {
           ),
       },
       case: {
-        title: resizableTitle("case", "Case"),
+        title: resizableTitle("case", tr("Case")),
         dataIndex: "caseId",
         width: columnWidths.case,
         render: (value) => {
@@ -1688,7 +1773,7 @@ const MeetingBlock = () => {
         },
       },
       location: {
-        title: resizableTitle("location", "Location"),
+        title: resizableTitle("location", tr("Location")),
         dataIndex: "location",
         width: columnWidths.location,
         render: (value) =>
@@ -1699,13 +1784,13 @@ const MeetingBlock = () => {
           ),
       },
       updatedAt: {
-        title: resizableTitle("updatedAt", "Updated"),
+        title: resizableTitle("updatedAt", tr("Updated")),
         dataIndex: "updatedAt",
         width: columnWidths.updatedAt,
         render: (value) => formatDate(value, "datetime"),
       },
       actions: {
-        title: "Actions",
+        title: tr("Actions"),
         key: "actions",
         width: 110,
         fixed: "right",
@@ -1728,8 +1813,8 @@ const MeetingBlock = () => {
       block: true,
       value: viewMode,
       options: [
-        { label: "Table", value: "table" },
-        { label: "Kanban Board", value: "board" },
+        { label: tr("Table"), value: "table" },
+        { label: tr("Kanban Board"), value: "board" },
       ],
       onChange: setViewModeValue,
     }),
@@ -1790,7 +1875,7 @@ const MeetingBlock = () => {
         maxTagCount: "responsive",
         optionFilterProp: "searchText",
         value: filters.caseIds,
-        placeholder: "Case",
+        placeholder: tr("Case"),
         options: caseOptions,
         onChange: (value) => setFilter("caseIds", value),
         style: filterControlStyle,
@@ -1802,7 +1887,7 @@ const MeetingBlock = () => {
         maxTagCount: "responsive",
         optionFilterProp: "label",
         value: filters.attendeeIds,
-        placeholder: "Attendee",
+        placeholder: tr("Attendee"),
         options: userOptions,
         onChange: (value) => setFilter("attendeeIds", value),
         style: filterControlStyle,
@@ -1812,7 +1897,7 @@ const MeetingBlock = () => {
         allowClear: true,
         maxTagCount: "responsive",
         value: filters.statuses,
-        placeholder: "Status",
+        placeholder: tr("Status"),
         options: STATUS_OPTIONS,
         onChange: (value) => setFilter("statuses", value),
         style: filterControlStyle,
@@ -1822,7 +1907,7 @@ const MeetingBlock = () => {
         allowClear: true,
         maxTagCount: "responsive",
         value: filters.types,
-        placeholder: "Type",
+        placeholder: tr("Type"),
         options: TYPE_OPTIONS,
         onChange: (value) => setFilter("types", value),
         style: filterControlStyle,
@@ -1834,7 +1919,7 @@ const MeetingBlock = () => {
       React.createElement(Input.Search, {
         allowClear: true,
         value: filters.keyword,
-        placeholder: "Search title, case, location...",
+        placeholder: tr("Search title, case, location..."),
         onChange: (event) => setFilter("keyword", event.target.value),
         onSearch: (value) => setFilter("keyword", value),
         style: filterControlStyle,
@@ -1844,7 +1929,7 @@ const MeetingBlock = () => {
             allowClear: true,
             value: filters.dateRange,
             format: "DD/MM/YYYY",
-            placeholder: ["Start date", "End date"],
+            placeholder: [tr("Start date"), tr("End date")],
             onChange: (value) => setFilter("dateRange", value || null),
             style: filterControlStyle,
           })
@@ -1854,12 +1939,12 @@ const MeetingBlock = () => {
         {
           trigger: "click",
           placement: "bottomRight",
-          title: "View config",
+          title: tr("View config"),
           content: columnConfig,
         },
-        React.createElement(Button, { style: filterControlStyle }, "View config"),
+        React.createElement(Button, { style: filterControlStyle }, tr("View config")),
       ),
-      React.createElement(Button, { onClick: resetFilters, style: filterControlStyle }, "Reset"),
+      React.createElement(Button, { onClick: resetFilters, style: filterControlStyle }, tr("Reset")),
     ),
   );
 
@@ -1934,8 +2019,8 @@ const MeetingBlock = () => {
                 alignItems: "center",
               },
             },
-            React.createElement(Text, { strong: true }, group.key === "No date" ? "No date" : formatDate(group.key)),
-            React.createElement(Text, { type: "secondary" }, `${group.items.length} meetings`),
+            React.createElement(Text, { strong: true }, group.key === "No date" ? tr("No date") : formatDate(group.key)),
+            React.createElement(Text, { type: "secondary" }, tr("{0} meetings", { 0: group.items.length })),
           ),
           React.createElement(
             "div",
@@ -1964,7 +2049,7 @@ const MeetingBlock = () => {
                   statusTag(row.status),
                   typeTag(row.type),
                 ),
-                React.createElement(Text, { strong: true }, row.title || "Meeting"),
+                React.createElement(Text, { strong: true }, row.title || tr("Meeting")),
                 React.createElement(
                   Text,
                   { type: "secondary" },
@@ -1976,7 +2061,7 @@ const MeetingBlock = () => {
                 React.createElement(
                   Text,
                   { type: "secondary" },
-                  compact([`Host: ${userLabel(host)}`, caseLabel(caseRecord)]).join(" · "),
+                  compact([tr("Host: {0}", { 0: userLabel(host) }), caseLabel(caseRecord)]).join(" · "),
                 ),
                 React.createElement(
                   "div",
@@ -2038,7 +2123,7 @@ const MeetingBlock = () => {
         React.createElement(
           Text,
           { strong: true, style: { lineHeight: 1.35 } },
-          row.title || "Meeting",
+          row.title || tr("Meeting"),
         ),
         React.createElement(
           Space,
@@ -2155,7 +2240,7 @@ const MeetingBlock = () => {
               ? group.items.map(renderBoardCard)
               : React.createElement(Empty, {
                   image: Empty.PRESENTED_IMAGE_SIMPLE,
-                  description: "No meetings",
+                  description: tr("No meetings"),
                 }),
           ),
         ),
@@ -2174,7 +2259,7 @@ const MeetingBlock = () => {
         : renderTable()
       : React.createElement(Empty, {
           image: Empty.PRESENTED_IMAGE_SIMPLE,
-          description: "No meetings matched the current filters.",
+          description: tr("No meetings matched the current filters."),
           style: { padding: 60 },
         });
 
@@ -2186,12 +2271,12 @@ const MeetingBlock = () => {
           Space,
           { size: 8, wrap: true },
           React.createElement(Title, { level: 5, style: { margin: 0 } },
-            MEETING_SCOPE === "my" ? "My Meetings" : "All Meetings",
+            MEETING_SCOPE === "my" ? tr("My Meetings") : tr("All Meetings"),
           ),
           scheduledCount
-            ? React.createElement(Tag, { color: "processing" }, `${scheduledCount} scheduled`)
+            ? React.createElement(Tag, { color: "processing" }, tr("{0} scheduled", { 0: scheduledCount }))
             : null,
-          React.createElement(Tag, null, `${completedThisMonth} completed this month`),
+          React.createElement(Tag, null, tr("{0} completed this month", { 0: completedThisMonth })),
         ),
         extra: React.createElement(
           Space,
@@ -2202,9 +2287,9 @@ const MeetingBlock = () => {
               type: "primary",
               onClick: openMeetingCreate,
             },
-            "Create meeting",
+            tr("Create meeting"),
           ),
-          React.createElement(Button, { loading, onClick: reload }, "Refresh"),
+          React.createElement(Button, { loading, onClick: reload }, tr("Refresh")),
         ),
         bodyStyle: {
           padding: 0,

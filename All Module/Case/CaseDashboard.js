@@ -4,6 +4,150 @@
 // Data sources: projects, tasks, projectServices, contractServices,
 // lawyers, customers, internalCompany.
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "To do": "Chưa thực hiện",
+  "In progress": "Đang xử lý",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Cao": "High",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Last 7 days": "7 ngày qua",
+  "Last 30 days": "30 ngày qua",
+  "This quarter": "Quý này",
+  "This year": "Năm nay",
+  "All": "Tất cả",
+  "Custom": "Tùy chọn",
+  "Time": "Thời gian",
+  "Internal company": "Công ty nội bộ",
+  "Customer": "Khách hàng",
+  "Lawyer in charge": "Luật sư phụ trách",
+  "Status": "Trạng thái",
+  "Priority": "Ưu tiên",
+  "Overview": "Tổng quan",
+  "Table": "Bảng",
+  "Charts": "Biểu đồ",
+  "KPI": "KPI",
+  "Kanban": "Kanban",
+  "Calendar": "Lịch",
+  "Total cases": "Tổng hồ sơ",
+  "Past deadline": "Quá hạn deadline",
+  "Completed in period": "Hoàn thành trong kỳ",
+  "Total case value": "Tổng giá trị hồ sơ",
+  "Status distribution": "Phân bố trạng thái",
+  "New vs completed cases": "Hồ sơ mới vs hoàn thành",
+  "Workload by lawyer": "Workload theo luật sư",
+  "Value by month": "Giá trị theo tháng",
+  "Service type mix": "Cơ cấu loại dịch vụ",
+  "By priority": "Theo mức ưu tiên",
+  "Upcoming deadlines": "Deadline sắp tới",
+  "List": "Danh sách",
+  "Case list table": "Bảng danh sách hồ sơ",
+  "Case code": "Mã hồ sơ",
+  "Matter name": "Tên vụ việc",
+  "Assignees": "Phụ trách",
+  "Task progress": "Tiến độ task",
+  "Deadline": "Hạn",
+  "Value": "Giá trị",
+  "Created at": "Ngày tạo",
+  "Default view for case management, status and value.": "View mặc định cho quản lý hồ sơ, trạng thái và giá trị.",
+  "Operations": "Vận hành",
+  "Track deadlines, workload and progress.": "Theo dõi deadline, workload và tiến độ xử lý.",
+  "Finance": "Tài chính",
+  "Focus on case value and service mix.": "Tập trung vào giá trị hồ sơ và cơ cấu dịch vụ.",
+  "Track cases by customer.": "View theo dõi hồ sơ theo khách hàng.",
+  "Could not load the chart library": "Không tải được thư viện biểu đồ",
+  "No change from the previous period": "Không đổi so với kỳ trước",
+  "Up": "Tăng",
+  "Down": "Giảm",
+  "vs the previous period": "so với kỳ trước",
+  "Custom view": "View tùy chỉnh",
+  "New custom view created": "Đã tạo view tùy chỉnh mới",
+  "View settings saved": "Đã lưu cấu hình view",
+  "View duplicated": "Đã nhân bản view",
+  "Default settings restored": "Đã khôi phục cấu hình mặc định",
+  "Custom view deleted": "Đã xóa view tùy chỉnh",
+  "Cty #{0}": "Company #{0}",
+  "New cases": "Hồ sơ mới",
+  "Overdue": "Quá hạn",
+  "Value (million ₫)": "Giá trị (triệu ₫)",
+  "Other": "Khác",
+  "Unassigned": "Chưa phân công",
+  "No tasks yet": "Chưa có task",
+  "Period: {0}": "Thời gian: {0}",
+  "Company: {0}": "Công ty: {0}",
+  "Customer: {0}": "Khách hàng: {0}",
+  "Lawyer: {0}": "Luật sư: {0}",
+  "Status: {0}": "Trạng thái: {0}",
+  "Priority: {0}": "Ưu tiên: {0}",
+  "Case status distribution": "Phân bố trạng thái hồ sơ",
+  "New vs completed cases (12 months)": "Hồ sơ mới vs hoàn thành (12 tháng)",
+  "No assignment data yet": "Chưa có dữ liệu phân công",
+  "Case value by month": "Giá trị hồ sơ theo tháng",
+  "Mix by service type": "Cơ cấu theo loại dịch vụ",
+  "No services yet": "Chưa có dịch vụ",
+  "Open cases by priority": "Hồ sơ đang mở theo ưu tiên",
+  "No upcoming deadlines": "Không có deadline sắp tới",
+  "{0} days late": "Trễ {0} ngày",
+  "{0} days left": "Còn {0} ngày",
+  "Case list": "Danh sách hồ sơ",
+  "cases": "hồ sơ",
+  "No content for this view yet": "Chưa có nội dung cho view này",
+  "Table View": "Dạng bảng",
+  "Configure fields": "Cấu hình trường",
+  "No chart widget enabled": "Chưa bật chart widget nào",
+  "No KPI widget enabled": "Chưa bật KPI widget nào",
+  "No records": "Không có record",
+  "Untitled": "Chưa đặt tên",
+  "Calendar View": "Dạng lịch",
+  "Month": "Tháng",
+  "Week": "Tuần",
+  "Day": "Ngày",
+  "No dates match the current filters": "Không có mốc thời gian phù hợp với filter hiện tại",
+  "No widget enabled for this view": "Chưa bật widget nào cho view này",
+  "Dashboard / Case Management": "Dashboard / Quản lý hồ sơ",
+  "Case Dashboard": "Dashboard hồ sơ",
+  "Unsaved changes": "Thay đổi chưa lưu",
+  "Switch view modes, refine filters, and save workspace presets.": "Đổi chế độ xem, tinh chỉnh bộ lọc và lưu cấu hình làm việc.",
+  "Refresh": "Làm mới",
+  "Configure": "Cấu hình",
+  "Save view": "Lưu view",
+  "Fields & filters": "Trường & bộ lọc",
+  "to": "đến",
+  "KH #{0}": "Customer #{0}",
+  "Clear all": "Xóa tất cả",
+  "Configure view": "Cấu hình view",
+  "Duplicate": "Nhân bản",
+  "Delete view": "Xóa view",
+  "Default": "Mặc định",
+  "Save": "Lưu",
+  "View name": "Tên view",
+  "A default view is saved as a custom copy when you click Save view.": "View mặc định sẽ được lưu thành một bản custom khi bấm Lưu view.",
+  "Default mode": "Chế độ mặc định",
+  "Widgets": "Widget",
+  "1/3 row": "1/3 dòng",
+  "1/2 row": "1/2 dòng",
+  "2/3 row": "2/3 dòng",
+  "Full row": "Full dòng",
+  "Filters": "Bộ lọc",
+  "Table columns": "Cột bảng",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React, antd } = ctx;
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 const {
@@ -48,17 +192,17 @@ const UI = {
 // CONFIG
 // ============================================================
 const STATUS_CFG = {
-  toDo: { label: "Chưa thực hiện", color: "default", chart: "#d9d9d9" },
-  inProgress: { label: "Đang xử lý", color: "processing", chart: "#1677ff" },
-  done: { label: "Hoàn thành", color: "success", chart: "#52c41a" },
-  cancelled: { label: "Đã hủy", color: "default", chart: "#bfbfbf" },
+  toDo: { label: tr("To do"), color: "default", chart: "#d9d9d9" },
+  inProgress: { label: tr("In progress"), color: "processing", chart: "#1677ff" },
+  done: { label: tr("Done"), color: "success", chart: "#52c41a" },
+  cancelled: { label: tr("Cancelled"), color: "default", chart: "#bfbfbf" },
 };
 const STATUS_KEYS = ["toDo", "inProgress", "done", "cancelled"];
 
 const PRIORITY_CFG = {
-  high: { label: "Cao", color: "red", chart: "#ff4d4f" },
-  medium: { label: "Trung bình", color: "gold", chart: "#faad14" },
-  low: { label: "Thấp", color: "green", chart: "#52c41a" },
+  high: { label: tr("Cao"), color: "red", chart: "#ff4d4f" },
+  medium: { label: tr("Medium"), color: "gold", chart: "#faad14" },
+  low: { label: tr("Low"), color: "green", chart: "#52c41a" },
 };
 
 const CHART_PALETTE = [
@@ -73,46 +217,46 @@ const CHART_PALETTE = [
 ];
 
 const RANGE_OPTIONS = [
-  { label: "7 ngày qua", value: "7d" },
-  { label: "30 ngày qua", value: "30d" },
-  { label: "Quý này", value: "quarter" },
-  { label: "Năm nay", value: "year" },
-  { label: "Tất cả", value: "all" },
-  { label: "Tùy chọn", value: "custom" },
+  { label: tr("Last 7 days"), value: "7d" },
+  { label: tr("Last 30 days"), value: "30d" },
+  { label: tr("This quarter"), value: "quarter" },
+  { label: tr("This year"), value: "year" },
+  { label: tr("All"), value: "all" },
+  { label: tr("Custom"), value: "custom" },
 ];
 
 const FILTER_DEFS = [
-  { key: "range", label: "Thời gian" },
-  { key: "company", label: "Công ty nội bộ" },
-  { key: "customer", label: "Khách hàng" },
-  { key: "lawyer", label: "Luật sư phụ trách" },
-  { key: "status", label: "Trạng thái" },
-  { key: "priority", label: "Ưu tiên" },
+  { key: "range", label: tr("Time") },
+  { key: "company", label: tr("Internal company") },
+  { key: "customer", label: tr("Customer") },
+  { key: "lawyer", label: tr("Lawyer in charge") },
+  { key: "status", label: tr("Status") },
+  { key: "priority", label: tr("Priority") },
 ];
 
 const VIEW_MODE_OPTIONS = [
-  { label: "Overview", value: "dashboard" },
-  { label: "Table", value: "table" },
-  { label: "Charts", value: "chart" },
-  { label: "KPI", value: "kpi" },
-  { label: "Kanban", value: "kanban" },
-  { label: "Calendar", value: "calendar" },
+  { label: tr("Overview"), value: "dashboard" },
+  { label: tr("Table"), value: "table" },
+  { label: tr("Charts"), value: "chart" },
+  { label: tr("KPI"), value: "kpi" },
+  { label: tr("Kanban"), value: "kanban" },
+  { label: tr("Calendar"), value: "calendar" },
 ];
 
 const WIDGET_DEFS = [
-  { key: "kpi_total", label: "Tổng hồ sơ", group: "KPI", span: 4 },
-  { key: "kpi_active", label: "Đang xử lý", group: "KPI", span: 4 },
-  { key: "kpi_overdue", label: "Quá hạn deadline", group: "KPI", span: 4 },
-  { key: "kpi_done", label: "Hoàn thành trong kỳ", group: "KPI", span: 4 },
-  { key: "kpi_value", label: "Tổng giá trị hồ sơ", group: "KPI", span: 4 },
-  { key: "chart_status", label: "Phân bố trạng thái", group: "Biểu đồ", span: 4 },
-  { key: "chart_monthly", label: "Hồ sơ mới vs hoàn thành", group: "Biểu đồ", span: 8 },
-  { key: "chart_lawyer", label: "Workload theo luật sư", group: "Biểu đồ", span: 6 },
-  { key: "chart_revenue", label: "Giá trị theo tháng", group: "Biểu đồ", span: 6 },
-  { key: "chart_service", label: "Cơ cấu loại dịch vụ", group: "Biểu đồ", span: 4 },
-  { key: "chart_priority", label: "Theo mức ưu tiên", group: "Biểu đồ", span: 4 },
-  { key: "widget_deadline", label: "Deadline sắp tới", group: "Danh sách", span: 4 },
-  { key: "widget_table", label: "Bảng danh sách hồ sơ", group: "Bảng", span: 12 },
+  { key: "kpi_total", label: tr("Total cases"), group: "KPI", span: 4 },
+  { key: "kpi_active", label: tr("In progress"), group: "KPI", span: 4 },
+  { key: "kpi_overdue", label: tr("Past deadline"), group: "KPI", span: 4 },
+  { key: "kpi_done", label: tr("Completed in period"), group: "KPI", span: 4 },
+  { key: "kpi_value", label: tr("Total case value"), group: "KPI", span: 4 },
+  { key: "chart_status", label: tr("Status distribution"), group: tr("Charts"), span: 4 },
+  { key: "chart_monthly", label: tr("New vs completed cases"), group: tr("Charts"), span: 8 },
+  { key: "chart_lawyer", label: tr("Workload by lawyer"), group: tr("Charts"), span: 6 },
+  { key: "chart_revenue", label: tr("Value by month"), group: tr("Charts"), span: 6 },
+  { key: "chart_service", label: tr("Service type mix"), group: tr("Charts"), span: 4 },
+  { key: "chart_priority", label: tr("By priority"), group: tr("Charts"), span: 4 },
+  { key: "widget_deadline", label: tr("Upcoming deadlines"), group: tr("List"), span: 4 },
+  { key: "widget_table", label: tr("Case list table"), group: tr("Table"), span: 12 },
 ];
 
 const WIDGET_MAP = WIDGET_DEFS.reduce((acc, item) => {
@@ -121,17 +265,17 @@ const WIDGET_MAP = WIDGET_DEFS.reduce((acc, item) => {
 }, {});
 
 const COLUMN_DEFS = [
-  { key: "caseCode", label: "Mã hồ sơ" },
-  { key: "projectName", label: "Tên vụ việc" },
-  { key: "customer", label: "Khách hàng" },
-  { key: "status", label: "Trạng thái" },
-  { key: "priority", label: "Ưu tiên" },
-  { key: "assignees", label: "Phụ trách" },
-  { key: "taskProgress", label: "Tiến độ task" },
-  { key: "deadline", label: "Deadline" },
-  { key: "value", label: "Giá trị" },
-  { key: "internalCompany", label: "Công ty nội bộ" },
-  { key: "createdAt", label: "Ngày tạo" },
+  { key: "caseCode", label: tr("Case code") },
+  { key: "projectName", label: tr("Matter name") },
+  { key: "customer", label: tr("Customer") },
+  { key: "status", label: tr("Status") },
+  { key: "priority", label: tr("Priority") },
+  { key: "assignees", label: tr("Assignees") },
+  { key: "taskProgress", label: tr("Task progress") },
+  { key: "deadline", label: tr("Deadline") },
+  { key: "value", label: tr("Value") },
+  { key: "internalCompany", label: tr("Internal company") },
+  { key: "createdAt", label: tr("Created at") },
 ];
 
 const DEFAULT_COLUMNS = [
@@ -226,8 +370,8 @@ const makeView = ({
 const BUILT_IN_VIEWS = [
   makeView({
     id: "overview",
-    name: "Tổng quan",
-    description: "View mặc định cho quản lý hồ sơ, trạng thái và giá trị.",
+    name: tr("Overview"),
+    description: tr("Default view for case management, status and value."),
     system: true,
     visibleWidgets: [
       "kpi_total",
@@ -245,8 +389,8 @@ const BUILT_IN_VIEWS = [
   }),
   makeView({
     id: "operations",
-    name: "Vận hành",
-    description: "Theo dõi deadline, workload và tiến độ xử lý.",
+    name: tr("Operations"),
+    description: tr("Track deadlines, workload and progress."),
     system: true,
     viewMode: "kanban",
     visibleWidgets: [
@@ -278,8 +422,8 @@ const BUILT_IN_VIEWS = [
   }),
   makeView({
     id: "finance",
-    name: "Tài chính",
-    description: "Tập trung vào giá trị hồ sơ và cơ cấu dịch vụ.",
+    name: tr("Finance"),
+    description: tr("Focus on case value and service mix."),
     system: true,
     viewMode: "chart",
     visibleWidgets: [
@@ -302,8 +446,8 @@ const BUILT_IN_VIEWS = [
   }),
   makeView({
     id: "client",
-    name: "Khách hàng",
-    description: "View theo dõi hồ sơ theo khách hàng.",
+    name: tr("Customer"),
+    description: tr("Track cases by customer."),
     system: true,
     viewMode: "table",
     visibleWidgets: [
@@ -527,7 +671,7 @@ const ChartCanvas = ({ type, data, options, height = 240 }) => {
     return (
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description="Không tải được thư viện biểu đồ"
+        description={tr("Could not load the chart library")}
       />
     );
 
@@ -544,7 +688,7 @@ const TrendText = ({ current, previous }) => {
   if (diff === 0)
     return (
       <Text type="secondary" style={{ fontSize: 12 }}>
-        Không đổi so với kỳ trước
+        {tr("No change from the previous period")}
       </Text>
     );
   const pct =
@@ -553,7 +697,7 @@ const TrendText = ({ current, previous }) => {
       : Math.abs(diff);
   return (
     <Text type={diff > 0 ? "success" : "danger"} style={{ fontSize: 12 }}>
-      {diff > 0 ? "Tăng" : "Giảm"} {pct} so với kỳ trước
+      {diff > 0 ? tr("Up") : tr("Down")} {pct} {tr("vs the previous period")}
     </Text>
   );
 };
@@ -669,15 +813,15 @@ const CaseDashboard = () => {
         id,
         system: false,
         name: `${current.name} - Custom`,
-        description: "View tùy chỉnh",
+        description: tr("Custom view"),
       });
       persistViews([...views, customView], id);
-      message.success("Đã tạo view tùy chỉnh mới");
+      message.success(tr("New custom view created"));
       return;
     }
     const nextViews = views.map((v) => (v.id === activeViewId ? current : v));
     persistViews(nextViews, activeViewId);
-    message.success("Đã lưu cấu hình view");
+    message.success(tr("View settings saved"));
   };
 
   const duplicateView = () => {
@@ -687,10 +831,10 @@ const CaseDashboard = () => {
       id,
       system: false,
       name: `${viewNameDraft || activeView.name} - Copy`,
-      description: "View tùy chỉnh",
+      description: tr("Custom view"),
     });
     persistViews([...views, customView], id);
-    message.success("Đã nhân bản view");
+    message.success(tr("View duplicated"));
   };
 
   const resetCurrentView = () => {
@@ -705,14 +849,14 @@ const CaseDashboard = () => {
     setViewMode(resetView.viewMode || "dashboard");
     setViewNameDraft(resetView.name);
     persistViews(nextViews, resetView.id);
-    message.success("Đã khôi phục cấu hình mặc định");
+    message.success(tr("Default settings restored"));
   };
 
   const deleteCurrentView = () => {
     if (activeView.system) return;
     const nextViews = views.filter((v) => v.id !== activeViewId);
     persistViews(nextViews, "overview");
-    message.success("Đã xóa view tùy chỉnh");
+    message.success(tr("Custom view deleted"));
   };
 
   const selectView = (id) => {
@@ -757,7 +901,7 @@ const CaseDashboard = () => {
   const companyMap = useMemo(() => {
     const m = {};
     companies.forEach((c) => {
-      m[String(c.id)] = c.shortName || c.name || c.companyName || `Cty #${c.id}`;
+      m[String(c.id)] = c.shortName || c.name || c.companyName || tr("Cty #{0}", { 0: c.id });
     });
     return m;
   }, [companies]);
@@ -925,12 +1069,12 @@ const CaseDashboard = () => {
       labels: months.map((m) => m.label),
       datasets: [
         {
-          label: "Hồ sơ mới",
+          label: tr("New cases"),
           data: months.map((m) => newByMonth[m.key] || 0),
           backgroundColor: "#1677ff",
         },
         {
-          label: "Hoàn thành",
+          label: tr("Done"),
           data: months.map((m) => doneByMonth[m.key] || 0),
           backgroundColor: "#52c41a",
         },
@@ -960,12 +1104,12 @@ const CaseDashboard = () => {
       labels: ids.map((id) => lawyerMap[id] || `LS #${id}`),
       datasets: [
         {
-          label: "Đang xử lý",
+          label: tr("In progress"),
           data: ids.map((id) => open[id] || 0),
           backgroundColor: "#1677ff",
         },
         {
-          label: "Quá hạn",
+          label: tr("Overdue"),
           data: ids.map((id) => overdue[id] || 0),
           backgroundColor: "#ff4d4f",
         },
@@ -987,7 +1131,7 @@ const CaseDashboard = () => {
       labels: months.map((m) => m.label),
       datasets: [
         {
-          label: "Giá trị (triệu ₫)",
+          label: tr("Value (million ₫)"),
           data: months.map((m) => Math.round((byMonth[m.key] || 0) / 1e6)),
           borderColor: "#1677ff",
           backgroundColor: "rgba(22,119,255,0.08)",
@@ -1005,13 +1149,13 @@ const CaseDashboard = () => {
     projectServices.forEach((ps) => {
       const pid = String(extractId(ps.projectId) || "");
       if (!scopedIds.has(pid) || isDeletedServiceRecord(ps)) return;
-      const name = ps.serviceName || "Khác";
+      const name = ps.serviceName || tr("Other");
       counts[name] = (counts[name] || 0) + 1;
     });
     const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     const top = entries.slice(0, 7);
     const rest = entries.slice(7).reduce((s, [, v]) => s + v, 0);
-    if (rest > 0) top.push(["Khác", rest]);
+    if (rest > 0) top.push([tr("Other"), rest]);
     return {
       labels: top.map(([name]) => name),
       datasets: [
@@ -1117,7 +1261,7 @@ const CaseDashboard = () => {
           projectAssigneeIds(p)
             .map((id) => lawyerMap[String(id)])
             .filter(Boolean)
-            .join(", ") || "Chưa phân công",
+            .join(", ") || tr("Unassigned"),
         valueAmount: valueByProject[String(p.id)] || 0,
         taskStats: taskStatsByProject[String(p.id)] || { total: 0, done: 0 },
       })),
@@ -1135,24 +1279,24 @@ const CaseDashboard = () => {
   const tableColumnMap = useMemo(
     () => ({
       caseCode: {
-        title: "Mã hồ sơ",
+        title: tr("Case code"),
         dataIndex: "caseCode",
         width: 140,
         render: (val) => <Text strong>{val || "-"}</Text>,
       },
       projectName: {
-        title: "Tên vụ việc",
+        title: tr("Matter name"),
         dataIndex: "projectName",
         ellipsis: true,
         render: (val) => val || "-",
       },
       customer: {
-        title: "Khách hàng",
+        title: tr("Customer"),
         dataIndex: "customerName",
         ellipsis: true,
       },
       status: {
-        title: "Trạng thái",
+        title: tr("Status"),
         dataIndex: "status",
         width: 140,
         render: (val) => (
@@ -1162,7 +1306,7 @@ const CaseDashboard = () => {
         ),
       },
       priority: {
-        title: "Ưu tiên",
+        title: tr("Priority"),
         dataIndex: "priority",
         width: 120,
         render: (val) => {
@@ -1171,16 +1315,16 @@ const CaseDashboard = () => {
         },
       },
       assignees: {
-        title: "Phụ trách",
+        title: tr("Assignees"),
         dataIndex: "assigneeNames",
         ellipsis: true,
       },
       taskProgress: {
-        title: "Tiến độ task",
+        title: tr("Task progress"),
         dataIndex: "taskStats",
         width: 130,
         render: (stats) => {
-          if (!stats?.total) return <Text type="secondary">Chưa có task</Text>;
+          if (!stats?.total) return <Text type="secondary">{tr("No tasks yet")}</Text>;
           const pct = Math.round((stats.done / stats.total) * 100);
           return (
             <Space size={6}>
@@ -1193,7 +1337,7 @@ const CaseDashboard = () => {
         },
       },
       deadline: {
-        title: "Deadline",
+        title: tr("Deadline"),
         dataIndex: "deadline",
         width: 130,
         render: (val, row) => (
@@ -1201,19 +1345,19 @@ const CaseDashboard = () => {
         ),
       },
       value: {
-        title: "Giá trị",
+        title: tr("Value"),
         dataIndex: "valueAmount",
         width: 140,
         align: "right",
         render: (val) => <Text strong>{fmtCompactVND(val)}</Text>,
       },
       internalCompany: {
-        title: "Công ty nội bộ",
+        title: tr("Internal company"),
         dataIndex: "companyName",
         ellipsis: true,
       },
       createdAt: {
-        title: "Ngày tạo",
+        title: tr("Created at"),
         dataIndex: "createdAt",
         width: 120,
         render: fmtDate,
@@ -1236,31 +1380,31 @@ const CaseDashboard = () => {
     const chips = [];
     const rangeLabel = RANGE_OPTIONS.find((o) => o.value === filters.range)?.label;
     if (filters.range && filters.range !== "all") {
-      chips.push({ key: "range", label: `Thời gian: ${rangeLabel || filters.range}` });
+      chips.push({ key: "range", label: tr("Period: {0}", { 0: rangeLabel || filters.range }) });
     }
     if (filters.companyId) {
       chips.push({
         key: "companyId",
-        label: `Công ty: ${companyMap[String(filters.companyId)] || filters.companyId}`,
+        label: tr("Company: {0}", { 0: companyMap[String(filters.companyId)] || filters.companyId }),
       });
     }
     if (filters.customerId) {
       chips.push({
         key: "customerId",
-        label: `Khách hàng: ${customerMap[String(filters.customerId)] || filters.customerId}`,
+        label: tr("Customer: {0}", { 0: customerMap[String(filters.customerId)] || filters.customerId }),
       });
     }
     if (filters.lawyerId) {
       chips.push({
         key: "lawyerId",
-        label: `Luật sư: ${lawyerMap[String(filters.lawyerId)] || filters.lawyerId}`,
+        label: tr("Lawyer: {0}", { 0: lawyerMap[String(filters.lawyerId)] || filters.lawyerId }),
       });
     }
     if (filters.status) {
-      chips.push({ key: "status", label: `Trạng thái: ${STATUS_CFG[filters.status]?.label || filters.status}` });
+      chips.push({ key: "status", label: tr("Status: {0}", { 0: STATUS_CFG[filters.status]?.label || filters.status }) });
     }
     if (filters.priority) {
-      chips.push({ key: "priority", label: `Ưu tiên: ${PRIORITY_CFG[filters.priority]?.label || filters.priority}` });
+      chips.push({ key: "priority", label: tr("Priority: {0}", { 0: PRIORITY_CFG[filters.priority]?.label || filters.priority }) });
     }
     return chips;
   }, [filters, companyMap, customerMap, lawyerMap]);
@@ -1320,21 +1464,21 @@ const CaseDashboard = () => {
       case "kpi_total":
         return (
           <Card size="small">
-            <Statistic title="Tổng hồ sơ" value={kpi.total} />
+            <Statistic title={tr("Total cases")} value={kpi.total} />
             <TrendText current={kpi.total} previous={kpi.prevTotal} />
           </Card>
         );
       case "kpi_active":
         return (
           <Card size="small">
-            <Statistic title="Đang xử lý" value={kpi.active} valueStyle={{ color: "#1677ff" }} />
+            <Statistic title={tr("In progress")} value={kpi.active} valueStyle={{ color: "#1677ff" }} />
           </Card>
         );
       case "kpi_overdue":
         return (
           <Card size="small">
             <Statistic
-              title="Quá hạn deadline"
+              title={tr("Past deadline")}
               value={kpi.overdue}
               valueStyle={{ color: kpi.overdue > 0 ? "#ff4d4f" : undefined }}
             />
@@ -1343,33 +1487,33 @@ const CaseDashboard = () => {
       case "kpi_done":
         return (
           <Card size="small">
-            <Statistic title="Hoàn thành" value={kpi.done} valueStyle={{ color: "#52c41a" }} />
+            <Statistic title={tr("Done")} value={kpi.done} valueStyle={{ color: "#52c41a" }} />
             <TrendText current={kpi.done} previous={kpi.prevDone} />
           </Card>
         );
       case "kpi_value":
         return (
           <Card size="small">
-            <Statistic title="Tổng giá trị hồ sơ" value={fmtCompactVND(kpi.totalValue)} />
+            <Statistic title={tr("Total case value")} value={fmtCompactVND(kpi.totalValue)} />
           </Card>
         );
       case "chart_status":
         return (
-          <Card size="small" title="Phân bố trạng thái hồ sơ">
+          <Card size="small" title={tr("Case status distribution")}>
             <ChartCanvas type="doughnut" data={statusChart} options={doughnutOpts} />
           </Card>
         );
       case "chart_monthly":
         return (
-          <Card size="small" title="Hồ sơ mới vs hoàn thành (12 tháng)">
+          <Card size="small" title={tr("New vs completed cases (12 months)")}>
             <ChartCanvas type="bar" data={monthlyChart} options={barOpts} />
           </Card>
         );
       case "chart_lawyer":
         return (
-          <Card size="small" title="Khối lượng công việc theo luật sư">
+          <Card size="small" title={tr("Workload by lawyer")}>
             {lawyerChart.labels.length === 0 ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu phân công" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No assignment data yet")} />
             ) : (
               <ChartCanvas type="bar" data={lawyerChart} options={hBarOpts} />
             )}
@@ -1377,15 +1521,15 @@ const CaseDashboard = () => {
         );
       case "chart_revenue":
         return (
-          <Card size="small" title="Giá trị hồ sơ theo tháng">
+          <Card size="small" title={tr("Case value by month")}>
             <ChartCanvas type="line" data={revenueChart} options={lineOpts} />
           </Card>
         );
       case "chart_service":
         return (
-          <Card size="small" title="Cơ cấu theo loại dịch vụ">
+          <Card size="small" title={tr("Mix by service type")}>
             {serviceChart.labels.length === 0 ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dịch vụ" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No services yet")} />
             ) : (
               <ChartCanvas type="pie" data={serviceChart} options={pieOpts} />
             )}
@@ -1393,15 +1537,15 @@ const CaseDashboard = () => {
         );
       case "chart_priority":
         return (
-          <Card size="small" title="Hồ sơ đang mở theo ưu tiên">
+          <Card size="small" title={tr("Open cases by priority")}>
             <ChartCanvas type="bar" data={priorityChart} options={simpleBarOpts} />
           </Card>
         );
       case "widget_deadline":
         return (
-          <Card size="small" title="Deadline sắp tới" bodyStyle={{ paddingTop: 4 }}>
+          <Card size="small" title={tr("Upcoming deadlines")} bodyStyle={{ paddingTop: 4 }}>
             {upcomingDeadlines.length === 0 ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có deadline sắp tới" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No upcoming deadlines")} />
             ) : (
               upcomingDeadlines.map((p, i) => {
                 const days = Math.ceil((new Date(p.deadline) - new Date()) / 86400000);
@@ -1409,7 +1553,7 @@ const CaseDashboard = () => {
                   projectAssigneeIds(p)
                     .map((id) => lawyerMap[String(id)])
                     .filter(Boolean)
-                    .join(", ") || "Chưa phân công";
+                    .join(", ") || tr("Unassigned");
                 const customerName = customerMap[String(extractId(p.customerId))] || "";
                 return (
                   <div
@@ -1438,7 +1582,7 @@ const CaseDashboard = () => {
                       type={days <= 5 ? "danger" : days <= 10 ? "warning" : "secondary"}
                       style={{ fontSize: 12, whiteSpace: "nowrap" }}
                     >
-                      {days < 0 ? `Trễ ${Math.abs(days)} ngày` : `Còn ${days} ngày`}
+                      {days < 0 ? tr("{0} days late", { 0: Math.abs(days) }) : tr("{0} days left", { 0: days })}
                     </Text>
                   </div>
                 );
@@ -1450,8 +1594,8 @@ const CaseDashboard = () => {
         return (
           <Card
             size="small"
-            title="Danh sách hồ sơ"
-            extra={<Text type="secondary">{tableRows.length} hồ sơ</Text>}
+            title={tr("Case list")}
+            extra={<Text type="secondary">{tableRows.length} {tr("cases")}</Text>}
           >
             <Table
               size="small"
@@ -1468,7 +1612,7 @@ const CaseDashboard = () => {
     }
   };
 
-  const renderWidgetGrid = (keys, emptyText = "Chưa có nội dung cho view này") => {
+  const renderWidgetGrid = (keys, emptyText = tr("No content for this view yet")) => {
     const normalizedKeys = keys.filter((key) => widgets[key] !== false);
     if (normalizedKeys.length === 0) {
       return (
@@ -1491,12 +1635,12 @@ const CaseDashboard = () => {
   const renderTableMode = () => (
     <Card
       size="small"
-      title="Table View"
+      title={tr("Table View")}
       extra={
         <Space>
           <Text type="secondary">{tableRows.length} records</Text>
           <Button size="small" onClick={() => setDrawerOpen(true)}>
-            Configure fields
+            {tr("Configure fields")}
           </Button>
         </Space>
       }
@@ -1523,13 +1667,13 @@ const CaseDashboard = () => {
         "chart_service",
         "chart_priority",
       ],
-      "Chưa bật chart widget nào",
+      tr("No chart widget enabled"),
     );
 
   const renderKpiMode = () =>
     renderWidgetGrid(
       ["kpi_total", "kpi_active", "kpi_overdue", "kpi_done", "kpi_value"],
-      "Chưa bật KPI widget nào",
+      tr("No KPI widget enabled"),
     );
 
   const renderKanbanMode = () => (
@@ -1559,7 +1703,7 @@ const CaseDashboard = () => {
           >
             <Space direction="vertical" style={{ width: "100%" }} size={8}>
               {rows.length === 0 && (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có record" />
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No records")} />
               )}
               {rows.slice(0, 12).map((row) => {
                 const pct = row.taskStats?.total
@@ -1570,7 +1714,7 @@ const CaseDashboard = () => {
                     <Space direction="vertical" size={6} style={{ width: "100%" }}>
                       <Text strong ellipsis>
                         {row.caseCode ? `${row.caseCode} · ` : ""}
-                        {row.projectName || "Untitled"}
+                        {row.projectName || tr("Untitled")}
                       </Text>
                       <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
                         {row.customerName} · {row.assigneeNames}
@@ -1603,24 +1747,24 @@ const CaseDashboard = () => {
     return (
       <Card
         size="small"
-        title="Calendar View"
+        title={tr("Calendar View")}
         extra={
           <Segmented
             size="small"
             value={calendarMode}
             onChange={setCalendarMode}
             options={[
-              { label: "Month", value: "month" },
-              { label: "Week", value: "week" },
-              { label: "Day", value: "day" },
-              { label: "List", value: "list" },
+              { label: tr("Month"), value: "month" },
+              { label: tr("Week"), value: "week" },
+              { label: tr("Day"), value: "day" },
+              { label: tr("List"), value: "list" },
             ]}
           />
         }
         style={{ borderRadius: UI.radius }}
       >
         {calendarRows.length === 0 ? (
-          <Empty description="Không có mốc thời gian phù hợp với filter hiện tại" />
+          <Empty description={tr("No dates match the current filters")} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
             {calendarRows.map((row) => {
@@ -1656,7 +1800,7 @@ const CaseDashboard = () => {
                   </div>
                   <Space direction="vertical" size={4} style={{ minWidth: 0 }}>
                     <Text strong ellipsis>
-                      {row.projectName || "Untitled"}
+                      {row.projectName || tr("Untitled")}
                     </Text>
                     <Text type="secondary" style={{ fontSize: 12 }} ellipsis>
                       {row.customerName} · {row.assigneeNames}
@@ -1683,7 +1827,7 @@ const CaseDashboard = () => {
     if (viewMode === "kpi") return renderKpiMode();
     if (viewMode === "kanban") return renderKanbanMode();
     if (viewMode === "calendar") return renderCalendarMode();
-    return renderWidgetGrid(visibleWidgetKeys, "Chưa bật widget nào cho view này");
+    return renderWidgetGrid(visibleWidgetKeys, tr("No widget enabled for this view"));
   };
 
   if (loading)
@@ -1716,16 +1860,16 @@ const CaseDashboard = () => {
         >
           <Space direction="vertical" size={4}>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Dashboard / Case Management
+              {tr("Dashboard / Case Management")}
             </Text>
             <Space align="center" wrap>
               <Title level={4} style={{ margin: 0, color: UI.text }}>
-                Case Dashboard
+                {tr("Case Dashboard")}
               </Title>
-              {hasUnsavedChanges && <Tag color="gold">Unsaved changes</Tag>}
+              {hasUnsavedChanges && <Tag color="gold">{tr("Unsaved changes")}</Tag>}
             </Space>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Switch view modes, refine filters, and save workspace presets.
+              {tr("Switch view modes, refine filters, and save workspace presets.")}
             </Text>
           </Space>
           <Space wrap>
@@ -1738,10 +1882,10 @@ const CaseDashboard = () => {
                 label: `${v.name}${v.system ? " (default)" : ""}`,
               }))}
             />
-            <Button onClick={reload}>Refresh</Button>
-            <Button onClick={() => setDrawerOpen(true)}>Configure</Button>
+            <Button onClick={reload}>{tr("Refresh")}</Button>
+            <Button onClick={() => setDrawerOpen(true)}>{tr("Configure")}</Button>
             <Button type="primary" onClick={saveCurrentView}>
-              Save view
+              {tr("Save view")}
             </Button>
           </Space>
         </div>
@@ -1764,7 +1908,7 @@ const CaseDashboard = () => {
               {tableRows.length} records
             </Text>
             <Button size="small" onClick={() => setDrawerOpen(true)}>
-              Fields & filters
+              {tr("Fields & filters")}
             </Button>
           </Space>
         </div>
@@ -1788,7 +1932,7 @@ const CaseDashboard = () => {
                 onChange={(e) => updateFilter("customFrom", e.target.value)}
                 style={{ width: 145 }}
               />
-              <Text type="secondary">đến</Text>
+              <Text type="secondary">{tr("to")}</Text>
               <Input
                 size="small"
                 type="date"
@@ -1804,13 +1948,13 @@ const CaseDashboard = () => {
               allowClear
               showSearch
               optionFilterProp="label"
-              placeholder="Công ty nội bộ"
+              placeholder={tr("Internal company")}
               style={{ minWidth: 170 }}
               value={filters.companyId}
               onChange={(v) => updateFilter("companyId", v || null)}
               options={companies.map((c) => ({
                 value: extractId(c.id),
-                label: c.shortName || c.name || c.companyName || `Cty #${c.id}`,
+                label: c.shortName || c.name || c.companyName || tr("Cty #{0}", { 0: c.id }),
               }))}
             />
           )}
@@ -1820,13 +1964,13 @@ const CaseDashboard = () => {
               allowClear
               showSearch
               optionFilterProp="label"
-              placeholder="Khách hàng"
+              placeholder={tr("Customer")}
               style={{ minWidth: 170 }}
               value={filters.customerId}
               onChange={(v) => updateFilter("customerId", v || null)}
               options={customers.map((c) => ({
                 value: extractId(c.id),
-                label: c.shortName || c.customerName || `KH #${c.id}`,
+                label: c.shortName || c.customerName || tr("KH #{0}", { 0: c.id }),
               }))}
             />
           )}
@@ -1836,7 +1980,7 @@ const CaseDashboard = () => {
               allowClear
               showSearch
               optionFilterProp="label"
-              placeholder="Luật sư phụ trách"
+              placeholder={tr("Lawyer in charge")}
               style={{ minWidth: 170 }}
               value={filters.lawyerId}
               onChange={(v) => updateFilter("lawyerId", v || null)}
@@ -1850,7 +1994,7 @@ const CaseDashboard = () => {
             <Select
               size="small"
               allowClear
-              placeholder="Trạng thái"
+              placeholder={tr("Status")}
               style={{ minWidth: 150 }}
               value={filters.status}
               onChange={(v) => updateFilter("status", v || null)}
@@ -1864,7 +2008,7 @@ const CaseDashboard = () => {
             <Select
               size="small"
               allowClear
-              placeholder="Ưu tiên"
+              placeholder={tr("Priority")}
               style={{ minWidth: 140 }}
               value={filters.priority}
               onChange={(v) => updateFilter("priority", v || null)}
@@ -1886,7 +2030,7 @@ const CaseDashboard = () => {
                 </Tag>
               ))}
               <Button type="link" size="small" onClick={clearAllFilters}>
-                Clear all
+                {tr("Clear all")}
               </Button>
             </Space>
           </>
@@ -1896,34 +2040,34 @@ const CaseDashboard = () => {
       {renderMainContent()}
 
       <Drawer
-        title="Configure view"
+        title={tr("Configure view")}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         width={560}
         extra={
           <Space>
             <Button size="small" onClick={duplicateView}>
-              Duplicate
+              {tr("Duplicate")}
             </Button>
             {!activeView.system && (
               <Button danger size="small" onClick={deleteCurrentView}>
-                Xóa view
+                {tr("Delete view")}
               </Button>
             )}
             {activeView.system && (
               <Button size="small" onClick={resetCurrentView}>
-                Mặc định
+                {tr("Default")}
               </Button>
             )}
             <Button type="primary" size="small" onClick={saveCurrentView}>
-              Save
+              {tr("Save")}
             </Button>
           </Space>
         }
       >
         <Space direction="vertical" style={{ width: "100%" }} size={12}>
           <div>
-            <Text strong>Tên view</Text>
+            <Text strong>{tr("View name")}</Text>
             <Input
               value={viewNameDraft}
               onChange={(e) => setViewNameDraft(e.target.value)}
@@ -1932,13 +2076,13 @@ const CaseDashboard = () => {
             />
             {activeView.system && (
               <Text type="secondary" style={{ display: "block", marginTop: 4, fontSize: 12 }}>
-                View mặc định sẽ được lưu thành một bản custom khi bấm Lưu view.
+                {tr("A default view is saved as a custom copy when you click Save view.")}
               </Text>
             )}
           </div>
 
           <div>
-            <Text strong>Default mode</Text>
+            <Text strong>{tr("Default mode")}</Text>
             <Segmented
               style={{ marginTop: 8 }}
               value={viewMode}
@@ -1952,7 +2096,7 @@ const CaseDashboard = () => {
             items={[
               {
                 key: "widgets",
-                label: "Widgets",
+                label: tr("Widgets"),
                 children: (
                   <Space direction="vertical" style={{ width: "100%" }} size={8}>
                     {normalizeOrder(layout.order).map((key) => {
@@ -1991,10 +2135,10 @@ const CaseDashboard = () => {
                           >
                             <Space>
                               <Button size="small" onClick={() => moveWidget(key, -1)}>
-                                Lên
+                                {tr("Up")}
                               </Button>
                               <Button size="small" onClick={() => moveWidget(key, 1)}>
-                                Xuống
+                                {tr("Down")}
                               </Button>
                             </Space>
                             <Select
@@ -2003,10 +2147,10 @@ const CaseDashboard = () => {
                               value={layout.spans?.[key] || def.span}
                               onChange={(v) => setWidgetSpan(key, v)}
                               options={[
-                                { value: 4, label: "1/3 dòng" },
-                                { value: 6, label: "1/2 dòng" },
-                                { value: 8, label: "2/3 dòng" },
-                                { value: 12, label: "Full dòng" },
+                                { value: 4, label: tr("1/3 row") },
+                                { value: 6, label: tr("1/2 row") },
+                                { value: 8, label: tr("2/3 row") },
+                                { value: 12, label: tr("Full row") },
                               ]}
                             />
                           </div>
@@ -2018,7 +2162,7 @@ const CaseDashboard = () => {
               },
               {
                 key: "filters",
-                label: "Filters",
+                label: tr("Filters"),
                 children: (
                   <Space direction="vertical" style={{ width: "100%" }} size={8}>
                     {FILTER_DEFS.map((f) => (
@@ -2047,7 +2191,7 @@ const CaseDashboard = () => {
               },
               {
                 key: "columns",
-                label: "Table columns",
+                label: tr("Table columns"),
                 children: (
                   <Checkbox.Group
                     value={columns}

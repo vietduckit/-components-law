@@ -1,4 +1,138 @@
 // ==================== CONFIG ====================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Project": "Dự án",
+  "Task": "Công việc",
+  "Note": "Ghi chú",
+  "Document": "Tài liệu",
+  "Quotation": "Báo giá",
+  "Customer": "Khách hàng",
+  "Contract": "Hợp đồng",
+  "Created": "Tạo mới",
+  "Edited": "Chỉnh sửa",
+  "Deleted": "Xóa",
+  "Shared": "Chia sẻ",
+  "Commented": "Bình luận",
+  "Moved": "Di chuyển",
+  "Renamed": "Đổi tên",
+  "Xem": "Viewed",
+  "Status": "Trạng thái",
+  "Source": "Nguồn",
+  "Contract name": "Tên hợp đồng",
+  "Contract code": "Mã hợp đồng",
+  "Customer name": "Tên khách hàng",
+  "Phone": "Số điện thoại",
+  "Email": "Email",
+  "Address": "Địa chỉ",
+  "Description": "Mô tả",
+  "Lawyer in charge": "Luật sư phụ trách",
+  "Title": "Tiêu đề",
+  "Value": "Giá trị",
+  "Start date": "Ngày bắt đầu",
+  "End date": "Ngày kết thúc",
+  "Signed date": "Ngày ký",
+  "Content": "Nội dung",
+  "Document code": "Mã tài liệu",
+  "Document type": "Loại tài liệu",
+  "Priority": "Ưu tiên",
+  "Total amount": "Tổng tiền",
+  "Sales": "Sale",
+  "Company": "Công ty",
+  "Template": "Mẫu",
+  "Case": "Case",
+  "Service": "Dịch vụ",
+  "Quotation number": "Số báo giá",
+  "Quotation status": "Trạng thái báo giá",
+  "Amount": "Số tiền",
+  "Payment terms": "Điều khoản TT",
+  "Linked to": "Liên kết với",
+  "Today": "Hôm nay",
+  "Yesterday": "Hôm qua",
+  "just now": "vừa xong",
+  "{0} min ago": "{0} phút trước",
+  "{0} hours ago": "{0} giờ trước",
+  "{0} days ago": "{0} ngày trước",
+  "To do": "Chưa thực hiện",
+  "In progress": "Đang xử lý",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã huỷ",
+  "Draft": "Nháp",
+  "Sent": "Đã gửi",
+  "Approved": "Đã duyệt",
+  "Rejected": "Từ chối",
+  "Paid": "Đã thanh toán",
+  "Signed": "Đã ký",
+  "Active": "Hiệu lực",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Normal": "Bình thường",
+  "Lawyer": "Luật sư",
+  "Member": "Thành viên",
+  "User ": "User ",
+  "Lawyer ": "Lawyer ",
+  "Customer ": "Customer ",
+  "Sales ": "Sales ",
+  "Company ": "Công ty ",
+  "Template ": "Mẫu ",
+  "Service ": "Dịch vụ ",
+  "Project #": "Dự án #",
+  "Activity": "Mô tả hoạt động",
+  "Action": "Hành động",
+  "Time": "Thời gian",
+  "Record": "Bản ghi",
+  "Added a note to {0}: \"{1}\"": "Thêm ghi chú mới vào {0}: \"{1}\"",
+  "Removed a note from {0}: \"{1}\"": "Xóa ghi chú khỏi {0}: \"{1}\"",
+  "Updated a note on {0}: \"{1}\"": "Cập nhật ghi chú trên {0}: \"{1}\"",
+  "Commented on {0}: \"{1}\"": "Bình luận trên {0}: \"{1}\"",
+  "Uploaded document \"{0}\"": "Tải lên tài liệu \"{0}\"",
+  "Created project \"{0}\"": "Tạo mới dự án \"{0}\"",
+  "Created {0}: \"{1}\"": "Tạo mới {0}: \"{1}\"",
+  "Deleted {0}: \"{1}\"": "Xóa {0}: \"{1}\"",
+  "Changed {0} of {1}: from \"{2}\" to \"{3}\"": "Chỉnh sửa {0} của {1}: từ \"{2}\" thành \"{3}\"",
+  "Updated {0} of {1} to \"{2}\"": "Cập nhật {0} của {1} thành \"{2}\"",
+  "Cleared {0} of {1}": "Xóa {0} của {1}",
+  "Changed {0} of {1}": "Chỉnh sửa {0} của {1}",
+  "Updated {0}": "Cập nhật {0}",
+  "Show less": "Thu gọn",
+  "Show more": "Xem thêm",
+  "{0} · {1} activities": "{0} · {1} hoạt động",
+  "activities": "hoạt động",
+  "1–{0} / {1} activities": "1–{0} / {1} hoạt động",
+  "0–0 / 0 activities": "0–0 / 0 hoạt động",
+  "{0}–{1} / {2} activities": "{0}–{1} / {2} hoạt động",
+  "Previous": "Trước",
+  "Sau": "Next",
+  "All members": "Tất cả thành viên",
+  "Record ID not found": "Không tìm thấy record ID",
+  "All sources": "Tất cả nguồn",
+  "Activity history": "Lịch sử hoạt động",
+  "Loading...": "Đang tải...",
+  "Refresh": "Làm mới",
+  "Search by member or activity...": "Tìm kiếm theo thành viên, mô tả hoạt động...",
+  "All actions": "Tất cả hành động",
+  "📅 By day": "📅 Theo ngày",
+  "📂 Theo collection": "📂 By collection",
+  "⏱ No grouping": "⏱ Không nhóm",
+  "From": "Từ ngày",
+  "To": "Đến ngày",
+  "No activity": "Không có hoạt động nào",
+  "System": "Hệ thống",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const COLLECTION_NAME = 'projectInternal';
 const RECORD_ID = ctx.record?.id;
 
@@ -106,41 +240,41 @@ const Icons = {
 // ─────────────────────────────────────────────────────────────────
 
 const SOURCE_CFG = {
-  projectInternal: { label: 'Dự án', icon: <Icons.Project />, color: '#003eb3', bg: '#f0f5ff', border: '#adc6ff' },
-  'Project Internal': { label: 'Dự án', icon: <Icons.Project />, color: '#003eb3', bg: '#f0f5ff', border: '#adc6ff' },
-  tasks: { label: 'Công việc', icon: <Icons.Task />, color: '#fa8c16', bg: '#fff7e6', border: '#ffd591' },
-  Note: { label: 'Ghi chú', icon: <Icons.Note />, color: '#434343', bg: '#fafafa', border: '#d9d9d9' },
-  Document: { label: 'Tài liệu', icon: <Icons.Document />, color: '#9e1068', bg: '#fff0f6', border: '#ffadd2' },
-  Quotation: { label: 'Báo giá', icon: <Icons.Quotation />, color: '#3f6600', bg: '#f6ffed', border: '#b7eb8f' },
-  Customer: { label: 'Khách hàng', icon: <Icons.Customer />, color: '#a8071a', bg: '#fff1f0', border: '#ffa39e' },
-  Contract: { label: 'Hợp đồng', icon: <Icons.Contract />, color: '#0958d9', bg: '#e6f4ff', border: '#91caff' },
+  projectInternal: { label: tr("Project"), icon: <Icons.Project />, color: '#003eb3', bg: '#f0f5ff', border: '#adc6ff' },
+  'Project Internal': { label: tr("Project"), icon: <Icons.Project />, color: '#003eb3', bg: '#f0f5ff', border: '#adc6ff' },
+  tasks: { label: tr("Task"), icon: <Icons.Task />, color: '#fa8c16', bg: '#fff7e6', border: '#ffd591' },
+  Note: { label: tr("Note"), icon: <Icons.Note />, color: '#434343', bg: '#fafafa', border: '#d9d9d9' },
+  Document: { label: tr("Document"), icon: <Icons.Document />, color: '#9e1068', bg: '#fff0f6', border: '#ffadd2' },
+  Quotation: { label: tr("Quotation"), icon: <Icons.Quotation />, color: '#3f6600', bg: '#f6ffed', border: '#b7eb8f' },
+  Customer: { label: tr("Customer"), icon: <Icons.Customer />, color: '#a8071a', bg: '#fff1f0', border: '#ffa39e' },
+  Contract: { label: tr("Contract"), icon: <Icons.Contract />, color: '#0958d9', bg: '#e6f4ff', border: '#91caff' },
 };
 
 const ACTION_BADGES = {
-  create: { label: 'Tạo mới', className: 'badge-create' },
-  edit: { label: 'Chỉnh sửa', className: 'badge-edit' },
-  delete: { label: 'Xóa', className: 'badge-delete' },
-  share: { label: 'Chia sẻ', className: 'badge-share' },
-  comment: { label: 'Bình luận', className: 'badge-comment' },
-  move: { label: 'Di chuyển', className: 'badge-move' },
-  rename: { label: 'Đổi tên', className: 'badge-rename' },
-  view: { label: 'Xem', className: 'badge-view' },
+  create: { label: tr("Created"), className: 'badge-create' },
+  edit: { label: tr("Edited"), className: 'badge-edit' },
+  delete: { label: tr("Deleted"), className: 'badge-delete' },
+  share: { label: tr("Shared"), className: 'badge-share' },
+  comment: { label: tr("Commented"), className: 'badge-comment' },
+  move: { label: tr("Moved"), className: 'badge-move' },
+  rename: { label: tr("Renamed"), className: 'badge-rename' },
+  view: { label: tr("Xem"), className: 'badge-view' },
 };
 
 const FIELD_MAP = {
-  status: 'Trạng thái', source: 'Nguồn', contractName: 'Tên hợp đồng',
-  contractCode: 'Mã hợp đồng', customerName: 'Tên khách hàng',
-  phone: 'Số điện thoại', email: 'Email', address: 'Địa chỉ',
-  note: 'Ghi chú', description: 'Mô tả', lawyerId: 'Luật sư phụ trách',
-  title: 'Tiêu đề', value: 'Giá trị', issuedDate: 'Ngày bắt đầu',
-  endDate: 'Ngày kết thúc', signedAt: 'Ngày ký', body: 'Nội dung',
-  documentCode: 'Mã tài liệu', documentType: 'Loại tài liệu',
-  priority: 'Ưu tiên', totalAmount: 'Tổng tiền',
-  customerId: 'Khách hàng', salesId: 'Sale', internalCompanyId: 'Công ty',
-  templateId: 'Mẫu', projectId: 'Case', serviceId: 'Dịch vụ',
-  quotationNumber: 'Số báo giá', quotationStatus: 'Trạng thái báo giá',
-  amount: 'Số tiền', paymentTerms: 'Điều khoản TT',
-  collectionName: 'Liên kết với',
+  status: tr("Status"), source: tr("Source"), contractName: tr("Contract name"),
+  contractCode: tr("Contract code"), customerName: tr("Customer name"),
+  phone: tr("Phone"), email: tr("Email"), address: tr("Address"),
+  note: tr("Note"), description: tr("Description"), lawyerId: tr("Lawyer in charge"),
+  title: tr("Title"), value: tr("Value"), issuedDate: tr("Start date"),
+  endDate: tr("End date"), signedAt: tr("Signed date"), body: tr("Content"),
+  documentCode: tr("Document code"), documentType: tr("Document type"),
+  priority: tr("Priority"), totalAmount: tr("Total amount"),
+  customerId: tr("Customer"), salesId: tr("Sales"), internalCompanyId: tr("Company"),
+  templateId: tr("Template"), projectId: tr("Case"), serviceId: tr("Service"),
+  quotationNumber: tr("Quotation number"), quotationStatus: tr("Quotation status"),
+  amount: tr("Amount"), paymentTerms: tr("Payment terms"),
+  collectionName: tr("Linked to"),
 };
 
 const SKIP_FIELDS = new Set(['collectionName', 'recordId', 'linkedTo']);
@@ -153,11 +287,11 @@ const NO_CURRENCY_FIELDS = new Set([
 ]);
 
 const COLLECTION_LABEL = {
-  projectInternal: 'Dự án',
-  'Project Internal': 'Dự án',
-  tasks: 'Công việc',
-  Contract: 'Hợp đồng', Note: 'Ghi chú', Document: 'Tài liệu',
-  Quotation: 'Báo giá', Customer: 'Khách hàng',
+  projectInternal: tr("Project"),
+  'Project Internal': tr("Project"),
+  tasks: tr("Task"),
+  Contract: tr("Contract"), Note: tr("Note"), Document: tr("Document"),
+  Quotation: tr("Quotation"), Customer: tr("Customer"),
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -182,8 +316,8 @@ const formatDay = iso => {
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
-  if (isSameDay(d, today)) return 'Hôm nay';
-  if (isSameDay(d, yesterday)) return 'Hôm qua';
+  if (isSameDay(d, today)) return tr("Today");
+  if (isSameDay(d, yesterday)) return tr("Yesterday");
   
   // Sentence case weekdays
   const rawDay = d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -202,10 +336,10 @@ const timeAgo = iso => {
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  if (mins < 1) return 'vừa xong';
-  if (mins < 60) return `${mins} phút trước`;
-  if (hours < 24) return `${hours} giờ trước`;
-  if (days < 30) return `${days} ngày trước`;
+  if (mins < 1) return tr("just now");
+  if (mins < 60) return tr("{0} min ago", { 0: mins });
+  if (hours < 24) return tr("{0} hours ago", { 0: hours });
+  if (days < 30) return tr("{0} days ago", { 0: days });
   return fmtDate(iso).split(' ')[0];
 };
 
@@ -230,12 +364,12 @@ const cleanVal = (v, fieldName) => {
   }
   if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(s)) return fmtDate(s);
   const STATUS = {
-    toDo: 'Chưa thực hiện', inProgress: 'Đang xử lý', done: 'Hoàn thành',
-    cancelled: 'Đã huỷ', draft: 'Nháp', sent: 'Đã gửi', approved: 'Đã duyệt',
-    rejected: 'Từ chối', paid: 'Đã thanh toán', signed: 'Đã ký', active: 'Hiệu lực',
+    toDo: tr("To do"), inProgress: tr("In progress"), done: tr("Done"),
+    cancelled: tr("Cancelled"), draft: tr("Draft"), sent: tr("Sent"), approved: tr("Approved"),
+    rejected: tr("Rejected"), paid: tr("Paid"), signed: tr("Signed"), active: tr("Active"),
   };
   if (STATUS[s]) return STATUS[s];
-  const PRIO = { high: 'Cao', medium: 'Trung bình', low: 'Bình thường' };
+  const PRIO = { high: tr("High"), medium: tr("Medium"), low: tr("Normal") };
   if (PRIO[s]) return PRIO[s];
   if (/^\d+(\.\d+)?$/.test(s)) return s; // keep raw for FK lookup
   const isEnum = /^[a-z][a-zA-Z0-9_]*$/.test(s) && s.length < 40;
@@ -245,10 +379,10 @@ const cleanVal = (v, fieldName) => {
 };
 
 const getMemberRole = (who, fkMap) => {
-  if (who === 'Hệ thống') return 'Hệ thống';
+  if (who === 'Hệ thống') return tr("System");
   const isLawyer = Object.values(fkMap.lawyerId || {}).includes(who);
-  if (isLawyer) return 'Luật sư';
-  return 'Thành viên';
+  if (isLawyer) return tr("Lawyer");
+  return tr("Member");
 };
 
 const getMappedActionType = (log) => {
@@ -269,13 +403,13 @@ const getMappedActionType = (log) => {
 // ─────────────────────────────────────────────────────────────────
 
 const FK_SOURCES = [
-  { url: 'users:list', fields: 'id,nickname,username', forFields: ['userId', 'projectManagerId', 'assigneeId', 'uploadedById', 'createdById', 'updatedById'], labelFn: r => r.nickname || r.username || ('User ' + r.id) },
-  { url: 'lawyers:list', fields: 'id,lawyerName', forFields: ['lawyerId'], labelFn: r => r.lawyerName || ('Lawyer ' + r.id) },
-  { url: 'customers:list', fields: 'id,customerName', forFields: ['customerId'], labelFn: r => r.customerName || ('Customer ' + r.id) },
-  { url: 'sales:list', fields: 'id,fullName', forFields: ['salesId', 'salespersonId', 'salepersonId'], labelFn: r => r.fullName || ('Sales ' + r.id) },
-  { url: 'internalCompany:list', fields: 'id,name', forFields: ['internalCompanyId'], labelFn: r => r.name || ('Company ' + r.id) },
-  { url: 'template:list', fields: 'id,templateName', forFields: ['templateId'], labelFn: r => r.templateName || ('Template ' + r.id) },
-  { url: 'services:list', fields: 'id,serviceName', forFields: ['serviceId'], labelFn: r => r.serviceName || ('Service ' + r.id) },
+  { url: 'users:list', fields: 'id,nickname,username', forFields: ['userId', 'projectManagerId', 'assigneeId', 'uploadedById', 'createdById', 'updatedById'], labelFn: r => r.nickname || r.username || (tr("User ") + r.id) },
+  { url: 'lawyers:list', fields: 'id,lawyerName', forFields: ['lawyerId'], labelFn: r => r.lawyerName || (tr("Lawyer ") + r.id) },
+  { url: 'customers:list', fields: 'id,customerName', forFields: ['customerId'], labelFn: r => r.customerName || (tr("Customer ") + r.id) },
+  { url: 'sales:list', fields: 'id,fullName', forFields: ['salesId', 'salespersonId', 'salepersonId'], labelFn: r => r.fullName || (tr("Sales ") + r.id) },
+  { url: 'internalCompany:list', fields: 'id,name', forFields: ['internalCompanyId'], labelFn: r => r.name || (tr("Company ") + r.id) },
+  { url: 'template:list', fields: 'id,templateName', forFields: ['templateId'], labelFn: r => r.templateName || (tr("Template ") + r.id) },
+  { url: 'services:list', fields: 'id,serviceName', forFields: ['serviceId'], labelFn: r => r.serviceName || (tr("Service ") + r.id) },
 ];
 
 async function fetchFKMap() {
@@ -341,7 +475,7 @@ async function fetchAllLogs(projectId) {
 
   const projectTitle = (projectInfo.projectCode && projectInfo.projectName)
     ? `${projectInfo.projectCode} ${projectInfo.projectName}`
-    : (projectInfo.projectName || projectInfo.projectCode || ('Project #' + projectId));
+    : (projectInfo.projectName || projectInfo.projectCode || (tr("Project #") + projectId));
 
   // Chỉ fetch activity_log với collectionName = 'Project Internal'
   // Trigger SQL đã mirror notes/documents/tasks vào đây rồi
@@ -378,13 +512,13 @@ const TableHeader = ({ sortKey, sortOrder, onSort }) => {
 
   return (
     <div className="grid-row grid-header">
-      <div className="grid-header-cell">Thành viên</div>
-      <div className="grid-header-cell">Mô tả hoạt động</div>
+      <div className="grid-header-cell">{tr("Member")}</div>
+      <div className="grid-header-cell">{tr("Activity")}</div>
       <div className="grid-header-cell sortable" onClick={() => onSort('action')}>
-        Hành động {renderSortIndicator('action')}
+        {tr("Action")} {renderSortIndicator('action')}
       </div>
       <div className="grid-header-cell sortable" onClick={() => onSort('timestamp')}>
-        Thời gian {renderSortIndicator('timestamp')}
+        {tr("Time")} {renderSortIndicator('timestamp')}
       </div>
     </div>
   );
@@ -416,7 +550,7 @@ const LogRow = ({ log, fkMap, isEven }) => {
   const badgeInfo = ACTION_BADGES[mappedAction] || { label: log.action, className: 'badge-view' };
   
   const field = fmtField(log.fieldName || '');
-  const record = log._recordLabel || 'Bản ghi';
+  const record = log._recordLabel || tr("Record");
   
   const getActionText = () => {
     const srcLabel = SOURCE_CFG[log._source]?.label || log._source;
@@ -425,41 +559,41 @@ const LogRow = ({ log, fkMap, isEven }) => {
     if (log.fieldName === 'notes') {
       const cleanedNote = newVal || oldVal || '';
       if (log.action === 'created') {
-        return `Thêm ghi chú mới vào ${record}: "${cleanedNote}"`;
+        return tr("Added a note to {0}: \"{1}\"", { 0: record, 1: cleanedNote });
       }
       if (log.action === 'deleted') {
-        return `Xóa ghi chú khỏi ${record}: "${cleanedNote}"`;
+        return tr("Removed a note from {0}: \"{1}\"", { 0: record, 1: cleanedNote });
       }
-      return `Cập nhật ghi chú trên ${record}: "${cleanedNote}"`;
+      return tr("Updated a note on {0}: \"{1}\"", { 0: record, 1: cleanedNote });
     }
 
     if (log.action === 'commented') {
-      return `Bình luận trên ${record}: "${newVal}"`;
+      return tr("Commented on {0}: \"{1}\"", { 0: record, 1: newVal });
     }
     if (log.action === 'uploaded') {
-      return `Tải lên tài liệu "${newVal || record}"`;
+      return tr("Uploaded document \"{0}\"", { 0: newVal || record });
     }
     if (log.action === 'created') {
       if (log._source === 'projectInternal' || log._source === 'Project Internal') {
-        return `Tạo mới dự án "${record}"`;
+        return tr("Created project \"{0}\"", { 0: record });
       }
-      return `Tạo mới ${srcLabel.toLowerCase()}: "${record}"`;
+      return tr("Created {0}: \"{1}\"", { 0: srcLabel.toLowerCase(), 1: record });
     }
     if (log.action === 'deleted') {
-      return `Xóa ${srcLabel.toLowerCase()}: "${record}"`;
+      return tr("Deleted {0}: \"{1}\"", { 0: srcLabel.toLowerCase(), 1: record });
     }
 
     if (field) {
       if (oldVal && newVal) {
-        return `Chỉnh sửa ${field.toLowerCase()} của ${record}: từ "${oldVal}" thành "${newVal}"`;
+        return tr("Changed {0} of {1}: from \"{2}\" to \"{3}\"", { 0: field.toLowerCase(), 1: record, 2: oldVal, 3: newVal });
       } else if (newVal) {
-        return `Cập nhật ${field.toLowerCase()} của ${record} thành "${newVal}"`;
+        return tr("Updated {0} of {1} to \"{2}\"", { 0: field.toLowerCase(), 1: record, 2: newVal });
       } else if (oldVal) {
-        return `Xóa ${field.toLowerCase()} của ${record}`;
+        return tr("Cleared {0} of {1}", { 0: field.toLowerCase(), 1: record });
       }
-      return `Chỉnh sửa ${field.toLowerCase()} của ${record}`;
+      return tr("Changed {0} of {1}", { 0: field.toLowerCase(), 1: record });
     }
-    return `Cập nhật ${record}`;
+    return tr("Updated {0}", { 0: record });
   };
 
   const actionText = getActionText();
@@ -496,7 +630,7 @@ const LogRow = ({ log, fkMap, isEven }) => {
             {displayedText}
             {isLong && (
               <span style={{ color: '#096dd9', cursor: 'pointer', marginLeft: 4, textDecoration: 'underline', fontSize: '10.5px' }}>
-                {expanded ? 'Thu gọn' : 'Xem thêm'}
+                {expanded ? tr("Show less") : tr("Show more")}
               </span>
             )}
           </span>
@@ -528,7 +662,7 @@ const LogRow = ({ log, fkMap, isEven }) => {
 const DayGroup = ({ dayKey, logs, fkMap }) => (
   <React.Fragment>
     <div className="day-divider">
-      {`${formatDay(dayKey + 'T00:00:00')} · ${logs.length} hoạt động`}
+      {tr("{0} · {1} activities", { 0: formatDay(dayKey + 'T00:00:00'), 1: logs.length })}
     </div>
     {logs.map((l, i) => (
       <LogRow key={`${l._source}_${l.id}_${i}`} log={l} fkMap={fkMap} isEven={i % 2 === 0} />
@@ -542,7 +676,7 @@ const CollectionGroup = ({ src, logs, fkMap }) => {
     <React.Fragment>
       <div className="day-divider">
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {cfg.icon} <span>{cfg.label} · {logs.length} hoạt động</span>
+          {cfg.icon} <span>{cfg.label} · {logs.length} {tr("activities")}</span>
         </span>
       </div>
       {logs.map((l, i) => (
@@ -602,7 +736,7 @@ const PaginationBar = ({ currentPage, pageSize, totalCount, onPageChange }) => {
   const pageCount = Math.ceil(totalCount / pageSize);
   if (pageCount <= 1) return (
     <div className="pagination-bar">
-      <span>{totalCount > 0 ? `1–${totalCount} / ${totalCount} hoạt động` : '0–0 / 0 hoạt động'}</span>
+      <span>{totalCount > 0 ? tr("1–{0} / {1} activities", { 0: totalCount, 1: totalCount }) : tr("0–0 / 0 activities")}</span>
     </div>
   );
 
@@ -616,14 +750,14 @@ const PaginationBar = ({ currentPage, pageSize, totalCount, onPageChange }) => {
 
   return (
     <div className="pagination-bar">
-      <span>{`${start}–${end} / ${totalCount} hoạt động`}</span>
+      <span>{tr("{0}–{1} / {2} activities", { 0: start, 1: end, 2: totalCount })}</span>
       <div className="pagination-buttons">
         <button 
           className="pagination-btn" 
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
         >
-          Trước
+          {tr("Previous")}
         </button>
         {pages.map(p => (
           <button 
@@ -639,7 +773,7 @@ const PaginationBar = ({ currentPage, pageSize, totalCount, onPageChange }) => {
           disabled={currentPage === pageCount}
           onClick={() => onPageChange(currentPage + 1)}
         >
-          Sau
+          {tr("Sau")}
         </button>
       </div>
     </div>
@@ -705,7 +839,7 @@ const ActivityLog = () => {
       names.add(who);
     });
     return [
-      { value: 'all', label: 'Tất cả thành viên' },
+      { value: 'all', label: tr("All members") },
       ...Array.from(names).map(name => ({ value: name, label: name }))
     ];
   }, [logs]);
@@ -738,7 +872,7 @@ const ActivityLog = () => {
       const who = l.changedByName || 'Hệ thống';
       const role = getMemberRole(who, fkMap);
       const field = fmtField(l.fieldName || '');
-      const record = l._recordLabel || 'Bản ghi';
+      const record = l._recordLabel || tr("Record");
       
       return [
         field,
@@ -778,11 +912,11 @@ const ActivityLog = () => {
   }, [sortedLogs, currentPage]);
 
   if (!RECORD_ID) return (
-    <div style={{ padding: 16, fontFamily: FONT, color: '#8c8c8c' }}>Không tìm thấy record ID</div>
+    <div style={{ padding: 16, fontFamily: FONT, color: '#8c8c8c' }}>{tr("Record ID not found")}</div>
   );
 
   const srcOptions = [
-    { value: 'all', label: 'Tất cả nguồn' },
+    { value: 'all', label: tr("All sources") },
     ...Object.entries(SOURCE_CFG).map(([k, v]) => ({
       value: k,
       label: (
@@ -1098,11 +1232,11 @@ const ActivityLog = () => {
       {/* Title Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="title-section">Lịch sử hoạt động</span>
+          <span className="title-section">{tr("Activity history")}</span>
           {contractTitle && <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>· {contractTitle}</span>}
           {!loading && (
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              · {filtered.length}{filtered.length !== logs.length ? `/${logs.length}` : ''} hoạt động
+              · {filtered.length}{filtered.length !== logs.length ? `/${logs.length}` : ''} {tr("activities")}
             </span>
           )}
         </div>
@@ -1112,7 +1246,7 @@ const ActivityLog = () => {
           className="refresh-btn"
         >
           <Icons.Refresh className={loading ? 'spin-anim' : ''} />
-          {loading ? 'Đang tải...' : 'Làm mới'}
+          {loading ? tr("Loading...") : tr("Refresh")}
         </button>
       </div>
 
@@ -1120,7 +1254,7 @@ const ActivityLog = () => {
       <div className="toolbar">
         <div className="toolbar-row-top">
           <Input
-            placeholder="Tìm kiếm theo thành viên, mô tả hoạt động..."
+            placeholder={tr("Search by member or activity...")}
             value={keyword}
             onChange={e => { setKeyword(e.target.value); setCurrentPage(1); }}
             allowClear
@@ -1136,15 +1270,15 @@ const ActivityLog = () => {
             size="small"
             style={{ width: 148 }}
             options={[
-              { value: 'all', label: 'Tất cả hành động' },
-              { value: 'create', label: 'Tạo mới' },
-              { value: 'edit', label: 'Chỉnh sửa' },
-              { value: 'delete', label: 'Xóa' },
-              { value: 'share', label: 'Chia sẻ' },
-              { value: 'comment', label: 'Bình luận' },
-              { value: 'move', label: 'Di chuyển' },
-              { value: 'rename', label: 'Đổi tên' },
-              { value: 'view', label: 'Xem' },
+              { value: 'all', label: tr("All actions") },
+              { value: 'create', label: tr("Created") },
+              { value: 'edit', label: tr("Edited") },
+              { value: 'delete', label: tr("Deleted") },
+              { value: 'share', label: tr("Shared") },
+              { value: 'comment', label: tr("Commented") },
+              { value: 'move', label: tr("Moved") },
+              { value: 'rename', label: tr("Renamed") },
+              { value: 'view', label: tr("Xem") },
             ]}
           />
           <Select
@@ -1167,16 +1301,16 @@ const ActivityLog = () => {
             size="small"
             style={{ width: 148 }}
             options={[
-              { value: 'day', label: '📅 Theo ngày' },
-              { value: 'collection', label: '📂 Theo collection' },
-              { value: 'none', label: '⏱ Không nhóm' },
+              { value: 'day', label: tr("📅 By day") },
+              { value: 'collection', label: tr("📂 Theo collection") },
+              { value: 'none', label: tr("⏱ No grouping") },
             ]}
           />
           <RangePicker
             size="small"
             onChange={range => { setDateRange(range); setCurrentPage(1); }}
             format="DD/MM/YYYY"
-            placeholder={['Từ ngày', 'Đến ngày']}
+            placeholder={[tr("From"), tr("To")]}
             style={{ flex: '1 1 200px' }}
             allowClear
           />
@@ -1189,7 +1323,7 @@ const ActivityLog = () => {
           <Spin />
         </div>
       ) : filtered.length === 0 ? (
-        <Empty description="Không có hoạt động nào" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: '32px 0' }} />
+        <Empty description={tr("No activity")} image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: '32px 0' }} />
       ) : (
         <div className="table-container">
           <TableHeader sortKey={sortKey} sortOrder={sortOrder} onSort={handleSort} />

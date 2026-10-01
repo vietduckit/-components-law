@@ -1,3 +1,115 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Not Start": "Chưa bắt đầu",
+  "In progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Task": "Công việc",
+  "Case": "Hồ sơ",
+  "Service": "Dịch vụ",
+  "Status": "Trạng thái",
+  "Assignee": "Người phụ trách",
+  "Approver": "Người duyệt",
+  "Start": "Bắt đầu",
+  "Due": "Hạn",
+  "Closed date": "Ngày đóng",
+  "Rejection reason": "Lý do từ chối",
+  "Next step": "Bước tiếp theo",
+  "Updated": "Cập nhật",
+  "Actions": "Thao tác",
+  "All": "Tất cả",
+  "Internal project": "Dự án nội bộ",
+  "Due date": "Hạn",
+  "Table": "Bảng",
+  "Board": "Bảng Kanban",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Internal project #{0}": "Dự án nội bộ #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "User #{0}": "Người dùng #{0}",
+  "Task #{0}": "Công việc #{0}",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Unassigned": "Chưa phân công",
+  "All approvals": "Tất cả phê duyệt",
+  "No status": "Không có trạng thái",
+  "No case": "Không có hồ sơ",
+  "No internal project": "Không có dự án nội bộ",
+  "Not yet approved": "Chưa được duyệt",
+  "No due date": "Không có hạn",
+  "No update date": "Không có ngày cập nhật",
+  "No service": "Không có dịch vụ",
+  "Columns reset.": "Đã đặt lại cột.",
+  "Showing at most {0} tasks/subtasks. Use filters to narrow the results and see everything.": "Đang hiển thị tối đa {0} tasks/subtasks. Dùng filter để thu hẹp kết quả và xem đầy đủ.",
+  "Could not load approval tasks.": "Không thể tải danh sách công việc cần duyệt.",
+  "Could not resolve task id.": "Không xác định được ID công việc.",
+  "You do not have a lawyer profile, so the approver cannot be recorded. Please contact an administrator.": "Bạn chưa có hồ sơ luật sư. Không thể ghi nhận người phê duyệt. Vui lòng liên hệ quản trị viên.",
+  "Task approved successfully.": "Đã duyệt công việc.",
+  "Could not approve task.": "Không thể duyệt công việc.",
+  "Please enter a rejection reason.": "Vui lòng nhập lý do từ chối.",
+  "The rejection reason cannot exceed 500 characters.": "Lý do từ chối không được vượt quá 500 ký tự.",
+  "Task rejected and returned for revision.": "Đã từ chối và trả công việc về để chỉnh sửa.",
+  "Could not reject task.": "Không thể từ chối công việc.",
+  "Sort ascending ↑": "Sắp xếp tăng dần ↑",
+  "Sort descending ↓": "Sắp xếp giảm dần ↓",
+  "Clear sort": "Bỏ sắp xếp",
+  "Filter by values": "Lọc theo giá trị",
+  "Group by values": "Nhóm theo giá trị",
+  "Hide field": "Ẩn trường",
+  "Move left": "Chuyển sang trái",
+  "Move right": "Chuyển sang phải",
+  "✕ Clear column config": "✕ Xóa cấu hình cột",
+  "Subtask": "Công việc con",
+  "Task detail": "Chi tiết công việc",
+  "Approve": "Phê duyệt",
+  "Reject": "Từ chối",
+  "Subtask of: {0}": "Công việc con của: {0}",
+  "Visible columns": "Cột hiển thị",
+  "{0} (fixed)": "{0} (cố định)",
+  "Reset columns": "Đặt lại cột",
+  "View config": "Cấu hình hiển thị",
+  "Search task, case, rejection reason...": "Tìm công việc, hồ sơ, lý do từ chối...",
+  "Group by": "Nhóm theo",
+  "Due start": "Hạn từ",
+  "Due end": "Hạn đến",
+  "Reset": "Đặt lại",
+  "{0} pending": "{0} chờ duyệt",
+  "{0} task{1}": "{0} công việc",
+  "Rejected: {0}": "Bị từ chối: {0}",
+  "No tasks": "Không có công việc",
+  "No approval tasks matched the current filters.": "Không có công việc cần duyệt nào khớp bộ lọc hiện tại.",
+  "{0} tasks{1}": "{0} công việc{1}",
+  " · {0} pending": " · {0} chờ duyệt",
+  "{0}-{1} of {2} groups": "{0}-{1} / {2} nhóm",
+  "Reject approval": "Từ chối phê duyệt",
+  "Confirm rejection": "Xác nhận từ chối",
+  "Cancel": "Hủy",
+  "Enter a rejection reason to notify the assignee...": "Nhập lý do từ chối để thông báo cho người thực hiện...",
+  "Enter a rejection reason...": "Nhập lý do từ chối...",
+  "The task will return to \"Not Start\" with the rejection reason.": "Task sẽ được trả về trạng thái \"Not Start\" kèm lý do từ chối.",
+  "My Approval": "Phê duyệt của tôi",
+  "All Approval": "Tất cả phê duyệt",
+  "Total tasks awaiting approval in the whole list (not affected by the current filters)": "Tổng số task chờ duyệt trong toàn bộ danh sách (không bị ảnh hưởng bởi filter hiện tại)",
+  "{0} awaiting approval": "{0} chờ duyệt",
+  "{0}/{1} approved": "{0}/{1} đã duyệt",
+  "Refresh": "Làm mới",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const {
@@ -147,49 +259,49 @@ const useNocoToken = () => {
 
 const STATUS_CFG = {
   toDo: {
-    label: "Not Start",
+    label: tr("Not Start"),
     color: "default",
     bg: "#f5f5f5",
     border: "#d9d9d9",
     text: "#595959",
   },
   inProgress: {
-    label: "In progress",
+    label: tr("In progress"),
     color: "processing",
     bg: "#e6f4ff",
     border: "#91caff",
     text: "#0958d9",
   },
   blocked: {
-    label: "Blocked",
+    label: tr("Blocked"),
     color: "purple",
     bg: "#f9f0ff",
     border: "#d3adf7",
     text: "#531dab",
   },
   pending: {
-    label: "Pending approval",
+    label: tr("Pending approval"),
     color: "warning",
     bg: "#fff7e6",
     border: "#ffd591",
     text: "#ad6800",
   },
   approval: {
-    label: "Approved",
+    label: tr("Approved"),
     color: "success",
     bg: "#f6ffed",
     border: "#b7eb8f",
     text: "#237804",
   },
   done: {
-    label: "Done",
+    label: tr("Done"),
     color: "success",
     bg: "#f6ffed",
     border: "#b7eb8f",
     text: "#389e0d",
   },
   cancelled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "error",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -205,35 +317,35 @@ const STATUS_OPTIONS = Object.entries(STATUS_CFG).map(([value, cfg]) => ({
 // ─── Column & view mode definitions ───────────────────────────────────────────
 
 const COLUMN_OPTIONS = [
-  { value: "task", label: "Task", locked: true },
-  { value: "case", label: "Case" },
-  { value: "service", label: "Service" },
-  { value: "status", label: "Status" },
-  { value: "assignee", label: "Assignee" },
-  { value: "approver", label: "Approver" },
-  { value: "start", label: "Start" },
-  { value: "due", label: "Due" },
-  { value: "closedDate", label: "Closed date" },
-  { value: "rejectionReason", label: "Rejection reason" },
-  { value: "nextStep", label: "Next step" },
-  { value: "updatedAt", label: "Updated" },
-  { value: "actions", label: "Actions", locked: true },
+  { value: "task", label: tr("Task"), locked: true },
+  { value: "case", label: tr("Case") },
+  { value: "service", label: tr("Service") },
+  { value: "status", label: tr("Status") },
+  { value: "assignee", label: tr("Assignee") },
+  { value: "approver", label: tr("Approver") },
+  { value: "start", label: tr("Start") },
+  { value: "due", label: tr("Due") },
+  { value: "closedDate", label: tr("Closed date") },
+  { value: "rejectionReason", label: tr("Rejection reason") },
+  { value: "nextStep", label: tr("Next step") },
+  { value: "updatedAt", label: tr("Updated") },
+  { value: "actions", label: tr("Actions"), locked: true },
 ];
 
 const GROUP_BY_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "status", label: "Status" },
-  { value: "case", label: "Case" },
-  { value: "projectInternal", label: "Internal project" },
-  { value: "assignee", label: "Assignee" },
-  { value: "approver", label: "Approver" },
-  { value: "due", label: "Due date" },
-  { value: "updatedAt", label: "Updated" },
+  { value: "all", label: tr("All") },
+  { value: "status", label: tr("Status") },
+  { value: "case", label: tr("Case") },
+  { value: "projectInternal", label: tr("Internal project") },
+  { value: "assignee", label: tr("Assignee") },
+  { value: "approver", label: tr("Approver") },
+  { value: "due", label: tr("Due date") },
+  { value: "updatedAt", label: tr("Updated") },
 ];
 
 const VIEW_MODE_OPTIONS = [
-  { value: "table", label: "Table" },
-  { value: "board", label: "Board" },
+  { value: "table", label: tr("Table") },
+  { value: "board", label: tr("Board") },
 ];
 
 const SERVICE_GROUP_COLORS = {
@@ -410,7 +522,7 @@ const projectLabel = (record, customerMap = {}) => {
     record?.projectName || record?.caseName || record?.title || record?.name;
   return (
     compact([caseCode, customer, projectName]).join(" - ") ||
-    (record?.id ? `Case #${record.id}` : "-")
+    (record?.id ? tr("Case #{0}", { 0: record.id }) : "-")
   );
 };
 
@@ -422,14 +534,14 @@ const projectInternalLabel = (record) =>
       record?.name ||
       record?.description,
   ]).join(" - ") ||
-  (record?.id ? `Internal project #${record.id}` : "-");
+  (record?.id ? tr("Internal project #{0}", { 0: record.id }) : "-");
 
 const customerLabel = (record) =>
   record?.shortName ||
   record?.customerName ||
   record?.name ||
   record?.fullName ||
-  (record?.id ? `Customer #${record.id}` : "");
+  (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const projectCustomerLabel = (project, customerMap = {}) => {
   const directCustomer = project?.customer || project?.customers;
@@ -447,7 +559,7 @@ const lawyerLabel = (record) =>
   record?.lawyerName ||
   record?.name ||
   record?.displayName ||
-  (record?.id ? `User #${record.id}` : "-");
+  (record?.id ? tr("User #{0}", { 0: record.id }) : "-");
 
 const serviceLabel = (record) => {
   const related = Array.isArray(record?.services)
@@ -478,7 +590,7 @@ const taskTitle = (row) =>
   row.title ||
   row.subTaskName ||
   row.name ||
-  `Task #${extractId(row.id) || ""}`;
+  tr("Task #{0}", { 0: extractId(row.id) || "" });
 
 const statusTag = (status) => {
   const cfg = STATUS_CFG[status] || { label: status || "-", color: "default" };
@@ -831,13 +943,13 @@ const enrichRows = ({
       assigneeLabel: assigneeId
         ? lawyerLabel(lawyer) !== "-"
           ? lawyerLabel(lawyer)
-          : `Lawyer #${assigneeId}`
-        : "Unassigned",
+          : tr("Lawyer #{0}", { 0: assigneeId })
+        : tr("Unassigned"),
       approverIdValue: approverId,
       approverLabel: approverId
         ? lawyerLabel(approver) !== "-"
           ? lawyerLabel(approver)
-          : `Lawyer #${approverId}`
+          : tr("Lawyer #{0}", { 0: approverId })
         : "-",
       startDateValue: task.startDate,
       dueDateValue: task.dueDate,
@@ -886,13 +998,13 @@ const enrichRows = ({
       assigneeLabel: assigneeId
         ? lawyerLabel(lawyer) !== "-"
           ? lawyerLabel(lawyer)
-          : `Lawyer #${assigneeId}`
-        : "Unassigned",
+          : tr("Lawyer #{0}", { 0: assigneeId })
+        : tr("Unassigned"),
       approverIdValue: approverId,
       approverLabel: approverId
         ? lawyerLabel(approver) !== "-"
           ? lawyerLabel(approver)
-          : `Lawyer #${approverId}`
+          : tr("Lawyer #{0}", { 0: approverId })
         : "-",
       startDateValue: subTask.date,
       dueDateValue: subTask.deadline,
@@ -912,13 +1024,13 @@ const enrichRows = ({
 
 const getGroupInfo = (row, groupBy) => {
   if (groupBy === "all") {
-    return { key: "all", label: "All approvals", sortValue: 0 };
+    return { key: "all", label: tr("All approvals"), sortValue: 0 };
   }
   if (groupBy === "status") {
     const cfg = STATUS_CFG[row.status] || {};
     return {
       key: `status:${row.status || "none"}`,
-      label: cfg.label || row.status || "No status",
+      label: cfg.label || row.status || tr("No status"),
     };
   }
   if (groupBy === "case") {
@@ -927,7 +1039,7 @@ const getGroupInfo = (row, groupBy) => {
       label:
         row.projectLabel && row.projectLabel !== "-"
           ? row.projectLabel
-          : "No case",
+          : tr("No case"),
       sortValue: timestampValue(row.projectCreatedAtValue),
     };
   }
@@ -937,34 +1049,34 @@ const getGroupInfo = (row, groupBy) => {
       label:
         row.projectInternalLabel && row.projectInternalLabel !== "-"
           ? row.projectInternalLabel
-          : "No internal project",
+          : tr("No internal project"),
       sortValue: timestampValue(row.projectInternalCreatedAtValue),
     };
   }
   if (groupBy === "assignee") {
     return {
       key: `assignee:${row.assigneeIdValue || "none"}`,
-      label: row.assigneeIdValue ? row.assigneeLabel : "Unassigned",
+      label: row.assigneeIdValue ? row.assigneeLabel : tr("Unassigned"),
     };
   }
   if (groupBy === "approver") {
     return {
       key: `approver:${row.approverIdValue || "none"}`,
-      label: row.approverIdValue ? row.approverLabel : "Not yet approved",
+      label: row.approverIdValue ? row.approverLabel : tr("Not yet approved"),
     };
   }
   if (groupBy === "due") {
     const label = formatDate(row.dueDateValue);
-    return { key: `due:${label}`, label: label === "-" ? "No due date" : label };
+    return { key: `due:${label}`, label: label === "-" ? tr("No due date") : label };
   }
   if (groupBy === "updatedAt") {
     const label = formatDate(row.updatedAtValue);
     return {
       key: `updatedAt:${label}`,
-      label: label === "-" ? "No update date" : label,
+      label: label === "-" ? tr("No update date") : label,
     };
   }
-  return { key: "all", label: "All approvals" };
+  return { key: "all", label: tr("All approvals") };
 };
 
 const rowMatchesGroupBy = (row, groupBy) => {
@@ -1084,7 +1196,7 @@ const buildServiceSubGroups = (rows, topGroupBy) => {
     const svcLabel =
       row.serviceLabelValue && row.serviceLabelValue !== "-"
         ? row.serviceLabelValue
-        : "No service";
+        : tr("No service");
     const caseKey = row.projectIdValue || "none";
     const key = `${caseKey}::${svcLabel}`;
     if (!buckets[key]) {
@@ -1094,7 +1206,7 @@ const buildServiceSubGroups = (rows, topGroupBy) => {
         caseLabel:
           row.projectLabel && row.projectLabel !== "-"
             ? row.projectLabel
-            : "No case",
+            : tr("No case"),
         sortValue: timestampValue(row.projectCreatedAtValue),
         rows: [],
       };
@@ -1128,7 +1240,7 @@ const getColumnValue = (row, field) => {
     return cfg.label || row.status || "";
   }
   if (field === "assignee")
-    return row.assigneeIdValue ? row.assigneeLabel : "Unassigned";
+    return row.assigneeIdValue ? row.assigneeLabel : tr("Unassigned");
   if (field === "approver")
     return row.approverIdValue ? row.approverLabel : "-";
   if (field === "start") return formatDate(row.startDateValue);
@@ -1295,7 +1407,7 @@ const AllApprovalBlock = () => {
         sortConfig: null,
       }),
     );
-    message.success("Columns reset.");
+    message.success(tr("Columns reset."));
   };
 
   const resetFilters = () => {
@@ -1392,7 +1504,7 @@ const AllApprovalBlock = () => {
         subTaskRows.length >= TASK_FETCH_LIMIT
       ) {
         message.warning(
-          `Đang hiển thị tối đa ${TASK_FETCH_LIMIT} tasks/subtasks. Dùng filter để thu hẹp kết quả và xem đầy đủ.`,
+          tr("Showing at most {0} tasks/subtasks. Use filters to narrow the results and see everything.", { 0: TASK_FETCH_LIMIT }),
           6,
         );
       }
@@ -1502,7 +1614,7 @@ const AllApprovalBlock = () => {
       setRows(enrichedRows);
     } catch (error) {
       console.error("[AllApprovalBlock] load failed", error);
-      message.error("Could not load approval tasks.");
+      message.error(tr("Could not load approval tasks."));
     } finally {
       setLoading(false);
     }
@@ -1540,14 +1652,14 @@ const AllApprovalBlock = () => {
   const handleApprove = async (row) => {
     const recordId = extractId(row?.id);
     if (!recordId) {
-      message.error("Could not resolve task id.");
+      message.error(tr("Could not resolve task id."));
       return;
     }
     if (approvingKey === row.key) return;
 
     if (!currentLawyers?.length) {
       message.error(
-        "Bạn chưa có hồ sơ luật sư. Không thể ghi nhận người phê duyệt. Vui lòng liên hệ quản trị viên.",
+        tr("You do not have a lawyer profile, so the approver cannot be recorded. Please contact an administrator."),
       );
       return;
     }
@@ -1565,11 +1677,11 @@ const AllApprovalBlock = () => {
           ...(currentLawyerId ? { approvedById: currentLawyerId } : {}),
         },
       });
-      message.success("Task approved successfully.");
+      message.success(tr("Task approved successfully."));
       await reload();
     } catch (error) {
       console.error("[AllApprovalBlock] approve failed", error);
-      message.error("Could not approve task.");
+      message.error(tr("Could not approve task."));
     } finally {
       setApprovingKey(null);
     }
@@ -1587,16 +1699,16 @@ const AllApprovalBlock = () => {
   const handleRejectConfirm = async () => {
     const { row, reason } = rejectModal;
     if (!reason?.trim()) {
-      message.warning("Vui lòng nhập lý do từ chối.");
+      message.warning(tr("Please enter a rejection reason."));
       return;
     }
     if (reason.trim().length > 500) {
-      message.warning("Lý do từ chối không được vượt quá 500 ký tự.");
+      message.warning(tr("The rejection reason cannot exceed 500 characters."));
       return;
     }
     const recordId = extractId(row?.id);
     if (!recordId) {
-      message.error("Could not resolve task id.");
+      message.error(tr("Could not resolve task id."));
       return;
     }
 
@@ -1612,12 +1724,12 @@ const AllApprovalBlock = () => {
           rejectionReason: reason.trim(),
         },
       });
-      message.success("Task rejected and returned for revision.");
+      message.success(tr("Task rejected and returned for revision."));
       setRejectModal({ open: false, row: null, reason: "", submitting: false });
       await reload();
     } catch (error) {
       console.error("[AllApprovalBlock] reject failed", error);
-      message.error("Could not reject task.");
+      message.error(tr("Could not reject task."));
       setRejectModal((prev) => ({ ...prev, submitting: false }));
     }
   };
@@ -1828,7 +1940,7 @@ const AllApprovalBlock = () => {
     if (!field || !event) return;
     event.preventDefault();
     event.stopPropagation();
-    const ownerWindow = event.view || document.defaultView || window;
+    const ownerWindow = event.view || event.currentTarget?.ownerDocument?.defaultView || null;
     const bodyStyle = ownerWindow?.document?.body?.style;
     const previousCursor = bodyStyle?.cursor;
     const previousUserSelect = bodyStyle?.userSelect;
@@ -1929,7 +2041,7 @@ const AllApprovalBlock = () => {
           onClick: () => applySort(field, "asc"),
           style: btnStyle,
         },
-        "Sort ascending ↑",
+        tr("Sort ascending ↑"),
       ),
       React.createElement(
         Button,
@@ -1942,7 +2054,7 @@ const AllApprovalBlock = () => {
           onClick: () => applySort(field, "desc"),
           style: btnStyle,
         },
-        "Sort descending ↓",
+        tr("Sort descending ↓"),
       ),
       sortConfig?.field === field
         ? React.createElement(
@@ -1953,7 +2065,7 @@ const AllApprovalBlock = () => {
               onClick: () => applySort(field, null),
               style: btnStyle,
             },
-            "Clear sort",
+            tr("Clear sort"),
           )
         : null,
       // Column filter
@@ -1969,7 +2081,7 @@ const AllApprovalBlock = () => {
         React.createElement(
           Text,
           { type: hasFilter ? undefined : "secondary" },
-          "Filter by values",
+          tr("Filter by values"),
         ),
         React.createElement(Select, {
           mode: "multiple",
@@ -1991,7 +2103,7 @@ const AllApprovalBlock = () => {
           onClick: () => canGroupBy && setGroupByValue(field),
           style: { ...btnStyle, marginTop: token.marginXS },
         },
-        "Group by values",
+        tr("Group by values"),
       ),
       React.createElement(
         Button,
@@ -2002,7 +2114,7 @@ const AllApprovalBlock = () => {
           onClick: () => hideColumn(field),
           style: btnStyle,
         },
-        "Hide field",
+        tr("Hide field"),
       ),
       React.createElement(
         Button,
@@ -2012,7 +2124,7 @@ const AllApprovalBlock = () => {
           onClick: () => moveColumn(field, "left"),
           style: btnStyle,
         },
-        "Move left",
+        tr("Move left"),
       ),
       React.createElement(
         Button,
@@ -2022,7 +2134,7 @@ const AllApprovalBlock = () => {
           onClick: () => moveColumn(field, "right"),
           style: btnStyle,
         },
-        "Move right",
+        tr("Move right"),
       ),
       React.createElement(
         Button,
@@ -2036,7 +2148,7 @@ const AllApprovalBlock = () => {
             borderTop: `1px solid ${token.colorSplit}`,
           },
         },
-        "✕ Clear column config",
+        tr("✕ Clear column config"),
       ),
     );
   };
@@ -2176,8 +2288,8 @@ const AllApprovalBlock = () => {
     });
     const popupTitle =
       subTaskId && row.parentTaskTitle
-        ? `${label || "Subtask"} - ${row.parentTaskTitle}`
-        : label || "Task detail";
+        ? `${label || tr("Subtask")} - ${row.parentTaskTitle}`
+        : label || tr("Task detail");
 
     return React.createElement(
       "a",
@@ -2246,7 +2358,7 @@ const AllApprovalBlock = () => {
             minWidth: 82,
           },
         },
-        "Phê duyệt",
+        tr("Approve"),
       ),
       React.createElement(
         Button,
@@ -2257,7 +2369,7 @@ const AllApprovalBlock = () => {
           onClick: () => openRejectModal(row),
           style: { minWidth: 72 },
         },
-        "Từ chối",
+        tr("Reject"),
       ),
     );
   };
@@ -2266,7 +2378,7 @@ const AllApprovalBlock = () => {
 
   const buildColumns = (tableScope = "main") => [
     {
-      title: renderColumnTitle("task", "Task", tableScope),
+      title: renderColumnTitle("task", tr("Task"), tableScope),
       dataIndex: "titleText",
       key: "task",
       fixed: "left",
@@ -2285,7 +2397,7 @@ const AllApprovalBlock = () => {
           row.parentTaskTitle
             ? React.createElement(
                 Tooltip,
-                { title: `Subtask of: ${row.parentTaskTitle}` },
+                { title: tr("Subtask of: {0}", { 0: row.parentTaskTitle }) },
                 React.createElement("span", {
                   style: {
                     width: 18,
@@ -2308,7 +2420,7 @@ const AllApprovalBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("case", "Case", tableScope),
+      title: renderColumnTitle("case", tr("Case"), tableScope),
       dataIndex: "projectLabel",
       key: "case",
       width: columnWidths.case,
@@ -2323,7 +2435,7 @@ const AllApprovalBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("service", "Service", tableScope),
+      title: renderColumnTitle("service", tr("Service"), tableScope),
       dataIndex: "serviceLabelValue",
       key: "service",
       width: columnWidths.service,
@@ -2334,14 +2446,14 @@ const AllApprovalBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("status", "Status", tableScope),
+      title: renderColumnTitle("status", tr("Status"), tableScope),
       dataIndex: "status",
       key: "status",
       width: columnWidths.status,
       render: statusTag,
     },
     {
-      title: renderColumnTitle("assignee", "Assignee", tableScope),
+      title: renderColumnTitle("assignee", tr("Assignee"), tableScope),
       dataIndex: "assigneeLabel",
       key: "assignee",
       width: columnWidths.assignee,
@@ -2349,10 +2461,10 @@ const AllApprovalBlock = () => {
       render: (value, row) =>
         row.assigneeIdValue
           ? React.createElement(Text, null, value)
-          : React.createElement(Text, { type: "secondary" }, "Unassigned"),
+          : React.createElement(Text, { type: "secondary" }, tr("Unassigned")),
     },
     {
-      title: renderColumnTitle("approver", "Approver", tableScope),
+      title: renderColumnTitle("approver", tr("Approver"), tableScope),
       dataIndex: "approverLabel",
       key: "approver",
       width: columnWidths.approver,
@@ -2363,7 +2475,7 @@ const AllApprovalBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("start", "Start", tableScope),
+      title: renderColumnTitle("start", tr("Start"), tableScope),
       dataIndex: "startDateValue",
       key: "start",
       width: columnWidths.start,
@@ -2375,7 +2487,7 @@ const AllApprovalBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("due", "Due", tableScope),
+      title: renderColumnTitle("due", tr("Due"), tableScope),
       dataIndex: "dueDateValue",
       key: "due",
       width: columnWidths.due,
@@ -2387,7 +2499,7 @@ const AllApprovalBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("closedDate", "Closed date", tableScope),
+      title: renderColumnTitle("closedDate", tr("Closed date"), tableScope),
       dataIndex: "closedDateValue",
       key: "closedDate",
       width: columnWidths.closedDate,
@@ -2399,7 +2511,7 @@ const AllApprovalBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("rejectionReason", "Rejection reason", tableScope),
+      title: renderColumnTitle("rejectionReason", tr("Rejection reason"), tableScope),
       dataIndex: "rejectionReasonValue",
       key: "rejectionReason",
       width: columnWidths.rejectionReason,
@@ -2418,7 +2530,7 @@ const AllApprovalBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("nextStep", "Next step", tableScope),
+      title: renderColumnTitle("nextStep", tr("Next step"), tableScope),
       dataIndex: "nextStepValue",
       key: "nextStep",
       width: columnWidths.nextStep,
@@ -2433,7 +2545,7 @@ const AllApprovalBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("updatedAt", "Updated", tableScope),
+      title: renderColumnTitle("updatedAt", tr("Updated"), tableScope),
       dataIndex: "updatedAtValue",
       key: "updatedAt",
       width: columnWidths.updatedAt,
@@ -2445,7 +2557,7 @@ const AllApprovalBlock = () => {
         ),
     },
     {
-      title: React.createElement(Text, { type: "secondary" }, "Actions"),
+      title: React.createElement(Text, { type: "secondary" }, tr("Actions")),
       key: "actions",
       width: columnWidths.actions,
       render: (_, row) => renderActionsCell(row),
@@ -2533,7 +2645,7 @@ const AllApprovalBlock = () => {
           fontSize: token.fontSizeSM,
         },
       },
-      "Visible columns",
+      tr("Visible columns"),
     ),
     React.createElement(
       Checkbox.Group,
@@ -2556,7 +2668,7 @@ const AllApprovalBlock = () => {
             disabled: item.locked,
             style: { marginInlineStart: 0 },
           },
-          item.locked ? `${item.label} (fixed)` : item.label,
+          item.locked ? tr("{0} (fixed)", { 0: item.label }) : item.label,
         ),
       ),
     ),
@@ -2574,7 +2686,7 @@ const AllApprovalBlock = () => {
       React.createElement(
         Button,
         { size: "small", onClick: resetColumns },
-        "Reset columns",
+        tr("Reset columns"),
       ),
     ),
   );
@@ -2585,13 +2697,13 @@ const AllApprovalBlock = () => {
         {
           trigger: "click",
           placement: "bottomRight",
-          title: "View config",
+          title: tr("View config"),
           content: columnConfigContent,
         },
         React.createElement(
           Button,
           { style: { width: "100%" } },
-          "View config",
+          tr("View config"),
         ),
       )
     : null;
@@ -2653,7 +2765,7 @@ const AllApprovalBlock = () => {
           optionFilterProp: "searchText",
           optionLabelProp: "plainLabel",
           value: filters.caseIds,
-          placeholder: "Case",
+          placeholder: tr("Case"),
           options: caseOptions,
           onChange: (value) => setFilter("caseIds", value),
           style: filterControlStyle,
@@ -2665,7 +2777,7 @@ const AllApprovalBlock = () => {
           maxTagCount: "responsive",
           optionFilterProp: "label",
           value: filters.assigneeIds,
-          placeholder: "Assignee",
+          placeholder: tr("Assignee"),
           options: assigneeOptions,
           onChange: (value) => setFilter("assigneeIds", value),
           style: filterControlStyle,
@@ -2677,7 +2789,7 @@ const AllApprovalBlock = () => {
           maxTagCount: "responsive",
           optionFilterProp: "label",
           value: filters.approverIds,
-          placeholder: "Approver",
+          placeholder: tr("Approver"),
           options: approverOptions,
           onChange: (value) => setFilter("approverIds", value),
           style: filterControlStyle,
@@ -2687,7 +2799,7 @@ const AllApprovalBlock = () => {
           allowClear: true,
           maxTagCount: "responsive",
           value: filters.statuses,
-          placeholder: "Status",
+          placeholder: tr("Status"),
           options: STATUS_OPTIONS,
           onChange: (value) => setFilter("statuses", value),
           style: filterControlStyle,
@@ -2700,7 +2812,7 @@ const AllApprovalBlock = () => {
         React.createElement(Input.Search, {
           allowClear: true,
           value: filters.keyword,
-          placeholder: "Search task, case, rejection reason...",
+          placeholder: tr("Search task, case, rejection reason..."),
           onChange: (event) => setFilter("keyword", event.target.value),
           onSearch: (value) => setFilter("keyword", value),
           style: filterControlStyle,
@@ -2708,7 +2820,7 @@ const AllApprovalBlock = () => {
         React.createElement(Select, {
           value: groupBy,
           options: GROUP_BY_OPTIONS,
-          placeholder: "Group by",
+          placeholder: tr("Group by"),
           onChange: setGroupByValue,
           style: filterControlStyle,
         }),
@@ -2717,7 +2829,7 @@ const AllApprovalBlock = () => {
               allowClear: true,
               value: filters.dateRange,
               format: "DD/MM/YYYY",
-              placeholder: ["Due start", "Due end"],
+              placeholder: [tr("Due start"), tr("Due end")],
               onChange: (value) => setFilter("dateRange", value || null),
               style: filterControlStyle,
             })
@@ -2726,7 +2838,7 @@ const AllApprovalBlock = () => {
         React.createElement(
           Button,
           { onClick: resetFilters, style: filterControlStyle },
-          "Reset",
+          tr("Reset"),
         ),
       ),
     ),
@@ -2822,7 +2934,7 @@ const AllApprovalBlock = () => {
           ? React.createElement(
               Tag,
               { color: "warning", style: { marginInlineEnd: 0 } },
-              `${pendingInSubGroup} pending`,
+              tr("{0} pending", { 0: pendingInSubGroup }),
             )
           : null,
         React.createElement(
@@ -2930,7 +3042,7 @@ const AllApprovalBlock = () => {
           ? React.createElement(
               Tag,
               { color: "warning", style: { marginInlineEnd: 0 } },
-              `${pendingInGroup} pending`,
+              tr("{0} pending", { 0: pendingInGroup }),
             )
           : null,
         React.createElement(
@@ -2943,7 +3055,7 @@ const AllApprovalBlock = () => {
               color: groupColors.text,
             },
           },
-          `${group.rows.length} task${group.rows.length !== 1 ? "s" : ""}`,
+          tr("{0} task{1}", { 0: group.rows.length, 1: group.rows.length !== 1 ? "s" : "" }),
         ),
       ),
       serviceSubGroups.map(renderServiceSubGroup),
@@ -3053,7 +3165,7 @@ const AllApprovalBlock = () => {
                               type: "secondary",
                               style: { fontSize: token.fontSizeSM },
                             },
-                            `Subtask of: ${row.parentTaskTitle}`,
+                            tr("Subtask of: {0}", { 0: row.parentTaskTitle }),
                           )
                         : null,
                       React.createElement(
@@ -3081,7 +3193,7 @@ const AllApprovalBlock = () => {
                             type: "secondary",
                             style: { fontSize: token.fontSizeSM },
                           },
-                          row.assigneeLabel || "Unassigned",
+                          row.assigneeLabel || tr("Unassigned"),
                         ),
                         React.createElement(
                           Text,
@@ -3102,7 +3214,7 @@ const AllApprovalBlock = () => {
                                 display: "block",
                               },
                             },
-                            `Rejected: ${row.rejectionReasonValue}`,
+                            tr("Rejected: {0}", { 0: row.rejectionReasonValue }),
                           )
                         : null,
                       isPending
@@ -3128,7 +3240,7 @@ const AllApprovalBlock = () => {
                                   borderColor: "#389e0d",
                                 },
                               },
-                              "Phê duyệt",
+                              tr("Approve"),
                             ),
                             React.createElement(
                               Button,
@@ -3139,7 +3251,7 @@ const AllApprovalBlock = () => {
                                 onClick: () => openRejectModal(row),
                                 style: { flex: 1 },
                               },
-                              "Từ chối",
+                              tr("Reject"),
                             ),
                           )
                         : null,
@@ -3151,7 +3263,7 @@ const AllApprovalBlock = () => {
                       type: "secondary",
                       style: { padding: token.paddingXS },
                     },
-                    "No tasks",
+                    tr("No tasks"),
                   ),
             ),
           );
@@ -3174,7 +3286,7 @@ const AllApprovalBlock = () => {
     if (!sortedRows.length) {
       return React.createElement(Empty, {
         image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "No approval tasks matched the current filters.",
+        description: tr("No approval tasks matched the current filters."),
         style: { padding: 48 },
       });
     }
@@ -3217,7 +3329,7 @@ const AllApprovalBlock = () => {
             pageSize: 30,
             showSizeChanger: true,
             showTotal: (total) =>
-              `${total} tasks${pendingInFlat ? ` · ${pendingInFlat} pending` : ""}`,
+              tr("{0} tasks{1}", { 0: total, 1: pendingInFlat ? tr(" · {0} pending", { 0: pendingInFlat }) : "" }),
           },
           scroll: { x: tableScrollX, y: 640 },
           sticky: true,
@@ -3229,7 +3341,7 @@ const AllApprovalBlock = () => {
     if (!allGroups.length) {
       return React.createElement(Empty, {
         image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "No approval tasks matched the current filters.",
+        description: tr("No approval tasks matched the current filters."),
         style: { padding: 48 },
       });
     }
@@ -3255,7 +3367,7 @@ const AllApprovalBlock = () => {
               showSizeChanger: false,
               onChange: (page) => setCasePage(page),
               showTotal: (total, range) =>
-                `${range[0]}-${range[1]} of ${total} groups`,
+                tr("{0}-{1} of {2} groups", { 0: range[0], 1: range[1], 2: total }),
             }),
           )
         : null;
@@ -3286,14 +3398,14 @@ const AllApprovalBlock = () => {
     ? React.createElement(
         Modal,
         {
-          title: "Từ chối phê duyệt",
+          title: tr("Reject approval"),
           open: rejectModal.open,
           onCancel: closeRejectModal,
           confirmLoading: rejectModal.submitting,
           onOk: handleRejectConfirm,
-          okText: "Xác nhận từ chối",
+          okText: tr("Confirm rejection"),
           okButtonProps: { danger: true },
-          cancelText: "Hủy",
+          cancelText: tr("Cancel"),
           width: 480,
           destroyOnClose: true,
           maskClosable: !rejectModal.submitting,
@@ -3316,7 +3428,7 @@ const AllApprovalBlock = () => {
                 React.createElement(
                   Text,
                   { strong: true, style: { display: "block" } },
-                  rejectModal.row.titleText || "Task",
+                  rejectModal.row.titleText || tr("Task"),
                 ),
                 React.createElement(
                   Text,
@@ -3345,7 +3457,7 @@ const AllApprovalBlock = () => {
                   gap: 4,
                 },
               },
-              React.createElement(Text, null, "Lý do từ chối"),
+              React.createElement(Text, null, tr("Rejection reason")),
               React.createElement(
                 "span",
                 { style: { color: token.colorError } },
@@ -3360,7 +3472,7 @@ const AllApprovalBlock = () => {
                       ...prev,
                       reason: event.target.value,
                     })),
-                  placeholder: "Nhập lý do từ chối để thông báo cho người thực hiện...",
+                  placeholder: tr("Enter a rejection reason to notify the assignee..."),
                   rows: 4,
                   maxLength: 500,
                   showCount: true,
@@ -3374,14 +3486,14 @@ const AllApprovalBlock = () => {
                       ...prev,
                       reason: event.target.value,
                     })),
-                  placeholder: "Nhập lý do từ chối...",
+                  placeholder: tr("Enter a rejection reason..."),
                   disabled: rejectModal.submitting,
                 }),
           ),
           React.createElement(
             Text,
             { type: "secondary", style: { fontSize: token.fontSizeSM } },
-            "Task sẽ được trả về trạng thái \"Not Start\" kèm lý do từ chối.",
+            tr("The task will return to \"Not Start\" with the rejection reason."),
           ),
         ),
       )
@@ -3409,19 +3521,19 @@ const AllApprovalBlock = () => {
           React.createElement(
             Text,
             { strong: true },
-            APPROVAL_BLOCK_SCOPE === "my" ? "My Approval" : "All Approval",
+            APPROVAL_BLOCK_SCOPE === "my" ? tr("My Approval") : tr("All Approval"),
           ),
           pendingCount > 0
             ? React.createElement(
                 Tooltip,
                 {
                   title:
-                    "Tổng số task chờ duyệt trong toàn bộ danh sách (không bị ảnh hưởng bởi filter hiện tại)",
+                    tr("Total tasks awaiting approval in the whole list (not affected by the current filters)"),
                 },
                 React.createElement(
                   Tag,
                   { color: "warning", style: { margin: 0, cursor: "default" } },
-                  `${pendingCount} chờ duyệt`,
+                  tr("{0} awaiting approval", { 0: pendingCount }),
                 ),
               )
             : null,
@@ -3433,13 +3545,13 @@ const AllApprovalBlock = () => {
             ? React.createElement(
                 Text,
                 { type: "secondary", style: { fontSize: token.fontSizeSM } },
-                `${approvedCount}/${totalCount} đã duyệt`,
+                tr("{0}/{1} approved", { 0: approvedCount, 1: totalCount }),
               )
             : null,
           React.createElement(
             Button,
             { size: "small", loading, onClick: reload },
-            "Refresh",
+            tr("Refresh"),
           ),
         ),
         bodyStyle: {

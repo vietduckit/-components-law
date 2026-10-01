@@ -76,7 +76,43 @@
     // ===================================================================
     // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
     // ===================================================================
-    const CONFIG = {
+    // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Status": "Trạng thái",
+  "Not Start": "Chưa bắt đầu",
+  "In Progress": "Đang làm",
+  "Pending": "Chờ gửi",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Priority": "Ưu tiên",
+  "Low": "Thấp",
+  "Medium": "Trung bình",
+  "High": "Cao",
+  "Urgent": "Khẩn",
+  "Internal Company": "Công ty nội bộ",
+  "All": "Tất cả",
+  "Project Manager": "Quản lý dự án",
+  "Members": "Thành viên",
+  "Search": "Tìm kiếm",
+  "Search by project code, name, description...": "Tìm theo mã dự án, tên, mô tả...",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const CONFIG = {
       targetBlockUid: "", // TODO: fill in — see file header note 1
       tableName: "projectInternal",
       extraFilter: {},
@@ -86,13 +122,13 @@
           type: "status",
           key: "status",
           field: "status",
-          label: "Status",
+          label: tr("Status"),
           options: [
-            { value: "toDo", label: "Not Start" },
-            { value: "inProgress", label: "In Progress" },
-            { value: "pending", label: "Pending" },
-            { value: "done", label: "Done" },
-            { value: "cancelled", label: "Cancelled" },
+            { value: "toDo", label: tr("Not Start") },
+            { value: "inProgress", label: tr("In Progress") },
+            { value: "pending", label: tr("Pending") },
+            { value: "done", label: tr("Done") },
+            { value: "cancelled", label: tr("Cancelled") },
           ],
           showCounts: true,
         },
@@ -100,12 +136,12 @@
           type: "status",
           key: "priority",
           field: "priority",
-          label: "Priority",
+          label: tr("Priority"),
           options: [
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
-            { value: "urgent", label: "Urgent" },
+            { value: "low", label: tr("Low") },
+            { value: "medium", label: tr("Medium") },
+            { value: "high", label: tr("High") },
+            { value: "urgent", label: tr("Urgent") },
           ],
           showCounts: true,
         },
@@ -113,8 +149,8 @@
           type: "relation",
           key: "company",
           field: "internalCompanyId",
-          label: "Internal Company",
-          placeholder: "All",
+          label: tr("Internal Company"),
+          placeholder: tr("All"),
           source: {
             collection: "internalCompany",
             labelFields: ["shortName", "name"],
@@ -125,8 +161,8 @@
           type: "relation",
           key: "projectManager",
           field: "projectManagerId",
-          label: "Project Manager",
-          placeholder: "All",
+          label: tr("Project Manager"),
+          placeholder: tr("All"),
           source: {
             collection: "lawyers", // confirmed — see file header note on projectManagerId
             labelFields: ["lawyerName"],
@@ -138,8 +174,8 @@
           key: "assignees",
           field: "projectAssignees",
           relationKey: "id", // assumed no flat FK column, only the association — see file header note 3
-          label: "Members",
-          placeholder: "All",
+          label: tr("Members"),
+          placeholder: tr("All"),
           source: {
             collection: "lawyers", // ASSUMED target — verify, see file header note 3
             labelFields: ["lawyerName"],
@@ -149,9 +185,9 @@
         {
           type: "search",
           key: "search",
-          label: "Search",
+          label: tr("Search"),
           fields: ["projectCode", "projectName", "description"],
-          placeholder: "Search by project code, name, description...",
+          placeholder: tr("Search by project code, name, description..."),
         },
       ],
 
@@ -272,7 +308,7 @@
     };
 
     const getDisplayOptions = (filterDef) => [
-      { value: "all", label: "All" },
+      { value: "all", label: tr("All") },
       ...(filterDef.options || []),
     ];
 
@@ -666,7 +702,7 @@
           React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
           React.createElement(Select, {
             value: value || undefined,
-            placeholder: filterDef.placeholder || "All",
+            placeholder: filterDef.placeholder || tr("All"),
             allowClear: true,
             showSearch: true,
             optionFilterProp: "label",
@@ -685,7 +721,7 @@
           { style: { ...wrapStyle, gridColumn: "span 2" } },
           React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
           React.createElement(Input.Search, {
-            placeholder: filterDef.placeholder || "Search...",
+            placeholder: filterDef.placeholder || tr("Search..."),
             allowClear: true,
             enterButton: true,
             size: "small",

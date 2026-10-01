@@ -17,6 +17,143 @@
  * ══════════════════════════════════════════════════════════════════
  */
 
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "To Do": "Cần làm",
+  "In Progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "just now": "vừa xong",
+  "{0}m ago": "{0} phút trước",
+  "{0}h ago": "{0} giờ trước",
+  "tag lawyer (Ctrl + Enter to send)": "gắn thẻ luật sư (Ctrl + Enter để gửi)",
+  "{0} lawyers": "{0} luật sư",
+  "Not found": "Không tìm thấy",
+  "No results": "Không có kết quả",
+  "File": "Tệp",
+  "⬇️ Download": "⬇️ Tải về",
+  "Close": "Đóng",
+  "Cannot preview this format — please download to open": "Không thể xem trước định dạng này — vui lòng tải về để mở",
+  "Upload failed": "Tải lên thất bại",
+  "Please select a file or enter a Drive URL": "Vui lòng chọn tệp hoặc nhập Drive URL",
+  "✅ Updated successfully!": "✅ Cập nhật thành công!",
+  "✅ Upload successful!": "✅ Tải lên thành công!",
+  "Error: ": "Lỗi: ",
+  "Try again": "Thử lại",
+  "✏️ Update Document": "✏️ Cập nhật tài liệu",
+  "📎 Attach Document": "📎 Đính kèm tài liệu",
+  "Cancel": "Hủy",
+  "Updating...": "Đang cập nhật...",
+  "Processing...": "Đang xử lý...",
+  "Update": "Cập nhật",
+  "Confirm Attachment": "Xác nhận đính kèm",
+  "Upload": "Tải lên",
+  "👤 {0} by: ": "👤 {0} bởi: ",
+  "Updated": "Cập nhật",
+  "Attached": "Đính kèm",
+  "Identification": "Định danh",
+  "Document Type": "Loại tài liệu",
+  "Please enter document type": "Vui lòng nhập loại tài liệu",
+  "e.g. Contract, Minutes...": "VD: Contract, Minutes...",
+  "Document Title": "Tiêu đề tài liệu",
+  "Enter full title (defaults to filename if empty)": "Nhập tiêu đề đầy đủ (để trống sẽ dùng tên tệp)",
+  "Document Code": "Số hiệu tài liệu",
+  "e.g. 123/2024/HD": "VD: 123/2024/HD",
+  "Issued Date": "Ngày ban hành",
+  "Signed Date": "Ngày ký",
+  "Effective Date": "Ngày hiệu lực",
+  "Related Parties": "Các bên liên quan",
+  "Sender": "Người gửi",
+  "Name of sender person/org": "Tên cá nhân/tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Name of recipient person/org": "Tên cá nhân/tổ chức nhận",
+  "Summary": "Tóm tắt",
+  "Brief description of content...": "Mô tả ngắn nội dung...",
+  "Attachments": "Tệp đính kèm",
+  "Replace with new file (optional)": "Thay bằng tệp mới (tùy chọn)",
+  "Choose file": "Chọn tệp",
+  "Drag and drop or ": "Kéo thả hoặc ",
+  "click to choose": "bấm để chọn",
+  "Google Drive URL (optional)": "Google Drive URL (tùy chọn)",
+  "Notes": "Ghi chú",
+  "Enter notes...": "Nhập ghi chú...",
+  "User #{0}": "Người dùng #{0}",
+  "Anonymous": "Ẩn danh",
+  "Comment posted": "Đã đăng bình luận",
+  "Comment updated": "Đã cập nhật bình luận",
+  "Update failed": "Cập nhật thất bại",
+  "Download": "Tải về",
+  "Document Title:": "Tiêu đề tài liệu:",
+  "Notes:": "Ghi chú:",
+  "System": "Hệ thống",
+  "Enter content... (Ctrl + Enter to save)": "Nhập nội dung... (Ctrl + Enter để lưu)",
+  "Save": "Lưu",
+  "Edit": "Chỉnh sửa",
+  "Document": "Tài liệu",
+  "Write a comment... (Ctrl + Enter to send)": "Viết bình luận... (Ctrl + Enter để gửi)",
+  "Attach Document": "Đính kèm tài liệu",
+  "Sending...": "Đang gửi...",
+  "Comment": "Bình luận",
+  "No comments or documents yet": "Chưa có bình luận hay tài liệu nào",
+  "▲ Collapse (showing {0} of {1})": "▲ Thu gọn (đang hiện {0}/{1})",
+  "▼ View more ({0} more)": "▼ Xem thêm ({0} mục)",
+  "↳ Sub": "↳ Con",
+  "⚠ Overdue": "⚠ Quá hạn",
+  "📅 Start: {0}": "📅 Bắt đầu: {0}",
+  "🏁 Deadline: {0}": "🏁 Hạn chót: {0}",
+  "Drop here": "Thả vào đây",
+  "Admin": "Admin",
+  "Unidentified": "Chưa xác định",
+  "No linked lawyer profile": "Chưa liên kết hồ sơ luật sư",
+  "👑 Admin View": "👑 Chế độ Admin",
+  "↻ Refresh": "↻ Làm mới",
+  "🗂 Kanban": "🗂 Kanban",
+  "Loading...": "Đang tải...",
+  "{0}/{1} completed ({2}%)": "{0}/{1} hoàn thành ({2}%)",
+  "📅 {0} due today": "📅 {0} đến hạn hôm nay",
+  "⚠ {0} overdue": "⚠ {0} quá hạn",
+  "🔍 Search tasks...": "🔍 Tìm công việc...",
+  "All": "Tất cả",
+  "Loading tasks...": "Đang tải công việc...",
+  "Information": "Thông tin",
+  "Status": "Trạng thái",
+  "Priority": "Ưu tiên",
+  "Priority updated": "Đã cập nhật ưu tiên",
+  "Estimate": "Ước tính",
+  "Assignee": "Người phụ trách",
+  "Unassigned": "Chưa phân công",
+  "Execution Time": "Thời gian thực hiện",
+  "Description": "Mô tả",
+  "Describe the task content...": "Mô tả nội dung công việc...",
+  "Description updated": "Đã cập nhật mô tả",
+  "Comments & Documents": "Bình luận & Tài liệu",
+  "Not sent yet": "Chờ gửi",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -39,43 +176,43 @@ const FONT = "Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 // ── Status config ──────────────────────────────────────────────────
 const STATUS_CFG = {
   toDo: {
-    label: "To Do",
+    label: tr("To Do"),
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
   },
   inProgress: {
-    label: "In Progress",
+    label: tr("In Progress"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
   },
   blocked: {
-    label: "Blocked",
+    label: tr("Blocked"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
   },
   pending: {
-    label: "Pending",
+    label: tr("Pending"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
   },
   approval: {
-    label: "Approved",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   done: {
-    label: "Done",
+    label: tr("Done"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
   },
   cancelled: {
-    label: "Cancelled",
+    label: tr("Cancelled"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -83,9 +220,9 @@ const STATUS_CFG = {
 };
 
 const PRIORITY_CFG = {
-  high: { label: "High", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Medium", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Low", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 
 const LAWYER_COLORS = [
@@ -100,10 +237,10 @@ const LAWYER_COLORS = [
 ];
 
 const LAWYER_TYPE_CFG = {
-  partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
-  lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
-  associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
-  suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
+  partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+  lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+  associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+  suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
 };
 
 // ── Utilities ──────────────────────────────────────────────────────
@@ -194,9 +331,9 @@ const userName = (u) =>
 const timeAgo = (iso) => {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 60) return tr("just now");
+  if (diff < 3600) return tr("{0}m ago", { 0: Math.floor(diff / 60) });
+  if (diff < 86400) return tr("{0}h ago", { 0: Math.floor(diff / 3600) });
   return fmt(iso, "date");
 };
 
@@ -529,7 +666,7 @@ const MentionInput = ({
           },
           "@",
         ),
-        "tag lawyer (Ctrl + Enter to send)",
+        tr("tag lawyer (Ctrl + Enter to send)"),
       ),
     assignedLawyers.length > 0 &&
       React.createElement(
@@ -644,12 +781,12 @@ const MentionInput = ({
             ? React.createElement(
                 "span",
                 null,
-                `${filteredLawyers.length} lawyers`,
+                tr("{0} lawyers", { 0: filteredLawyers.length }),
               )
             : React.createElement(
                 "span",
                 { style: { color: "#ff4d4f" } },
-                "Not found",
+                tr("Not found"),
               ),
         ),
         filteredLawyers.length === 0
@@ -664,7 +801,7 @@ const MentionInput = ({
                   textAlign: "center",
                 },
               },
-              "No results",
+              tr("No results"),
             )
           : filteredLawyers.map((l, idx) => {
               const lColor = getLawyerColor(l);
@@ -770,7 +907,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const fileUrl = attachment?.url || attachment?.preview;
   const fullUrl = getFullUrl(fileUrl);
   const rawName =
-    doc.title || attachment?.title || attachment?.filename || "File";
+    doc.title || attachment?.title || attachment?.filename || tr("File");
   const extFromAtt = attachment?.extname
     ? attachment.extname.startsWith(".")
       ? attachment.extname.toLowerCase()
@@ -783,7 +920,7 @@ const PreviewModal = ({ doc, onClose }) => {
   const baseName = rawName.toLowerCase().endsWith(fileExt)
     ? rawName.slice(0, rawName.length - fileExt.length)
     : rawName;
-  const displayName = (baseName || "File") + fileExt;
+  const displayName = (baseName || tr("File")) + fileExt;
   const isPdf = fileExt === ".pdf";
   const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
   const isOffice = [
@@ -821,9 +958,9 @@ const PreviewModal = ({ doc, onClose }) => {
               key: "dl",
               onClick: () => window.open(fullUrl, "_blank"),
             },
-            "⬇️ Download",
+            tr("⬇️ Download"),
           ),
-        React.createElement(Button, { key: "cl", onClick: onClose }, "Close"),
+        React.createElement(Button, { key: "cl", onClick: onClose }, tr("Close")),
       ].filter(Boolean),
     },
     isPdf &&
@@ -877,7 +1014,7 @@ const PreviewModal = ({ doc, onClose }) => {
           style: { padding: 32, textAlign: "center" },
         },
         React.createElement(Empty, {
-          description: "Cannot preview this format — please download to open",
+          description: tr("Cannot preview this format — please download to open"),
         }),
       ),
   );
@@ -946,7 +1083,7 @@ const FileUploadModal = ({
       headers: { "Content-Type": "multipart/form-data" },
     });
     const att = uploadRes?.data?.data;
-    if (!att?.id) throw new Error("Upload failed");
+    if (!att?.id) throw new Error(tr("Upload failed"));
     return [{ id: att.id }];
   };
 
@@ -967,7 +1104,7 @@ const FileUploadModal = ({
     const hasDrive = !!values.googleDriveUrl?.trim();
 
     if (!isEdit && !hasFile && !hasDrive) {
-      message.error("Please select a file or enter a Drive URL");
+      message.error(tr("Please select a file or enter a Drive URL"));
       return;
     }
 
@@ -1012,7 +1149,7 @@ const FileUploadModal = ({
           params: { filterByTk: editDoc.id },
           data: payload,
         });
-        message.success("✅ Updated successfully!");
+        message.success(tr("✅ Updated successfully!"));
       } else {
         await apiReq("documents:create", "POST", {
           ...payload,
@@ -1021,12 +1158,12 @@ const FileUploadModal = ({
           createdById: currentUser?.id || null,
           createdAt: now,
         });
-        message.success("✅ Upload successful!");
+        message.success(tr("✅ Upload successful!"));
       }
       handleClose();
       if (onSuccess) onSuccess();
     } catch (e) {
-      message.error("Error: " + (e?.message || "Try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Try again")));
     }
     setUploading(false);
   };
@@ -1075,7 +1212,7 @@ const FileUploadModal = ({
       title: React.createElement(
         Text,
         { strong: true, style: { fontFamily: FONT, fontSize: 14 } },
-        isEdit ? "✏️ Update Document" : "📎 Attach Document",
+        isEdit ? tr("✏️ Update Document") : tr("📎 Attach Document"),
       ),
       footer: [
         React.createElement(
@@ -1086,7 +1223,7 @@ const FileUploadModal = ({
             disabled: uploading,
             style: { fontFamily: FONT },
           },
-          "Cancel",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -1099,13 +1236,13 @@ const FileUploadModal = ({
           },
           uploading
             ? isEdit
-              ? "Updating..."
-              : "Processing..."
+              ? tr("Updating...")
+              : tr("Processing...")
             : isEdit
-              ? "Update"
+              ? tr("Update")
               : onAddPending
-                ? "Confirm Attachment"
-                : "Upload",
+                ? tr("Confirm Attachment")
+                : tr("Upload"),
         ),
       ],
     },
@@ -1124,7 +1261,7 @@ const FileUploadModal = ({
             fontFamily: FONT,
           },
         },
-        `👤 ${isEdit ? "Updated" : "Attached"} by: `,
+        tr("👤 {0} by: ", { 0: isEdit ? tr("Updated") : tr("Attached") }),
         React.createElement(
           "strong",
           null,
@@ -1134,7 +1271,7 @@ const FileUploadModal = ({
     React.createElement(
       Form,
       { form, layout: "vertical", size: "small", style: { fontFamily: FONT } },
-      divider("Identification"),
+      divider(tr("Identification")),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
@@ -1142,8 +1279,8 @@ const FileUploadModal = ({
           Form.Item,
           {
             name: "documentType",
-            label: "Document Type",
-            rules: [{ required: true, message: "Please enter document type" }],
+            label: tr("Document Type"),
+            rules: [{ required: true, message: tr("Please enter document type") }],
           },
           React.createElement(
             "div",
@@ -1151,7 +1288,7 @@ const FileUploadModal = ({
             React.createElement(Input, {
               allowClear: true,
               maxLength: 150,
-              placeholder: "e.g. Contract, Minutes...",
+              placeholder: tr("e.g. Contract, Minutes..."),
               list: "doc-type-list",
               style: inpStyle,
             }),
@@ -1166,10 +1303,10 @@ const FileUploadModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "title", label: "Document Title" },
+          { name: "title", label: tr("Document Title") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Enter full title (defaults to filename if empty)",
+            placeholder: tr("Enter full title (defaults to filename if empty)"),
             style: inpStyle,
           }),
         ),
@@ -1179,16 +1316,16 @@ const FileUploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "documentCode", label: "Document Code" },
+          { name: "documentCode", label: tr("Document Code") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "e.g. 123/2024/HD",
+            placeholder: tr("e.g. 123/2024/HD"),
             style: inpStyle,
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "openingDate", label: "Issued Date" },
+          { name: "openingDate", label: tr("Issued Date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
@@ -1200,7 +1337,7 @@ const FileUploadModal = ({
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "signedAt", label: "Signed Date" },
+          { name: "signedAt", label: tr("Signed Date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
@@ -1208,49 +1345,49 @@ const FileUploadModal = ({
         ),
         React.createElement(
           Form.Item,
-          { name: "effectiveAt", label: "Effective Date" },
+          { name: "effectiveAt", label: tr("Effective Date") },
           React.createElement(Input, {
             type: "date",
             style: { width: "100%", ...inpStyle },
           }),
         ),
       ),
-      divider("Related Parties"),
+      divider(tr("Related Parties")),
       React.createElement(
         "div",
         { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
         React.createElement(
           Form.Item,
-          { name: "senderName", label: "Sender" },
+          { name: "senderName", label: tr("Sender") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Name of sender person/org",
+            placeholder: tr("Name of sender person/org"),
             style: inpStyle,
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "recipientName", label: "Recipient" },
+          { name: "recipientName", label: tr("Recipient") },
           React.createElement(Input, {
             allowClear: true,
-            placeholder: "Name of recipient person/org",
+            placeholder: tr("Name of recipient person/org"),
             style: inpStyle,
           }),
         ),
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Summary" },
+        { name: "description", label: tr("Summary") },
         React.createElement(Input.TextArea, {
           rows: 3,
           allowClear: true,
-          placeholder: "Brief description of content...",
+          placeholder: tr("Brief description of content..."),
         }),
       ),
-      divider("Attachments"),
+      divider(tr("Attachments")),
       React.createElement(
         Form.Item,
-        { label: isEdit ? "Replace with new file (optional)" : "Choose file" },
+        { label: isEdit ? tr("Replace with new file (optional)") : tr("Choose file") },
         React.createElement(
           Upload.Dragger,
           {
@@ -1275,32 +1412,32 @@ const FileUploadModal = ({
                 fontFamily: FONT,
               },
             },
-            "Drag and drop or ",
+            tr("Drag and drop or "),
             React.createElement(
               "span",
               { style: { color: "#1890ff" } },
-              "click to choose",
+              tr("click to choose"),
             ),
           ),
         ),
       ),
       React.createElement(
         Form.Item,
-        { name: "googleDriveUrl", label: "Google Drive URL (optional)" },
+        { name: "googleDriveUrl", label: tr("Google Drive URL (optional)") },
         React.createElement(Input, {
           placeholder: "https://docs.google.com/...",
           allowClear: true,
           style: inpStyle,
         }),
       ),
-      divider("Notes"),
+      divider(tr("Notes")),
       React.createElement(
         Form.Item,
-        { name: "note", label: "Notes" },
+        { name: "note", label: tr("Notes") },
         React.createElement(Input.TextArea, {
           rows: 2,
           allowClear: true,
-          placeholder: "Enter notes...",
+          placeholder: tr("Enter notes..."),
           style: inpStyle,
         }),
       ),
@@ -1387,7 +1524,7 @@ const UnifiedNoteThread = ({
     n.createdBy?.nickname ||
     n.createdBy?.username ||
     n.createdBy?.email ||
-    (n.createdById ? `User #${n.createdById}` : "Ẩn danh");
+    (n.createdById ? tr("User #{0}", { 0: n.createdById }) : tr("Anonymous"));
   const handleSend = async () => {
     const hasText = body.trim().length > 0;
     const hasFiles = pendingDocs.length > 0;
@@ -1456,9 +1593,9 @@ const UnifiedNoteThread = ({
       setAssignedIds([]);
       setPendingDocs([]);
       reload();
-      message.success("Comment posted");
+      message.success(tr("Comment posted"));
     } catch (e) {
-      message.error("Error: " + (e?.message || "Try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Try again")));
     }
     setSending(false);
   };
@@ -1499,9 +1636,9 @@ const UnifiedNoteThread = ({
       );
       setEditingNoteId(null);
       setEditBody("");
-      message.success("Comment updated");
+      message.success(tr("Comment updated"));
     } catch (e) {
-      message.error("Update failed");
+      message.error(tr("Update failed"));
     }
   };
 
@@ -1509,7 +1646,7 @@ const UnifiedNoteThread = ({
     const att = Array.isArray(f.fileAttachment)
       ? f.fileAttachment[0]
       : f.fileAttachment;
-    let originalName = att?.filename || "File";
+    let originalName = att?.filename || tr("File");
     let ext = att?.extname
       ? att.extname.startsWith(".")
         ? att.extname.toLowerCase()
@@ -1582,7 +1719,7 @@ const UnifiedNoteThread = ({
                 border: "1px solid #d3adf7",
               },
             },
-            "Download",
+            tr("Download"),
           ),
       ),
       customTitle &&
@@ -1599,7 +1736,7 @@ const UnifiedNoteThread = ({
           React.createElement(
             "span",
             { style: { fontWeight: 600, color: "#8c8c8c", marginRight: 4 } },
-            "Document Title:",
+            tr("Document Title:"),
           ),
           customTitle,
         ),
@@ -1621,7 +1758,7 @@ const UnifiedNoteThread = ({
           React.createElement(
             "span",
             { style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 } },
-            "Notes:",
+            tr("Notes:"),
           ),
           f.note,
         ),
@@ -1635,7 +1772,7 @@ const UnifiedNoteThread = ({
       ? authorName(note)
       : firstFile?.createdBy
         ? userName(firstFile.createdBy) || firstFile.createdBy?.email
-        : "System";
+        : tr("System");
     const time = note?.createdAt || firstFile?.createdAt;
     const hasBody = !!note?.body;
     const hasFiles = files.length > 0;
@@ -1712,7 +1849,7 @@ const UnifiedNoteThread = ({
                     handleSaveEdit(note.id);
                   }
                 },
-                placeholder: "Enter content... (Ctrl + Enter to save)",
+                placeholder: tr("Enter content... (Ctrl + Enter to save)"),
                 style: {
                   width: "100%",
                   border: "1px solid #1890ff",
@@ -1750,7 +1887,7 @@ const UnifiedNoteThread = ({
                       borderRadius: 4,
                     },
                   },
-                  "Cancel",
+                  tr("Cancel"),
                 ),
                 React.createElement(
                   "span",
@@ -1766,7 +1903,7 @@ const UnifiedNoteThread = ({
                       fontWeight: 600,
                     },
                   },
-                  "Save",
+                  tr("Save"),
                 ),
               ),
             )
@@ -1837,7 +1974,7 @@ const UnifiedNoteThread = ({
                         onMouseLeave: (e) =>
                           (e.currentTarget.style.color = "#595959"),
                       },
-                      "Edit",
+                      tr("Edit"),
                     ),
                   ),
               ),
@@ -1858,7 +1995,7 @@ const UnifiedNoteThread = ({
         },
       },
       ...pendingDocs.map((doc, i) => {
-        const name = doc.metadata.title || doc.fileName || "Document";
+        const name = doc.metadata.title || doc.fileName || tr("Document");
         return React.createElement(
           "div",
           {
@@ -1904,7 +2041,7 @@ const UnifiedNoteThread = ({
                   fontWeight: 600,
                 },
               },
-              "Pending",
+              tr("Not sent yet"),
             ),
             React.createElement(
               "span",
@@ -1940,7 +2077,7 @@ const UnifiedNoteThread = ({
                 {
                   style: { fontWeight: 700, color: "#8c8c8c", marginRight: 6 },
                 },
-                "Notes:",
+                tr("Notes:"),
               ),
               doc.metadata.note,
             ),
@@ -1973,7 +2110,7 @@ const UnifiedNoteThread = ({
           onAssignMultiple: (ids) => setAssignedIds(ids),
           assignedIds,
           lawyers,
-          placeholder: "Write a comment... (Ctrl + Enter to send)",
+          placeholder: tr("Write a comment... (Ctrl + Enter to send)"),
           onSubmit: canSend ? handleSend : undefined,
         }),
         renderPendingChips(),
@@ -2014,7 +2151,7 @@ const UnifiedNoteThread = ({
                 e.currentTarget.style.background = "#fff";
               },
             },
-            "Attach Document",
+            tr("Attach Document"),
           ),
           React.createElement(
             "div",
@@ -2033,7 +2170,7 @@ const UnifiedNoteThread = ({
                 border: "none",
               },
             },
-            sending ? "Sending..." : "Comment",
+            sending ? tr("Sending...") : tr("Comment"),
           ),
         ),
       ),
@@ -2058,7 +2195,7 @@ const UnifiedNoteThread = ({
                   color: "#bfbfbf",
                 },
               },
-              "No comments or documents yet",
+              tr("No comments or documents yet"),
             )
           : React.createElement(
               "div",
@@ -2087,8 +2224,8 @@ const UnifiedNoteThread = ({
                       (e.currentTarget.style.background = "#f0f8ff"),
                   },
                   showAll
-                    ? `▲ Collapse (showing ${INITIAL_COUNT} of ${feed.length})`
-                    : `▼ View more (${feed.length - INITIAL_COUNT} more)`,
+                    ? tr("▲ Collapse (showing {0} of {1})", { 0: INITIAL_COUNT, 1: feed.length })
+                    : tr("▼ View more ({0} more)", { 0: feed.length - INITIAL_COUNT }),
                 ),
             ),
     ),
@@ -2327,7 +2464,7 @@ const KanbanCard = ({ item, type, onOpen, dragging }) => {
               marginTop: 2,
             },
           },
-          "↳ Sub",
+          tr("↳ Sub"),
         ),
       React.createElement(
         Text,
@@ -2389,7 +2526,7 @@ const KanbanCard = ({ item, type, onOpen, dragging }) => {
               border: "1px solid #ffa39e",
             },
           },
-          "⚠ Overdue",
+          tr("⚠ Overdue"),
         ),
     ),
 
@@ -2433,7 +2570,7 @@ const KanbanCard = ({ item, type, onOpen, dragging }) => {
         React.createElement(
           "span",
           { style: { color: "#8c8c8c" } },
-          `📅 Start: ${fmt(sd, "full") || "—"}`,
+          tr("📅 Start: {0}", { 0: fmt(sd, "full") || "—" }),
         ),
       dl &&
         React.createElement(
@@ -2444,7 +2581,7 @@ const KanbanCard = ({ item, type, onOpen, dragging }) => {
               fontWeight: isOd ? 600 : 400,
             },
           },
-          `🏁 Deadline: ${fmt(dl, "full") || "—"}`,
+          tr("🏁 Deadline: {0}", { 0: fmt(dl, "full") || "—" }),
         ),
     ),
   );
@@ -2605,7 +2742,7 @@ const KanbanView = ({ tasks, subs, onOpen, onStatusChange }) => {
                     borderRadius: 8,
                   },
                 },
-                "Drop here",
+                tr("Drop here"),
               )
             : columns[key].map(({ item, type }) =>
                 React.createElement(
@@ -2692,7 +2829,7 @@ const KanbanBoard = () => {
       (isAdmin
         ? {
             id: -1,
-            lawyerName: user.nickname || user.username || "Admin",
+            lawyerName: user.nickname || user.username || tr("Admin"),
             lawyerType: "partner",
             unitPrice: 0,
           }
@@ -2799,7 +2936,7 @@ const KanbanBoard = () => {
         );
       message.success(`→ ${STATUS_CFG[newStatus]?.label}`);
     } catch {
-      message.error("Update failed");
+      message.error(tr("Update failed"));
     }
   }, []);
 
@@ -2838,18 +2975,18 @@ const KanbanBoard = () => {
   const todayDue = [...tasks, ...subs].filter((i) => i._today).length;
 
   const LAWYER_TYPE_CFG_LOCAL = {
-    partner: { label: "Partner", color: "#531dab", bg: "#f9f0ff" },
-    lawyer: { label: "Lawyer", color: "#096dd9", bg: "#e6f4ff" },
-    associate: { label: "Associate", color: "#08979c", bg: "#e6fffb" },
-    suppliant: { label: "Legal Assistant", color: "#d46b08", bg: "#fff7e6" },
+    partner: { label: tr("Partner"), color: "#531dab", bg: "#f9f0ff" },
+    lawyer: { label: tr("Lawyer"), color: "#096dd9", bg: "#e6f4ff" },
+    associate: { label: tr("Associate"), color: "#08979c", bg: "#e6fffb" },
+    suppliant: { label: tr("Legal Assistant"), color: "#d46b08", bg: "#fff7e6" },
   };
   const lt = myLawyer
     ? LAWYER_TYPE_CFG_LOCAL[myLawyer.lawyerType] || {
-        label: myLawyer.lawyerType || "Admin",
+        label: myLawyer.lawyerType || tr("Admin"),
         color: "#531dab",
         bg: "#f9f0ff",
       }
-    : { label: "Unidentified", color: "#8c8c8c", bg: "#f5f5f5" };
+    : { label: tr("Unidentified"), color: "#8c8c8c", bg: "#f5f5f5" };
 
   const bS = (active) => ({
     fontSize: 12,
@@ -2925,7 +3062,7 @@ const KanbanBoard = () => {
                 },
                 loading
                   ? "..."
-                  : myLawyer?.lawyerName || "No linked lawyer profile",
+                  : myLawyer?.lawyerName || tr("No linked lawyer profile"),
               ),
               React.createElement(
                 "div",
@@ -2967,7 +3104,7 @@ const KanbanBoard = () => {
                         border: "1px solid #d3adf7",
                       },
                     },
-                    "👑 Admin View",
+                    tr("👑 Admin View"),
                   ),
               ),
             ),
@@ -2989,7 +3126,7 @@ const KanbanBoard = () => {
                   color: "#595959",
                 },
               },
-              "↻ Refresh",
+              tr("↻ Refresh"),
             ),
             React.createElement(
               "div",
@@ -3005,7 +3142,7 @@ const KanbanBoard = () => {
                   border: "1px solid #91caff",
                 },
               },
-              "🗂 Kanban",
+              tr("🗂 Kanban"),
             ),
           ),
         ),
@@ -3054,7 +3191,7 @@ const KanbanBoard = () => {
                   color: pct === 100 ? "#389e0d" : "#8c8c8c",
                 },
               },
-              loading ? "Loading..." : `${tDone}/${total} completed (${pct}%)`,
+              loading ? tr("Loading...") : tr("{0}/{1} completed ({2}%)", { 0: tDone, 1: total, 2: pct }),
             ),
           ),
           todayDue > 0 &&
@@ -3071,7 +3208,7 @@ const KanbanBoard = () => {
                   border: "1px solid #ffd591",
                 },
               },
-              `📅 ${todayDue} due today`,
+              tr("📅 {0} due today", { 0: todayDue }),
             ),
           overdue > 0 &&
             React.createElement(
@@ -3087,7 +3224,7 @@ const KanbanBoard = () => {
                   border: "1px solid #ffa39e",
                 },
               },
-              `⚠ ${overdue} overdue`,
+              tr("⚠ {0} overdue", { 0: overdue }),
             ),
         ),
 
@@ -3104,7 +3241,7 @@ const KanbanBoard = () => {
           React.createElement("input", {
             value: search,
             onChange: (e) => setSearch(e.target.value),
-            placeholder: "🔍 Search tasks...",
+            placeholder: tr("🔍 Search tasks..."),
             style: {
               padding: "6px 12px",
               borderRadius: 6,
@@ -3121,13 +3258,13 @@ const KanbanBoard = () => {
             "div",
             { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
             [
-              ["all", "All"],
-              ["toDo", "To Do"],
-              ["inProgress", "In Progress"],
-              ["blocked", "Blocked"],
-              ["pending", "Pending"],
-              ["done", "Done"],
-              ["cancelled", "Cancelled"],
+              ["all", tr("All")],
+              ["toDo", tr("To Do")],
+              ["inProgress", tr("In Progress")],
+              ["blocked", tr("Blocked")],
+              ["pending", tr("Pending")],
+              ["done", tr("Done")],
+              ["cancelled", tr("Cancelled")],
             ].map(([k, label]) =>
               React.createElement(
                 "div",
@@ -3170,7 +3307,7 @@ const KanbanBoard = () => {
                     color: "#8c8c8c",
                   },
                 },
-                "Loading tasks...",
+                tr("Loading tasks..."),
               ),
             )
           : React.createElement(KanbanView, {
@@ -3265,7 +3402,7 @@ const KanbanBoard = () => {
                     marginBottom: 12,
                   },
                 },
-                "Information",
+                tr("Information"),
               ),
 
               // Status & Priority Grid
@@ -3293,7 +3430,7 @@ const KanbanBoard = () => {
                         marginBottom: 4,
                       },
                     },
-                    "Status",
+                    tr("Status"),
                   ),
                   React.createElement(Select, {
                     value: detail.item.status,
@@ -3342,7 +3479,7 @@ const KanbanBoard = () => {
                         marginBottom: 4,
                       },
                     },
-                    "Priority",
+                    tr("Priority"),
                   ),
                   React.createElement(Select, {
                     value: detail.item.priority || "medium",
@@ -3371,7 +3508,7 @@ const KanbanBoard = () => {
                               : s,
                           ),
                         );
-                      message.success("Priority updated");
+                      message.success(tr("Priority updated"));
                     },
                     style: { width: "100%", fontFamily: FONT },
                     options: Object.entries(PRIORITY_CFG).map(([k, v]) => ({
@@ -3407,7 +3544,7 @@ const KanbanBoard = () => {
                         marginBottom: 4,
                       },
                     },
-                    "Estimate",
+                    tr("Estimate"),
                   ),
                   React.createElement(
                     "div",
@@ -3480,7 +3617,7 @@ const KanbanBoard = () => {
                         marginBottom: 4,
                       },
                     },
-                    "Assignee",
+                    tr("Assignee"),
                   ),
                   React.createElement(
                     "div",
@@ -3504,7 +3641,7 @@ const KanbanBoard = () => {
                     React.createElement(
                       "span",
                       { style: { fontSize: 12, color: "#262626" } },
-                      detail.item._assigneeName || "Unassigned",
+                      detail.item._assigneeName || tr("Unassigned"),
                     ),
                   ),
                 ),
@@ -3525,7 +3662,7 @@ const KanbanBoard = () => {
                       marginBottom: 4,
                     },
                   },
-                  "Execution Time",
+                  tr("Execution Time"),
                 ),
                 React.createElement(
                   "div",
@@ -3653,7 +3790,7 @@ const KanbanBoard = () => {
                       marginBottom: 4,
                     },
                   },
-                  "Description",
+                  tr("Description"),
                 ),
                 React.createElement(Input.TextArea, {
                   defaultValue: detail.item.description || "",
@@ -3666,7 +3803,7 @@ const KanbanBoard = () => {
                     padding: 12,
                     borderRadius: 6,
                   },
-                  placeholder: "Describe the task content...",
+                  placeholder: tr("Describe the task content..."),
                   onBlur: async (e) => {
                     const val = e.target.value;
                     const url =
@@ -3695,7 +3832,7 @@ const KanbanBoard = () => {
                             : s,
                         ),
                       );
-                    message.success("Description updated");
+                    message.success(tr("Description updated"));
                   },
                 }),
               ),
@@ -3723,7 +3860,7 @@ const KanbanBoard = () => {
                     marginBottom: 12,
                   },
                 },
-                "Comments & Documents",
+                tr("Comments & Documents"),
               ),
               React.createElement(
                 "div",

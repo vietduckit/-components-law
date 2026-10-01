@@ -1,3 +1,34 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Upload failed": "Tải lên thất bại",
+  "Saved to Documents!": "Đã lưu vào Tài liệu!",
+  "Error: ": "Lỗi: ",
+  "Try again": "Thử lại",
+  "Record ID not found": "Không tìm thấy Record ID",
+  "Failed to load contract data": "Không thể tải dữ liệu hợp đồng",
+  "Create New Case": "Tạo hồ sơ mới",
+  "View Contract": "Xem hợp đồng",
+  "⏳ Saving...": "⏳ Đang lưu...",
+  "💾 Save to Documents": "💾 Lưu vào Tài liệu",
+  "🔄 Refresh": "🔄 Làm mới",
+  "Close": "Đóng",
+  "Preview Contract": "Xem trước hợp đồng",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback } = React;
 const { Spin, Modal, Button } = ctx.antd;
@@ -825,7 +856,7 @@ const ContractPDFBlock = () => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       const att = uploadRes?.data?.data;
-      if (!att?.id) throw new Error("Upload failed");
+      if (!att?.id) throw new Error(tr("Upload failed"));
 
       // Lấy thông tin User hiện tại
       let currentUserId = null;
@@ -854,10 +885,10 @@ const ContractPDFBlock = () => {
           fileAttachment: { id: att.id },
         },
       });
-      message.success("Saved to Documents!");
+      message.success(tr("Saved to Documents!"));
     } catch (e) {
       console.error(e);
-      message.error("Error: " + (e?.message || "Try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Try again")));
     }
     setSaving(false);
   }, [contract, quotation, customer, company, services, svcDetails, saving]);
@@ -895,7 +926,7 @@ const ContractPDFBlock = () => {
     return React.createElement(
       "div",
       { style: { padding: 16, color: "#ff4d4f", fontSize: 13 } },
-      "Record ID not found",
+      tr("Record ID not found"),
     );
   if (loading)
     return React.createElement(
@@ -907,7 +938,7 @@ const ContractPDFBlock = () => {
     return React.createElement(
       "div",
       { style: { padding: 16, color: "#ff4d4f", fontSize: 13 } },
-      "Failed to load contract data",
+      tr("Failed to load contract data"),
     );
 
   return React.createElement(
@@ -933,7 +964,7 @@ const ContractPDFBlock = () => {
             e.currentTarget.style.background = "#fff";
           },
         },
-        "Create New Case",
+        tr("Create New Case"),
       ),
     React.createElement(
       "div",
@@ -947,7 +978,7 @@ const ContractPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "View Contract",
+      tr("View Contract"),
     ),
     React.createElement(
       "div",
@@ -962,7 +993,7 @@ const ContractPDFBlock = () => {
             e.currentTarget.style.background = saving ? "#8c8c8c" : "#1a3a5c";
         },
       },
-      saving ? "⏳ Saving..." : "💾 Save to Documents",
+      saving ? tr("⏳ Saving...") : tr("💾 Save to Documents"),
     ),
     React.createElement(
       "div",
@@ -976,7 +1007,7 @@ const ContractPDFBlock = () => {
           e.currentTarget.style.background = "#fff";
         },
       },
-      "🔄 Refresh",
+      tr("🔄 Refresh"),
     ),
     React.createElement(
       Modal,
@@ -994,7 +1025,7 @@ const ContractPDFBlock = () => {
                 setPreviewHtml(null);
               },
             },
-            "Close",
+            tr("Close"),
           ),
         ],
         width: "85%",
@@ -1002,7 +1033,7 @@ const ContractPDFBlock = () => {
         title: React.createElement(
           "span",
           { style: { fontFamily: "'Times New Roman', Times, serif" } },
-          "Preview Contract",
+          tr("Preview Contract"),
         ),
         bodyStyle: {
           padding: 0,

@@ -1,3 +1,352 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "≈ {0} VND": "≈ {0} VND",
+  "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.": "Không tìm thấy tỷ giá để quy đổi tiền tệ của combo sang VND — giữ nguyên số tiền gốc, vui lòng kiểm tra lại.",
+  "Discard changes?": "Bỏ các thay đổi?",
+  "Your unsaved input will be lost.": "Dữ liệu chưa lưu sẽ bị mất.",
+  "Discard": "Bỏ",
+  "Continue editing": "Tiếp tục chỉnh sửa",
+  "Please configure POPUP_VIEW_UIDS.{0} first.": "Vui lòng cấu hình POPUP_VIEW_UIDS.{0} trước.",
+  "ctx.openView is not available in this runtime.": "ctx.openView không khả dụng trong môi trường này.",
+  "Cannot open configured popup view.": "Không thể mở popup đã cấu hình.",
+  "Low": "Thấp",
+  "Medium": "Trung bình",
+  "High": "Cao",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Suppliant": "Trợ lý pháp lý",
+  "Not set": "Chưa đặt",
+  "Select date & time": "Chọn ngày & giờ",
+  "January": "Tháng 1",
+  "February": "Tháng 2",
+  "March": "Tháng 3",
+  "April": "Tháng 4",
+  "May": "Tháng 5",
+  "June": "Tháng 6",
+  "July": "Tháng 7",
+  "August": "Tháng 8",
+  "September": "Tháng 9",
+  "October": "Tháng 10",
+  "November": "Tháng 11",
+  "December": "Tháng 12",
+  "Su": "CN",
+  "Mo": "T2",
+  "Tu": "T3",
+  "We": "T4",
+  "Th": "T5",
+  "Fr": "T6",
+  "Sa": "T7",
+  "Date": "Ngày",
+  "Time": "Thời gian",
+  "⚡ Now": "⚡ Bây giờ",
+  "→ Pick Time": "→ Chọn giờ",
+  "← Change date": "← Đổi ngày",
+  "⚠ Please select a date first": "⚠ Vui lòng chọn ngày trước",
+  "Hour : Minute": "Giờ : Phút",
+  "Hour": "Giờ",
+  "Minute": "Phút",
+  "✕ Clear": "✕ Xóa",
+  "Close": "Đóng",
+  "Confirm": "Xác nhận",
+  "Clear": "Bỏ chọn",
+  " ▲ Collapse": " ▲ Thu gọn",
+  " ▼ Show more": " ▼ Xem thêm",
+  "Currency": "Tiền tệ",
+  "Add new": "Thêm mới",
+  "Search...": "Tìm kiếm...",
+  "No results found": "Không tìm thấy kết quả",
+  "{0} results": "{0} kết quả",
+  "Deselect": "Bỏ chọn",
+  "Other": "Khác",
+  "{0} people": "{0} người",
+  "Deselect group": "Bỏ chọn nhóm",
+  "+ Select group": "+ Chọn nhóm",
+  "Search by name, lawyer type...": "Tìm theo tên, loại luật sư...",
+  "{0} selected · {1} total": "Đã chọn {0} · tổng {1}",
+  "Deselect all": "Bỏ chọn tất cả",
+  "Untitled task": "Công việc chưa đặt tên",
+  "Custom task": "Công việc tự tạo",
+  "No sample tasks configured": "Chưa cấu hình công việc mẫu",
+  "+{0} more tasks": "+{0} công việc khác",
+  "Could not add task template": "Không thể thêm công việc mẫu",
+  "Could not save task template": "Không thể lưu công việc mẫu",
+  "Remove this task template?": "Gỡ công việc mẫu này?",
+  "\"{0}\" will be removed from this service's shared task list — this also affects other cases that use this service.": "\"{0}\" sẽ bị gỡ khỏi danh sách công việc chung của dịch vụ — ảnh hưởng cả các hồ sơ khác dùng dịch vụ này.",
+  "Remove": "Gỡ",
+  "Cancel": "Hủy",
+  "Could not remove task template": "Không thể gỡ công việc mẫu",
+  "Please enter a combo name": "Vui lòng nhập tên combo",
+  "Please select a currency": "Vui lòng chọn tiền tệ",
+  "Please add at least 1 service to the combo": "Vui lòng thêm ít nhất 1 dịch vụ vào combo",
+  "One or more services are missing a name": "Một hoặc nhiều dịch vụ chưa có tên",
+  "Duplicate service name in combo": "Trùng tên dịch vụ trong combo",
+  "Please enter a service name": "Vui lòng nhập tên dịch vụ",
+  "Sample tasks for custom service": "Công việc mẫu cho dịch vụ tự tạo",
+  "Use this for non-standard services that do not have predefined task templates.": "Dùng cho dịch vụ không chuẩn chưa có công việc mẫu định sẵn.",
+  "+ Add task": "+ Thêm công việc",
+  "No custom sample tasks yet.": "Chưa có công việc mẫu tự tạo.",
+  "Task name": "Tên công việc",
+  "Task template name": "Tên công việc mẫu",
+  "Description": "Mô tả",
+  "Task description or expected output...": "Mô tả công việc hoặc kết quả mong đợi...",
+  "Remove task": "Gỡ công việc",
+  "Task templates": "Công việc mẫu",
+  "Editing here updates this service's shared task list — changes apply to every case, not just this combo.": "Chỉnh sửa ở đây cập nhật danh sách công việc chung của dịch vụ — áp dụng cho mọi hồ sơ, không chỉ combo này.",
+  "No tasks yet for this service.": "Dịch vụ này chưa có công việc.",
+  "Sample tasks": "Công việc mẫu",
+  "These tasks will be created for this service, and copied into the catalog too since \"Also save this combo to the shared catalog\" is checked below.": "Các công việc này sẽ được tạo cho dịch vụ, và được sao chép vào danh mục vì đã chọn \"Lưu combo này vào danh mục chung\" bên dưới.",
+  "These tasks will be created for this service on this case only.": "Các công việc này chỉ được tạo cho dịch vụ trong hồ sơ này.",
+  "New service name...": "Tên dịch vụ mới...",
+  "Already in the standardized catalog": "Đã có trong danh mục chuẩn",
+  "Type (optional)...": "Loại (không bắt buộc)...",
+  "Description (optional)...": "Mô tả (không bắt buộc)...",
+  "Hide": "Ẩn",
+  "Manage": "Quản lý",
+  "Service name": "Tên dịch vụ",
+  "Type": "Loại",
+  "Unit Price": "Đơn giá",
+  "Tasks": "Công việc",
+  "Search combo...": "Tìm combo...",
+  "+ New combo": "+ Combo mới",
+  "Combo": "Combo",
+  "Combo Price": "Giá combo",
+  "Services": "Dịch vụ",
+  "No combos yet": "Chưa có combo",
+  "New combo": "Combo mới",
+  "Combo #{0}": "Combo #{0}",
+  "VAT {0}%": "VAT {0}%",
+  "Save {0} ({1}%)": "Tiết kiệm {0} ({1}%)",
+  "Select": "Chọn",
+  "Please select an Internal Company in the main form before creating a service": "Vui lòng chọn Công ty nội bộ ở biểu mẫu chính trước khi tạo dịch vụ",
+  "Combo Name": "Tên combo",
+  "E.g. Business incorporation consulting combo...": "VD: Combo tư vấn thành lập doanh nghiệp...",
+  "Combo Type": "Loại combo",
+  "E.g. Business, Education...": "VD: Doanh nghiệp, Giáo dục...",
+  "Combo Subtotal": "Tạm tính combo",
+  "No currencies configured": "Chưa cấu hình tiền tệ",
+  "Select currency": "Chọn tiền tệ",
+  "Individual price: {0}": "Giá lẻ: {0}",
+  "Discount {0}": "Giảm {0}",
+  "Increase {0}": "Tăng {0}",
+  "VAT %": "VAT %",
+  "Services in combo ({0})": "Dịch vụ trong combo ({0})",
+  "+ Add existing service...": "+ Thêm dịch vụ có sẵn...",
+  "Service #{0}": "Dịch vụ #{0}",
+  "+ New service": "+ Dịch vụ mới",
+  "No services yet — add one from the list or create a new one.": "Chưa có dịch vụ — thêm từ danh sách hoặc tạo mới.",
+  "Also save this combo to the shared catalog (created only if you finish creating this case). All custom services in it are saved too — services already in the catalog are simply reused.": "Lưu combo này vào danh mục chung (chỉ tạo khi bạn hoàn tất tạo hồ sơ). Các dịch vụ tự tạo trong combo cũng được lưu — dịch vụ đã có trong danh mục sẽ được dùng lại.",
+  "Back": "Quay lại",
+  "Applying...": "Đang áp dụng...",
+  "Submit": "Gửi",
+  "New Combo": "Combo mới",
+  "Select Combo": "Chọn combo",
+  "Create New Service": "Tạo dịch vụ mới",
+  "Select Service": "Chọn dịch vụ",
+  "Line pricing": "Giá theo dòng",
+  "Combo pricing": "Giá combo",
+  "Add to combo:": "Thêm vào combo:",
+  "Combo pricing keeps every service inside a combo.": "Giá combo giữ mọi dịch vụ trong một combo.",
+  "Select from list": "Chọn từ danh sách",
+  "Create new service": "Tạo dịch vụ mới",
+  "Search service, type, currency...": "Tìm dịch vụ, loại, tiền tệ...",
+  "Service": "Dịch vụ",
+  "Task Templates": "Công việc mẫu",
+  "No services found": "Không tìm thấy dịch vụ",
+  "Company service currency": "Tiền tệ dịch vụ của công ty",
+  "Service default currency": "Tiền tệ mặc định của dịch vụ",
+  "Case currency": "Tiền tệ hồ sơ",
+  "No currency": "Không có tiền tệ",
+  "No sample tasks": "Không có công việc mẫu",
+  "Service Name": "Tên dịch vụ",
+  "E.g. Employment contract consultation...": "VD: Tư vấn hợp đồng lao động...",
+  "Service Type": "Loại dịch vụ",
+  "E.g. Consultation, Legal...": "VD: Tư vấn, Pháp lý...",
+  "Scope of work, notes...": "Phạm vi công việc, ghi chú...",
+  "This name already exists in the standardized catalog — pick it from the list instead of creating a duplicate.": "Tên này đã có trong danh mục chuẩn — hãy chọn từ danh sách thay vì tạo trùng.",
+  "Also save to the shared catalog (created only if you finish creating this case).": "Lưu vào danh mục chung (chỉ tạo khi bạn hoàn tất tạo hồ sơ).",
+  "Creating...": "Đang tạo...",
+  "Save & Select": "Lưu & Chọn",
+  "Included in combo": "Đã gồm trong combo",
+  "Bill separately": "Thu riêng",
+  "Scope only": "Chỉ phạm vi",
+  "Line billable": "Tính tiền theo dòng",
+  "Linked line": "Dòng liên kết",
+  "COMBO": "COMBO",
+  "Add service to this combo": "Thêm dịch vụ vào combo này",
+  "+ Add service": "+ Thêm dịch vụ",
+  "Remove this combo": "Gỡ combo này",
+  "× Remove combo": "× Gỡ combo",
+  "No sample tasks. Add a task if this service needs work items.": "Không có công việc mẫu. Thêm công việc nếu dịch vụ cần đầu việc.",
+  "Task description...": "Mô tả công việc...",
+  "Sample tasks — {0}": "Công việc mẫu — {0}",
+  "Custom service": "Dịch vụ tự tạo",
+  "View currency breakdown ({0} currencies)": "Xem chi tiết tiền tệ ({0} loại tiền)",
+  "Totals": "Tổng cộng",
+  "{0} {1} used": "đã dùng {0} {1}",
+  "+{0} more currencies": "+{0} loại tiền khác",
+  "Checking exchange rates...": "Đang kiểm tra tỷ giá...",
+  "Converted total in {0}": "Tổng quy đổi theo {0}",
+  "Missing rates: {0}{1}": "Thiếu tỷ giá: {0}{1}",
+  " +{0} more": " +{0} khác",
+  "Conversion not available": "Không quy đổi được",
+  "Combo subtotal:": "Tạm tính combo:",
+  "VAT (%):": "VAT (%):",
+  "VAT amount:": "Tiền VAT:",
+  "Combo total:": "Tổng combo:",
+  "Subtotal (excl. VAT)": "Tạm tính (chưa VAT)",
+  "VAT amount": "Tiền VAT",
+  "Total": "Tổng",
+  "Currency breakdown": "Chi tiết tiền tệ",
+  "Base currency: {0}. Only currencies used in this case are listed here.": "Tiền tệ gốc: {0}. Chỉ liệt kê các loại tiền dùng trong hồ sơ này.",
+  "Original total": "Tổng gốc",
+  "Rate to {0}": "Tỷ giá sang {0}",
+  "Converted total": "Tổng quy đổi",
+  "Effective date": "Ngày hiệu lực",
+  "Source": "Nguồn",
+  "Base currency": "Tiền tệ gốc",
+  "Manual": "Thủ công",
+  "Missing": "Thiếu",
+  "No rate": "Chưa có tỷ giá",
+  "Please select an Internal Company first": "Vui lòng chọn Công ty nội bộ trước",
+  "Service List": "Danh sách dịch vụ",
+  "{0} services": "{0} dịch vụ",
+  "{0} from quotation": "{0} từ báo giá",
+  "{0} from contract": "{0} từ hợp đồng",
+  "{0} included in combo": "{0} trong combo",
+  "New service": "Dịch vụ mới",
+  "Pricing Mode": "Cách tính giá",
+  "Service Name & Type": "Tên & loại dịch vụ",
+  "VAT (%)": "VAT (%)",
+  "No services yet - click \"New service\"": "Chưa có dịch vụ - bấm \"Dịch vụ mới\"",
+  "From quotation": "Từ báo giá",
+  "Service name...": "Tên dịch vụ...",
+  "Service type...": "Loại dịch vụ...",
+  "{0} sample tasks": "{0} công việc mẫu",
+  "Enter description...": "Nhập mô tả...",
+  "No description": "Không có mô tả",
+  "Snapshot currency edited": "Tiền tệ đã chụp bị sửa",
+  "Edited currency": "Tiền tệ đã sửa",
+  "Original: {0}": "Gốc: {0}",
+  "Missing rate to {0}": "Thiếu tỷ giá sang {0}",
+  "Done editing": "Xong chỉnh sửa",
+  "Edit service": "Sửa dịch vụ",
+  "View task": "Xem công việc",
+  "Delete service": "Xóa dịch vụ",
+  "Cannot close this popup from the current runtime.": "Không thể đóng popup này từ môi trường hiện tại.",
+  "Could not load case form data.": "Không thể tải dữ liệu biểu mẫu hồ sơ.",
+  "Loaded {0} services from quotation": "Đã tải {0} dịch vụ từ báo giá",
+  "This quotation has no services yet": "Báo giá này chưa có dịch vụ",
+  "Could not load services from quotation": "Không thể tải dịch vụ từ báo giá",
+  "Loaded {0} services from contract": "Đã tải {0} dịch vụ từ hợp đồng",
+  "This contract has no services yet": "Hợp đồng này chưa có dịch vụ",
+  "Could not load services from contract": "Không thể tải dịch vụ từ hợp đồng",
+  "Auto-selected {0} and loaded {1} services from contract": "Đã tự chọn {0} và tải {1} dịch vụ từ hợp đồng",
+  "Auto-selected {0} for this customer": "Đã tự chọn {0} cho khách hàng này",
+  "Auto-selected quotation and loaded {0} services from quotation": "Đã tự chọn báo giá và tải {0} dịch vụ từ báo giá",
+  "Auto-selected quotation for this customer": "Đã tự chọn báo giá cho khách hàng này",
+  "This service is already added in the case.": "Dịch vụ này đã có trong hồ sơ.",
+  "Service row added. It will be saved to project services on submit.": "Đã thêm dòng dịch vụ. Dịch vụ sẽ được lưu vào hồ sơ khi gửi.",
+  "This combo has no services yet.": "Combo này chưa có dịch vụ.",
+  "Skipped {0} service(s) already on this case: {1}": "Bỏ qua {0} dịch vụ đã có trong hồ sơ: {1}",
+  "Merged {0} standalone service(s) into combo \"{1}\": {2}": "Đã gộp {0} dịch vụ lẻ vào combo \"{1}\": {2}",
+  "Applied combo \"{0}\".": "Đã áp dụng combo \"{0}\".",
+  "Also removed {0} service(s) merged into this combo: {1}": "Đồng thời gỡ {0} dịch vụ đã gộp vào combo này: {1}",
+  "Please select an Internal Company": "Vui lòng chọn Công ty nội bộ",
+  "Please select a Customer": "Vui lòng chọn Khách hàng",
+  "Please enter a Case name": "Vui lòng nhập tên Hồ sơ",
+  "Please select an open date": "Vui lòng chọn ngày mở",
+  "Please select a Case Currency": "Vui lòng chọn tiền tệ Hồ sơ",
+  "Please add at least one service before creating the case.": "Vui lòng thêm ít nhất một dịch vụ trước khi tạo hồ sơ.",
+  "Checking quotation exchange rates...": "Đang kiểm tra tỷ giá báo giá...",
+  "Missing exchange rate for quotation total: {0}": "Thiếu tỷ giá cho tổng báo giá: {0}",
+  "Checking contract exchange rates...": "Đang kiểm tra tỷ giá hợp đồng...",
+  "Missing exchange rate for contract total: {0}": "Thiếu tỷ giá cho tổng hợp đồng: {0}",
+  "Could not save the case currency — check it after the case is created.": "Không thể lưu tiền tệ hồ sơ — hãy kiểm tra sau khi tạo hồ sơ.",
+  "Creating Case...": "Đang tạo hồ sơ...",
+  "Could not retrieve projectId after creation": "Không lấy được projectId sau khi tạo",
+  "Could not save the currency of service \"{0}\" — check it after the case is created.": "Không thể lưu tiền tệ của dịch vụ \"{0}\" — hãy kiểm tra sau khi tạo hồ sơ.",
+  "Could not {0} the contract line.": "Không thể lưu dòng dịch vụ của hợp đồng.",
+  "Creating tasks for {0}...": "Đang tạo công việc cho {0}...",
+  "custom service": "dịch vụ tự tạo",
+  "Could not link {0} task(s) to their payment installment — link them in Task Management.": "Không thể liên kết {0} công việc với đợt thanh toán — hãy liên kết trong Task Management.",
+  "Could not link the contract's installment trigger tasks — link them in Task Management.": "Không thể liên kết công việc kích hoạt các đợt của hợp đồng — hãy liên kết trong Task Management.",
+  "Syncing quotation services...": "Đang đồng bộ dịch vụ báo giá...",
+  "Could not save the quotation line.": "Không thể lưu dòng dịch vụ của báo giá.",
+  "Saving service {0}/{1}...": "Đang lưu dịch vụ {0}/{1}...",
+  "Could not link the contract line to the case.": "Không thể liên kết dòng dịch vụ của hợp đồng với hồ sơ.",
+  "Syncing contract service {0}/{1}...": "Đang đồng bộ dịch vụ hợp đồng {0}/{1}...",
+  "Updating case total...": "Đang cập nhật tổng hồ sơ...",
+  "Creating folder structure...": "Đang tạo cấu trúc thư mục...",
+  "Assigning folder permissions...": "Đang phân quyền thư mục...",
+  "Linking installment trigger tasks...": "Đang liên kết công việc kích hoạt các đợt...",
+  "Case created successfully!": "Đã tạo hồ sơ!",
+  "Saving to catalog...": "Đang lưu vào danh mục...",
+  "{0} service{1} added to the catalog.": "Đã thêm {0} dịch vụ vào danh mục.",
+  "Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).": "Combo \"{0}\" chưa được lưu vào danh mục — không liên kết được các dịch vụ (có thể tên đã được dùng, hoặc lưu một dịch vụ bị lỗi).",
+  "Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.": "Đã lưu combo \"{0}\" vào danh mục — bỏ qua {1} dịch vụ tự tạo chưa liên kết danh mục.",
+  "Combo \"{0}\" saved to the catalog.": "Đã lưu combo \"{0}\" vào danh mục.",
+  "Could not save combo \"{0}\" to the catalog.": "Không thể lưu combo \"{0}\" vào danh mục.",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Vui lòng thử lại",
+  "Referral": "Giới thiệu",
+  "Staff": "Nhân viên",
+  "Source: {0}": "Nguồn: {0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Quotation #{0}": "Báo giá #{0}",
+  "Customer": "Khách hàng",
+  "Search or select a customer": "Tìm hoặc chọn khách hàng",
+  "Showing {0} contracts and {1} quotations for this customer. ": "Đang hiện {0} hợp đồng và {1} báo giá của khách hàng này. ",
+  "Clear selection": "Bỏ chọn",
+  "Related Contract": "Hợp đồng liên quan",
+  "Select contract": "Chọn hợp đồng",
+  "Related Quotation": "Báo giá liên quan",
+  "please select internal company": "vui lòng chọn công ty nội bộ",
+  "↓ changing will reload services": "↓ thay đổi sẽ tải lại dịch vụ",
+  "select to load services into table": "chọn để tải dịch vụ vào bảng",
+  "Select quotation": "Chọn báo giá",
+  "Case Information": "Thông tin hồ sơ",
+  "Internal Company": "Công ty nội bộ",
+  "Select company": "Chọn công ty",
+  "Company #{0}": "Công ty #{0}",
+  "Case Code": "Mã hồ sơ",
+  "Auto ({0}): next is {1} — editable": "Tự động ({0}): tiếp theo là {1} — có thể sửa",
+  "E.g. CBI-2025-001": "VD: CBI-2025-001",
+  "Case Name": "Tên hồ sơ",
+  "E.g. Real estate purchase contract consultation...": "VD: Tư vấn hợp đồng mua bán bất động sản...",
+  "Open Date & Time": "Ngày & giờ mở",
+  "Select open date & time": "Chọn ngày & giờ mở",
+  "Deadline": "Hạn",
+  "Select deadline date & time": "Chọn ngày & giờ hạn",
+  "Priority": "Ưu tiên",
+  "Team Members": "Thành viên",
+  "Manager": "Quản lý",
+  "Select manager": "Chọn người quản lý",
+  "— Select manager —": "— Chọn người quản lý —",
+  "Members": "Thành viên",
+  "optional — multiple": "không bắt buộc — nhiều người",
+  "Select lawyers": "Chọn luật sư",
+  "— Select lawyers —": "— Chọn luật sư —",
+  "Summarize the content, requirements, scope of work...": "Tóm tắt nội dung, yêu cầu, phạm vi công việc...",
+  "Loading services...": "Đang tải dịch vụ...",
+  "Processing...": "Đang xử lý...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -169,7 +518,7 @@ const formatMoneyAmount = (value, currency = null) => {
   if (!Number.isFinite(n)) return "-";
   const decimals = getCurrencyDecimals(info);
   return n.toLocaleString(getCurrencyLocale(info), {
-    minimumFractionDigits: decimals > 0 ? 0 : 0,
+    minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
 };
@@ -216,42 +565,56 @@ const isUsableExchangeRateStatus = (status) => {
   if (!value) return true;
   return !["inactive", "disabled", "archived", "cancelled", "canceled", "draft"].includes(value);
 };
-const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+// Business dates are Vietnam dates, as in the database (money_local_date):
+// "2026-09-01" stays as it is; a timestamp is read in Asia/Ho_Chi_Minh.
+const moneyDateKey = (value) => {
+  if (!value && value !== 0) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const ms = parseDateMillis(value);
+  return ms === null ? null : new Date(ms + 7 * 3600 * 1000).toISOString().slice(0, 10);
+};
+// Rates carry 15 significant digits, as float8 -> numeric does in Postgres.
+const rate15 = (value) => Number(Number(value).toPrecision(15));
+const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate, when = "onOrBefore") => {
   const fromId = extractCurrencyId(fromCurrency);
   const toId = extractCurrencyId(toCurrency);
-  const cutoff = parseDateMillis(pricingDate) || Date.now();
-  return (rates || [])
-    .map((rate) => {
-      const effectiveMs = parseDateMillis(rate?.effectiveDate);
-      return {
-        record: rate,
-        rate: parseNum(rate?.rate),
-        effectiveMs: effectiveMs || 0,
-        rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
-        rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
-      };
-    })
+  const cutoff = moneyDateKey(pricingDate) || moneyDateKey(Date.now());
+  const candidates = (rates || [])
+    .map((rate) => ({
+      record: rate,
+      rate: parseNum(rate?.rate),
+      effectiveMs: parseDateMillis(rate?.effectiveDate) || 0,
+      day: moneyDateKey(rate?.effectiveDate) || "1900-01-01",
+      rateFromId: extractCurrencyId(rate?.fromCurrencyId ?? rate?.fromCurrency),
+      rateToId: extractCurrencyId(rate?.toCurrencyId ?? rate?.toCurrency),
+    }))
     .filter(
       (item) =>
         item.rate > 0 &&
         isUsableExchangeRateStatus(item.record?.status) &&
-        (!item.effectiveMs || item.effectiveMs <= cutoff) &&
         item.rateFromId === fromId &&
         item.rateToId === toId,
-    )
-    .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null;
+    );
+  if (when === "after") {
+    return candidates.filter((item) => item.day > cutoff).sort((a, b) => a.effectiveMs - b.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
+  }
+  return candidates.filter((item) => item.day <= cutoff).sort((a, b) => b.effectiveMs - a.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
 };
+// same order as money_rate_to_base(): the latest direct rate on or before
+// the date, else the latest inverse one; only then the earliest after it.
 const pickConversionRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
-  const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate);
-  if (direct) return { ...direct, direction: "direct" };
-  const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate);
-  if (inverse?.rate > 0) {
-    return {
-      ...inverse,
-      direction: "inverse",
-      originalRate: inverse.rate,
-      rate: 1 / inverse.rate,
-    };
+  for (const when of ["onOrBefore", "after"]) {
+    const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate, when);
+    if (direct) return { ...direct, rate: rate15(direct.rate), direction: "direct" };
+    const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate, when);
+    if (inverse) {
+      return {
+        ...inverse,
+        direction: "inverse",
+        originalRate: inverse.rate,
+        rate: rate15(1 / rate15(inverse.rate)),
+      };
+    }
   }
   return null;
 };
@@ -262,15 +625,129 @@ const isPackagePricing = (recordOrMode) => {
       : recordOrMode;
   return String(mode || "").toLowerCase() === PRICING_MODE_PACKAGE;
 };
+// ---- line amount helpers (pure; tested by scripts/tests/money-rounding.test.js) ----
+// 2026-09-29: a line is rounded to its own currency's decimals — whole đồng
+// for VND, cents for USD / EUR / SGD. Rounding a foreign line to whole units
+// turned 10 USD + 8% VAT into 11 USD (10%) and dropped VAT under 5%.
+const roundToDecimals = (value, decimals = 0) => {
+  const factor = 10 ** Math.max(0, Math.floor(Number(decimals) || 0));
+  const n = parseNum(value);
+  return Math.round((n + Math.sign(n) * Number.EPSILON * Math.abs(n)) * factor) / factor;
+};
+// currency: a currency object (its decimalPlaces) or the number of decimals; none = VND
+const lineDecimals = (currency) =>
+  typeof currency === "number" ? currency : currency ? getCurrencyDecimals(currency) : 0;
 const inferVatRate = (subTotal, vatAmount, fallback = 0) => {
   const sub = parseNum(subTotal);
   return sub ? Math.round((parseNum(vatAmount) * 10000) / sub) / 100 : parseNum(fallback);
 };
-const calcLineAmounts = (basePrice, vat) => {
-  const subTotal = parseNum(basePrice);
-  const vatAmount = Math.round((subTotal * parseNum(vat)) / 100);
-  return { subTotal, vatAmount, totalAmount: subTotal + vatAmount };
+const calcLineAmounts = (basePrice, vat, currency) => {
+  const decimals = lineDecimals(currency);
+  const subTotal = roundToDecimals(basePrice, decimals);
+  const vatAmount = roundToDecimals((subTotal * parseNum(vat)) / 100, decimals);
+  return { subTotal, vatAmount, totalAmount: roundToDecimals(subTotal + vatAmount, decimals) };
 };
+// ---- end line amount helpers ----
+// ---- catalog VND text (pure; tested by scripts/tests/catalog-vnd-display.test.js) ----
+// The VND a catalog / company price was converted to at the latest rate
+// (stored by pgsql/currency_catalog.sql): a company price shows only its own
+// priceVnd, a catalog service its basePriceVnd; nothing for a VND price.
+const catalogVndText = (record, currency) => {
+  const code = String(currency?.code || currency?.currencyCode || "").toUpperCase();
+  if (!record || code === "VND") return null;
+  const own = Object.prototype.hasOwnProperty.call(record, "priceVnd") ? record.priceVnd : record.basePriceVnd;
+  const n = Number(own);
+  return own === null || own === undefined || own === "" || !Number.isFinite(n)
+    ? null
+    : tr("≈ {0} VND", { 0: Math.round(n).toLocaleString("vi-VN") });
+};
+// ---- end catalog VND text ----
+// ---- base conversion helpers (pure; tested by scripts/tests/money-cases.test.js) ----
+// VND of some lines: each line converted and rounded on its own, then summed,
+// as the database does (money_line_amounts), so the total shown is the one
+// the database stores.
+const convertLinesToBase = (lines, rate) =>
+  (lines || []).reduce(
+    (acc, line) => {
+      const sub = Math.round((Number(line?.subTotal) || 0) * rate);
+      const vat = Math.round((Number(line?.vatAmount) || 0) * rate);
+      return {
+        subTotal: acc.subTotal + sub,
+        vatAmount: acc.vatAmount + vat,
+        totalAmount: acc.totalAmount + sub + vat,
+      };
+    },
+    { subTotal: 0, vatAmount: 0, totalAmount: 0 },
+  );
+// ---- end base conversion helpers ----
+// ---- source rate helpers (pure; tested by scripts/tests/create-forms-money.test.js) ----
+// A case line linked to a contract / quotation line takes that line's frozen
+// rate (money_line_rate in pgsql/money_flow_foundation.sql). Frozen = a
+// positive rate with a date, or a rate other than 1 (money_rate_frozen); a
+// dateless 1 is a pre-trigger placeholder. null = convert at the Open date.
+const frozenSourceRate = (record) => {
+  const rate = Number(record?.exchangeRateToBase);
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  const date = record?.exchangeRateDate ? String(record.exchangeRateDate).slice(0, 10) : null;
+  return date || rate !== 1 ? { rate, date } : null;
+};
+// Only while the row keeps the source line's currency (the database reuses the
+// rate only for the same currency).
+const rowFrozenRate = (row, extractCurrencyId) =>
+  row?._frozenRate &&
+  row._frozenRateCurrencyId &&
+  String(extractCurrencyId(row.currencyId) || "") === String(row._frozenRateCurrencyId)
+    ? row._frozenRate
+    : null;
+// The rate a row converts at, as the database will: a line-billed row synced to
+// the source contract / quotation takes that line's frozen rate while its
+// currency is unchanged, else the rate on the source document's date (the
+// contract's Signed date, the quotation's creation date); any other row, the
+// Case's Open date (date null).
+const rowRateBasis = (line, { extractCurrencyId, synced, sourceRateDate }) => {
+  if (!synced) return { rate: null, date: null };
+  const frozen = rowFrozenRate(line, extractCurrencyId);
+  if (frozen) return { rate: frozen.rate, date: frozen.date };
+  return { rate: null, date: sourceRateDate || null };
+};
+// The day the database prices a synced row on (money_line_rate): the source
+// contract's Signed date (else its creation), or the source quotation's
+// creation — as a Vietnam date (dateKey = moneyDateKey).
+const sourceDocumentRateDate = (contract, quotation, dateKey) => {
+  if (contract) return dateKey(contract.signedAt || contract.createdAt) || null;
+  if (quotation) return dateKey(quotation.createdAt) || null;
+  return null;
+};
+// ---- end source rate helpers ----
+// ---- cross-document payload helpers (pure; tested by scripts/tests/cross-document-writes.test.js) ----
+// What a form sends to a service line (spec 2026-09-30 §6). The database
+// prices a line (trg_money_line_compute) and copies a service's content to
+// its linked lines (trg_money_thread_after): line totals are never sent, and
+// a follow-up write to a line the save already linked sends no content.
+const LINE_TOTAL_KEYS = ["subTotal", "vatAmount", "totalAmount"];
+const THREAD_CONTENT_KEYS = [
+  "serviceId", "ServiceId", "services", "serviceName", "serviceType",
+  "description", "comboId", "serviceCombo", "comboName",
+];
+const withoutKeys = (payload, keys) => {
+  const next = { ...(payload || {}) };
+  keys.forEach((key) => delete next[key]);
+  return next;
+};
+const isLinePricedPayload = (payload) =>
+  String(payload?.pricingMode || "line").toLowerCase() === "line";
+// Own lines, a write that creates a link, or an edit made at its origin:
+// content stays (it must win); a priced line drops its totals.
+const lineWritePayload = (payload) =>
+  isLinePricedPayload(payload) ? withoutKeys(payload, LINE_TOTAL_KEYS) : { ...(payload || {}) };
+// A line already linked by an earlier write of the same save: links, status
+// and pricing only (pricing is not copied across pricing modes).
+const linkedLineFollowUpPayload = (payload) =>
+  withoutKeys(lineWritePayload(payload), THREAD_CONTENT_KEYS);
+// A request the database refused carries its reason in errors[0].message.
+const apiErrorText = (error, fallback) =>
+  error?.response?.data?.errors?.[0]?.message || error?.message || fallback;
+// ---- end cross-document payload helpers ----
 const isSameCurrency = (left, right) => {
   const leftId = extractCurrencyId(left);
   const rightId = extractCurrencyId(right);
@@ -295,6 +772,8 @@ const buildServiceFinancialSummary = ({
   packageMode = false,
   activeFinancialSourceType = SOURCE_MANUAL,
   includeBillingModes = [BILLING_LINE, BILLING_SEPARATE],
+  // the source contract's Signed date / quotation's creation date (rowRateBasis)
+  sourceRateDate = null,
 } = {}) => {
   const targetCurrency = baseCurrency || findDefaultCurrency(currencies);
   const includeSet = new Set(includeBillingModes);
@@ -311,26 +790,31 @@ const buildServiceFinancialSummary = ({
 
     const price = Number(row.basePrice) || 0;
     const vatPct = Number(row.vat) || 0;
-    const amounts = calcLineAmounts(price, vatPct);
     const rowCurrency = currencyFromRecord(row, currencies, targetCurrency);
-    const key =
+    const amounts = calcLineAmounts(price, vatPct, rowCurrency);
+    const basis = rowRateBasis(row, { extractCurrencyId, synced: billingMode === BILLING_LINE, sourceRateDate });
+    const key = `${
       extractCurrencyId(row.currencyId) ||
       extractCurrencyId(rowCurrency) ||
-      getCurrencyCode(rowCurrency);
+      getCurrencyCode(rowCurrency)
+    }${basis.rate ? `@${basis.rate}` : basis.date ? `#${basis.date}` : ""}`;
 
     if (!byCurrency[key]) {
       byCurrency[key] = {
+        rateBasis: basis,
         currency: rowCurrency,
         subTotal: 0,
         vatAmount: 0,
         totalAmount: 0,
         lineCount: 0,
+        lines: [],
       };
     }
     byCurrency[key].subTotal += amounts.subTotal;
     byCurrency[key].vatAmount += amounts.vatAmount;
     byCurrency[key].totalAmount += amounts.totalAmount;
     byCurrency[key].lineCount += 1;
+    byCurrency[key].lines.push(amounts);
     lineItems.push({
       row,
       billingMode,
@@ -346,17 +830,18 @@ const buildServiceFinancialSummary = ({
       const sameCurrency = isSameCurrency(group.currency, targetCurrency);
       const matched = sameCurrency
         ? { rate: 1, direction: "base", record: null }
-        : pickConversionRate(exchangeRates, group.currency, targetCurrency, pricingDate);
+        : group.rateBasis?.rate
+          ? { rate: group.rateBasis.rate, direction: "direct", record: null }
+          : pickConversionRate(exchangeRates, group.currency, targetCurrency, group.rateBasis?.date || pricingDate);
       if (!matched?.rate) {
         missing.push(group);
         return acc;
       }
-      const convertedSubTotal = Math.round(group.subTotal * matched.rate);
-      const convertedVatAmount = Math.round(group.vatAmount * matched.rate);
+      const g = convertLinesToBase(group.lines, matched.rate);
       return {
-        subTotal: acc.subTotal + convertedSubTotal,
-        vatAmount: acc.vatAmount + convertedVatAmount,
-        totalAmount: acc.totalAmount + convertedSubTotal + convertedVatAmount,
+        subTotal: acc.subTotal + g.subTotal,
+        vatAmount: acc.vatAmount + g.vatAmount,
+        totalAmount: acc.totalAmount + g.totalAmount,
       };
     },
     { subTotal: 0, vatAmount: 0, totalAmount: 0 },
@@ -385,7 +870,7 @@ const getConversionSourceCurrencyIds = (groups = [], baseCurrency = null) =>
 const formatMissingRatePairs = (groups = [], baseCurrency = null) => {
   const baseCode = getCurrencyCode(baseCurrency || defaultCurrencyObject());
   return (groups || [])
-    .map((group) => `${getCurrencyCode(group.currency)} -> ${baseCode}`)
+    .map((group) => `${getCurrencyCode(group.currency)} → ${baseCode}`)
     .join(", ");
 };
 const financialStateFromRecord = (record, sourceType = SOURCE_NONE) => {
@@ -488,6 +973,18 @@ async function fetchAll(url, params = {}) {
   }
 }
 
+// Quotations of one customer, fresh from the server (2026-09-25): the list
+// loaded when the form opened goes stale — a quotation created afterwards
+// in another tab/popup never showed under Related Quotation — and that
+// list is capped at 500 rows.
+async function fetchCustomerQuotations(customerId) {
+  if (!customerId) return [];
+  return fetchAll("quotations:list", {
+    filter: JSON.stringify({ customerId: { $eq: customerId } }),
+    sort: ["-createdAt"],
+  });
+}
+
 async function fetchCompanyServices() {
   const appendProfiles = [
     ["services", "currencies"],
@@ -536,9 +1033,23 @@ function caseCodeDateParts(dateValue) {
   };
 }
 
+// ---- case code sequence (pure; tested by scripts/tests/case-code-sequence.test.js) ----
+// 2026-10-01: STT runs on through the whole year and resets only in January
+// (Sept C001..C032 → Oct C033), like the Cases "Case Code" sequence field's
+// reset cycle; MMYYYY still shows the Open date's month/year. The next STT is
+// the highest one among this prefix's codes of that year, any month, + 1.
+const nextCaseCode = (codes, prefix, mm, yyyy) => {
+  const pattern = new RegExp(`^${prefix}(\\d{3,})(0[1-9]|1[0-2])${yyyy}$`, "i");
+  const maxIndex = (codes || []).reduce((max, code) => {
+    const match = String(code || "").match(pattern);
+    return match ? Math.max(max, parseInt(match[1], 10) || 0) : max;
+  }, 0);
+  return `${prefix}${String(maxIndex + 1).padStart(3, "0")}${mm}${yyyy}`;
+};
+// ---- end case code sequence ----
+
 // STT is scoped per internal company: CBI and VLIC each keep their own
-// independent running sequence, so both companies can safely reuse
-// 001, 002, ... within the same month without colliding with each other.
+// independent running sequence for the year.
 async function generateCaseCode({ internalCompanyId, shortName, dateValue }) {
   const normalizedShortName = String(shortName || "").trim().toUpperCase();
   const prefix = CASE_CODE_PREFIX_BY_SHORT_NAME[normalizedShortName];
@@ -547,8 +1058,6 @@ async function generateCaseCode({ internalCompanyId, shortName, dateValue }) {
   }
 
   const { mm, yyyy } = caseCodeDateParts(dateValue);
-  const suffix = `${mm}${yyyy}`;
-  const pattern = new RegExp(`^${prefix}(\\d{3})${suffix}$`, "i");
 
   const rows = await fetchAll("projects:list", {
     pageSize: 1000,
@@ -558,13 +1067,7 @@ async function generateCaseCode({ internalCompanyId, shortName, dateValue }) {
     }),
   });
 
-  const maxIndex = (rows || []).reduce((max, item) => {
-    const code = String(item?.caseCode || "");
-    const match = code.match(pattern);
-    return match ? Math.max(max, parseInt(match[1], 10) || 0) : max;
-  }, 0);
-
-  return `${prefix}${String(maxIndex + 1).padStart(3, "0")}${suffix}`;
+  return nextCaseCode((rows || []).map((item) => item?.caseCode), prefix, mm, yyyy);
 }
 
 async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyId) {
@@ -582,7 +1085,7 @@ async function fetchExchangeRatesForConversion(fromCurrencyIds = [], toCurrencyI
     const r = await ctx.api.request({
       url: "exchangeRates:list",
       params: {
-        pageSize: Math.max(100, fromIds.length * 5),
+        pageSize: Math.max(1000, fromIds.length * 5), // enough history for an older rate date
         page: 1,
         sort: ["-effectiveDate", "-createdAt"],
         filter: JSON.stringify({
@@ -616,10 +1119,47 @@ async function convertComboSubTotalToVnd(subTotal, comboCurrencyId, vndId, prici
     return { convertedSubTotal: Math.round(subTotal * matched.rate), wasConverted: true };
   }
   message.warning(
-    "Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check.",
+    tr("Could not find an exchange rate to convert the combo's currency to VND — keeping the original amount, please double-check."),
   );
   return { convertedSubTotal: subTotal, wasConverted: false };
 }
+
+// ---- combo merge helpers (pure; tested by scripts/tests/combo-merge.test.js) ----
+// Line/Combo pricing sync (2026-09-25, user rule): when a combo is added
+// while standalone services exist (picked in Line pricing, or added with
+// "New service" before any combo), they are merged INTO that combo — Combo
+// pricing never shows loose lines next to combos. Rows that came from the
+// selected Contract/Quotation keep that document's own shape and are left
+// alone. Each merged row is tagged with the combo, priced by it (its own
+// value kept as _comboItemSnapshot for reference) and flagged
+// _mergedIntoCombo; its value (contributionOf) joins the combo's amount.
+const mergeStandaloneIntoCombo = (rows, combo, contributionOf) => {
+  const merged = [];
+  let contribution = 0;
+  const next = (rows || []).map((row) => {
+    if (row?._comboInstanceId || row?._fromContract || row?._fromQuotation) return row;
+    const value = Math.max(Number(contributionOf(row)) || 0, 0);
+    contribution += value;
+    const mergedRow = {
+      ...row,
+      basePrice: 0,
+      vat: 0,
+      billingMode: BILLING_PACKAGE_INCLUDED,
+      pricingMode: PRICING_MODE_PACKAGE,
+      _packageBasePrice: 0,
+      _comboInstanceId: combo.instanceId,
+      _comboCatalogId: combo.catalogId ?? null,
+      _comboName: combo.name || "",
+      _comboSnapshot: combo.snapshot || null,
+      _mergedIntoCombo: true,
+      _comboItemSnapshot: row._comboItemSnapshot || { price: value, vat: 0, currency: combo.currency || null },
+    };
+    merged.push(mergedRow);
+    return mergedRow;
+  });
+  return { rows: next, merged, contribution };
+};
+// ---- end combo merge helpers ----
 
 // Converts every existing LINE-priced row into a package-included row the
 // moment the case's very first combo is applied (line mode -> package
@@ -650,12 +1190,12 @@ async function foldLineRowsIntoPackage(existingRows, currencies, vndId, pricingD
     if (rowBillingMode !== BILLING_LINE && rowBillingMode !== BILLING_SEPARATE) {
       return { ...row, billingMode: BILLING_PACKAGE_INCLUDED, pricingMode: PRICING_MODE_PACKAGE, _packageBasePrice: 0 };
     }
-    const amounts = calcLineAmounts(row.basePrice, row.vat);
     const rowCurrency = currencyFromRecord(row, currencies, targetCurrency);
+    const amounts = calcLineAmounts(row.basePrice, row.vat, rowCurrency);
     const matched = isSameCurrency(rowCurrency, targetCurrency)
       ? { rate: 1 }
       : pickConversionRate(foldRates, rowCurrency, targetCurrency, pricingDate);
-    const rowContributionVnd = matched?.rate ? amounts.subTotal * matched.rate : 0;
+    const rowContributionVnd = matched?.rate ? Math.round(amounts.subTotal * matched.rate) : 0;
     contributionVnd += rowContributionVnd;
     return {
       ...row,
@@ -973,10 +1513,10 @@ const showDiscardConfirm = (onOk) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: "Discard changes?",
-      content: "Your unsaved input will be lost.",
-      okText: "Discard",
-      cancelText: "Continue editing",
+      title: tr("Discard changes?"),
+      content: tr("Your unsaved input will be lost."),
+      okText: tr("Discard"),
+      cancelText: tr("Continue editing"),
       okButtonProps: { danger: true },
       maskClosable: false,
       onCancel: () => {
@@ -1150,6 +1690,8 @@ function mapQuotationServicesToRows(qsvcs, quotation, taskTemplates = []) {
     const row = {
       _id: Date.now() + Math.random(),
       _qServiceId: s.id,
+      _frozenRate: frozenSourceRate(s),
+      _frozenRateCurrencyId: rowCurrencyId ? String(rowCurrencyId) : null,
       serviceId: s.serviceId
         ? String(s.serviceId)
         : serviceRecord.id
@@ -1246,9 +1788,142 @@ function buildComboSnapshotForContractRow(comboIdVal, comboNameVal, combosList, 
 // for a freshly-picked catalog service), so a Case created from a related
 // Contract or Quotation shows that service's sample tasks immediately instead
 // of relying only on getRowTaskTemplates' render-time fallback.
+// ---- contract trigger seed (pure; tested by scripts/tests/case-trigger-seed.test.js) ----
+// A By Service contract created before its Case stores the sample tasks the
+// lawyer ticked as payment triggers in contractServices.paymentTriggerTemplateIds
+// (ContractCreateForm.js). When present — including [] ("explicitly none") —
+// it overrides the catalog default for this row's Sample Tasks; null/absent
+// (older contracts, By Case, Retainer) keeps the catalog default. Returns new
+// objects: syncCatalogServiceTasks diffs against the pristine catalog entries,
+// so those must not be mutated. See
+// docs/superpowers/specs/2026-09-24-by-service-payment-trigger-config-design.md §6.
+function applyContractTriggerSelection(templateTasks, ids) {
+  if (!Array.isArray(ids)) return templateTasks;
+  const ticked = new Set(ids.map((id) => String(id)));
+  return (templateTasks || []).map((task) => ({
+    ...task,
+    isPaymentTrigger: ticked.has(String(task?.id)),
+  }));
+}
+// ---- end contract trigger seed ----
+
+// ---- installment template links (pure; tested by scripts/tests/case-installment-links.test.js) ----
+// A By Case contract created before its Case stores, per installment, the
+// sample tasks ticked as its triggers (contractPaymentSchedules.
+// triggerTemplateIds, ContractCreateForm.js). Once this Case's tasks exist,
+// each template id resolves to a real task: the row whose Sample Tasks
+// contain that template → that entry's FINAL title (the lawyer may have
+// renamed it before submit) → the Case task with the same service and title.
+// Templates no longer in Sample Tasks are skipped. Returns task ids with
+// not-done tasks first — the installment activates when ALL linked tasks are
+// Done and each link re-checks, so a Done task linked first would activate
+// it too early. See
+// docs/superpowers/specs/2026-09-24-by-case-installment-trigger-tasks-design.md §5.
+// Returns { taskIds, unresolvedCount }: unresolvedCount = templates still in
+// Sample Tasks but with no matching Case task (e.g. a rename that failed to
+// save) — reported to the lawyer instead of skipped silently.
+function resolveTemplateTaskLinks({ templateIds, rows, tasks }) {
+  if (!Array.isArray(templateIds) || !Array.isArray(rows) || !Array.isArray(tasks)) {
+    return { taskIds: [], unresolvedCount: 0 };
+  }
+  const norm = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const found = [];
+  let unresolvedCount = 0;
+  templateIds.forEach((templateId) => {
+    const wanted = String(templateId);
+    for (const row of rows) {
+      const entry = (row?._templateTasks || []).find(
+        (task) => String(task?._id ?? task?.id ?? "") === wanted,
+      );
+      if (!entry) continue;
+      // Same fallback syncCatalogServiceTasks writes for a blanked title.
+      const title = norm(entry.title || entry.templateName || entry.name) || "untitled task";
+      const match = tasks.find(
+        (task) =>
+          String(task?.serviceId?.id ?? task?.serviceId ?? "") === String(row.serviceId) &&
+          norm(task?.title) === title,
+      );
+      if (!match) unresolvedCount += 1;
+      else if (!found.some((task) => task.id === match.id)) found.push(match);
+      break;
+    }
+  });
+  const isDone = (task) => String(task?.status || "") === "done";
+  return {
+    taskIds: [...found.filter((task) => !isDone(task)), ...found.filter(isDone)].map((task) => task.id),
+    unresolvedCount,
+  };
+}
+// ---- end installment template links ----
+
+// ---- contract package normalization (pure; tested by scripts/tests/package-group-totals.test.js) ----
+// Case views sum each package group's own packageSubTotal (one per combo, one
+// per standalone package line), so those group amounts must add up to the
+// contract's package subtotal. Contracts saved before the 2026-09-25 fix could
+// break that: a Combo Subtotal overridden on the contract (e.g. combos
+// 62,823,600 + 15,000,000 sold for 70,000,000) wasn't pushed down to the
+// combos, and standalone package lines carried the whole contract subtotal as
+// a fallback. When the groups don't already sum to the contract subtotal,
+// rescale them: combos pro-rata to their own amount, standalone lines 0
+// ("included in package"); no combo amounts at all → equal split. Whole
+// units, remainder on the last group; package VAT/total recomputed per row.
+function normalizeContractPackageRows(rows, contract) {
+  const pool = Math.round(Number(contract?.packageSubTotal ?? contract?.subTotal) || 0);
+  const pkgRows = (rows || []).filter((row) => row?.pricingMode === "package");
+  if (pool <= 0 || !pkgRows.length) return rows;
+  const groups = [];
+  const byKey = new Map();
+  pkgRows.forEach((row, index) => {
+    const key = row.comboId
+      ? `id:${row.comboId}`
+      : row.comboName
+        ? `name:${row.comboName}`
+        : `row:${row.id ?? row._id ?? index}`;
+    if (!byKey.has(key)) {
+      const group = { key, isCombo: !key.startsWith("row:"), amount: Number(row.packageSubTotal) || 0, rows: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    byKey.get(key).rows.push(row);
+  });
+  const currentSum = groups.reduce((sum, group) => sum + group.amount, 0);
+  if (Math.abs(currentSum - pool) <= 1) return rows;
+  const weights = groups.map((group) => (group.isCombo ? Math.max(group.amount, 0) : 0));
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const targets = weightSum > 0 ? groups.filter((_, index) => weights[index] > 0) : groups;
+  const share = new Map(groups.map((group) => [group.key, 0]));
+  let allocated = 0;
+  targets.forEach((group, index) => {
+    const amount =
+      index === targets.length - 1
+        ? pool - allocated
+        : weightSum > 0
+          ? Math.round((pool * weights[groups.indexOf(group)]) / weightSum)
+          : Math.round(pool / targets.length);
+    share.set(group.key, amount);
+    allocated += amount;
+  });
+  const keyOfRow = new Map();
+  groups.forEach((group) => group.rows.forEach((row) => keyOfRow.set(row, group.key)));
+  return rows.map((row) => {
+    if (!keyOfRow.has(row)) return row;
+    const subTotal = share.get(keyOfRow.get(row));
+    const vatRate = Number(row.packageVatRate ?? contract?.packageVatRate ?? contract?.vatRate) || 0;
+    const vatAmount = Math.round((subTotal * vatRate) / 100);
+    return {
+      ...row,
+      packageSubTotal: subTotal,
+      packageVatRate: vatRate,
+      packageVatAmount: vatAmount,
+      packageTotalAmount: subTotal + vatAmount,
+    };
+  });
+}
+// ---- end contract package normalization ----
+
 function mapContractServicesToRows(csvcs, contract, taskTemplates = [], combosList = []) {
   const parentPackageMode = isPackagePricing(contract);
-  return csvcs.map((s) => {
+  const mappedRows = csvcs.map((s) => {
     const serviceRecord = s.service || s.services || {};
     // contractServices' own "services" relation frequently doesn't resolve
     // (see fetchContractServices' comment — ContractServices.js's own
@@ -1294,6 +1969,8 @@ function mapContractServicesToRows(csvcs, contract, taskTemplates = [], combosLi
     const row = {
       _id: Date.now() + Math.random(),
       _contractServiceId: s.id,
+      _frozenRate: frozenSourceRate(s),
+      _frozenRateCurrencyId: rowCurrencyId ? String(rowCurrencyId) : null,
       serviceId: resolvedServiceId ? String(resolvedServiceId) : null,
       serviceName:
         s.serviceName ||
@@ -1347,8 +2024,15 @@ function mapContractServicesToRows(csvcs, contract, taskTemplates = [], combosLi
       serviceId: resolvedServiceId,
       serviceName: row.serviceName,
     });
+    row._templateTasks = applyContractTriggerSelection(
+      row._templateTasks,
+      s.paymentTriggerTemplateIds,
+    );
     return row;
   });
+  // Package groups must add up to the contract's package subtotal (see
+  // normalizeContractPackageRows) — repairs contracts saved before the fix.
+  return normalizeContractPackageRows(mappedRows, contract);
 }
 
 // A Contract/Quotation can hold several independent combo groups (each with
@@ -1387,12 +2071,12 @@ async function getCurrentUser() {
 const openPopupViewByUid = async (viewKey, params = {}) => {
   const uid = POPUP_VIEW_UIDS[viewKey];
   if (!uid) {
-    message.warning(`Please configure POPUP_VIEW_UIDS.${viewKey} first.`);
+    message.warning(tr("Please configure POPUP_VIEW_UIDS.{0} first.", { 0: viewKey }));
     return false;
   }
 
   if (!ctx.openView) {
-    message.error("ctx.openView is not available in this runtime.");
+    message.error(tr("ctx.openView is not available in this runtime."));
     return false;
   }
 
@@ -1420,7 +2104,7 @@ const openPopupViewByUid = async (viewKey, params = {}) => {
     return true;
   } catch (error) {
     console.warn("[CaseCreateForm] ctx.openView failed", error);
-    message.error("Cannot open configured popup view.");
+    message.error(tr("Cannot open configured popup view."));
     return false;
   }
 };
@@ -1428,7 +2112,7 @@ const openPopupViewByUid = async (viewKey, params = {}) => {
 const PRIORITY_OPTIONS = [
   {
     value: "low",
-    label: "Low",
+    label: tr("Low"),
     stars: 1,
     color: "#16a34a",
     bg: "#dcfce7",
@@ -1436,7 +2120,7 @@ const PRIORITY_OPTIONS = [
   },
   {
     value: "medium",
-    label: "Medium",
+    label: tr("Medium"),
     stars: 2,
     color: "#d97706",
     bg: "#fef3c7",
@@ -1444,7 +2128,7 @@ const PRIORITY_OPTIONS = [
   },
   {
     value: "high",
-    label: "High",
+    label: tr("High"),
     stars: 3,
     color: "#dc2626",
     bg: "#fee2e2",
@@ -1453,10 +2137,10 @@ const PRIORITY_OPTIONS = [
 ];
 
 const LAWYER_TYPE_GROUPS = [
-  { key: "partner", label: "Partner", color: "#7c3aed", bg: "#f5f3ff" },
-  { key: "lawyer", label: "Lawyer", color: "#2563eb", bg: "#eff6ff" },
-  { key: "associate", label: "Associate", color: "#0891b2", bg: "#ecfeff" },
-  { key: "suppliant", label: "Suppliant", color: "#d97706", bg: "#fef3c7" },
+  { key: "partner", label: tr("Partner"), color: "#7c3aed", bg: "#f5f3ff" },
+  { key: "lawyer", label: tr("Lawyer"), color: "#2563eb", bg: "#eff6ff" },
+  { key: "associate", label: tr("Associate"), color: "#0891b2", bg: "#ecfeff" },
+  { key: "suppliant", label: tr("Suppliant"), color: "#d97706", bg: "#fef3c7" },
 ];
 
 const C = {
@@ -1578,7 +2262,7 @@ const StarRating = ({ value, onChange }) => {
       React.createElement(
         "span",
         { style: { color: C.textSub, fontSize: 13 } },
-        currentOpt?.label || "Not set",
+        currentOpt?.label || tr("Not set"),
       ),
     );
   }
@@ -1653,7 +2337,7 @@ const DateTimePickerLegacy = ({
   value,
   onChange,
   minValue,
-  placeholder = "Select date & time",
+  placeholder = tr("Select date & time"),
 }) => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState("date");
@@ -1690,20 +2374,20 @@ const DateTimePickerLegacy = ({
   today.setHours(0, 0, 0, 0);
   const minD = minValue ? new Date(minValue) : null;
   const MONTHS = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    tr("January"),
+    tr("February"),
+    tr("March"),
+    tr("April"),
+    tr("May"),
+    tr("June"),
+    tr("July"),
+    tr("August"),
+    tr("September"),
+    tr("October"),
+    tr("November"),
+    tr("December"),
   ];
-  const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const DAYS = [tr("Su"), tr("Mo"), tr("Tu"), tr("We"), tr("Th"), tr("Fr"), tr("Sa")];
   const first = new Date(display.y, display.m, 1).getDay();
   const daysIn = new Date(display.y, display.m + 1, 0).getDate();
   const cells = [];
@@ -1828,8 +2512,8 @@ const DateTimePickerLegacy = ({
           },
         },
         [
-          { key: "date", icon: "📅", label: "Date" },
-          { key: "time", icon: "🕐", label: "Time" },
+          { key: "date", icon: "📅", label: tr("Date") },
+          { key: "time", icon: "🕐", label: tr("Time") },
         ].map((t) =>
           React.createElement(
             "div",
@@ -2009,7 +2693,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "⚡ Now",
+            tr("⚡ Now"),
           ),
           selDate &&
           React.createElement(
@@ -2029,7 +2713,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "→ Pick Time",
+            tr("→ Pick Time"),
           ),
         ),
       ),
@@ -2071,7 +2755,7 @@ const DateTimePickerLegacy = ({
                   fontWeight: 400,
                 },
               },
-              "← Change date",
+              tr("← Change date"),
             ),
           )
           : React.createElement(
@@ -2087,7 +2771,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "⚠ Please select a date first",
+            tr("⚠ Please select a date first"),
           ),
         React.createElement(
           "div",
@@ -2108,7 +2792,7 @@ const DateTimePickerLegacy = ({
           React.createElement(
             "div",
             { style: { fontSize: 11.5, color: C.textSub, marginTop: 2 } },
-            "Hour : Minute",
+            tr("Hour : Minute"),
           ),
         ),
         React.createElement(
@@ -2125,7 +2809,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "Hour",
+            tr("Hour"),
           ),
           React.createElement(
             "div",
@@ -2174,7 +2858,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "Minute",
+            tr("Minute"),
           ),
           React.createElement(
             "div",
@@ -2234,7 +2918,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "✕ Clear",
+            tr("✕ Clear"),
           )
           : React.createElement("span", null),
         React.createElement(
@@ -2254,7 +2938,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "Close",
+            tr("Close"),
           ),
           selDate &&
           React.createElement(
@@ -2272,7 +2956,7 @@ const DateTimePickerLegacy = ({
                 fontFamily: FONT,
               },
             },
-            "Confirm",
+            tr("Confirm"),
           ),
         ),
       ),
@@ -2295,7 +2979,7 @@ const DateTimePicker = ({
   value,
   onChange,
   minValue,
-  placeholder = "Select date & time",
+  placeholder = tr("Select date & time"),
 }) => {
   if (Input) {
     return React.createElement(Input, {
@@ -2360,7 +3044,7 @@ const DateTimePicker = ({
         {
           type: "button",
           onClick: () => onChange(""),
-          title: "Clear",
+          title: tr("Clear"),
           style: {
             border: "none",
             background: "transparent",
@@ -2411,7 +3095,7 @@ const ExpandableText = ({ text, limit = 80 }) => {
           whiteSpace: "nowrap",
         },
       },
-      expanded ? " ▲ Collapse" : " ▼ Show more",
+      expanded ? tr(" ▲ Collapse") : tr(" ▼ Show more"),
     ),
   );
 };
@@ -2476,7 +3160,7 @@ const PriceInput = ({ value, onChange, currency, disabled = false }) => {
       onBlur: normalizeDraft,
       disabled,
       style: { width: "100%" },
-      addonAfter: currency ? getCurrencyCode(currency) : "Currency",
+      addonAfter: currency ? getCurrencyCode(currency) : tr("Currency"),
     });
   }
 
@@ -2544,7 +3228,7 @@ const LawyerTypeBadge = ({ type }) => {
 
 // Renders a "+" suffix icon inside the same bordered select box, right next
 // to the clear/chevron icon, instead of a separate button floating outside it.
-const renderInlineAddNew = (onAddNew, disabled, title = "Add new") =>
+const renderInlineAddNew = (onAddNew, disabled, title = tr("Add new")) =>
   onAddNew &&
   React.createElement(
     React.Fragment,
@@ -2785,7 +3469,7 @@ const PersonDropdown = ({
             autoFocus: true,
             value: search,
             onChange: (e) => setSearch(e.target.value),
-            placeholder: "Search...",
+            placeholder: tr("Search..."),
             style: inp({ paddingLeft: 32, paddingTop: 7, paddingBottom: 7 }),
             onFocus,
             onBlur,
@@ -2807,7 +3491,7 @@ const PersonDropdown = ({
                 fontSize: 13,
               },
             },
-            "No results found",
+            tr("No results found"),
           )
           : filtered.map((l, i) => {
             const lName = getItemName(l),
@@ -2891,7 +3575,7 @@ const PersonDropdown = ({
         React.createElement(
           "span",
           { style: { fontSize: 11.5, color: C.textSub } },
-          `${filtered.length} results`,
+          tr("{0} results", { 0: filtered.length }),
         ),
         React.createElement(
           "div",
@@ -2917,7 +3601,7 @@ const PersonDropdown = ({
                 padding: "2px 8px",
               },
             },
-            "Add new",
+            tr("Add new"),
           ),
           value &&
           React.createElement(
@@ -2926,7 +3610,7 @@ const PersonDropdown = ({
               onClick: () => onChange(null),
               style: { fontSize: 11.5, color: C.danger, cursor: "pointer" },
             },
-            "Deselect",
+            tr("Deselect"),
           ),
         ),
       ),
@@ -3100,7 +3784,7 @@ const RelatedSingleDropdown = ({
             autoFocus: true,
             value: search,
             onChange: (e) => setSearch(e.target.value),
-            placeholder: "Search...",
+            placeholder: tr("Search..."),
             style: inp({ paddingLeft: 32, paddingTop: 7, paddingBottom: 7 }),
             onFocus,
             onBlur,
@@ -3121,7 +3805,7 @@ const RelatedSingleDropdown = ({
                 fontSize: 13,
               },
             },
-            "No results found",
+            tr("No results found"),
           )
           : filtered.map((item, i) => {
             const isSel = String(item.id) === String(value),
@@ -3203,7 +3887,7 @@ const RelatedSingleDropdown = ({
         React.createElement(
           "span",
           { style: { fontSize: 11.5, color: C.textSub } },
-          `${filtered.length} results`,
+          tr("{0} results", { 0: filtered.length }),
         ),
         React.createElement(
           "div",
@@ -3229,7 +3913,7 @@ const RelatedSingleDropdown = ({
                 padding: "2px 8px",
               },
             },
-            "Add new",
+            tr("Add new"),
           ),
           value &&
           React.createElement(
@@ -3238,7 +3922,7 @@ const RelatedSingleDropdown = ({
               onClick: () => onChange(null),
               style: { fontSize: 11.5, color: C.danger, cursor: "pointer" },
             },
-            "Deselect",
+            tr("Deselect"),
           ),
         ),
       ),
@@ -3295,7 +3979,7 @@ const MultiPersonDropdown = ({
     if (buckets["__other__"].length > 0)
       result.push({
         key: "__other__",
-        label: "Other",
+        label: tr("Other"),
         color: C.textSub,
         bg: "#f3f4f6",
         items: buckets["__other__"],
@@ -3436,7 +4120,7 @@ const MultiPersonDropdown = ({
         React.createElement(
           "span",
           { style: { fontSize: 11, color: g.color, opacity: 0.7 } },
-          `${g.items.length} people`,
+          tr("{0} people", { 0: g.items.length }),
         ),
         selCount > 0 &&
         React.createElement(
@@ -3477,7 +4161,7 @@ const MultiPersonDropdown = ({
             border: `1px solid ${allSel ? C.danger : g.color}44`,
           },
         },
-        allSel ? "Deselect group" : "+ Select group",
+        allSel ? tr("Deselect group") : tr("+ Select group"),
       ),
     );
   };
@@ -3643,7 +4327,7 @@ const MultiPersonDropdown = ({
             autoFocus: true,
             value: search,
             onChange: (e) => setSearch(e.target.value),
-            placeholder: "Search by name, lawyer type...",
+            placeholder: tr("Search by name, lawyer type..."),
             style: inp({ paddingLeft: 32, paddingTop: 7, paddingBottom: 7 }),
             onFocus,
             onBlur,
@@ -3664,7 +4348,7 @@ const MultiPersonDropdown = ({
                 fontSize: 13,
               },
             },
-            "No results found",
+            tr("No results found"),
           )
           : groups
             ? groups.map((g, gi) =>
@@ -3692,7 +4376,7 @@ const MultiPersonDropdown = ({
         React.createElement(
           "span",
           { style: { fontSize: 11.5, color: C.textSub } },
-          `${value.length} selected · ${items.length} total`,
+          tr("{0} selected · {1} total", { 0: value.length, 1: items.length }),
         ),
         value.length > 0 &&
         React.createElement(
@@ -3701,7 +4385,7 @@ const MultiPersonDropdown = ({
             onClick: () => onChange([]),
             style: { fontSize: 11.5, color: C.danger, cursor: "pointer" },
           },
-          "Deselect all",
+          tr("Deselect all"),
         ),
       ),
     ),
@@ -3751,7 +4435,7 @@ const getTaskTemplateRawTitle = (item) =>
     item?.subject,
   );
 const getTaskTemplateTitle = (item) =>
-  getTaskTemplateRawTitle(item) || "Untitled task";
+  getTaskTemplateRawTitle(item) || tr("Untitled task");
 const getTaskTemplateDescription = (item) =>
   normalizeTaskText(
     item?.description ||
@@ -3858,7 +4542,7 @@ const normalizeCustomTaskTemplates = (tasks = []) =>
     .filter((task) => task.title || task.description)
     .map((task) => ({
       ...task,
-      title: task.title || "Custom task",
+      title: task.title || tr("Custom task"),
     }));
 const getRowTaskTemplates = (taskTemplates = [], row = {}) => {
   const customTasks = normalizeCustomTaskTemplates(row?._customTaskTemplates || row?.taskTemplates);
@@ -3870,7 +4554,7 @@ const TaskTemplatePreview = ({
   tasks,
   compact = false,
   max = 4,
-  emptyText = "No sample tasks configured",
+  emptyText = tr("No sample tasks configured"),
 }) => {
   const visible = sortTaskTemplates(tasks || []).slice(0, max);
   const remaining = Math.max((tasks || []).length - visible.length, 0);
@@ -3986,7 +4670,7 @@ const TaskTemplatePreview = ({
           paddingLeft: compact ? 24 : 30,
         },
       },
-      `+${remaining} more tasks`,
+      tr("+{0} more tasks", { 0: remaining }),
     ),
   );
 };
@@ -4006,6 +4690,9 @@ const ServicePickerModal = ({
   onApplyCombo,
   onApplyAdhocCombo,
   comboScopeId = null,
+  comboTargets = [],
+  comboTarget = null,
+  onComboTargetChange,
   convertComboAmountToVndSync,
   vndCurrency,
 }) => {
@@ -4195,7 +4882,7 @@ const ServicePickerModal = ({
                 {
                   _id: Date.now() + Math.random(),
                   id: created?.id,
-                  title: created?.templateName || "Untitled task",
+                  title: created?.templateName || tr("Untitled task"),
                   description: "",
                   sortOrder,
                 },
@@ -4206,7 +4893,7 @@ const ServicePickerModal = ({
       setTaskTemplates((prev) => [...prev, created]);
     } catch (error) {
       console.error(error);
-      message.error("Could not add task template");
+      message.error(tr("Could not add task template"));
     }
   };
   const updateComboItemTask = (itemId, taskId, field, value) => {
@@ -4224,7 +4911,7 @@ const ServicePickerModal = ({
     );
   };
   const commitComboItemTaskEdit = async (task) => {
-    const templateName = (task.title || "").trim() || "Untitled task";
+    const templateName = (task.title || "").trim() || tr("Untitled task");
     const description = task.description || null;
     try {
       await ctx.api.request({
@@ -4238,15 +4925,15 @@ const ServicePickerModal = ({
       );
     } catch (error) {
       console.error(error);
-      message.error("Could not save task template");
+      message.error(tr("Could not save task template"));
     }
   };
   const removeComboItemTask = (item, task) => {
     Modal.confirm({
-      title: "Remove this task template?",
-      content: `"${task.title || "Untitled task"}" will be removed from this service's shared task list — this also affects other cases that use this service.`,
-      okText: "Remove",
-      cancelText: "Cancel",
+      title: tr("Remove this task template?"),
+      content: tr("\"{0}\" will be removed from this service's shared task list — this also affects other cases that use this service.", { 0: task.title || tr("Untitled task") }),
+      okText: tr("Remove"),
+      cancelText: tr("Cancel"),
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
@@ -4265,7 +4952,7 @@ const ServicePickerModal = ({
           setTaskTemplates((prev) => prev.filter((t) => String(t.id) !== String(task.id)));
         } catch (error) {
           console.error(error);
-          message.error("Could not remove task template");
+          message.error(tr("Could not remove task template"));
         }
       },
     });
@@ -4298,15 +4985,15 @@ const ServicePickerModal = ({
   };
   const handleApplyAdhocCombo = async () => {
     const errs = {};
-    if (!comboName.trim()) errs.comboName = "Please enter a combo name";
+    if (!comboName.trim()) errs.comboName = tr("Please enter a combo name");
     if (currencies.length && !extractCurrencyId(comboCurrencyId))
-      errs.comboCurrencyId = "Please select a currency";
+      errs.comboCurrencyId = tr("Please select a currency");
     if (!comboItems.length) {
-      errs.items = "Please add at least 1 service to the combo";
+      errs.items = tr("Please add at least 1 service to the combo");
     } else {
       const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
       if (emptyNameItem) {
-        errs.items = "One or more services are missing a name";
+        errs.items = tr("One or more services are missing a name");
       } else {
         const seenNames = new Set();
         const duplicateItem = comboItems.find((it) => {
@@ -4315,7 +5002,7 @@ const ServicePickerModal = ({
           seenNames.add(key);
           return false;
         });
-        if (duplicateItem) errs.items = "Duplicate service name in combo";
+        if (duplicateItem) errs.items = tr("Duplicate service name in combo");
       }
     }
     setComboErrors(errs);
@@ -4356,9 +5043,9 @@ const ServicePickerModal = ({
 
   const validate = () => {
     const e = {};
-    if (!newSvc.name.trim()) e.name = "Please enter a service name";
+    if (!newSvc.name.trim()) e.name = tr("Please enter a service name");
     if (currencies.length && !extractCurrencyId(newSvc.currencyId))
-      e.currencyId = "Please select a currency";
+      e.currencyId = tr("Please select a currency");
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -4457,7 +5144,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            "Sample tasks for custom service",
+            tr("Sample tasks for custom service"),
           ),
           React.createElement(
             "div",
@@ -4470,7 +5157,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            "Use this for non-standard services that do not have predefined task templates.",
+            tr("Use this for non-standard services that do not have predefined task templates."),
           ),
         ),
         React.createElement(
@@ -4491,7 +5178,7 @@ const ServicePickerModal = ({
               whiteSpace: "nowrap",
             },
           },
-          "+ Add task",
+          tr("+ Add task"),
         ),
       ),
       (newSvc.taskTemplates || []).length === 0
@@ -4508,7 +5195,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          "No custom sample tasks yet.",
+          tr("No custom sample tasks yet."),
         )
         : React.createElement(
           "div",
@@ -4562,11 +5249,11 @@ const ServicePickerModal = ({
                 React.createElement(
                   "label",
                   { style: { display: "grid", gap: 4, fontSize: 12, color: C.textSub } },
-                  "Task name",
+                  tr("Task name"),
                   React.createElement("input", {
                     value: task.title || "",
                     onChange: (e) => updateCustomTask(task._id, "title", e.target.value),
-                    placeholder: "Task template name",
+                    placeholder: tr("Task template name"),
                     style: inp({ fontSize: 13, padding: "6px 9px" }),
                     onFocus,
                     onBlur,
@@ -4582,11 +5269,11 @@ const ServicePickerModal = ({
                       color: C.textSub,
                     },
                   },
-                  "Description",
+                  tr("Description"),
                   React.createElement("textarea", {
                     value: task.description || "",
                     onChange: (e) => updateCustomTask(task._id, "description", e.target.value),
-                    placeholder: "Task description or expected output...",
+                    placeholder: tr("Task description or expected output..."),
                     rows: 2,
                     style: {
                       ...inp({
@@ -4606,7 +5293,7 @@ const ServicePickerModal = ({
                 {
                   type: "button",
                   onClick: () => removeCustomTask(task._id),
-                  title: "Remove task",
+                  title: tr("Remove task"),
                   style: {
                     width: 32,
                     height: 32,
@@ -4664,7 +5351,7 @@ const ServicePickerModal = ({
         React.createElement(
           "span",
           { style: { fontSize: 12.5, fontWeight: 600, color: C.text, fontFamily: FONT } },
-          "Task templates",
+          tr("Task templates"),
         ),
         React.createElement(
           "button",
@@ -4683,13 +5370,13 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          "+ Add task",
+          tr("+ Add task"),
         ),
       ),
       React.createElement(
         "div",
         { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginBottom: 8 } },
-        "Editing here updates this service's shared task list — changes apply to every case, not just this combo.",
+        tr("Editing here updates this service's shared task list — changes apply to every case, not just this combo."),
       ),
       (item.taskTemplates || []).length === 0
         ? React.createElement(
@@ -4704,7 +5391,7 @@ const ServicePickerModal = ({
               borderRadius: 6,
             },
           },
-          "No tasks yet for this service.",
+          tr("No tasks yet for this service."),
         )
         : React.createElement(
           "div",
@@ -4735,7 +5422,7 @@ const ServicePickerModal = ({
                     onBlur(e);
                     commitComboItemTaskEdit(task);
                   },
-                  placeholder: "Task name",
+                  placeholder: tr("Task name"),
                   style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                   onFocus,
                 }),
@@ -4746,7 +5433,7 @@ const ServicePickerModal = ({
                     onBlur(e);
                     commitComboItemTaskEdit(task);
                   },
-                  placeholder: "Description",
+                  placeholder: tr("Description"),
                   style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                   onFocus,
                 }),
@@ -4756,7 +5443,7 @@ const ServicePickerModal = ({
                 {
                   type: "button",
                   onClick: () => removeComboItemTask(item, task),
-                  title: "Remove task",
+                  title: tr("Remove task"),
                   style: {
                     width: 26,
                     height: 26,
@@ -4799,7 +5486,7 @@ const ServicePickerModal = ({
         React.createElement(
           "span",
           { style: { fontSize: 12.5, fontWeight: 600, color: C.text, fontFamily: FONT } },
-          "Sample tasks",
+          tr("Sample tasks"),
         ),
         React.createElement(
           "button",
@@ -4818,15 +5505,15 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          "+ Add task",
+          tr("+ Add task"),
         ),
       ),
       React.createElement(
         "div",
         { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic", marginBottom: 8 } },
         comboSaveToCatalog && !svcOpts.some((s) => serviceNameKey(s.serviceName) === serviceNameKey(item.serviceName))
-          ? "These tasks will be created for this service, and copied into the catalog too since \"Also save this combo to the shared catalog\" is checked below."
-          : "These tasks will be created for this service on this case only.",
+          ? tr("These tasks will be created for this service, and copied into the catalog too since \"Also save this combo to the shared catalog\" is checked below.")
+          : tr("These tasks will be created for this service on this case only."),
       ),
       (item.taskTemplates || []).length === 0
         ? React.createElement(
@@ -4841,7 +5528,7 @@ const ServicePickerModal = ({
               borderRadius: 6,
             },
           },
-          "No tasks yet for this service.",
+          tr("No tasks yet for this service."),
         )
         : React.createElement(
           "div",
@@ -4868,7 +5555,7 @@ const ServicePickerModal = ({
                 React.createElement("input", {
                   value: task.title || "",
                   onChange: (e) => updateComboItemTask(item._id, task._id, "title", e.target.value),
-                  placeholder: "Task name",
+                  placeholder: tr("Task name"),
                   style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                   onFocus,
                   onBlur,
@@ -4876,7 +5563,7 @@ const ServicePickerModal = ({
                 React.createElement("input", {
                   value: task.description || "",
                   onChange: (e) => updateComboItemTask(item._id, task._id, "description", e.target.value),
-                  placeholder: "Description",
+                  placeholder: tr("Description"),
                   style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                   onFocus,
                   onBlur,
@@ -4887,7 +5574,7 @@ const ServicePickerModal = ({
                 {
                   type: "button",
                   onClick: () => removeComboCustomItemTask(item._id, task._id),
-                  title: "Remove task",
+                  title: tr("Remove task"),
                   style: {
                     width: 26,
                     height: 26,
@@ -4932,13 +5619,13 @@ const ServicePickerModal = ({
             React.createElement("input", {
               value: item.serviceName || "",
               onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
-              placeholder: "New service name...",
+              placeholder: tr("New service name..."),
               style: inp({ fontSize: 13, padding: "5px 8px" }),
               onFocus,
               onBlur,
             }),
             isNameAlreadyInCatalog &&
-              React.createElement("div", { style: { fontSize: 11, color: C.textSub, marginTop: 3 } }, "Already in the standardized catalog"),
+              React.createElement("div", { style: { fontSize: 11, color: C.textSub, marginTop: 3 } }, tr("Already in the standardized catalog")),
           )
           : React.createElement("span", { style: { fontWeight: 600, color: C.text } }, item.serviceName),
       ),
@@ -4949,7 +5636,7 @@ const ServicePickerModal = ({
           ? React.createElement("input", {
             value: item.serviceType || "",
             onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
-            placeholder: "Type (optional)...",
+            placeholder: tr("Type (optional)..."),
             style: inp({ fontSize: 12.5, padding: "5px 8px" }),
             onFocus,
             onBlur,
@@ -4975,7 +5662,7 @@ const ServicePickerModal = ({
           ? React.createElement("input", {
             value: item.description || "",
             onChange: (e) => updateComboItem(item._id, "description", e.target.value),
-            placeholder: "Description (optional)...",
+            placeholder: tr("Description (optional)..."),
             style: inp({ fontSize: 12.5, padding: "5px 8px" }),
             onFocus,
             onBlur,
@@ -5003,7 +5690,7 @@ const ServicePickerModal = ({
               whiteSpace: "nowrap",
             },
           },
-          `${expanded ? "Hide" : "Manage"} (${taskCount})`,
+          `${expanded ? tr("Hide") : tr("Manage")} (${taskCount})`,
         ),
       ),
       React.createElement(
@@ -5014,7 +5701,7 @@ const ServicePickerModal = ({
           {
             type: "button",
             onClick: () => removeComboItem(item._id),
-            title: "Remove",
+            title: tr("Remove"),
             style: { border: "none", background: "transparent", color: C.danger, cursor: "pointer", fontSize: 15, lineHeight: 1 },
           },
           "×",
@@ -5048,11 +5735,11 @@ const ServicePickerModal = ({
             "tr",
             null,
             React.createElement("th", { style: comboTh({ width: 28, textAlign: "center" }) }, "#"),
-            React.createElement("th", { style: comboTh({ width: "28%" }) }, "Service name"),
-            React.createElement("th", { style: comboTh({ width: 110 }) }, "Type"),
-            React.createElement("th", { style: comboTh({ width: 130, textAlign: "right" }) }, "Unit Price"),
-            React.createElement("th", { style: comboTh() }, "Description"),
-            React.createElement("th", { style: comboTh({ width: 118 }) }, "Tasks"),
+            React.createElement("th", { style: comboTh({ width: "28%" }) }, tr("Service name")),
+            React.createElement("th", { style: comboTh({ width: 110 }) }, tr("Type")),
+            React.createElement("th", { style: comboTh({ width: 130, textAlign: "right" }) }, tr("Unit Price")),
+            React.createElement("th", { style: comboTh() }, tr("Description")),
+            React.createElement("th", { style: comboTh({ width: 118 }) }, tr("Tasks")),
             React.createElement("th", { style: comboTh({ width: 32 }) }, ""),
           ),
         ),
@@ -5104,7 +5791,7 @@ const ServicePickerModal = ({
             autoFocus: true,
             value: comboSearch,
             onChange: (e) => setComboSearch(e.target.value),
-            placeholder: "Search combo...",
+            placeholder: tr("Search combo..."),
             style: inp({ paddingLeft: 36 }),
             onFocus,
             onBlur,
@@ -5130,7 +5817,7 @@ const ServicePickerModal = ({
               flexShrink: 0,
             },
           },
-          "+ New combo",
+          tr("+ New combo"),
         ),
       ),
       React.createElement(
@@ -5146,9 +5833,9 @@ const ServicePickerModal = ({
               "tr",
               null,
               React.createElement("th", { style: thS({ width: 36, textAlign: "center" }) }, "#"),
-              React.createElement("th", { style: thS({ minWidth: 260 }) }, "Combo"),
-              React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, "Combo Price"),
-              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Services"),
+              React.createElement("th", { style: thS({ minWidth: 260 }) }, tr("Combo")),
+              React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, tr("Combo Price")),
+              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, tr("Services")),
               React.createElement("th", { style: thS({ width: 90, textAlign: "center" }) }, ""),
             ),
           ),
@@ -5166,14 +5853,14 @@ const ServicePickerModal = ({
                     "div",
                     { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
                     React.createElement("span", { style: { color: C.textSub, display: "inline-flex" } }, ClipboardIcon),
-                    React.createElement("div", null, "No combos yet"),
+                    React.createElement("div", null, tr("No combos yet")),
                     React.createElement(
                       "span",
                       {
                         onClick: () => setComboTab("create"),
                         style: { color: C.primary, cursor: "pointer", fontSize: 12, textDecoration: "underline" },
                       },
-                      "New combo",
+                      tr("New combo"),
                     ),
                   ),
                 ),
@@ -5230,7 +5917,7 @@ const ServicePickerModal = ({
                       React.createElement(
                         "span",
                         { style: { fontWeight: 700, color: C.text, lineHeight: "20px", overflowWrap: "anywhere" } },
-                        c.comboName || `Combo #${c.id}`,
+                        c.comboName || tr("Combo #{0}", { 0: c.id }),
                       ),
                       c.serviceComboType &&
                         React.createElement(
@@ -5269,13 +5956,13 @@ const ServicePickerModal = ({
                       React.createElement(
                         "span",
                         { style: { fontSize: 10.5, color: C.textSub } },
-                        `VAT ${parseNum(c.packageVatRate)}%`,
+                        tr("VAT {0}%", { 0: parseNum(c.packageVatRate) }),
                       ),
                       comboSavings > 0 &&
                         React.createElement(
                           "span",
                           { style: { fontSize: 10.5, color: C.success, fontWeight: 600 } },
-                          `Tiết kiệm ${formatMoney(comboSavings, vndCurrency)} (${comboSavingsPct}%)`,
+                          tr("Save {0} ({1}%)", { 0: formatMoney(comboSavings, vndCurrency), 1: comboSavingsPct }),
                         ),
                     ),
                   ),
@@ -5300,7 +5987,7 @@ const ServicePickerModal = ({
                           fontWeight: 600,
                         },
                       },
-                      "Select",
+                      tr("Select"),
                     ),
                   ),
                 );
@@ -5326,7 +6013,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          "Close",
+          tr("Close"),
         ),
       ),
     );
@@ -5353,7 +6040,7 @@ const ServicePickerModal = ({
                 fontWeight: 500,
               },
             },
-            "Please select an Internal Company in the main form before creating a service",
+            tr("Please select an Internal Company in the main form before creating a service"),
           ),
         React.createElement(
           "div",
@@ -5361,14 +6048,14 @@ const ServicePickerModal = ({
           React.createElement(
             "div",
             { style: { minWidth: 0 } },
-            renderNewSvcFieldLabel("Combo Name", true, null),
+            renderNewSvcFieldLabel(tr("Combo Name"), true, null),
             React.createElement("input", {
               value: comboName,
               onChange: (e) => {
                 setComboName(e.target.value);
                 setComboErrors((p) => ({ ...p, comboName: "" }));
               },
-              placeholder: "E.g. Business incorporation consulting combo...",
+              placeholder: tr("E.g. Business incorporation consulting combo..."),
               style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
               onFocus,
               onBlur,
@@ -5379,11 +6066,11 @@ const ServicePickerModal = ({
           React.createElement(
             "div",
             { style: { minWidth: 0 } },
-            renderNewSvcFieldLabel("Combo Type", false, "optional"),
+            renderNewSvcFieldLabel(tr("Combo Type"), false, "optional"),
             React.createElement("input", {
               value: comboType,
               onChange: (e) => setComboType(e.target.value),
-              placeholder: "E.g. Business, Education...",
+              placeholder: tr("E.g. Business, Education..."),
               style: inp(),
               onFocus,
               onBlur,
@@ -5396,7 +6083,7 @@ const ServicePickerModal = ({
           React.createElement(
             "div",
             { style: { gridColumn: "span 2" } },
-            renderNewSvcFieldLabel("Combo Subtotal", false, null),
+            renderNewSvcFieldLabel(tr("Combo Subtotal"), false, null),
             React.createElement(
               "div",
               { style: { display: "flex", gap: 8 } },
@@ -5417,7 +6104,7 @@ const ServicePickerModal = ({
                     showSearch: true,
                     allowClear: false,
                     value: comboCurrencyId || undefined,
-                    placeholder: currencies.length ? "Currency" : "No currencies configured",
+                    placeholder: currencies.length ? tr("Currency") : tr("No currencies configured"),
                     optionFilterProp: "label",
                     style: { width: "100%" },
                     onChange: (value) => setComboCurrencyId(value || ""),
@@ -5435,7 +6122,7 @@ const ServicePickerModal = ({
                       style: inp(),
                       disabled: !currencies.length,
                     },
-                    React.createElement("option", { value: "" }, "Select currency"),
+                    React.createElement("option", { value: "" }, tr("Select currency")),
                     ...currencies.map((item) =>
                       React.createElement(
                         "option",
@@ -5462,18 +6149,18 @@ const ServicePickerModal = ({
                 return React.createElement(
                   "div",
                   { style: { marginTop: 6, fontSize: 11.5, color: C.textSub, display: "flex", flexWrap: "wrap", gap: 6 } },
-                  React.createElement("span", null, `Giá lẻ: ${formatMoney(originalTotal, selectedComboCurrency)}`),
+                  React.createElement("span", null, tr("Individual price: {0}", { 0: formatMoney(originalTotal, selectedComboCurrency) })),
                   delta < 0 &&
-                    React.createElement("span", { style: { color: C.success, fontWeight: 600 } }, `Giảm ${formatMoney(-delta, selectedComboCurrency)}`),
+                    React.createElement("span", { style: { color: C.success, fontWeight: 600 } }, tr("Discount {0}", { 0: formatMoney(-delta, selectedComboCurrency) })),
                   delta > 0 &&
-                    React.createElement("span", { style: { color: C.warning, fontWeight: 600 } }, `Tăng ${formatMoney(delta, selectedComboCurrency)}`),
+                    React.createElement("span", { style: { color: C.warning, fontWeight: 600 } }, tr("Increase {0}", { 0: formatMoney(delta, selectedComboCurrency) })),
                 );
               })(),
           ),
           React.createElement(
             "div",
             null,
-            renderNewSvcFieldLabel("VAT %", false, null),
+            renderNewSvcFieldLabel(tr("VAT %"), false, null),
             React.createElement("input", {
               type: "number",
               min: 0,
@@ -5493,7 +6180,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            `Services in combo (${comboItems.length})`,
+            tr("Services in combo ({0})", { 0: comboItems.length }),
           ),
           React.createElement(
             "div",
@@ -5503,7 +6190,7 @@ const ServicePickerModal = ({
                 showSearch: true,
                 allowClear: false,
                 value: comboItemPick,
-                placeholder: "+ Add existing service...",
+                placeholder: tr("+ Add existing service..."),
                 optionFilterProp: "label",
                 style: { width: 240 },
                 onSelect: (value) => {
@@ -5512,7 +6199,7 @@ const ServicePickerModal = ({
                 },
                 options: comboAvailableCatalogItems.map((s) => ({
                   value: String(s.id),
-                  label: s.serviceName || `Service #${s.id}`,
+                  label: s.serviceName || tr("Service #{0}", { 0: s.id }),
                 })),
               })
               : null,
@@ -5534,7 +6221,7 @@ const ServicePickerModal = ({
                   whiteSpace: "nowrap",
                 },
               },
-              "+ New service",
+              tr("+ New service"),
             ),
           ),
         ),
@@ -5555,7 +6242,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            "No services yet — add one from the list or create a new one.",
+            tr("No services yet — add one from the list or create a new one."),
           )
           : renderComboItemsTable(),
       ),
@@ -5587,7 +6274,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             null,
-            "Also save this combo to the shared catalog (created only if you finish creating this case). All custom services in it are saved too — services already in the catalog are simply reused.",
+            tr("Also save this combo to the shared catalog (created only if you finish creating this case). All custom services in it are saved too — services already in the catalog are simply reused."),
           ),
         ),
       ),
@@ -5619,7 +6306,7 @@ const ServicePickerModal = ({
               color: C.text,
             },
           },
-          "Back",
+          tr("Back"),
         ),
         React.createElement(
           "button",
@@ -5638,7 +6325,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          comboApplying ? "Applying..." : "Submit",
+          comboApplying ? tr("Applying...") : tr("Submit"),
         ),
       ),
     );
@@ -5737,18 +6424,18 @@ const ServicePickerModal = ({
           },
           mode === "combo"
             ? comboTab === "create"
-              ? "New Combo"
-              : "Select Combo"
+              ? tr("New Combo")
+              : tr("Select Combo")
             : tab === "create"
-              ? "Create New Service"
-              : "Select Service",
+              ? tr("Create New Service")
+              : tr("Select Service"),
         ),
         React.createElement(
           "button",
           {
             onClick: requestClosePicker,
             type: "button",
-            title: "Close",
+            title: tr("Close"),
             style: {
               border: "none",
               background: "transparent",
@@ -5782,8 +6469,8 @@ const ServicePickerModal = ({
             value: mode,
             onChange: (value) => setMode(value),
             options: [
-              { value: "individual", label: "Line pricing" },
-              { value: "combo", label: "Combo pricing" },
+              { value: "individual", label: tr("Line pricing") },
+              { value: "combo", label: tr("Combo pricing") },
             ],
             style: { width: "100%", maxWidth: 360 },
           })
@@ -5800,8 +6487,8 @@ const ServicePickerModal = ({
               },
             },
             [
-              ["individual", "Line pricing"],
-              ["combo", "Combo pricing"],
+              ["individual", tr("Line pricing")],
+              ["combo", tr("Combo pricing")],
             ].map(([m, label]) =>
               React.createElement(
                 "button",
@@ -5826,6 +6513,51 @@ const ServicePickerModal = ({
               ),
             ),
           ),
+      ),
+      !comboScopeId &&
+      mode === "individual" &&
+      comboTarget &&
+      comboTargets.length > 0 &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "10px 20px",
+            borderBottom: `1px solid ${C.border}`,
+            background: C.bgSection,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            flexShrink: 0,
+          },
+        },
+        React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: C.text } }, tr("Add to combo:")),
+        React.createElement(
+          "select",
+          {
+            value: comboTarget,
+            onChange: (e) => onComboTargetChange?.(e.target.value),
+            style: {
+              border: `1px solid ${C.border}`,
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 13,
+              fontFamily: FONT,
+              minWidth: 220,
+              maxWidth: "100%",
+              background: "#fff",
+            },
+          },
+          comboTargets.map((target) =>
+            React.createElement("option", { key: target.key, value: target.key }, target.name),
+          ),
+        ),
+        React.createElement(
+          "span",
+          { style: { fontSize: 12, color: C.textSub } },
+          tr("Combo pricing keeps every service inside a combo."),
+        ),
       ),
       mode === "individual" &&
       React.createElement(
@@ -5862,7 +6594,7 @@ const ServicePickerModal = ({
                 userSelect: "none",
               },
             },
-            t === "list" ? "Select from list" : "Create new service",
+            t === "list" ? tr("Select from list") : tr("Create new service"),
           ),
         ),
       ),
@@ -5903,7 +6635,7 @@ const ServicePickerModal = ({
               autoFocus: true,
               value: search,
               onChange: (e) => setSearch(e.target.value),
-              placeholder: "Search service, type, currency...",
+              placeholder: tr("Search service, type, currency..."),
               style: inp({ paddingLeft: 36 }),
               onFocus,
               onBlur,
@@ -5930,22 +6662,22 @@ const ServicePickerModal = ({
                 React.createElement(
                   "th",
                   { style: thS({ minWidth: 250 }) },
-                  "Service",
+                  tr("Service"),
                 ),
                 React.createElement(
                   "th",
                   { style: thS({ minWidth: 180 }) },
-                  "Description",
+                  tr("Description"),
                 ),
                 React.createElement(
                   "th",
                   { style: thS({ minWidth: 240 }) },
-                  "Task Templates",
+                  tr("Task Templates"),
                 ),
                 React.createElement(
                   "th",
                   { style: thS({ width: 180, textAlign: "right" }) },
-                  "Unit Price",
+                  tr("Unit Price"),
                 ),
                 React.createElement(
                   "th",
@@ -5986,7 +6718,7 @@ const ServicePickerModal = ({
                         { style: { color: C.textSub, display: "inline-flex" } },
                         ClipboardIcon,
                       ),
-                      React.createElement("div", null, "No services found"),
+                      React.createElement("div", null, tr("No services found")),
                       React.createElement(
                         "span",
                         {
@@ -5998,7 +6730,7 @@ const ServicePickerModal = ({
                             textDecoration: "underline",
                           },
                         },
-                        "Create new service",
+                        tr("Create new service"),
                       ),
                     ),
                   ),
@@ -6010,12 +6742,12 @@ const ServicePickerModal = ({
                   const serviceCurrency = currencyFromRecordOptional(s, currencies, fallbackCurrency);
                   const currencySourceLabel =
                     s.currencySource === "companyService"
-                      ? "Company service currency"
+                      ? tr("Company service currency")
                       : s.currencySource === "service"
-                        ? "Service default currency"
+                        ? tr("Service default currency")
                         : serviceCurrency
-                          ? "Case currency"
-                          : "No currency";
+                          ? tr("Case currency")
+                          : tr("No currency");
                   const currencyChipTone =
                     s.currencySource === "companyService"
                       ? { bg: "#ecfdf5", border: "#bbf7d0", color: "#047857" }
@@ -6080,7 +6812,7 @@ const ServicePickerModal = ({
                               overflowWrap: "anywhere",
                             },
                           },
-                          s.serviceName || `Service #${s.id}`,
+                          s.serviceName || tr("Service #{0}", { 0: s.id }),
                         ),
                         s.serviceType &&
                         React.createElement(
@@ -6114,7 +6846,7 @@ const ServicePickerModal = ({
                         tasks: sampleTasks,
                         compact: true,
                         max: 2,
-                        emptyText: "No sample tasks",
+                        emptyText: tr("No sample tasks"),
                       }),
                     ),
                     React.createElement(
@@ -6147,7 +6879,7 @@ const ServicePickerModal = ({
                               },
                             },
                             serviceCurrency
-                              ? formatMoneyAmount(s.basePrice, serviceCurrency)
+                              ? React.createElement("div", null, formatMoneyAmount(s.basePrice, serviceCurrency), catalogVndText(s, serviceCurrency) && React.createElement("div", { style: { fontSize: 11, color: "rgba(0, 0, 0, 0.45)", fontWeight: 400 } }, catalogVndText(s, serviceCurrency)))
                               : formatMoneyDraft(s.basePrice, neutralCurrencyObject()),
                           ),
                           React.createElement(
@@ -6211,7 +6943,7 @@ const ServicePickerModal = ({
                               fontWeight: 600,
                             },
                           },
-                          "Select",
+                          tr("Select"),
                         ),
                     ),
                   );
@@ -6244,7 +6976,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            "Close",
+            tr("Close"),
           ),
         ),
       ),
@@ -6270,7 +7002,7 @@ const ServicePickerModal = ({
                 fontWeight: 500,
               },
             },
-            "Please select an Internal Company in the main form before creating a service",
+            tr("Please select an Internal Company in the main form before creating a service"),
           ),
           React.createElement(
             "div",
@@ -6278,14 +7010,14 @@ const ServicePickerModal = ({
             React.createElement(
               "div",
               { style: { minWidth: 0 } },
-              renderNewSvcFieldLabel("Service Name", true, null),
+              renderNewSvcFieldLabel(tr("Service Name"), true, null),
               React.createElement("input", {
                 value: newSvc.name,
                 onChange: (e) => {
                   setNewSvc({ ...newSvc, name: e.target.value });
                   setErrors((p) => ({ ...p, name: "" }));
                 },
-                placeholder: "E.g. Employment contract consultation...",
+                placeholder: tr("E.g. Employment contract consultation..."),
                 style: { ...inp(), ...(errors.name ? { borderColor: C.danger } : {}) },
                 onFocus,
                 onBlur,
@@ -6295,11 +7027,11 @@ const ServicePickerModal = ({
             React.createElement(
               "div",
               { style: { minWidth: 0 } },
-              renderNewSvcFieldLabel("Service Type", false, "optional"),
+              renderNewSvcFieldLabel(tr("Service Type"), false, "optional"),
               React.createElement("input", {
                 value: newSvc.serviceType,
                 onChange: (e) => setNewSvc({ ...newSvc, serviceType: e.target.value }),
-                placeholder: "E.g. Consultation, Legal...",
+                placeholder: tr("E.g. Consultation, Legal..."),
                 style: inp(),
                 onFocus,
                 onBlur,
@@ -6309,18 +7041,18 @@ const ServicePickerModal = ({
           React.createElement(
             "div",
             { style: { marginBottom: 16 } },
-            renderNewSvcFieldLabel("Description", false, "optional"),
+            renderNewSvcFieldLabel(tr("Description"), false, "optional"),
             React.createElement(AutoTextarea, {
               value: newSvc.description,
               onChange: (v) => setNewSvc({ ...newSvc, description: v }),
-              placeholder: "Scope of work, notes...",
+              placeholder: tr("Scope of work, notes..."),
               minRows: 3,
             }),
           ),
           React.createElement(
             "div",
             { style: { marginBottom: 16 } },
-            renderNewSvcFieldLabel("Unit Price", false, "optional"),
+            renderNewSvcFieldLabel(tr("Unit Price"), false, "optional"),
             React.createElement(
               "div",
               { style: { display: "flex", gap: 8 } },
@@ -6342,7 +7074,7 @@ const ServicePickerModal = ({
                     showSearch: true,
                     allowClear: false,
                     value: newSvc.currencyId || undefined,
-                    placeholder: currencies.length ? "Currency" : "No currencies configured",
+                    placeholder: currencies.length ? tr("Currency") : tr("No currencies configured"),
                     optionFilterProp: "label",
                     style: { width: "100%" },
                     onChange: (value) => setNewSvc({ ...newSvc, currencyId: value || "" }),
@@ -6360,7 +7092,7 @@ const ServicePickerModal = ({
                       style: inp(),
                       disabled: !currencies.length,
                     },
-                    React.createElement("option", { value: "" }, "Select currency"),
+                    React.createElement("option", { value: "" }, tr("Select currency")),
                     ...currencies.map((item) =>
                       React.createElement(
                         "option",
@@ -6403,8 +7135,8 @@ const ServicePickerModal = ({
                 style: { fontSize: 12.5, color: C.textLabel, cursor: isNameAlreadyInCatalog ? "default" : "pointer", lineHeight: 1.5 },
               },
               isNameAlreadyInCatalog
-                ? "This name already exists in the standardized catalog — pick it from the list instead of creating a duplicate."
-                : "Also save to the shared catalog (created only if you finish creating this case).",
+                ? tr("This name already exists in the standardized catalog — pick it from the list instead of creating a duplicate.")
+                : tr("Also save to the shared catalog (created only if you finish creating this case)."),
             ),
           ),
         ),
@@ -6436,7 +7168,7 @@ const ServicePickerModal = ({
                 color: C.text,
               },
             },
-            "Back",
+            tr("Back"),
           ),
           React.createElement(
             "button",
@@ -6457,7 +7189,7 @@ const ServicePickerModal = ({
                 fontFamily: FONT,
               },
             },
-            creating ? "Creating..." : "Save & Select",
+            creating ? tr("Creating...") : tr("Save & Select"),
           ),
         ),
       ),
@@ -6492,6 +7224,9 @@ const ProjectServicesTable = ({
   currency,
   currencies = [],
   pricingDate,
+  // the source contract's Signed date / quotation's creation date: a synced
+  // row converts on it, as the database does (rowRateBasis)
+  sourceRateDate = null,
   combos = [],
   onApplyCombo,
   onApplyAdhocCombo,
@@ -6507,9 +7242,14 @@ const ProjectServicesTable = ({
   // of landing as an untagged row, and the picker's Individual/Combo mode
   // toggle is hidden (adding INTO an existing combo, not creating another).
   const [comboAddInstanceId, setComboAddInstanceId] = useState(null);
+  // Line/Combo sync (2026-09-25): in Combo pricing with combos present, a
+  // service added from the top-level "New service" goes into a combo the
+  // lawyer picks (default: the last one) instead of a loose line.
+  const [addToComboTarget, setAddToComboTarget] = useState(null);
   const closePicker = () => {
     setPickerOpen(false);
     setComboAddInstanceId(null);
+    setAddToComboTarget(null);
   };
   const [editingRows, setEditingRows] = useState({});
   const [taskOverviewRowId, setTaskOverviewRowId] = useState(null);
@@ -6610,6 +7350,16 @@ const ProjectServicesTable = ({
     [rows],
   );
   const packageMode = isPackagePricing(pricingMode);
+  const comboTargets = [];
+  rows.forEach((row) => {
+    const key = row._comboInstanceId;
+    if (!key || comboTargets.some((target) => target.key === key)) return;
+    comboTargets.push({ key, name: row._comboName || row.comboName || "Combo" });
+  });
+  const openTopLevelPicker = () => {
+    setAddToComboTarget(packageMode && comboTargets.length ? comboTargets[comboTargets.length - 1].key : null);
+    setPickerOpen(true);
+  };
   const packageIncludedCount = useMemo(
     () => rows.filter((r) => r.billingMode === BILLING_PACKAGE_INCLUDED).length,
     [rows],
@@ -6617,18 +7367,18 @@ const ProjectServicesTable = ({
   const hasFinancialSource = financialSourceType && financialSourceType !== SOURCE_NONE;
   const billingOptions = packageMode
     ? [
-      { value: BILLING_PACKAGE_INCLUDED, label: "Included in combo" },
-      { value: BILLING_SEPARATE, label: "Bill separately" },
-      { value: BILLING_SCOPE, label: "Scope only" },
+      { value: BILLING_PACKAGE_INCLUDED, label: tr("Included in combo") },
+      { value: BILLING_SEPARATE, label: tr("Bill separately") },
+      { value: BILLING_SCOPE, label: tr("Scope only") },
     ]
     : hasFinancialSource
       ? [
-        { value: BILLING_LINE, label: "Line billable" },
-        { value: BILLING_SCOPE, label: "Scope only" },
+        { value: BILLING_LINE, label: tr("Line billable") },
+        { value: BILLING_SCOPE, label: tr("Scope only") },
       ]
       : [
-        { value: BILLING_SCOPE, label: "Scope only" },
-        { value: BILLING_SEPARATE, label: "Bill separately" },
+        { value: BILLING_SCOPE, label: tr("Scope only") },
+        { value: BILLING_SEPARATE, label: tr("Bill separately") },
       ];
   const isMoneyEditable = (mode) =>
     mode === BILLING_LINE || mode === BILLING_SEPARATE;
@@ -6667,23 +7417,29 @@ const ProjectServicesTable = ({
               hasFinancialSource,
             });
           if (!isMoneyEditable(rowBillingMode) || packageMode) return acc;
-          const amounts = calcLineAmounts(row.basePrice, row.vat);
           const rowCurrency = getRowCurrency(row);
+          const amounts = calcLineAmounts(row.basePrice, row.vat, rowCurrency);
+          // a row synced to a contract / quotation line converts at that
+          // line's rate or on its document's date, so it forms its own group
+          const basis = rowRateBasis(row, { extractCurrencyId, synced: rowBillingMode === BILLING_LINE, sourceRateDate });
           const key =
-            extractCurrencyId(row.currencyId) ||
+            `${extractCurrencyId(row.currencyId) ||
             extractCurrencyId(rowCurrency) ||
-            getCurrencyCode(rowCurrency);
+            getCurrencyCode(rowCurrency)}${basis.rate ? `@${basis.rate}` : basis.date ? `#${basis.date}` : ""}`;
           if (!acc.byCurrency[key]) {
             acc.byCurrency[key] = {
+              rateBasis: basis,
               currency: rowCurrency,
               subTotal: 0,
               vatAmount: 0,
               totalAmount: 0,
+              lines: [],
             };
           }
           acc.byCurrency[key].subTotal += amounts.subTotal;
           acc.byCurrency[key].vatAmount += amounts.vatAmount;
           acc.byCurrency[key].totalAmount += amounts.totalAmount;
+          acc.byCurrency[key].lines.push(amounts);
           return {
             subTotal: acc.subTotal + amounts.subTotal,
             vatAmount: acc.vatAmount + amounts.vatAmount,
@@ -6693,7 +7449,7 @@ const ProjectServicesTable = ({
         },
         { subTotal: 0, vatAmount: 0, totalAmount: 0, byCurrency: {} },
       ),
-    [getRowCurrency, hasFinancialSource, packageMode, rows],
+    [getRowCurrency, hasFinancialSource, packageMode, rows, sourceRateDate],
   );
   const lineTotalsByCurrency = useMemo(
     () => Object.values(lineTotals.byCurrency || {}),
@@ -6783,12 +7539,22 @@ const ProjectServicesTable = ({
           groupCurrencyCode === baseCurrencyCode;
         const matched = sameBase
           ? null
-          : pickConversionRate(exchangeRates, groupCurrency, baseCurrency, pricingDate);
+          : group.rateBasis?.rate
+            ? {
+                rate: group.rateBasis.rate,
+                record: { effectiveDate: group.rateBasis.date, source: tr("Linked line") },
+                direction: "direct",
+              }
+            : pickConversionRate(exchangeRates, groupCurrency, baseCurrency, group.rateBasis?.date || pricingDate);
         const rateValue = sameBase ? 1 : matched?.rate || 0;
         const canConvert = sameBase || rateValue > 0;
-        const convertedSubTotal = canConvert ? Math.round(group.subTotal * rateValue) : null;
-        const convertedVatAmount = canConvert ? Math.round(group.vatAmount * rateValue) : null;
+        const converted = canConvert ? convertLinesToBase(group.lines, rateValue) : null;
+        const convertedSubTotal = converted ? converted.subTotal : null;
+        const convertedVatAmount = converted ? converted.vatAmount : null;
         return {
+          // a group on a source line's rate / document date: its rows convert
+          // through rowRateBasis, not the per-currency Open-date lookup
+          frozen: !!(group.rateBasis?.rate || group.rateBasis?.date),
           currency: groupCurrency,
           currencyCode: groupCurrencyCode,
           subTotal: group.subTotal,
@@ -6835,6 +7601,7 @@ const ProjectServicesTable = ({
   const conversionByCurrencyKey = useMemo(
     () =>
       exchangeBreakdown.reduce((acc, item) => {
+        if (item.frozen) return acc; // its rows convert through rowRateBasis
         const idKey = extractCurrencyId(item.currency);
         const codeKey = getCurrencyCode(item.currency);
         if (idKey) acc[String(idKey)] = item;
@@ -6847,7 +7614,10 @@ const ProjectServicesTable = ({
     conversionByCurrencyKey[String(extractCurrencyId(rowCurrency))] ||
     conversionByCurrencyKey[getCurrencyCode(rowCurrency)] ||
     null;
-  const convertAmountsToBaseCurrency = (amounts, rowCurrency) => {
+  // basis (rowRateBasis): a source line's rate, or a source document's date;
+  // each part is rounded on its own, as money_line_amounts()
+  const convertAmountsToBaseCurrency = (amounts, rowCurrency, basis = null) => {
+    const frozen = basis?.rate ? basis : null;
     const sameCurrency =
       (extractCurrencyId(rowCurrency) && baseCurrencyId && extractCurrencyId(rowCurrency) === baseCurrencyId) ||
       getCurrencyCode(rowCurrency) === baseCurrencyCode;
@@ -6860,6 +7630,30 @@ const ProjectServicesTable = ({
         subTotal: amounts.subTotal,
         vatAmount: amounts.vatAmount,
         totalAmount: amounts.totalAmount,
+      };
+    }
+    if (frozen?.rate) {
+      return {
+        canConvert: true,
+        sameCurrency: false,
+        status: "converted",
+        rate: frozen.rate,
+        rateRecord: { effectiveDate: frozen.date, source: tr("Linked line") },
+        ...convertLinesToBase([amounts], frozen.rate),
+      };
+    }
+    if (basis?.date) {
+      const matched = pickConversionRate(exchangeRates, rowCurrency, baseCurrency, basis.date);
+      if (!matched?.rate) {
+        return { canConvert: false, sameCurrency: false, status: "missing", rate: null, subTotal: null, vatAmount: null, totalAmount: null };
+      }
+      return {
+        canConvert: true,
+        sameCurrency: false,
+        status: "converted",
+        rate: matched.rate,
+        rateRecord: matched.record,
+        ...convertLinesToBase([amounts], matched.rate),
       };
     }
     const info = getConversionInfoForCurrency(rowCurrency);
@@ -6880,9 +7674,7 @@ const ProjectServicesTable = ({
       status: info.status,
       rate: info.rate,
       rateRecord: info.rateRecord,
-      subTotal: amounts.subTotal * info.rate,
-      vatAmount: amounts.vatAmount * info.rate,
-      totalAmount: amounts.totalAmount * info.rate,
+      ...convertLinesToBase([amounts], info.rate),
     };
   };
   // Converts every existing LINE-priced row into a package-included row the
@@ -6900,10 +7692,14 @@ const ProjectServicesTable = ({
       if (!isMoneyEditable(rowBillingMode)) {
         return { ...row, billingMode: BILLING_PACKAGE_INCLUDED, pricingMode: PRICING_MODE_PACKAGE, _packageBasePrice: 0 };
       }
-      const amounts = calcLineAmounts(row.basePrice, row.vat);
       const rowCurrency = getRowCurrency(row);
-      const converted = convertAmountsToBaseCurrency(amounts, rowCurrency);
-      const rowContributionVnd = converted.canConvert ? converted.subTotal : 0;
+      const amounts = calcLineAmounts(row.basePrice, row.vat, rowCurrency);
+      const converted = convertAmountsToBaseCurrency(
+        amounts,
+        rowCurrency,
+        rowRateBasis(row, { extractCurrencyId, synced: rowBillingMode === BILLING_LINE, sourceRateDate }),
+      );
+      const rowContributionVnd = converted.canConvert ? Math.round(converted.subTotal) : 0;
       contributionVnd += rowContributionVnd;
       return {
         ...row,
@@ -7111,12 +7907,12 @@ const ProjectServicesTable = ({
                   flexShrink: 0,
                 },
               },
-              "COMBO",
+              tr("COMBO"),
             ),
             React.createElement(
               "span",
               { style: { fontWeight: 700, color: C.text, fontSize: 13.5, overflowWrap: "anywhere" } },
-              combo?.comboName || "Combo",
+              combo?.comboName || tr("Combo"),
             ),
           ),
           React.createElement(
@@ -7146,13 +7942,13 @@ const ProjectServicesTable = ({
               React.createElement(
                 "span",
                 { style: { fontSize: 11.5, color: C.textSub } },
-                `Giá lẻ: ${formatMoney(priceComparison.individualTotal, priceComparison.currency)}`,
+                tr("Individual price: {0}", { 0: formatMoney(priceComparison.individualTotal, priceComparison.currency) }),
               ),
             priceComparison && priceComparison.savings > 0 &&
               React.createElement(
                 "span",
                 { style: { fontSize: 11.5, color: C.success, fontWeight: 600 } },
-                `Tiết kiệm ${formatMoney(priceComparison.savings, priceComparison.currency)} (${priceComparison.savingsPct}%)`,
+                tr("Save {0} ({1}%)", { 0: formatMoney(priceComparison.savings, priceComparison.currency), 1: priceComparison.savingsPct }),
               ),
             onAddServiceToCombo &&
               React.createElement(
@@ -7163,7 +7959,7 @@ const ProjectServicesTable = ({
                     setComboAddInstanceId(instanceId);
                     setPickerOpen(true);
                   },
-                  title: "Add service to this combo",
+                  title: tr("Add service to this combo"),
                   style: {
                     border: `1px dashed ${C.primary}`,
                     background: "#fff",
@@ -7176,7 +7972,7 @@ const ProjectServicesTable = ({
                     fontFamily: FONT,
                   },
                 },
-                "+ Add service",
+                tr("+ Add service"),
               ),
             onRemoveCombo &&
               React.createElement(
@@ -7184,7 +7980,7 @@ const ProjectServicesTable = ({
                 {
                   type: "button",
                   onClick: () => onRemoveCombo(instanceId),
-                  title: "Remove this combo",
+                  title: tr("Remove this combo"),
                   style: {
                     border: `1px solid ${C.danger}`,
                     background: "#fff",
@@ -7197,7 +7993,7 @@ const ProjectServicesTable = ({
                     fontFamily: FONT,
                   },
                 },
-                "× Remove combo",
+                tr("× Remove combo"),
               ),
           ),
         ),
@@ -7213,10 +8009,10 @@ const ProjectServicesTable = ({
       title: getTaskTemplateRawTitle(task),
       description: getTaskTemplateDescription(task),
       sortOrder: getTaskTemplateSortOrder(task, index + 1),
-      // Payment trigger — seeds from the template's own catalog default
-      // (projectTemplates.isPaymentTrigger) but is editable per-case here,
-      // matching the earlier decision that trigger config should be
-      // per-task-instance/per-case, not a shared global template setting.
+      // Payment trigger — carried from the template's catalog default
+      // (projectTemplates.isPaymentTrigger) or the contract's saved
+      // selection; no longer editable here (2026-09-25), change it per task
+      // in Task Management.
       // See docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
       isPaymentTrigger: !!task?.isPaymentTrigger,
     }));
@@ -7268,12 +8064,9 @@ const ProjectServicesTable = ({
   // instead of always-expanded for every row at once.
   const renderTaskCard = (row) => {
     const tasks = editableTasksForRow(row);
-    // Trigger column shown regardless of contract type or whether the case
-    // even has a contract yet (2026-09-21 revision, at user's explicit
-    // request) — the SQL trigger itself already no-ops safely until a By
-    // Service contract is linked (see the catch-up trigger for tasks
-    // marked done before that happens). See
-    // docs/superpowers/specs/2026-09-17-unified-contract-payment-data-model-design.md.
+    // No "Trigger" column (removed 2026-09-25, user request): each task keeps
+    // its template's isPaymentTrigger default (or the contract's saved
+    // selection); payment triggers are set in Task Management.
     return React.createElement(
       "div",
       { style: { display: "grid", gap: 12 } },
@@ -7297,7 +8090,7 @@ const ProjectServicesTable = ({
               fontFamily: FONT,
             },
           },
-          "+ Add task",
+          tr("+ Add task"),
         ),
       ),
       tasks.length === 0
@@ -7313,7 +8106,7 @@ const ProjectServicesTable = ({
               borderRadius: 8,
             },
           },
-          "No sample tasks. Add a task if this service needs work items.",
+          tr("No sample tasks. Add a task if this service needs work items."),
         )
         : React.createElement(
           "div",
@@ -7334,13 +8127,8 @@ const ProjectServicesTable = ({
                 "tr",
                 null,
                 React.createElement("th", { style: th({ width: 48, textAlign: "center" }) }, "#"),
-                React.createElement("th", { style: th({ minWidth: 200 }) }, "Task name"),
-                React.createElement("th", { style: th({ minWidth: 260 }) }, "Description"),
-                React.createElement(
-                  "th",
-                  { style: th({ width: 80, textAlign: "center" }) },
-                  "Trigger",
-                ),
+                React.createElement("th", { style: th({ minWidth: 200 }) }, tr("Task name")),
+                React.createElement("th", { style: th({ minWidth: 260 }) }, tr("Description")),
                 React.createElement("th", { style: th({ width: 64, textAlign: "center" }) }, ""),
               ),
             ),
@@ -7363,7 +8151,7 @@ const ProjectServicesTable = ({
                       value: task.title || task.templateName || "",
                       onChange: (event) =>
                         updateEditableTask(row, taskIndex, "title", event.target.value),
-                      placeholder: "Task name",
+                      placeholder: tr("Task name"),
                       style: inp({ fontSize: 13, padding: "6px 9px" }),
                       onFocus,
                       onBlur,
@@ -7376,7 +8164,7 @@ const ProjectServicesTable = ({
                       value: task.description || "",
                       onChange: (event) =>
                         updateEditableTask(row, taskIndex, "description", event.target.value),
-                      placeholder: "Task description...",
+                      placeholder: tr("Task description..."),
                       rows: 2,
                       style: {
                         ...inp({
@@ -7393,22 +8181,11 @@ const ProjectServicesTable = ({
                   React.createElement(
                     "td",
                     { style: td({ textAlign: "center", verticalAlign: "top" }) },
-                    React.createElement("input", {
-                      type: "checkbox",
-                      title: "This task's completion counts toward its service's payment trigger",
-                        checked: !!task.isPaymentTrigger,
-                        onChange: (event) =>
-                          updateEditableTask(row, taskIndex, "isPaymentTrigger", event.target.checked),
-                      }),
-                    ),
-                  React.createElement(
-                    "td",
-                    { style: td({ textAlign: "center", verticalAlign: "top" }) },
                     React.createElement(
                       "button",
                       {
                         type: "button",
-                        title: "Remove task",
+                        title: tr("Remove task"),
                         onClick: () => removeEditableTask(row, taskIndex),
                         style: iconButtonStyle(C.danger),
                       },
@@ -7431,7 +8208,7 @@ const ProjectServicesTable = ({
         Modal,
         {
           open: true,
-          title: `Sample tasks — ${activeRow.serviceName || "Custom service"}`,
+          title: tr("Sample tasks — {0}", { 0: activeRow.serviceName || tr("Custom service") }),
           onCancel: () => setTaskOverviewRowId(null),
           footer: null,
           width: 720,
@@ -7470,7 +8247,7 @@ const ProjectServicesTable = ({
           whiteSpace: "nowrap",
         },
       },
-      "View breakdown",
+      tr("View currency breakdown ({0} currencies)", { 0: new Set(sortedLineTotalsByCurrency.map((group) => getCurrencyCode(group.currency))).size }),
     );
 
   const renderCompactCurrencyRow = (group) =>
@@ -7526,7 +8303,7 @@ const ProjectServicesTable = ({
     const missing = convertedSummary?.missing || [];
     const missingLabel = missing
       .slice(0, 3)
-      .map((item) => `${item.currencyCode} -> ${baseCurrencyCode}`)
+      .map((item) => `${item.currencyCode} → ${baseCurrencyCode}`)
       .join(", ");
 
     return React.createElement(
@@ -7559,12 +8336,12 @@ const ProjectServicesTable = ({
           React.createElement(
             "div",
             { style: { fontSize: 14, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            "Totals",
+            tr("Totals"),
           ),
           React.createElement(
             "div",
             { style: { fontSize: 12, color: C.textSub, marginTop: 2, fontFamily: FONT } },
-            `${currencyCount} ${currencyWord} used`,
+            tr("{0} {1} used", { 0: currencyCount, 1: currencyWord }),
           ),
         ),
         renderViewBreakdownButton(),
@@ -7590,7 +8367,7 @@ const ProjectServicesTable = ({
                 fontFamily: FONT,
               },
             },
-            `+${hiddenCount} more currencies`,
+            tr("+{0} more currencies", { 0: hiddenCount }),
           ),
       ),
       React.createElement(
@@ -7608,7 +8385,7 @@ const ProjectServicesTable = ({
           ? React.createElement(
             "div",
             { style: { color: C.textSub, fontSize: 12.5, fontFamily: FONT } },
-            "Checking exchange rates...",
+            tr("Checking exchange rates..."),
           )
           : convertedSummary?.canConvert
             ? React.createElement(
@@ -7624,7 +8401,7 @@ const ProjectServicesTable = ({
               React.createElement(
                 "span",
                 { style: { color: C.textSub, fontSize: 12.5, fontFamily: FONT } },
-                `Converted total in ${baseCurrencyCode}`,
+                tr("Converted total in {0}", { 0: baseCurrencyCode }),
               ),
               React.createElement(
                 "span",
@@ -7644,8 +8421,8 @@ const ProjectServicesTable = ({
               "div",
               { style: { color: C.warning, fontSize: 12.5, fontFamily: FONT, lineHeight: "18px" } },
               missing.length
-                ? `Missing rates: ${missingLabel}${missing.length > 3 ? ` +${missing.length - 3} more` : ""}`
-                : "Conversion not available",
+                ? tr("Missing rates: {0}{1}", { 0: missingLabel, 1: missing.length > 3 ? tr(" +{0} more", { 0: missing.length - 3 }) : "" })
+                : tr("Conversion not available"),
             ),
       ),
     );
@@ -7687,7 +8464,7 @@ const ProjectServicesTable = ({
             React.createElement(
               "div",
               { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24 } },
-              React.createElement("span", { style: summaryLabelStyle(false) }, "Combo Subtotal:"),
+              React.createElement("span", { style: summaryLabelStyle(false) }, tr("Combo subtotal:")),
               React.createElement(PriceInput, {
                 value: packageSummary?.subTotal || 0,
                 onChange: (value) => onPackageChange?.("packageSubTotal", value),
@@ -7698,7 +8475,7 @@ const ProjectServicesTable = ({
           React.createElement(
             "div",
             { key: "packageVatRate", style: summaryRowStyle(true) },
-            React.createElement("span", { style: summaryLabelStyle(false) }, "VAT %:"),
+            React.createElement("span", { style: summaryLabelStyle(false) }, tr("VAT (%):")),
             InputNumber
               ? React.createElement(InputNumber, {
                 min: 0,
@@ -7723,7 +8500,7 @@ const ProjectServicesTable = ({
           React.createElement(
             "div",
             { key: "vatAmount", style: summaryRowStyle(true) },
-            React.createElement("span", { style: summaryLabelStyle(false) }, "VAT Amount:"),
+            React.createElement("span", { style: summaryLabelStyle(false) }, tr("VAT amount:")),
             React.createElement(
               "span",
               { style: summaryValueStyle(C.warning, false) },
@@ -7733,7 +8510,7 @@ const ProjectServicesTable = ({
           React.createElement(
             "div",
             { key: "packageTotal", style: summaryRowStyle(false) },
-            React.createElement("span", { style: summaryLabelStyle(true) }, "Combo Total:"),
+            React.createElement("span", { style: summaryLabelStyle(true) }, tr("Combo total:")),
             React.createElement(
               "span",
               { style: summaryValueStyle(C.success, true) },
@@ -7742,9 +8519,9 @@ const ProjectServicesTable = ({
           ),
         ]
         : [
-          ["Subtotal (excl. VAT)", formatMoney(displayTotals.subTotal, totalsCurrency), C.textSub, false],
-          ["Total VAT", formatMoney(displayTotals.vatAmount, totalsCurrency), C.warning, false],
-          ["Total", formatMoney(displayTotals.totalAmount, totalsCurrency), C.success, true],
+          [tr("Subtotal (excl. VAT)"), formatMoney(displayTotals.subTotal, totalsCurrency), C.textSub, false],
+          [tr("VAT amount"), formatMoney(displayTotals.vatAmount, totalsCurrency), C.warning, false],
+          [tr("Total"), formatMoney(displayTotals.totalAmount, totalsCurrency), C.success, true],
         ].map(([label, val, color, bold], i) =>
           React.createElement(
             "div",
@@ -7760,7 +8537,7 @@ const ProjectServicesTable = ({
     React.createElement(
       Modal,
       {
-        title: "Currency breakdown",
+        title: tr("Currency breakdown"),
         open: breakdownOpen,
         visible: breakdownOpen,
         onCancel: () => setBreakdownOpen(false),
@@ -7781,7 +8558,7 @@ const ProjectServicesTable = ({
               lineHeight: "18px",
             },
           },
-          `Base currency: ${baseCurrencyCode}. Only currencies used in this case are listed here.`,
+          tr("Base currency: {0}. Only currencies used in this case are listed here.", { 0: baseCurrencyCode }),
         ),
         React.createElement(
           "div",
@@ -7801,16 +8578,14 @@ const ProjectServicesTable = ({
               React.createElement(
                 "tr",
                 null,
-                ["Currency", "Original total", `Rate to ${baseCurrencyCode}`, "Converted total", "Effective date", "Source"].map((label) =>
+                [tr("Currency"), tr("Original total"), tr("Rate to {0}", { 0: baseCurrencyCode }), tr("Converted total"), tr("Effective date"), tr("Source")].map((label, i) =>
                   React.createElement(
                     "th",
                     {
                       key: label,
                       style: th({
-                        textAlign:
-                          label === "Original total" || label === "Converted total" || label.startsWith("Rate")
-                            ? "right"
-                            : "left",
+                        // Original total, Rate, Converted total are numbers
+                        textAlign: i >= 1 && i <= 3 ? "right" : "left",
                       }),
                     },
                     label,
@@ -7821,15 +8596,15 @@ const ProjectServicesTable = ({
             React.createElement(
               "tbody",
               null,
-              exchangeBreakdown.map((item) => {
+              exchangeBreakdown.map((item, itemIndex) => {
                 const isMissing = item.status === "missing";
                 const source =
                   item.status === "base"
-                    ? "Base currency"
-                    : `${item.rateRecord?.source || item.rateRecord?.status || "Manual"}${item.rateDirection === "inverse" ? " (inverse)" : ""}`;
+                    ? tr("Base currency")
+                    : `${item.rateRecord?.source || item.rateRecord?.status || tr("Manual")}${item.rateDirection === "inverse" ? " (inverse)" : ""}`;
                 return React.createElement(
                   "tr",
-                  { key: item.currencyCode },
+                  { key: `${item.currencyCode}-${itemIndex}` },
                   React.createElement(
                     "td",
                     { style: td({ fontWeight: 700, color: C.text }) },
@@ -7850,7 +8625,7 @@ const ProjectServicesTable = ({
                         fontWeight: 700,
                       }),
                     },
-                    isMissing ? "Missing" : formatRateValue(item.rate),
+                    isMissing ? tr("Missing") : formatRateValue(item.rate),
                   ),
                   React.createElement(
                     "td",
@@ -7871,7 +8646,7 @@ const ProjectServicesTable = ({
                       ? fmtDateTime(item.rateRecord.effectiveDate).split(",")[0]
                       : item.status === "base"
                         ? "-"
-                        : "No rate",
+                        : tr("No rate"),
                   ),
                   React.createElement(
                     "td",
@@ -7901,7 +8676,7 @@ const ProjectServicesTable = ({
             React.createElement(
               "span",
               { style: { fontWeight: 700, color: C.text } },
-              `Converted total in ${baseCurrencyCode}`,
+              tr("Converted total in {0}", { 0: baseCurrencyCode }),
             ),
             React.createElement(
               "span",
@@ -7949,7 +8724,7 @@ const ProjectServicesTable = ({
             fontFamily: FONT,
           },
         },
-        "Please select an Internal Company first",
+        tr("Please select an Internal Company first"),
       ),
     ),
     pickerOpen &&
@@ -7963,11 +8738,16 @@ const ProjectServicesTable = ({
       currencies,
       combos,
       comboScopeId: comboAddInstanceId,
+      comboTargets: packageMode ? comboTargets : [],
+      comboTarget: addToComboTarget,
+      onComboTargetChange: setAddToComboTarget,
       convertComboAmountToVndSync,
       vndCurrency,
       onSelect: (svc) => {
         if (comboAddInstanceId) {
           onAddServiceToCombo?.(comboAddInstanceId, svc);
+        } else if (addToComboTarget && packageMode) {
+          onAddServiceToCombo?.(addToComboTarget, svc);
         } else {
           onAddFromService(svc);
         }
@@ -7977,6 +8757,8 @@ const ProjectServicesTable = ({
       onCreateAndSelect: async (data) => {
         if (comboAddInstanceId) {
           onAddServiceToCombo?.(comboAddInstanceId, data);
+        } else if (addToComboTarget && packageMode) {
+          onAddServiceToCombo?.(addToComboTarget, data);
         } else {
           await onAddFromService(data, true);
         }
@@ -8015,7 +8797,7 @@ const ProjectServicesTable = ({
               color: C.text,
             },
           },
-          "Service List",
+          tr("Service List"),
         ),
         React.createElement(
           "span",
@@ -8025,7 +8807,7 @@ const ProjectServicesTable = ({
               color: C.textSub,
             },
           },
-          `${rows.length} services`,
+          tr("{0} services", { 0: rows.length }),
         ),
         fromQuotationCount > 0 &&
         React.createElement(
@@ -8044,7 +8826,7 @@ const ProjectServicesTable = ({
             React.Fragment,
             null,
             FileTextIcon,
-            `${fromQuotationCount} from quotation`,
+            tr("{0} from quotation", { 0: fromQuotationCount }),
           ),
         ),
         fromContractCount > 0 &&
@@ -8057,7 +8839,7 @@ const ProjectServicesTable = ({
               fontWeight: 500,
             },
           },
-          `${fromContractCount} from contract`,
+          tr("{0} from contract", { 0: fromContractCount }),
         ),
         packageMode &&
         React.createElement(
@@ -8069,7 +8851,7 @@ const ProjectServicesTable = ({
               fontWeight: 500,
             },
           },
-          `${packageIncludedCount} included in combo`,
+          tr("{0} included in combo", { 0: packageIncludedCount }),
         ),
       ),
       Button
@@ -8078,14 +8860,14 @@ const ProjectServicesTable = ({
           {
             type: "dashed",
             icon: PlusIcon,
-            onClick: () => setPickerOpen(true),
+            onClick: openTopLevelPicker,
           },
-          "New service",
+          tr("New service"),
         )
         : React.createElement(
           "div",
           {
-            onClick: () => setPickerOpen(true),
+            onClick: openTopLevelPicker,
             style: {
               padding: "5px 14px",
               borderRadius: 6,
@@ -8101,7 +8883,7 @@ const ProjectServicesTable = ({
               gap: 6,
             },
           },
-          React.createElement(React.Fragment, null, PlusIcon, "New service"),
+          React.createElement(React.Fragment, null, PlusIcon, tr("New service")),
         ),
     ),
     React.createElement(
@@ -8129,7 +8911,7 @@ const ProjectServicesTable = ({
               fontFamily: FONT,
             },
           },
-          "Pricing Mode",
+          tr("Pricing Mode"),
         ),
         React.createElement(
           React.Fragment,
@@ -8140,8 +8922,8 @@ const ProjectServicesTable = ({
               value: pricingMode,
               onChange: (value) => onPricingModeChange?.(value),
               options: [
-                { value: PRICING_MODE_LINE, label: "Line pricing" },
-                { value: PRICING_MODE_PACKAGE, label: "Combo pricing" },
+                { value: PRICING_MODE_LINE, label: tr("Line pricing") },
+                { value: PRICING_MODE_PACKAGE, label: tr("Combo pricing") },
               ],
               style: { width: "100%", maxWidth: 330 },
             })
@@ -8158,8 +8940,8 @@ const ProjectServicesTable = ({
                 },
               },
               [
-                [PRICING_MODE_LINE, "Line pricing"],
-                [PRICING_MODE_PACKAGE, "Combo pricing"],
+                [PRICING_MODE_LINE, tr("Line pricing")],
+                [PRICING_MODE_PACKAGE, tr("Combo pricing")],
               ].map(([mode, label]) =>
                 React.createElement(
                   "button",
@@ -8214,27 +8996,27 @@ const ProjectServicesTable = ({
             React.createElement(
               "th",
               { style: th({ minWidth: 280 }) },
-              "Service Name & Type",
+              tr("Service Name & Type"),
             ),
             React.createElement(
               "th",
               { style: th({ minWidth: 320 }) },
-              "Description",
+              tr("Description"),
             ),
             React.createElement(
               "th",
               { style: th({ width: 180, textAlign: "right" }) },
-              "Unit Price",
+              tr("Unit Price"),
             ),
             React.createElement(
               "th",
               { style: th({ width: 80, textAlign: "center" }) },
-              "VAT (%)",
+              tr("VAT (%)"),
             ),
             React.createElement(
               "th",
               { style: th({ width: 160, textAlign: "right", color: "#1d4ed8" }) },
-              "Total",
+              tr("Total"),
             ),
             React.createElement("th", { style: th({ width: 84 }) }, ""),
           ),
@@ -8276,7 +9058,7 @@ const ProjectServicesTable = ({
                   React.createElement(
                     "span",
                     null,
-                    'No services yet - click "New service"',
+                    tr("No services yet - click \"New service\""),
                   ),
                 ),
               ),
@@ -8297,10 +9079,14 @@ const ProjectServicesTable = ({
               const rowCurrency = getRowCurrency(r);
               const lineAmount =
                 !packageMode && moneyEditable
-                  ? calcLineAmounts(r.basePrice, r.vat)
+                  ? calcLineAmounts(r.basePrice, r.vat, rowCurrency)
                   : null;
               const convertedLineAmount = lineAmount
-                ? convertAmountsToBaseCurrency(lineAmount, rowCurrency)
+                ? convertAmountsToBaseCurrency(
+                    lineAmount,
+                    rowCurrency,
+                    rowRateBasis(r, { extractCurrencyId, synced: rowBillingMode === BILLING_LINE, sourceRateDate }),
+                  )
                 : null;
               // The "#" column numbers rows per section (combo instance, or
               // the contiguous run of non-combo rows) instead of across the
@@ -8360,7 +9146,7 @@ const ProjectServicesTable = ({
                   isFromQuotation
                     ? React.createElement(
                       "span",
-                      { title: "From quotation", style: { display: "inline-flex", color: C.primary } },
+                      { title: tr("From quotation"), style: { display: "inline-flex", color: C.primary } },
                       FileTextIcon,
                     )
                     : sectionRowIndex,
@@ -8376,7 +9162,7 @@ const ProjectServicesTable = ({
                         value: r.serviceName || "",
                         onChange: (e) =>
                           onUpdate(r._id, "serviceName", e.target.value),
-                        placeholder: "Service name...",
+                        placeholder: tr("Service name..."),
                         style: inp({ fontSize: 13.5, padding: "6px 9px" }),
                         onFocus,
                         onBlur,
@@ -8385,7 +9171,7 @@ const ProjectServicesTable = ({
                         value: r.serviceType || "",
                         onChange: (e) =>
                           onUpdate(r._id, "serviceType", e.target.value),
-                        placeholder: "Service type...",
+                        placeholder: tr("Service type..."),
                         style: inp({ fontSize: 12.5, padding: "5px 9px" }),
                         onFocus,
                         onBlur,
@@ -8443,7 +9229,7 @@ const ProjectServicesTable = ({
                             lineHeight: "15px",
                           },
                         },
-                        `${rowSampleTasks.length} sample tasks`,
+                        tr("{0} sample tasks", { 0: rowSampleTasks.length }),
                       ),
                     ),
                 ),
@@ -8456,7 +9242,7 @@ const ProjectServicesTable = ({
                       value: r.description || "",
                       onChange: (e) =>
                         onUpdate(r._id, "description", e.target.value),
-                      placeholder: "Enter description...",
+                      placeholder: tr("Enter description..."),
                       rows: 3,
                       style: {
                         ...inp({
@@ -8496,7 +9282,7 @@ const ProjectServicesTable = ({
                               fontStyle: "italic",
                             },
                           },
-                          "No description",
+                          tr("No description"),
                         ),
                     ),
                 ),
@@ -8522,7 +9308,7 @@ const ProjectServicesTable = ({
                               (extractCurrencyId(rowCurrency)
                                 ? String(extractCurrencyId(rowCurrency))
                                 : undefined),
-                            placeholder: "Currency",
+                            placeholder: tr("Currency"),
                             optionFilterProp: "label",
                             style: { width: "100%" },
                             onChange: (value) => onUpdate(r._id, "currencyId", value || null),
@@ -8540,7 +9326,7 @@ const ProjectServicesTable = ({
                                 onUpdate(r._id, "currencyId", e.target.value || null),
                               style: inp({ fontSize: 12.5, padding: "6px 8px" }),
                             },
-                            React.createElement("option", { value: "" }, "Currency"),
+                            React.createElement("option", { value: "" }, tr("Currency")),
                             ...currencies.map((item) =>
                               React.createElement(
                                 "option",
@@ -8589,14 +9375,14 @@ const ProjectServicesTable = ({
                             : isPackageRow
                               ? individual
                                 ? formatMoney(individual.price, individual.currency)
-                                : "Included in combo"
-                              : "Scope only",
+                                : tr("Included in combo")
+                              : tr("Scope only"),
                         ),
                         isPackageRow && individual &&
                           React.createElement(
                             "span",
                             { style: { fontSize: 10.5, color: C.primary, fontWeight: 600 } },
-                            "Included in combo",
+                            tr("Included in combo"),
                           ),
                       moneyEditable &&
                         !packageMode &&
@@ -8606,7 +9392,7 @@ const ProjectServicesTable = ({
                         React.createElement(
                           "span",
                           {
-                            title: "Snapshot currency edited",
+                            title: tr("Snapshot currency edited"),
                             style: {
                               color: C.textSub,
                               fontSize: 10.5,
@@ -8614,7 +9400,7 @@ const ProjectServicesTable = ({
                               fontFamily: FONT,
                             },
                           },
-                          "Edited currency",
+                          tr("Edited currency"),
                         ),
                       );
                     })(),
@@ -8696,7 +9482,7 @@ const ProjectServicesTable = ({
                               fontFamily: FONT,
                             },
                           },
-                          `Original: ${formatMoney(lineAmount.totalAmount, rowCurrency)}`,
+                          tr("Original: {0}", { 0: formatMoney(lineAmount.totalAmount, rowCurrency) }),
                         ),
                       convertedLineAmount &&
                         !convertedLineAmount.canConvert &&
@@ -8711,7 +9497,7 @@ const ProjectServicesTable = ({
                               fontFamily: FONT,
                             },
                           },
-                          `Missing rate to ${baseCurrencyCode}`,
+                          tr("Missing rate to {0}", { 0: baseCurrencyCode }),
                         ),
                     )
                     : "-",
@@ -8733,7 +9519,7 @@ const ProjectServicesTable = ({
                       "button",
                       {
                         type: "button",
-                        title: isRowEdit ? "Done editing" : "Edit service",
+                        title: isRowEdit ? tr("Done editing") : tr("Edit service"),
                         onClick: () => toggleRowEdit(r._id),
                         style: iconButtonStyle(C.primary, isRowEdit),
                       },
@@ -8743,7 +9529,7 @@ const ProjectServicesTable = ({
                       "button",
                       {
                         type: "button",
-                        title: "View task",
+                        title: tr("View task"),
                         onClick: () => setTaskOverviewRowId(r._id),
                         style: iconButtonStyle(C.textSub),
                       },
@@ -8753,7 +9539,7 @@ const ProjectServicesTable = ({
                       "button",
                       {
                         type: "button",
-                        title: "Delete service",
+                        title: tr("Delete service"),
                         onClick: () => onDelete(r._id),
                         style: iconButtonStyle(C.danger),
                       },
@@ -9038,7 +9824,7 @@ const ProjectCreateForm = () => {
       return;
     }
     if (!closeCurrentPopup()) {
-      message.warning("Cannot close this popup from the current runtime.");
+      message.warning(tr("Cannot close this popup from the current runtime."));
     }
   }, []);
   const requestClose = useCallback((nativeClose) => {
@@ -9051,9 +9837,21 @@ const ProjectCreateForm = () => {
       forceClose(nativeClose);
     });
   }, [forceClose]);
-  const selectedCurrency = useMemo(
-    () => findCurrencyById(currencies, form.currencyId) || findDefaultCurrency(currencies),
-    [currencies, form.currencyId],
+  // The header is VND (INV-1): foreign-currency services are converted to it
+  // for the services footer and the totals. There is no header currency
+  // picker; it used to follow the source Contract / Quotation.
+  const selectedCurrency = useMemo(() => findDefaultCurrency(currencies), [currencies]);
+  // the source document's pricing day for rows synced to it (rowRateBasis)
+  const sourceRateDate = useMemo(
+    () =>
+      sourceDocumentRateDate(
+        form.contractId ? contracts.find((c) => String(c.id) === String(form.contractId)) : null,
+        !form.contractId && form.quotationId
+          ? quotations.find((q) => String(q.id) === String(form.quotationId))
+          : null,
+        moneyDateKey,
+      ),
+    [contracts, quotations, form.contractId, form.quotationId],
   );
   const defaultCurrencyId = useMemo(
     () => extractCurrencyId(findDefaultCurrency(currencies)?.id),
@@ -9076,13 +9874,6 @@ const ProjectCreateForm = () => {
       })),
     [currencies],
   );
-  const currencyStateFromRecord = useCallback(
-    (record, fallbackId = null) => {
-      const currencyId = getRecordCurrencyId(record) || fallbackId || defaultCurrencyId;
-      return currencyId ? { currencyId: String(currencyId) } : {};
-    },
-    [defaultCurrencyId],
-  );
 
   useEffect(() => {
     return configureGuardedModalClose(requestClose);
@@ -9094,7 +9885,7 @@ const ProjectCreateForm = () => {
       fetchAll("customers:list"),
       fetchAll("lawyers:list", { appends: ["user"] }),
       fetchAll("contracts:list"),
-      fetchAll("quotations:list"),
+      fetchAll("quotations:list", { sort: ["-createdAt"] }),
       fetchCompanyServices(),
       fetchAllFromCandidates(CURRENCY_RESOURCE_CANDIDATES),
       fetchProjectTemplates(),
@@ -9205,7 +9996,6 @@ const ProjectCreateForm = () => {
                 foundContract || foundQuot,
                 foundContract ? SOURCE_CONTRACT : SOURCE_QUOTATION,
               ),
-              ...currencyStateFromRecord(foundContract || foundQuot, p.currencyId),
               internalCompanyId:
                 foundContract.internalCompanyId ||
                 foundQuot?.internalCompanyId ||
@@ -9250,7 +10040,6 @@ const ProjectCreateForm = () => {
                   cc || cq,
                   cc ? SOURCE_CONTRACT : cq ? SOURCE_QUOTATION : SOURCE_NONE,
                 ),
-                ...currencyStateFromRecord(cc || cq, p.currencyId),
                 internalCompanyId:
                   cc?.internalCompanyId ||
                   cq?.internalCompanyId ||
@@ -9281,7 +10070,7 @@ const ProjectCreateForm = () => {
       })
       .catch((error) => {
         console.warn("[CaseCreateForm] initial load failed", error);
-        message.error("Could not load case form data.");
+        message.error(tr("Could not load case form data."));
         setLoading(false);
       });
   }, []);
@@ -9318,9 +10107,8 @@ const ProjectCreateForm = () => {
     setForm((p) => ({
       ...p,
       ...financialStateFromRecord(record, sourceType),
-      ...currencyStateFromRecord(record, p.currencyId),
     }));
-  }, [currencyStateFromRecord]);
+  }, []);
 
   const refreshCustomers = useCallback(async () => {
     const list = await fetchAll("customers:list");
@@ -9335,7 +10123,7 @@ const ProjectCreateForm = () => {
   }, []);
 
   const refreshQuotations = useCallback(async () => {
-    const list = await fetchAll("quotations:list");
+    const list = await fetchAll("quotations:list", { sort: ["-createdAt"] });
     setQuotations(list);
     return list;
   }, []);
@@ -9423,7 +10211,11 @@ const ProjectCreateForm = () => {
         typeof window !== "undefined" &&
         typeof window.addEventListener === "function"
       ) {
+        // window.removeEventListener is blocked in the RunJS sandbox (JS item;
+        // addEventListener is allowed), so cleanup also turns the handler off.
+        let quickCreateListening = true;
         const handleQuickCreateCreated = (event) => {
+          if (!quickCreateListening) return;
           const detail = event?.detail || {};
           if (!isExpectedCreatedDetail(detail)) return;
           const createdId = runtimeExtractId(detail.id || detail.record?.id);
@@ -9431,9 +10223,12 @@ const ProjectCreateForm = () => {
           runRefreshAndSelect(String(createdId), detail.record || null);
         };
         window.addEventListener(QUICK_CREATE_CREATED_EVENT, handleQuickCreateCreated);
-        cleanupFns.push(() =>
-          window.removeEventListener(QUICK_CREATE_CREATED_EVENT, handleQuickCreateCreated),
-        );
+        cleanupFns.push(() => {
+          quickCreateListening = false;
+          try {
+            window.removeEventListener(QUICK_CREATE_CREATED_EVENT, handleQuickCreateCreated);
+          } catch {}
+        });
       }
 
       const quickCreateBridge = getQuickCreateBridge();
@@ -9485,18 +10280,18 @@ const ProjectCreateForm = () => {
           setRows(mapped);
           setAppliedCombos(buildAppliedCombosFromRows(mapped));
           if (showToast)
-            message.success(`Loaded ${qsvcs.length} services from quotation`);
+            message.success(tr("Loaded {0} services from quotation", { 0: qsvcs.length }));
           return qsvcs.length;
         } else {
           initialRowsRef.current = [];
           setRows([]);
-          if (showToast) message.info("This quotation has no services yet");
+          if (showToast) message.info(tr("This quotation has no services yet"));
           return 0;
         }
       } catch {
         initialRowsRef.current = [];
         setRows([]);
-        if (showToast) message.error("Could not load services from quotation");
+        if (showToast) message.error(tr("Could not load services from quotation"));
         return 0;
       } finally {
         setLoadingServices(false);
@@ -9536,17 +10331,17 @@ const ProjectCreateForm = () => {
           setRows(mapped);
           setAppliedCombos(buildAppliedCombosFromRows(mapped));
           if (showToast)
-            message.success(`Loaded ${csvcs.length} services from contract`);
+            message.success(tr("Loaded {0} services from contract", { 0: csvcs.length }));
           return csvcs.length;
         }
         initialRowsRef.current = [];
         setRows([]);
-        if (showToast) message.info("This contract has no services yet");
+        if (showToast) message.info(tr("This contract has no services yet"));
         return 0;
       } catch {
         initialRowsRef.current = [];
         setRows([]);
-        if (showToast) message.error("Could not load services from contract");
+        if (showToast) message.error(tr("Could not load services from contract"));
         return 0;
       } finally {
         setLoadingServices(false);
@@ -9575,6 +10370,10 @@ const ProjectCreateForm = () => {
           customers.find((c) => String(c.id) === String(customerId)) ||
           null,
       );
+      setForm((p) => ({ ...p, customerId }));
+      const freshQuotations = await fetchCustomerQuotations(customerId);
+      const quotationPool = freshQuotations.reduce((acc, row) => mergeRecordById(acc, row), quotations);
+      if (freshQuotations.length) setQuotations(quotationPool);
 
       const cc = contracts.find(
         (c) =>
@@ -9585,7 +10384,7 @@ const ProjectCreateForm = () => {
       const usedQIds = new Set(
         projects.filter((p) => p.quotationId).map((p) => String(p.quotationId)),
       );
-      const availableQuots = quotations.filter(
+      const availableQuots = quotationPool.filter(
         (q) =>
           (!form.internalCompanyId || isSameInternalCompany(q, form.internalCompanyId)) &&
           !usedQIds.has(String(q.id)),
@@ -9603,7 +10402,6 @@ const ProjectCreateForm = () => {
           cc || cq,
           cc ? SOURCE_CONTRACT : cq ? SOURCE_QUOTATION : SOURCE_NONE,
         ),
-        ...currencyStateFromRecord(cc || cq, p.currencyId),
         customerId,
         contractId: cc ? String(cc.id) : null,
         quotationId: cq ? String(cq.id) : null,
@@ -9616,25 +10414,25 @@ const ProjectCreateForm = () => {
           .join(" and ");
         if (count > 0) {
           message.success(
-            `Auto-selected ${parts} and loaded ${count} services from contract`,
+            tr("Auto-selected {0} and loaded {1} services from contract", { 0: parts, 1: count }),
           );
         } else {
-          message.info(`Auto-selected ${parts} for this customer`);
+          message.info(tr("Auto-selected {0} for this customer", { 0: parts }));
         }
       } else if (cq) {
         const count = await loadServicesFromQuotation(cq.id, false);
         if (count > 0) {
           message.success(
-            `Auto-selected quotation and loaded ${count} services from quotation`,
+            tr("Auto-selected quotation and loaded {0} services from quotation", { 0: count }),
           );
         } else {
-          message.info("Auto-selected quotation for this customer");
+          message.info(tr("Auto-selected quotation for this customer"));
         }
       } else {
         setRows([]);
       }
     },
-    [contracts, customers, currencyStateFromRecord, form.internalCompanyId, projects, quotations, loadServicesFromQuotation, loadServicesFromContract],
+    [contracts, customers, form.internalCompanyId, projects, quotations, loadServicesFromQuotation, loadServicesFromContract],
   );
 
   // ── Manual quotation selection: load services ──
@@ -9683,7 +10481,6 @@ const ProjectCreateForm = () => {
           selectedContract,
           selectedContract ? SOURCE_CONTRACT : (p.quotationId ? SOURCE_QUOTATION : SOURCE_NONE),
         ),
-        ...currencyStateFromRecord(selectedContract, p.currencyId),
         contractId,
       }));
       if (selectedContract) {
@@ -9696,7 +10493,7 @@ const ProjectCreateForm = () => {
         setRows([]);
       }
     },
-    [contracts, currencyStateFromRecord, form.quotationId, loadServicesFromContract, loadServicesFromQuotation],
+    [contracts, form.quotationId, loadServicesFromContract, loadServicesFromQuotation],
   );
 
   const addRowFromService = useCallback(
@@ -9739,7 +10536,7 @@ const ProjectCreateForm = () => {
         const serviceName = String(svc.serviceName || "").trim();
         const customTaskTemplates = normalizeCustomTaskTemplates(svc.taskTemplates);
         if (findDuplicateServiceRow(rows, { serviceName })) {
-          message.warning("This service is already added in the case.");
+          message.warning(tr("This service is already added in the case."));
           return;
         }
         setRows((p) => [
@@ -9768,10 +10565,10 @@ const ProjectCreateForm = () => {
           },
         ]);
         addToPackageTotal(svc.basePrice);
-        message.success("Service row added. It will be saved to project services on submit.");
+        message.success(tr("Service row added. It will be saved to project services on submit."));
       } else {
         if (findDuplicateServiceRow(rows, { serviceId: svc.id, serviceName: svc.serviceName })) {
-          message.warning("This service is already added in the case.");
+          message.warning(tr("This service is already added in the case."));
           return;
         }
         setRows((p) => [
@@ -9815,7 +10612,7 @@ const ProjectCreateForm = () => {
       const isCreate = !svc?.id;
       const serviceName = String(svc?.serviceName || "").trim();
       if (findDuplicateServiceRow(rows, { serviceId: svc?.id, serviceName })) {
-        message.warning("This service is already added in the case.");
+        message.warning(tr("This service is already added in the case."));
         return;
       }
       const siblingRow = rows.find((r) => r._comboInstanceId === instanceId);
@@ -9862,7 +10659,7 @@ const ProjectCreateForm = () => {
         return [...p.slice(0, insertAt), newRow, ...p.slice(insertAt)];
       });
       if (isCreate) {
-        message.success("Service row added. It will be saved to project services on submit.");
+        message.success(tr("Service row added. It will be saved to project services on submit."));
       }
     },
     [appliedCombos, form.currencyId, form.financialSourceType, markDirty, rows, taskTemplates],
@@ -9911,17 +10708,17 @@ const ProjectCreateForm = () => {
       if (row && (rowBillingMode === BILLING_LINE || rowBillingMode === BILLING_SEPARATE)) {
         const updatedRow = { ...row, [field]: value };
         (async () => {
-          const amounts = calcLineAmounts(updatedRow.basePrice, updatedRow.vat);
           const vndId = defaultCurrencyId;
           const targetCurrency = findCurrencyById(currencies, vndId) || defaultCurrencyObject();
           const rowCurrency = currencyFromRecord(updatedRow, currencies, targetCurrency);
+          const amounts = calcLineAmounts(updatedRow.basePrice, updatedRow.vat, rowCurrency);
           let rate = 1;
           if (!isSameCurrency(rowCurrency, targetCurrency)) {
             const rates = await fetchExchangeRatesForConversion([extractCurrencyId(rowCurrency)], vndId);
             const matched = pickConversionRate(rates, rowCurrency, targetCurrency, form.date);
             rate = matched?.rate || 0;
           }
-          const newContributionVnd = rate ? amounts.subTotal * rate : 0;
+          const newContributionVnd = rate ? Math.round(amounts.subTotal * rate) : 0;
           const delta = newContributionVnd - parseNum(row._packageBasePrice);
           if (delta) {
             handlePackageSummaryChange(
@@ -9966,7 +10763,7 @@ const ProjectCreateForm = () => {
       if (!combo) return;
       const items = combo.serviceComboItems || [];
       if (!items.length) {
-        message.warning("This combo has no services yet.");
+        message.warning(tr("This combo has no services yet."));
         return;
       }
 
@@ -10039,7 +10836,9 @@ const ProjectCreateForm = () => {
       // after this apply (existing rows only survive if already in package
       // mode), plus every item accepted so far from this same combo, so two
       // services with the same name inside one combo don't both slip in.
-      const dedupeBaseline = wasPackageMode ? [...rows] : [];
+      // Existing rows stay on the case either way (folded / merged into this
+      // combo below), so a combo item duplicating one of them is skipped.
+      const dedupeBaseline = [...rows];
       items.forEach((item) => {
         const svc = item.services || {};
         const itemServiceId = runtimeExtractId(item.serviceId || svc.id);
@@ -10094,7 +10893,7 @@ const ProjectCreateForm = () => {
         }
       });
       if (skippedDuplicateNames.length) {
-        message.warning(`Skipped ${skippedDuplicateNames.length} service(s) already on this case: ${skippedDuplicateNames.join(", ")}`);
+        message.warning(tr("Skipped {0} service(s) already on this case: {1}", { 0: skippedDuplicateNames.length, 1: skippedDuplicateNames.join(", ") }));
       }
       if (!newRows.length) return;
 
@@ -10109,7 +10908,15 @@ const ProjectCreateForm = () => {
       // pool). Combos never merge past this point: each keeps this amount
       // on its own rows/appliedCombos entry, and the record's
       // packageSubTotal is simply their sum (see updateComboAmount).
-      const comboOwnAmount = convertedSubTotal + existingLineContributionVnd;
+      // Line/Combo sync: standalone services join this combo — their value
+      // (_packageBasePrice: the folded VND line price, or the package share
+      // they already added in Combo pricing) becomes part of its amount.
+      const mergeResult = mergeStandaloneIntoCombo(
+        foldedExistingRows,
+        { instanceId: comboInstanceId, catalogId: runtimeExtractId(combo), name: combo.comboName || "", snapshot: comboSnapshot, currency: defaultCurrencyObject() },
+        (row) => parseNum(row._packageBasePrice),
+      );
+      const comboOwnAmount = convertedSubTotal + mergeResult.contribution;
       const vatRateForRows = parseNum(form.packageVatRate) || parseNum(combo.packageVatRate) || 0;
       const comboOwnVatAmount = Math.round((comboOwnAmount * vatRateForRows) / 100);
       const newRowsWithOwnPricing = newRows.map((row) => ({
@@ -10119,11 +10926,32 @@ const ProjectCreateForm = () => {
         packageVatAmount: comboOwnVatAmount,
         packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
       }));
-      setRows((p) => [...(wasPackageMode ? p : foldedExistingRows), ...newRowsWithOwnPricing]);
+      const mergedRowIds = new Set(mergeResult.merged.map((row) => row._id));
+      const existingRowsAfterMerge = mergeResult.rows.map((row) =>
+        mergedRowIds.has(row._id)
+          ? {
+            ...row,
+            packageSubTotal: comboOwnAmount,
+            packageVatRate: vatRateForRows,
+            packageVatAmount: comboOwnVatAmount,
+            packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
+          }
+          : row,
+      );
+      setRows([...existingRowsAfterMerge, ...newRowsWithOwnPricing]);
+      // Rows left standalone (Contract/Quotation-sourced) keep their own
+      // share; merged values moved into comboOwnAmount.
       handlePackageSummaryChange(
         "packageSubTotal",
-        parseNum(wasPackageMode ? form.packageSubTotal : 0) + comboOwnAmount,
+        parseNum(wasPackageMode ? form.packageSubTotal : existingLineContributionVnd) -
+          mergeResult.contribution +
+          comboOwnAmount,
       );
+      if (mergeResult.merged.length) {
+        message.info(
+          tr("Merged {0} standalone service(s) into combo \"{1}\": {2}", { 0: mergeResult.merged.length, 1: combo.comboName || "", 2: mergeResult.merged.map((row) => row.serviceName || tr("Service")).join(", ") }),
+        );
+      }
       // The flat VAT % field is shared across every combo on the case, so
       // only the first combo applied seeds it — later combos leave
       // whatever rate is already there untouched (it stays freely
@@ -10150,7 +10978,7 @@ const ProjectCreateForm = () => {
           wasConverted: comboWasConverted,
         },
       ]);
-      message.success(`Applied combo "${combo.comboName}".`);
+      message.success(tr("Applied combo \"{0}\".", { 0: combo.comboName }));
     },
     [
       combos,
@@ -10223,7 +11051,9 @@ const ProjectCreateForm = () => {
       const wasPackageMode = isPackagePricing(form.pricingMode);
       const newRows = [];
       const skippedDuplicateNames = [];
-      const dedupeBaseline = wasPackageMode ? [...rows] : [];
+      // Existing rows stay on the case either way (folded / merged into this
+      // combo below), so a combo item duplicating one of them is skipped.
+      const dedupeBaseline = [...rows];
       items.forEach((item) => {
         if (findDuplicateServiceRow(dedupeBaseline, { serviceId: item.serviceId, serviceName: item.serviceName })) {
           skippedDuplicateNames.push(item.serviceName || "");
@@ -10266,7 +11096,7 @@ const ProjectCreateForm = () => {
         }
       });
       if (skippedDuplicateNames.length) {
-        message.warning(`Skipped ${skippedDuplicateNames.length} service(s) already on this case: ${skippedDuplicateNames.join(", ")}`);
+        message.warning(tr("Skipped {0} service(s) already on this case: {1}", { 0: skippedDuplicateNames.length, 1: skippedDuplicateNames.join(", ") }));
       }
       if (!newRows.length) return;
 
@@ -10277,7 +11107,15 @@ const ProjectCreateForm = () => {
       // combo's own amount (its converted total, plus any pre-existing
       // line rows folded in on the very first combo applied) is tracked
       // independently on its own rows/appliedCombos entry.
-      const comboOwnAmount = convertedSubTotal + existingLineContributionVnd;
+      // Line/Combo sync: standalone services join this combo — their value
+      // (_packageBasePrice: the folded VND line price, or the package share
+      // they already added in Combo pricing) becomes part of its amount.
+      const mergeResult = mergeStandaloneIntoCombo(
+        foldedExistingRows,
+        { instanceId: adhocComboId, catalogId: null, name: comboName, snapshot: comboSnapshot, currency: defaultCurrencyObject() },
+        (row) => parseNum(row._packageBasePrice),
+      );
+      const comboOwnAmount = convertedSubTotal + mergeResult.contribution;
       const vatRateForRows = parseNum(form.packageVatRate) || packageVatRate || 0;
       const comboOwnVatAmount = Math.round((comboOwnAmount * vatRateForRows) / 100);
       const newRowsWithOwnPricing = newRows.map((row) => ({
@@ -10287,11 +11125,32 @@ const ProjectCreateForm = () => {
         packageVatAmount: comboOwnVatAmount,
         packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
       }));
-      setRows((p) => [...(wasPackageMode ? p : foldedExistingRows), ...newRowsWithOwnPricing]);
+      const mergedRowIds = new Set(mergeResult.merged.map((row) => row._id));
+      const existingRowsAfterMerge = mergeResult.rows.map((row) =>
+        mergedRowIds.has(row._id)
+          ? {
+            ...row,
+            packageSubTotal: comboOwnAmount,
+            packageVatRate: vatRateForRows,
+            packageVatAmount: comboOwnVatAmount,
+            packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
+          }
+          : row,
+      );
+      setRows([...existingRowsAfterMerge, ...newRowsWithOwnPricing]);
+      // Rows left standalone (Contract/Quotation-sourced) keep their own
+      // share; merged values moved into comboOwnAmount.
       handlePackageSummaryChange(
         "packageSubTotal",
-        parseNum(wasPackageMode ? form.packageSubTotal : 0) + comboOwnAmount,
+        parseNum(wasPackageMode ? form.packageSubTotal : existingLineContributionVnd) -
+          mergeResult.contribution +
+          comboOwnAmount,
       );
+      if (mergeResult.merged.length) {
+        message.info(
+          tr("Merged {0} standalone service(s) into combo \"{1}\": {2}", { 0: mergeResult.merged.length, 1: comboName, 2: mergeResult.merged.map((row) => row.serviceName || tr("Service")).join(", ") }),
+        );
+      }
       if (appliedCombos.length === 0) {
         handlePackageSummaryChange("packageVatRate", packageVatRate);
       }
@@ -10326,7 +11185,7 @@ const ProjectCreateForm = () => {
           },
         ]);
       }
-      message.success(`Applied combo "${comboName}".`);
+      message.success(tr("Applied combo \"{0}\".", { 0: comboName }));
     },
     [
       defaultCurrencyId,
@@ -10352,6 +11211,14 @@ const ProjectCreateForm = () => {
       const entry = appliedCombos.find((c) => c.instanceId === instanceId);
       if (!entry) return;
       markDirty();
+      // Services merged into this combo (Line/Combo sync) are part of it
+      // and go with it; say so, since they were added separately.
+      const mergedGoing = rows.filter((r) => r._comboInstanceId === instanceId && r._mergedIntoCombo);
+      if (mergedGoing.length) {
+        message.info(
+          tr("Also removed {0} service(s) merged into this combo: {1}", { 0: mergedGoing.length, 1: mergedGoing.map((r) => r.serviceName || tr("Service")).join(", ") }),
+        );
+      }
       setRows((prev) => prev.filter((r) => r._comboInstanceId !== instanceId));
       handlePackageSummaryChange(
         "packageSubTotal",
@@ -10359,7 +11226,7 @@ const ProjectCreateForm = () => {
       );
       setAppliedCombos((prev) => prev.filter((c) => c.instanceId !== instanceId));
     },
-    [appliedCombos, form.packageSubTotal, handlePackageSummaryChange, markDirty],
+    [appliedCombos, form.packageSubTotal, handlePackageSummaryChange, markDirty, rows],
   );
 
   // Combos never merge into one blended pool — each applied combo keeps its
@@ -10439,27 +11306,27 @@ const ProjectCreateForm = () => {
 
   const handleSubmit = async () => {
     if (!form.internalCompanyId) {
-      message.warning("Please select an Internal Company");
+      message.warning(tr("Please select an Internal Company"));
       return;
     }
     if (!form.customerId) {
-      message.warning("Please select a Customer");
+      message.warning(tr("Please select a Customer"));
       return;
     }
     if (!form.projectName.trim()) {
-      message.warning("Please enter a Case name");
+      message.warning(tr("Please enter a Case name"));
       return;
     }
     if (!form.date) {
-      message.warning("Please select an open date");
+      message.warning(tr("Please select an open date"));
       return;
     }
     if (currencies.length && !form.currencyId) {
-      message.warning("Please select a Case Currency");
+      message.warning(tr("Please select a Case Currency"));
       return;
     }
     if (!rows.length) {
-      message.warning("Please add at least one service before creating the case.");
+      message.warning(tr("Please add at least one service before creating the case."));
       return;
     }
 
@@ -10475,6 +11342,11 @@ const ProjectCreateForm = () => {
       const selectedContract = form.contractId
         ? contracts.find((c) => String(c.id) === String(form.contractId))
         : null;
+      const submitSourceRateDate = sourceDocumentRateDate(
+        selectedContract,
+        selectedContract ? null : selectedQuotation,
+        moneyDateKey,
+      );
       const activePackageMode = isPackagePricing(form.pricingMode);
       const activeFinancialSourceType = selectedContract
         ? SOURCE_CONTRACT
@@ -10484,12 +11356,13 @@ const ProjectCreateForm = () => {
       let quotationFinancialSummary = null;
       let contractFinancialSummary = null;
       if (activeQuotationId && activeFinancialSourceType === SOURCE_QUOTATION && !activePackageMode) {
-        setSubmitStep("Checking quotation exchange rates...");
+        setSubmitStep(tr("Checking quotation exchange rates..."));
         const preliminaryQuotationSummary = buildServiceFinancialSummary({
           rows,
           currencies,
           baseCurrency: selectedCurrency,
           pricingDate: form.date,
+          sourceRateDate: submitSourceRateDate,
           packageMode: activePackageMode,
           activeFinancialSourceType,
           includeBillingModes: [BILLING_LINE],
@@ -10510,26 +11383,28 @@ const ProjectCreateForm = () => {
           baseCurrency: selectedCurrency,
           exchangeRates: quotationExchangeRates,
           pricingDate: form.date,
+          sourceRateDate: submitSourceRateDate,
           packageMode: activePackageMode,
           activeFinancialSourceType,
           includeBillingModes: [BILLING_LINE],
         });
         if (!quotationFinancialSummary.converted.canConvert) {
           throw new Error(
-            `Missing exchange rate for quotation total: ${formatMissingRatePairs(
+            tr("Missing exchange rate for quotation total: {0}", { 0: formatMissingRatePairs(
               quotationFinancialSummary.missing,
               selectedCurrency,
-            )}`,
+            ) }),
           );
         }
       }
       if (selectedContract && activeFinancialSourceType === SOURCE_CONTRACT && !activePackageMode) {
-        setSubmitStep("Checking contract exchange rates...");
+        setSubmitStep(tr("Checking contract exchange rates..."));
         const preliminaryContractSummary = buildServiceFinancialSummary({
           rows,
           currencies,
           baseCurrency: selectedCurrency,
           pricingDate: form.date,
+          sourceRateDate: submitSourceRateDate,
           packageMode: activePackageMode,
           activeFinancialSourceType,
           includeBillingModes: [BILLING_LINE],
@@ -10550,16 +11425,17 @@ const ProjectCreateForm = () => {
           baseCurrency: selectedCurrency,
           exchangeRates: contractExchangeRates,
           pricingDate: form.date,
+          sourceRateDate: submitSourceRateDate,
           packageMode: activePackageMode,
           activeFinancialSourceType,
           includeBillingModes: [BILLING_LINE],
         });
         if (!contractFinancialSummary.converted.canConvert) {
           throw new Error(
-            `Missing exchange rate for contract total: ${formatMissingRatePairs(
+            tr("Missing exchange rate for contract total: {0}", { 0: formatMissingRatePairs(
               contractFinancialSummary.missing,
               selectedCurrency,
-            )}`,
+            ) }),
           );
         }
       }
@@ -10636,7 +11512,7 @@ const ProjectCreateForm = () => {
             delete minimal.currency;
             delete minimal.currencies;
             console.warn("Retrying project create without currency fields:", fallbackError);
-            message.warning("Không thể lưu currency của hồ sơ do lỗi hệ thống — vui lòng kiểm tra lại sau khi tạo.");
+            message.warning(tr("Could not save the case currency — check it after the case is created."));
             return ctx.api.request({
               url: "projects:create",
               method: "POST",
@@ -10647,7 +11523,7 @@ const ProjectCreateForm = () => {
       };
 
       // 2. Create Case (Project)
-      setSubmitStep("Creating Case...");
+      setSubmitStep(tr("Creating Case..."));
       // managerId (lawyers FK) is the source of truth for who picked the
       // Manager on this form. projectManagerId (users FK) is derived from it
       // and kept in sync only for backward compat with code/reports that
@@ -10701,7 +11577,7 @@ const ProjectCreateForm = () => {
         projRes?.data?.caseCode ||
         form.caseCode;
       if (!projectId)
-        throw new Error("Could not retrieve projectId after creation");
+        throw new Error(tr("Could not retrieve projectId after creation"));
 
       // Derive status
       const quotationStatus = String(
@@ -10775,7 +11651,7 @@ const ProjectCreateForm = () => {
               "Retrying projectService without pricing combo fields:",
               fallbackError,
             );
-            message.warning(`Không thể lưu currency cho dịch vụ "${data?.serviceName || ""}" do lỗi hệ thống — vui lòng kiểm tra lại sau khi tạo.`);
+            message.warning(tr("Could not save the currency of service \"{0}\" — check it after the case is created.", { 0: data?.serviceName || "" }));
             return ctx.api.request({
               url: "projectServices:create",
               method: "POST",
@@ -10822,7 +11698,7 @@ const ProjectCreateForm = () => {
           const options = {
             url: isUpdate ? "contractServices:update" : "contractServices:create",
             method: "POST",
-            data: cleanPayload(payload),
+            data: cleanPayload(lineWritePayload(payload)),
           };
           if (isUpdate) options.params = { filterByTk: parseInt(id) };
           return ctx.api.request(options);
@@ -10837,6 +11713,8 @@ const ProjectCreateForm = () => {
             try {
               return await request(stripContractServiceFallbackFields(data, true));
             } catch (minimalError) {
+              // the first error carries the real reason (e.g. a billed contract)
+              message.warning(apiErrorText(error, tr("Could not {0} the contract line.", { 0: action })));
               console.warn(
                 `Could not ${action} contractService:`,
                 minimalError || fallbackError || error,
@@ -10846,38 +11724,10 @@ const ProjectCreateForm = () => {
           }
         }
       };
-      const updateContractHeaderSafely = async (contractId, data) => {
-        const safeContractId = parseInt(contractId);
-        if (!safeContractId) return;
-        try {
-          await ctx.api.request({
-            url: "contracts:update",
-            method: "POST",
-            params: { filterByTk: safeContractId },
-            data: cleanPayload(data),
-          });
-        } catch (error) {
-          const fallback = cleanPayload(data);
-          delete fallback.currencyId;
-          delete fallback.currency;
-          try {
-            console.warn("Retrying contract total update without currencyId:", error);
-            message.warning("Không thể đồng bộ currency của hợp đồng liên kết do lỗi hệ thống — vui lòng kiểm tra lại sau khi tạo.");
-            await ctx.api.request({
-              url: "contracts:update",
-              method: "POST",
-              params: { filterByTk: safeContractId },
-              data: fallback,
-            });
-          } catch (fallbackError) {
-            console.warn("Could not update contract total:", fallbackError);
-          }
-        }
-      };
       const createCustomDraftTasksForService = async (row, createdProjectServiceId) => {
         const customTasks = normalizeCustomTaskTemplates(row?._customTaskTemplates);
         if (row?.serviceId || !createdProjectServiceId || !customTasks.length) return;
-        setSubmitStep(`Creating tasks for ${row.serviceName || "custom service"}...`);
+        setSubmitStep(tr("Creating tasks for {0}...", { 0: row.serviceName || tr("custom service") }));
         for (let taskIndex = 0; taskIndex < customTasks.length; taskIndex += 1) {
           const task = customTasks[taskIndex];
           try {
@@ -10910,6 +11760,123 @@ const ProjectCreateForm = () => {
       // Overview" before submit, that trigger still clones the *original* template
       // text — so we diff the edited list against the pristine template list here
       // and patch the trigger-created tasks to match what the user actually saved.
+      // By Case contract created before this Case: link the real tasks to the
+      // installments whose trigger sample tasks were ticked in
+      // ContractCreateForm.js (contractPaymentSchedules.triggerTemplateIds) —
+      // see resolveTemplateTaskLinks. Runs after every service row (and its
+      // task sync) is saved, so the tasks and their final titles exist.
+      const linkInstallmentTemplateTasks = async () => {
+        const linkedContractId = form.contractId ? parseInt(form.contractId) : null;
+        if (!linkedContractId || !projectId) return;
+        try {
+          const scheduleRes = await ctx.api.request({
+            url: "contractPaymentSchedules:list",
+            params: {
+              filter: JSON.stringify({ contractId: { $eq: linkedContractId } }),
+              fields: ["id", "triggerTemplateIds"],
+              pageSize: 200,
+            },
+          });
+          const schedules = (scheduleRes?.data?.data || []).filter(
+            (schedule) => Array.isArray(schedule.triggerTemplateIds) && schedule.triggerTemplateIds.length,
+          );
+          if (!schedules.length) return;
+          // 2026-09-28 (spec docs/superpowers/specs/2026-09-28-case-finance-tab-business-rules-design.md §3):
+          // a By Service contract's combo / item rows get their request only
+          // when all trigger tasks are Done, so there is no request to link
+          // to — tick isPaymentTrigger on the matched tasks instead.
+          const contractRes = await ctx.api.request({
+            url: "contracts:get",
+            params: { filterByTk: linkedContractId, fields: ["id", "contractType"] },
+          });
+          const isByServiceContract = contractRes?.data?.data?.contractType === "byService";
+          const [prRes, taskRes] = await Promise.all([
+            ctx.api.request({
+              url: "paymentRequests:list",
+              params: {
+                filter: JSON.stringify({
+                  contractPaymentScheduleId: { $in: schedules.map((schedule) => schedule.id) },
+                }),
+                fields: ["id", "contractPaymentScheduleId"],
+                pageSize: 200,
+              },
+            }),
+            ctx.api.request({
+              url: "tasks:list",
+              params: {
+                filter: JSON.stringify({ projectId: { $eq: projectId } }),
+                fields: ["id", "title", "serviceId", "status"],
+                pageSize: 1000,
+              },
+            }),
+          ]);
+          const paymentRequestsList = prRes?.data?.data || [];
+          const caseTasks = taskRes?.data?.data || [];
+          let failedLinks = 0;
+          for (const schedule of schedules) {
+            if (isByServiceContract) {
+              const { taskIds, unresolvedCount } = resolveTemplateTaskLinks({
+                templateIds: schedule.triggerTemplateIds,
+                rows,
+                tasks: caseTasks,
+              });
+              failedLinks += unresolvedCount;
+              for (const taskId of taskIds) {
+                try {
+                  await ctx.api.request({
+                    url: `tasks:update?filterByTk=${taskId}`,
+                    method: "POST",
+                    data: { isPaymentTrigger: true },
+                  });
+                } catch (linkError) {
+                  failedLinks += 1;
+                  console.warn("Could not tick trigger task:", taskId, linkError);
+                }
+              }
+              continue;
+            }
+            const pr = paymentRequestsList.find(
+              (item) =>
+                String(runtimeExtractId(item.contractPaymentScheduleId)) === String(schedule.id),
+            );
+            if (!pr) {
+              failedLinks += schedule.triggerTemplateIds.length;
+              continue;
+            }
+            const { taskIds, unresolvedCount } = resolveTemplateTaskLinks({
+              templateIds: schedule.triggerTemplateIds,
+              rows,
+              tasks: caseTasks,
+            });
+            failedLinks += unresolvedCount;
+            for (const taskId of taskIds) {
+              try {
+                await ctx.api.request({
+                  url: `tasks:update?filterByTk=${taskId}`,
+                  method: "POST",
+                  data: { linkedPaymentRequestId: pr.id },
+                });
+              } catch (linkError) {
+                failedLinks += 1;
+                console.warn("Could not link task to installment:", taskId, linkError);
+              }
+            }
+          }
+          if (failedLinks) {
+            message.warning(
+              tr("Could not link {0} task(s) to their payment installment — link them in Task Management.", { 0: failedLinks }),
+            );
+          }
+        } catch (error) {
+          // Visible, not console-only: e.g. contractPaymentSchedules.
+          // triggerTemplateIds not registered yet on this instance.
+          console.warn("Could not link installment trigger tasks:", error);
+          message.warning(
+            tr("Could not link the contract's installment trigger tasks — link them in Task Management."),
+          );
+        }
+      };
+
       const syncCatalogServiceTasks = async (row, createdProjectServiceId) => {
         if (!row?.serviceId || !projectId || !Array.isArray(row?._templateTasks))
           return;
@@ -10925,13 +11892,13 @@ const ProjectCreateForm = () => {
         row._templateTasks.forEach((task) => {
           const key = String(task?._id ?? task?.id ?? "");
           const original = key && originalById.has(key) ? originalById.get(key) : null;
-          const title = normalizeTaskText(getTaskTemplateRawTitle(task)) || "Untitled task";
+          const title = normalizeTaskText(getTaskTemplateRawTitle(task)) || tr("Untitled task");
           const description = normalizeTaskText(getTaskTemplateDescription(task));
           const isPaymentTrigger = !!task.isPaymentTrigger;
           if (original) {
             finalIds.add(key);
             const originalTitle =
-              normalizeTaskText(getTaskTemplateRawTitle(original)) || "Untitled task";
+              normalizeTaskText(getTaskTemplateRawTitle(original)) || tr("Untitled task");
             const originalDescription = normalizeTaskText(
               getTaskTemplateDescription(original),
             );
@@ -11049,7 +12016,7 @@ const ProjectCreateForm = () => {
       // branch created its service.
       const createdServiceFolderCandidates = [];
       if (activeQuotationId && activeFinancialSourceType === SOURCE_QUOTATION) {
-        setSubmitStep("Syncing quotation services...");
+        setSubmitStep(tr("Syncing quotation services..."));
         const initialSnap = initialRowsRef.current || [];
 
         // 3a. Delete removed services (only for existing quotations)
@@ -11101,7 +12068,12 @@ const ProjectCreateForm = () => {
                 : PRICING_MODE_SCOPE;
           const price = moneyEditable ? Number(r.basePrice) || 0 : 0;
           const vatPct = moneyEditable ? Number(r.vat) || 0 : 0;
-          const amounts = calcLineAmounts(price, vatPct);
+          // priced in the line's own currency (cents for USD, whole đồng for VND)
+          const amounts = calcLineAmounts(
+            price,
+            vatPct,
+            findCurrencyById(currencies, extractCurrencyId(r.currencyId) || extractCurrencyId(form.currencyId)),
+          );
           const vatAmount = amounts.vatAmount;
           const totalAmount = amounts.totalAmount;
           const rowPackageFields = packageFieldsForRow(r);
@@ -11124,7 +12096,7 @@ const ProjectCreateForm = () => {
                   url: "quotationServices:update",
                   method: "POST",
                   params: { filterByTk: qSvcId },
-                  data: {
+                  data: lineWritePayload({
                     caseId: projectId,
                     pricingMode: rowPricingMode,
                     basePrice: price,
@@ -11135,9 +12107,10 @@ const ProjectCreateForm = () => {
                     totalAmount,
                     currencyId: rowCurrencyId || null,
                     ...rowPackageFields,
-                  },
+                  }),
                 });
               } catch (e) {
+                message.warning(apiErrorText(e, tr("Could not save the quotation line.")));
                 console.warn("Could not update quotationService:", e);
               }
             }
@@ -11150,7 +12123,7 @@ const ProjectCreateForm = () => {
               const qSvcRes = await ctx.api.request({
                 url: "quotationServices:create",
                 method: "POST",
-                data: {
+                data: lineWritePayload({
                   quotationId: activeQuotationId,
                   caseId: projectId,
                   serviceId: r.serviceId ? parseInt(r.serviceId) : null,
@@ -11166,19 +12139,20 @@ const ProjectCreateForm = () => {
                   currencyId: rowCurrencyId || null,
                   pricingMode: rowPricingMode,
                   ...rowPackageFields,
-                },
+                }),
               });
               const rawQSvcId = qSvcRes?.data?.data?.id || qSvcRes?.data?.id;
               qSvcId = rawQSvcId ? parseInt(rawQSvcId) : null;
             } catch (e) {
+              message.warning(apiErrorText(e, tr("Could not save the quotation line.")));
               console.warn("Could not create quotationService:", e);
             }
           }
 
           // Create projectService and link it
-          setSubmitStep(`Saving service ${i + 1}/${rows.length}...`);
+          setSubmitStep(tr("Saving service {0}/{1}...", { 0: i + 1, 1: rows.length }));
           try {
-            const psCreateRes = await createProjectService({
+            const psCreateRes = await createProjectService(lineWritePayload({
               projectId,
               quotationId:
                 rowFinancialSourceType === SOURCE_QUOTATION
@@ -11219,7 +12193,7 @@ const ProjectCreateForm = () => {
               serviceCombo: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
-            });
+            }));
             const rawCreatedProjectServiceId =
               psCreateRes?.data?.data?.id || psCreateRes?.data?.id;
             const createdProjectServiceId = rawCreatedProjectServiceId
@@ -11249,6 +12223,7 @@ const ProjectCreateForm = () => {
                   },
                 })
                 .catch((error) => {
+                  message.warning(apiErrorText(error, tr("Could not link the contract line to the case.")));
                   console.warn("Could not link contractService to projectService:", error);
                 });
             }
@@ -11257,58 +12232,8 @@ const ProjectCreateForm = () => {
           }
         }
 
-        // 3c. Update total if not auto-created (since auto-created is already correct)
-        if (!activePackageMode) {
-          setSubmitStep("Updating quotation total...");
-          const cq = quotations.find(
-            (q) => String(q.id) === String(activeQuotationId),
-          );
-          if (cq) {
-            const quotationTotals =
-              quotationFinancialSummary?.converted ||
-              buildServiceFinancialSummary({
-                rows,
-                currencies,
-                baseCurrency: selectedCurrency,
-                pricingDate: form.date,
-                packageMode: activePackageMode,
-                activeFinancialSourceType,
-                includeBillingModes: [BILLING_LINE],
-              }).converted;
-            const quotationUpdateData = {
-              subTotal: quotationTotals.subTotal,
-              vatAmount: quotationTotals.vatAmount,
-              totalAmount: quotationTotals.totalAmount,
-              currencyId: form.currencyId ? parseInt(form.currencyId) : null,
-              customerId: cq.customerId
-                ? parseInt(cq.customerId)
-                : cq.customer?.id
-                  ? parseInt(cq.customer.id)
-                  : null,
-              internalCompanyId: cq.internalCompanyId
-                ? parseInt(cq.internalCompanyId)
-                : null,
-            };
-            try {
-              await ctx.api.request({
-                url: "quotations:update",
-                method: "POST",
-                params: { filterByTk: cq.id },
-                data: quotationUpdateData,
-              });
-            } catch (error) {
-              const fallbackQuotationUpdateData = { ...quotationUpdateData };
-              delete fallbackQuotationUpdateData.currencyId;
-              console.warn("Retrying quotation total update without currencyId:", error);
-              await ctx.api.request({
-                url: "quotations:update",
-                method: "POST",
-                params: { filterByTk: cq.id },
-                data: fallbackQuotationUpdateData,
-              });
-            }
-          }
-        }
+        // 3c. The quotation's totals: its lines just changed, so the database
+        // recomputes them (money_line_after -> trg_money_quotation_header).
       } else {
         // No quotation active (e.g. rows.length === 0 but user creates case anyway)
         const initialSnap = initialRowsRef.current || [];
@@ -11359,7 +12284,12 @@ const ProjectCreateForm = () => {
                 : PRICING_MODE_SCOPE;
           const price = moneyEditable ? Number(r.basePrice) || 0 : 0;
           const vatPct = moneyEditable ? Number(r.vat) || 0 : 0;
-          const amounts = calcLineAmounts(price, vatPct);
+          // priced in the line's own currency (cents for USD, whole đồng for VND)
+          const amounts = calcLineAmounts(
+            price,
+            vatPct,
+            findCurrencyById(currencies, extractCurrencyId(r.currencyId) || extractCurrencyId(form.currencyId)),
+          );
           const rowPackageFields = packageFieldsForRow(r);
           const rowCurrencyId = extractCurrencyId(r.currencyId) || extractCurrencyId(form.currencyId);
           let contractSvcId = r._contractServiceId ? parseInt(r._contractServiceId) : null;
@@ -11393,7 +12323,7 @@ const ProjectCreateForm = () => {
               financialSourceType: rowFinancialSourceType,
               lineStatus: deriveStatus({ ...r, billingMode: rowBillingMode }),
             };
-            setSubmitStep(`Syncing contract service ${i + 1}/${rows.length}...`);
+            setSubmitStep(tr("Syncing contract service {0}/{1}...", { 0: i + 1, 1: rows.length }));
             if (contractSvcId) {
               await requestContractService({
                 action: "update",
@@ -11412,9 +12342,9 @@ const ProjectCreateForm = () => {
               contractSvcId = rawContractSvcId ? parseInt(rawContractSvcId) : null;
             }
           }
-          setSubmitStep(`Saving service ${i + 1}/${rows.length}...`);
+          setSubmitStep(tr("Saving service {0}/{1}...", { 0: i + 1, 1: rows.length }));
           try {
-            const psCreateRes = await createProjectService({
+            const psCreateRes = await createProjectService(lineWritePayload({
               projectId,
               contractId: form.contractId ? parseInt(form.contractId) : null,
               contractServiceId:
@@ -11449,7 +12379,7 @@ const ProjectCreateForm = () => {
               serviceCombo: r._comboCatalogId ? parseInt(r._comboCatalogId, 10) : null,
               comboName: r._comboName || null,
               pricingSnapshot: r._comboSnapshot || null,
-            });
+            }));
             const rawCreatedProjectServiceId =
               psCreateRes?.data?.data?.id || psCreateRes?.data?.id;
             const createdProjectServiceId = rawCreatedProjectServiceId
@@ -11481,43 +12411,9 @@ const ProjectCreateForm = () => {
             console.warn("Could not create projectService:", e);
           }
         }
-        if (activeFinancialSourceType === SOURCE_CONTRACT && form.contractId && !activePackageMode) {
-          setSubmitStep("Updating contract total...");
-          const currentContract =
-            selectedContract ||
-            contracts.find((c) => String(c.id) === String(form.contractId));
-          const contractTotals =
-            contractFinancialSummary?.converted ||
-            buildServiceFinancialSummary({
-              rows,
-              currencies,
-              baseCurrency: selectedCurrency,
-              pricingDate: form.date,
-              packageMode: activePackageMode,
-              activeFinancialSourceType,
-              includeBillingModes: [BILLING_LINE],
-            }).converted;
-          const isRetainer = String(currentContract?.contractType || "").toLowerCase() === "retainer";
-          await updateContractHeaderSafely(form.contractId, {
-            subTotal: contractTotals.subTotal,
-            vatAmount: contractTotals.vatAmount,
-            totalAmount: contractTotals.totalAmount,
-            currencyId: form.currencyId ? parseInt(form.currencyId) : null,
-            ...(!isRetainer ? { fixedAmount: contractTotals.totalAmount } : {}),
-            customerId: currentContract?.customerId
-              ? parseInt(currentContract.customerId)
-              : currentContract?.customer?.id
-                ? parseInt(currentContract.customer.id)
-                : form.customerId
-                  ? parseInt(form.customerId)
-                  : null,
-            internalCompanyId: currentContract?.internalCompanyId
-              ? parseInt(currentContract.internalCompanyId)
-              : form.internalCompanyId
-                ? parseInt(form.internalCompanyId)
-                : null,
-          });
-        }
+        // The contract's totals: its lines just changed, so the database
+        // recomputes them (money_line_after -> trg_money_contract_header); a
+        // retainer keeps its own fee.
       }
 
       // Sync the Case's own totalAmount from all money-bearing service rows,
@@ -11526,7 +12422,7 @@ const ProjectCreateForm = () => {
       // Case's own currency — no per-row conversion needed); Line mode has to
       // be summed from `rows` (which can carry mixed per-row currencies) and
       // converted into the Case's own currency.
-      setSubmitStep("Updating case total...");
+      setSubmitStep(tr("Updating case total..."));
       try {
         let caseTotalAmount = null;
         if (activePackageMode) {
@@ -11537,6 +12433,7 @@ const ProjectCreateForm = () => {
             currencies,
             baseCurrency: selectedCurrency,
             pricingDate: form.date,
+            sourceRateDate: submitSourceRateDate,
             packageMode: activePackageMode,
             activeFinancialSourceType,
           });
@@ -11553,6 +12450,7 @@ const ProjectCreateForm = () => {
             baseCurrency: selectedCurrency,
             exchangeRates: caseExchangeRates,
             pricingDate: form.date,
+            sourceRateDate: submitSourceRateDate,
             packageMode: activePackageMode,
             activeFinancialSourceType,
           });
@@ -11636,7 +12534,7 @@ const ProjectCreateForm = () => {
       };
 
       // 4. Auto-create folder hierarchy
-      setSubmitStep("Creating folder structure...");
+      setSubmitStep(tr("Creating folder structure..."));
       try {
         let customerRootFolderId = null;
         if (form.customerId) {
@@ -11660,12 +12558,32 @@ const ProjectCreateForm = () => {
             });
 
             let customerRoot = cRes?.data?.data?.[0];
+            const customerName =
+              customers.find((c) => String(c.id) === String(form.customerId))
+                ?.customerName || "Customer";
+
+            // 1b. A root folder with the customer's name may exist elsewhere
+            // (e.g. created in CustomerDocument without the category parent).
+            // Reuse it: the DB guard (pgsql/document_naming_guards.sql) no
+            // longer lets a customer have two root folders with one name.
+            if (!customerRoot) {
+              const byNameRes = await ctx.api.request({
+                url: "folders:list",
+                params: {
+                  filter: JSON.stringify({
+                    customerId: parseInt(form.customerId),
+                    projectId: null,
+                    name: customerName,
+                  }),
+                  sort: ["createdAt"],
+                  pageSize: 1,
+                },
+              });
+              customerRoot = (byNameRes?.data?.data || []).find((folder) => !folder?.isDeleted) || null;
+            }
 
             // 2. Nếu chưa có folder khách hàng, tạo mới ngay
             if (!customerRoot) {
-              const customerName =
-                customers.find((c) => String(c.id) === String(form.customerId))
-                  ?.customerName || "Khách hàng";
               const newCFol = await ctx.api.request({
                 url: "folders:create",
                 method: "POST",
@@ -11863,14 +12781,17 @@ const ProjectCreateForm = () => {
             );
           }
 
-          setSubmitStep("Assigning folder permissions...");
+          setSubmitStep(tr("Assigning folder permissions..."));
           await assignDefaultFolderPermissions([pFolderId, ...childFolderIds]);
         }
       } catch (err) {
         console.warn("Could not create folder structure:", err);
       }
 
-      message.success("Case created successfully!");
+      setSubmitStep(tr("Linking installment trigger tasks..."));
+      await linkInstallmentTemplateTasks();
+
+      message.success(tr("Case created successfully!"));
       isDirtyRef.current = false;
 
       // The user already opted in per-row (the "Also save to the shared
@@ -11888,7 +12809,7 @@ const ProjectCreateForm = () => {
       // for a custom combo item too, not just already-catalog ones.
       const newServiceIdByRowId = new Map();
       if (rowsToSaveToCatalog.length > 0) {
-        setSubmitStep("Saving to catalog...");
+        setSubmitStep(tr("Saving to catalog..."));
         let savedCount = 0;
         for (const r of rowsToSaveToCatalog) {
           // Defensive re-check — svcOpts could only have gone stale within
@@ -11963,7 +12884,7 @@ const ProjectCreateForm = () => {
           }
         }
         if (savedCount > 0) {
-          message.success(`${savedCount} service${savedCount === 1 ? "" : "s"} added to the catalog.`);
+          message.success(tr("{0} service{1} added to the catalog.", { 0: savedCount, 1: savedCount === 1 ? "" : "s" }));
         }
       }
 
@@ -11995,7 +12916,7 @@ const ProjectCreateForm = () => {
           if (!resolved.length) {
             console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
             message.warning(
-              `Combo "${comboEntry.comboName}" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).`,
+              tr("Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).", { 0: comboEntry.comboName }),
             );
             continue;
           }
@@ -12045,13 +12966,13 @@ const ProjectCreateForm = () => {
               );
               message.success(
                 skippedCount > 0
-                  ? `Combo "${comboEntry.comboName}" saved to the catalog — ${skippedCount} custom service(s) without a catalog link were left out.`
-                  : `Combo "${comboEntry.comboName}" saved to the catalog.`,
+                  ? tr("Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.", { 0: comboEntry.comboName, 1: skippedCount })
+                  : tr("Combo \"{0}\" saved to the catalog.", { 0: comboEntry.comboName }),
               );
             }
           } catch (comboErr) {
             console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
-            message.warning(`Could not save combo "${comboEntry.comboName}" to the catalog.`);
+            message.warning(tr("Could not save combo \"{0}\" to the catalog.", { 0: comboEntry.comboName }));
           }
         }
       }
@@ -12062,7 +12983,7 @@ const ProjectCreateForm = () => {
       return;
     } catch (e) {
       console.error("Submit error:", e);
-      message.error("Error: " + (e?.message || "Please try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Please try again")));
     }
 
     setSubmittingState(false);
@@ -12145,16 +13066,16 @@ const ProjectCreateForm = () => {
     googleAds: "Google Ads",
     facebookAds: "Facebook Ads",
     zalo: "Zalo",
-    referral: "Referral",
+    referral: tr("Referral"),
     website: "Website",
     hotline: "Hotline",
-    partner: "Partner",
-    lawyer: "Lawyer",
-    staff: "Staff",
+    partner: tr("Partner"),
+    lawyer: tr("Lawyer"),
+    staff: tr("Staff"),
   };
   const formatCustomerSource = (source) => {
     const raw = String(source || "").trim();
-    if (!raw) return "Not set";
+    if (!raw) return tr("Not set");
     return CUSTOMER_SOURCE_LABELS[raw] ||
       raw
         .replace(/([a-z])([A-Z])/g, "$1 $2")
@@ -12163,9 +13084,9 @@ const ProjectCreateForm = () => {
         .trim()
         .replace(/\b\w/g, (ch) => ch.toUpperCase());
   };
-  const getCustomerSourceSub = (c) => `Source: ${formatCustomerSource(c?.source)}`;
+  const getCustomerSourceSub = (c) => tr("Source: {0}", { 0: formatCustomerSource(c?.source) });
   const getCustomerName = (c) =>
-    c.customerName || c.name || c.fullName || `Customer #${c.id}`;
+    c.customerName || c.name || c.fullName || tr("Customer #{0}", { 0: c.id });
   const getCustomerSub = (c) =>
     [c.phone || c.phoneNumber, c.email].filter(Boolean).join(" · ");
   const getLawyerName = (l) =>
@@ -12177,7 +13098,7 @@ const ProjectCreateForm = () => {
     l.user?.email ||
     `#${l.id}`;
   const getContractLabel = (c) =>
-    c.contractName || c.name || c.contractNumber || `Contract #${c.id}`;
+    c.contractName || c.name || c.contractNumber || tr("Contract #{0}", { 0: c.id });
   const getCustomerNameFromDoc = (doc) => {
     const cust =
       doc.customer ||
@@ -12202,14 +13123,14 @@ const ProjectCreateForm = () => {
   const getContractSub = (c) => getCustomerNameFromDoc(c);
 
   const getQuotationLabel = (q) =>
-    q.quotationName || q.quotationNumber || `Quotation #${q.id}`;
+    q.quotationName || q.quotationNumber || tr("Quotation #{0}", { 0: q.id });
 
   const getQuotationSub = (q) => {
     const n = getCustomerNameFromDoc(q);
     const t = q.totalAmount
       ? formatMoney(q.totalAmount, currencyFromRecord(q, currencies, selectedCurrency))
       : "";
-    const mode = isPackagePricing(q) ? "Combo pricing" : "Line pricing";
+    const mode = isPackagePricing(q) ? tr("Combo pricing") : tr("Line pricing");
     return [mode, n, t].filter(Boolean).join(" · ");
   };
 
@@ -12254,7 +13175,7 @@ const ProjectCreateForm = () => {
         React.createElement(
           Field,
           {
-            label: "Customer",
+            label: tr("Customer"),
             required: true,
             hint: currentCustomer ? getCustomerSourceSub(currentCustomer) : undefined,
             mb: 16,
@@ -12264,8 +13185,8 @@ const ProjectCreateForm = () => {
             value: form.customerId,
             onChange: handleCustomerChange,
             placeholder: !form.internalCompanyId
-              ? "Please select an Internal Company first"
-              : "Search or select a customer",
+              ? tr("Please select an Internal Company first")
+              : tr("Search or select a customer"),
             getItemName: getCustomerName,
             getItemSub: (customer) =>
               [getCustomerSourceSub(customer), getCustomerSub(customer)].filter(Boolean).join(" - "),
@@ -12306,7 +13227,7 @@ const ProjectCreateForm = () => {
           React.createElement(
             "span",
             null,
-            `Showing ${customerContracts.length} contracts and ${customerQuotations.length} quotations for this customer. `,
+            tr("Showing {0} contracts and {1} quotations for this customer. ", { 0: customerContracts.length, 1: customerQuotations.length }),
             React.createElement(
               "span",
               {
@@ -12326,7 +13247,7 @@ const ProjectCreateForm = () => {
                   fontWeight: 500,
                 },
               },
-              "Clear selection",
+              tr("Clear selection"),
             ),
           ),
         ),
@@ -12335,12 +13256,12 @@ const ProjectCreateForm = () => {
           { cols: 2, gap: 16, mb: 0 },
           React.createElement(
             Field,
-            { label: "Related Contract" },
+            { label: tr("Related Contract") },
             React.createElement(RelatedSingleDropdown, {
               items: customerContracts,
               value: form.contractId,
               onChange: handleContractChange,
-              placeholder: !form.internalCompanyId ? "" : "Select contract",
+              placeholder: !form.internalCompanyId ? "" : tr("Select contract"),
               getItemLabel: getContractLabel,
               getItemSub: getContractSub,
               disabled: !form.internalCompanyId,
@@ -12369,18 +13290,18 @@ const ProjectCreateForm = () => {
           React.createElement(
             Field,
             {
-              label: "Related Quotation",
+              label: tr("Related Quotation"),
               hint: !form.internalCompanyId
-                ? "please select internal company"
+                ? tr("please select internal company")
                 : form.quotationId
-                  ? "↓ changing will reload services"
-                  : "select to load services into table",
+                  ? tr("↓ changing will reload services")
+                  : tr("select to load services into table"),
             },
             React.createElement(RelatedSingleDropdown, {
               items: customerQuotations,
               value: form.quotationId,
               onChange: handleQuotationChange,
-              placeholder: !form.internalCompanyId ? "" : "Select quotation",
+              placeholder: !form.internalCompanyId ? "" : tr("Select quotation"),
               getItemLabel: getQuotationLabel,
               getItemSub: getQuotationSub,
               disabled: !form.internalCompanyId,
@@ -12424,26 +13345,26 @@ const ProjectCreateForm = () => {
     React.createElement(
       Card,
       null,
-      React.createElement(CardHeader, { title: "Case Information" }),
+      React.createElement(CardHeader, { title: tr("Case Information") }),
       React.createElement(
         "div",
         { style: { padding: "18px 20px" } },
 
         React.createElement(
           Field,
-          { label: "Internal Company", required: true, mb: 16 },
+          { label: tr("Internal Company"), required: true, mb: 16 },
           Select
             ? React.createElement(Select, {
               showSearch: true,
               allowClear: true,
               value: form.internalCompanyId ? String(form.internalCompanyId) : undefined,
-              placeholder: "Select company",
+              placeholder: tr("Select company"),
               optionFilterProp: "label",
               style: { width: "100%" },
               onChange: handleInternalCompanyChange,
               options: internalCompanies.map((c) => ({
                 value: String(c.id),
-                label: c.companyName || c.name || `Company #${c.id}`,
+                label: c.companyName || c.name || tr("Company #{0}", { 0: c.id }),
               })),
             })
             : React.createElement(
@@ -12455,12 +13376,12 @@ const ProjectCreateForm = () => {
                 },
                 style: selStyle,
               },
-              React.createElement("option", { value: "" }, "Select company"),
+              React.createElement("option", { value: "" }, tr("Select company")),
               ...internalCompanies.map((c) =>
                 React.createElement(
                   "option",
                   { key: c.id, value: c.id },
-                  c.companyName || c.name || `Company #${c.id}`,
+                  c.companyName || c.name || tr("Company #{0}", { 0: c.id }),
                 ),
               ),
             ),
@@ -12474,21 +13395,21 @@ const ProjectCreateForm = () => {
           React.createElement(
             Field,
             {
-              label: "Case Code",
+              label: tr("Case Code"),
               hint: caseCodePreview
-                ? `Auto (${caseCodePreview.shortName}): next is ${caseCodePreview.code} — editable`
+                ? tr("Auto ({0}): next is {1} — editable", { 0: caseCodePreview.shortName, 1: caseCodePreview.code })
                 : "optional",
             },
             Input
               ? React.createElement(Input, {
                 value: form.caseCode,
                 onChange: (e) => setF("caseCode", e.target.value),
-                placeholder: "E.g. CBI-2025-001",
+                placeholder: tr("E.g. CBI-2025-001"),
               })
               : React.createElement("input", {
                 value: form.caseCode,
                 onChange: (e) => setF("caseCode", e.target.value),
-                placeholder: "E.g. CBI-2025-001",
+                placeholder: tr("E.g. CBI-2025-001"),
                 style: inp(),
                 onFocus,
                 onBlur,
@@ -12496,17 +13417,17 @@ const ProjectCreateForm = () => {
           ),
           React.createElement(
             Field,
-            { label: "Case Name", required: true },
+            { label: tr("Case Name"), required: true },
             Input
               ? React.createElement(Input, {
                 value: form.projectName,
                 onChange: (e) => setF("projectName", e.target.value),
-                placeholder: "E.g. Real estate purchase contract consultation...",
+                placeholder: tr("E.g. Real estate purchase contract consultation..."),
               })
               : React.createElement("input", {
                 value: form.projectName,
                 onChange: (e) => setF("projectName", e.target.value),
-                placeholder: "E.g. Real estate purchase contract consultation...",
+                placeholder: tr("E.g. Real estate purchase contract consultation..."),
                 style: { ...inp(), fontSize: 14, fontWeight: 500 },
                 onFocus,
                 onBlur,
@@ -12519,26 +13440,26 @@ const ProjectCreateForm = () => {
           { cols: 3, gap: 16, mb: 16 },
           React.createElement(
             Field,
-            { label: "Open Date & Time", required: true },
+            { label: tr("Open Date & Time"), required: true },
             React.createElement(DateTimePicker, {
               value: form.date,
               onChange: (v) => setF("date", v),
-              placeholder: "Select open date & time",
+              placeholder: tr("Select open date & time"),
             }),
           ),
           React.createElement(
             Field,
-            { label: "Deadline", hint: "optional" },
+            { label: tr("Deadline"), hint: "optional" },
             React.createElement(DateTimePicker, {
               value: form.deadline,
               onChange: (v) => setF("deadline", v),
-              placeholder: "Select deadline date & time",
+              placeholder: tr("Select deadline date & time"),
               minValue: form.date || undefined,
             }),
           ),
           React.createElement(
             Field,
-            { label: "Priority", required: true },
+            { label: tr("Priority"), required: true },
             React.createElement(StarRating, {
               value: form.priority,
               onChange: (v) => setF("priority", v),
@@ -12558,20 +13479,20 @@ const ProjectCreateForm = () => {
               fontFamily: FONT,
             },
           },
-          "Team Members",
+          tr("Team Members"),
         ),
         React.createElement(
           Grid,
           { cols: 2, gap: 16, mb: 16 },
           React.createElement(
             Field,
-            { label: "Manager", hint: "optional" },
+            { label: tr("Manager"), hint: "optional" },
             Select
               ? React.createElement(Select, {
                 showSearch: true,
                 allowClear: true,
                 value: form.managerId ? String(form.managerId) : undefined,
-                placeholder: "Select manager",
+                placeholder: tr("Select manager"),
                 optionFilterProp: "label",
                 style: { width: "100%" },
                 onChange: (value) => setF("managerId", value || null),
@@ -12584,20 +13505,20 @@ const ProjectCreateForm = () => {
                 items: lawyers,
                 value: form.managerId,
                 onChange: (v) => setF("managerId", v),
-                placeholder: "— Select manager —",
+                placeholder: tr("— Select manager —"),
                 getItemName: getLawyerName,
               }),
           ),
           React.createElement(
             Field,
-            { label: "Members", hint: "optional — multiple" },
+            { label: tr("Members"), hint: tr("optional — multiple") },
             Select
               ? React.createElement(Select, {
                 mode: "multiple",
                 showSearch: true,
                 allowClear: true,
                 value: (form.lawyerIds || []).map((id) => String(id)),
-                placeholder: "Select lawyers",
+                placeholder: tr("Select lawyers"),
                 optionFilterProp: "label",
                 style: { width: "100%" },
                 onChange: (value) => setF("lawyerIds", value || []),
@@ -12610,7 +13531,7 @@ const ProjectCreateForm = () => {
                 items: membersLawyers,
                 value: form.lawyerIds,
                 onChange: (v) => setF("lawyerIds", v),
-                placeholder: "— Select lawyers —",
+                placeholder: tr("— Select lawyers —"),
                 getItemName: getLawyerName,
               }),
           ),
@@ -12618,12 +13539,12 @@ const ProjectCreateForm = () => {
 
         React.createElement(
           Field,
-          { label: "Description", hint: "optional", mb: 0 },
+          { label: tr("Description"), hint: "optional", mb: 0 },
           React.createElement(AutoTextarea, {
             value: form.description,
             onChange: (v) => setF("description", v),
             placeholder:
-              "Summarize the content, requirements, scope of work...",
+              tr("Summarize the content, requirements, scope of work..."),
             minRows: 3,
           }),
         ),
@@ -12654,7 +13575,7 @@ const ProjectCreateForm = () => {
         React.createElement(
           "span",
           null,
-          "Loading services...",
+          tr("Loading services..."),
         ),
       ),
       React.createElement(ProjectServicesTable, {
@@ -12667,6 +13588,7 @@ const ProjectCreateForm = () => {
         currency: selectedCurrency,
         currencies,
         pricingDate: form.date,
+        sourceRateDate,
         packageSummary: {
           subTotal: form.packageSubTotal,
           vatRate: form.packageVatRate,
@@ -12713,7 +13635,7 @@ const ProjectCreateForm = () => {
         ? React.createElement(
           Space,
           null,
-          React.createElement(Button, { onClick: requestClose }, "Cancel"),
+          React.createElement(Button, { onClick: requestClose }, tr("Cancel")),
           React.createElement(
             Button,
             {
@@ -12721,7 +13643,7 @@ const ProjectCreateForm = () => {
               loading: submitting,
               onClick: submitting ? undefined : handleSubmit,
             },
-            "Submit",
+            tr("Submit"),
           ),
         )
         : React.createElement(
@@ -12743,7 +13665,7 @@ const ProjectCreateForm = () => {
                 color: C.text,
               },
             },
-            "Cancel",
+            tr("Cancel"),
           ),
           React.createElement(
             "div",
@@ -12761,7 +13683,7 @@ const ProjectCreateForm = () => {
                 fontFamily: FONT,
               },
             },
-            submitting ? "Processing..." : "Submit",
+            submitting ? tr("Processing...") : tr("Submit"),
           ),
         ),
     ),

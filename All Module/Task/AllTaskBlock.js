@@ -1,3 +1,124 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Not Start": "Chưa bắt đầu",
+  "In progress": "Đang làm",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Waiting previous task": "Chờ công việc trước",
+  "Overdue": "Quá hạn",
+  "Unassigned": "Chưa phân công",
+  "Has next step": "Có bước tiếp theo",
+  "Task": "Công việc",
+  "Status": "Trạng thái",
+  "Assignee": "Người phụ trách",
+  "Start": "Bắt đầu",
+  "Due": "Hạn",
+  "Closed date": "Ngày đóng",
+  "Waiting issue": "Vấn đề chờ",
+  "Next step": "Bước tiếp theo",
+  "Updated": "Cập nhật",
+  "All": "Tất cả",
+  "Case": "Hồ sơ",
+  "Internal Work": "Internal Work",
+  "Table": "Bảng",
+  "Board": "Bảng Kanban",
+  "Roadmap": "Lộ trình",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Internal project #{0}": "Dự án nội bộ #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "User #{0}": "Người dùng #{0}",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Task #{0}": "Công việc #{0}",
+  "Waiting: {0}": "Đang chờ: {0}",
+  "Reason: {0}": "Lý do: {0}",
+  "Next: {0}": "Tiếp theo: {0}",
+  "No waiting issue": "Không có vấn đề chờ",
+  "All tasks": "Tất cả công việc",
+  "No case": "Không có hồ sơ",
+  "No internal project": "Không có dự án nội bộ",
+  "No status": "Không có trạng thái",
+  "No start date": "Không có ngày bắt đầu",
+  "No due date": "Không có hạn",
+  "No next step": "Không có bước tiếp theo",
+  "No updated date": "Không có ngày cập nhật",
+  "No closed date": "Không có ngày đóng",
+  "No service": "Không có dịch vụ",
+  "Could not resolve task id.": "Không xác định được ID công việc.",
+  "Subtask": "Công việc con",
+  "Task detail": "Chi tiết công việc",
+  "Could not resolve current user to save view.": "Không xác định được người dùng hiện tại để lưu chế độ xem.",
+  "Could not save view for this user.": "Không thể lưu chế độ xem cho người dùng này.",
+  "Columns reset.": "Đã đặt lại cột.",
+  "Showing at most {0} tasks/subtasks. Use filters to narrow the results and see everything.": "Đang hiển thị tối đa {0} tasks/subtasks. Dùng filter để thu hẹp kết quả và xem đầy đủ.",
+  "Could not load tasks.": "Không thể tải danh sách công việc.",
+  "No task selected.": "Chưa chọn công việc nào.",
+  "Task deleted.": "Đã xóa công việc.",
+  "{0} tasks deleted.": "Đã xóa {0} công việc.",
+  "Could not delete task.": "Không thể xóa công việc.",
+  "{0} task{1}": "{0} công việc",
+  "{0} subtask{1}": "{0} công việc con",
+  "this task": "công việc này",
+  "Delete \"{0}\"?": "Xóa \"{0}\"?",
+  "Delete {0} selected items?": "Xóa {0} mục đã chọn?",
+  "This action cannot be undone.": "Thao tác này không thể hoàn tác.",
+  "Selected: {0}. This action cannot be undone.": "Đã chọn: {0}. Thao tác này không thể hoàn tác.",
+  "Delete": "Xóa",
+  "Cancel": "Hủy",
+  "{0}\nThis action cannot be undone.": "{0}\nThao tác này không thể hoàn tác.",
+  "Deleting...": "Đang xóa...",
+  "Select column": "Chọn cột",
+  "Sort ascending": "Sắp xếp tăng dần",
+  "Sort descending": "Sắp xếp giảm dần",
+  "Clear sort": "Bỏ sắp xếp",
+  "Filter by values": "Lọc theo giá trị",
+  "Group by values": "Nhóm theo giá trị",
+  "Hide field": "Ẩn trường",
+  "Move left": "Chuyển sang trái",
+  "Move right": "Chuyển sang phải",
+  "x Clear column config": "x Xóa cấu hình cột",
+  "Actions": "Thao tác",
+  "Visible columns": "Cột hiển thị",
+  "{0} (fixed)": "{0} (cố định)",
+  "Reset columns": "Đặt lại cột",
+  "View config": "Cấu hình hiển thị",
+  "Assignees": "Người phụ trách",
+  "Search task, case, blocker...": "Tìm công việc, hồ sơ, vướng mắc...",
+  "Group by": "Nhóm theo",
+  "Start date from": "Ngày bắt đầu từ",
+  "Start date to": "Ngày bắt đầu đến",
+  "Delete selected ({0})": "Xóa mục đã chọn ({0})",
+  "Reset": "Đặt lại",
+  "Task status updated.": "Đã cập nhật trạng thái công việc.",
+  "Could not update task status.": "Không thể cập nhật trạng thái công việc.",
+  "No tasks": "Không có công việc",
+  "Past": "Đã qua",
+  "Month": "Tháng",
+  "Outside {0}": "Ngoài {0}",
+  "{0} tasks | Today: {1}": "{0} công việc | Hôm nay: {1}",
+  "Group range: {0}": "Khoảng thời gian nhóm: {0}",
+  "No task matched the current filters.": "Không có công việc nào khớp bộ lọc hiện tại.",
+  "{0} tasks": "{0} công việc",
+  "{0}-{1} of {2} groups": "{0}-{1} / {2} nhóm",
+  "Refresh": "Làm mới",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const {
@@ -129,13 +250,13 @@ const useNocoToken = () => {
 };
 
 const STATUS_CFG = {
-  toDo: { label: "Not Start", color: "default" },
-  inProgress: { label: "In progress", color: "processing" },
-  blocked: { label: "Blocked", color: "purple" },
-  pending: { label: "Pending approval", color: "warning" },
-  approval: { label: "Approved", color: "success" },
-  done: { label: "Done", color: "success" },
-  cancelled: { label: "Cancelled", color: "error" },
+  toDo: { label: tr("Not Start"), color: "default" },
+  inProgress: { label: tr("In progress"), color: "processing" },
+  blocked: { label: tr("Blocked"), color: "purple" },
+  pending: { label: tr("Pending approval"), color: "warning" },
+  approval: { label: tr("Approved"), color: "success" },
+  done: { label: tr("Done"), color: "success" },
+  cancelled: { label: tr("Cancelled"), color: "error" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CFG).map(([value, cfg]) => ({
@@ -144,44 +265,44 @@ const STATUS_OPTIONS = Object.entries(STATUS_CFG).map(([value, cfg]) => ({
 }));
 
 const WAITING_OPTIONS = [
-  { value: "blocked", label: "Blocked" },
-  { value: "waiting_previous", label: "Waiting previous task" },
-  { value: "pending_approval", label: "Pending approval" },
-  { value: "overdue", label: "Overdue" },
-  { value: "unassigned", label: "Unassigned" },
-  { value: "has_next_step", label: "Has next step" },
+  { value: "blocked", label: tr("Blocked") },
+  { value: "waiting_previous", label: tr("Waiting previous task") },
+  { value: "pending_approval", label: tr("Pending approval") },
+  { value: "overdue", label: tr("Overdue") },
+  { value: "unassigned", label: tr("Unassigned") },
+  { value: "has_next_step", label: tr("Has next step") },
 ];
 
 const COLUMN_OPTIONS = [
-  { value: "task", label: "Task", locked: true },
-  { value: "status", label: "Status" },
-  { value: "assignee", label: "Assignee" },
-  { value: "start", label: "Start" },
-  { value: "due", label: "Due" },
-  { value: "closedDate", label: "Closed date" },
-  { value: "waiting", label: "Waiting issue" },
-  { value: "nextStep", label: "Next step" },
-  { value: "updatedAt", label: "Updated" },
+  { value: "task", label: tr("Task"), locked: true },
+  { value: "status", label: tr("Status") },
+  { value: "assignee", label: tr("Assignee") },
+  { value: "start", label: tr("Start") },
+  { value: "due", label: tr("Due") },
+  { value: "closedDate", label: tr("Closed date") },
+  { value: "waiting", label: tr("Waiting issue") },
+  { value: "nextStep", label: tr("Next step") },
+  { value: "updatedAt", label: tr("Updated") },
 ];
 
 const GROUP_BY_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "case", label: "Case" },
-  { value: "projectInternal", label: "Internal Work" },
-  { value: "status", label: "Status" },
-  { value: "assignee", label: "Assignee" },
-  { value: "start", label: "Start" },
-  { value: "due", label: "Due" },
-  { value: "waiting", label: "Waiting issue" },
-  { value: "nextStep", label: "Next step" },
-  { value: "updatedAt", label: "Updated" },
-  { value: "closedDate", label: "Closed date" },
+  { value: "all", label: tr("All") },
+  { value: "case", label: tr("Case") },
+  { value: "projectInternal", label: tr("Internal Work") },
+  { value: "status", label: tr("Status") },
+  { value: "assignee", label: tr("Assignee") },
+  { value: "start", label: tr("Start") },
+  { value: "due", label: tr("Due") },
+  { value: "waiting", label: tr("Waiting issue") },
+  { value: "nextStep", label: tr("Next step") },
+  { value: "updatedAt", label: tr("Updated") },
+  { value: "closedDate", label: tr("Closed date") },
 ];
 
 const VIEW_MODE_OPTIONS = [
-  { value: "table", label: "Table" },
-  { value: "board", label: "Board" },
-  { value: "roadmap", label: "Roadmap" },
+  { value: "table", label: tr("Table") },
+  { value: "board", label: tr("Board") },
+  { value: "roadmap", label: tr("Roadmap") },
 ];
 
 const DATE_COLUMN_KEYS = ["start", "due", "closedDate", "updatedAt"];
@@ -355,7 +476,7 @@ const projectLabel = (record, customerMap = {}) => {
     record?.projectName || record?.caseName || record?.title || record?.name;
   return (
     compact([caseCode, customer, projectName]).join(" - ") ||
-    (record?.id ? `Case #${record.id}` : "-")
+    (record?.id ? tr("Case #{0}", { 0: record.id }) : "-")
   );
 };
 
@@ -363,14 +484,14 @@ const projectInternalLabel = (record) =>
   compact([
     record?.projectCode || record?.caseCode || record?.code,
     record?.projectName || record?.title || record?.name || record?.description,
-  ]).join(" - ") || (record?.id ? `Internal project #${record.id}` : "-");
+  ]).join(" - ") || (record?.id ? tr("Internal project #{0}", { 0: record.id }) : "-");
 
 const customerLabel = (record) =>
   record?.shortName ||
   record?.customerName ||
   record?.name ||
   record?.fullName ||
-  (record?.id ? `Customer #${record.id}` : "");
+  (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const projectCustomerLabel = (project, customerMap = {}) => {
   const directCustomer = project?.customer || project?.customers;
@@ -388,14 +509,14 @@ const lawyerLabel = (record) =>
   record?.lawyerName ||
   record?.name ||
   record?.displayName ||
-  (record?.id ? `User #${record.id}` : "-");
+  (record?.id ? tr("User #{0}", { 0: record.id }) : "-");
 
 const assigneeLabel = (id, lawyer) =>
   id
     ? lawyerLabel(lawyer) !== "-"
       ? lawyerLabel(lawyer)
-      : `Lawyer #${id}`
-    : "Unassigned";
+      : tr("Lawyer #{0}", { 0: id })
+    : tr("Unassigned");
 
 const timestampValue = (value) => {
   if (!value) return 0;
@@ -437,7 +558,7 @@ const taskTitle = (row) =>
   row.title ||
   row.subTaskName ||
   row.name ||
-  `Task #${extractId(row.id) || ""}`;
+  tr("Task #{0}", { 0: extractId(row.id) || "" });
 
 const statusTag = (status) => {
   const cfg = STATUS_CFG[status] || { label: status || "-", color: "default" };
@@ -868,44 +989,44 @@ const enrichRows = ({
     const overdue = isOverdue(row.dueDateValue, status);
 
     if (status === "blocked") {
-      waiting.push({ key: "blocked", label: "Blocked", color: "purple" });
+      waiting.push({ key: "blocked", label: tr("Blocked"), color: "purple" });
     }
     if (prevTaskId && prevOpen) {
       waiting.push({
         key: "waiting_previous",
-        label: "Waiting previous task",
+        label: tr("Waiting previous task"),
         color: "processing",
       });
     }
     if (status === "pending") {
       waiting.push({
         key: "pending_approval",
-        label: "Pending approval",
+        label: tr("Pending approval"),
         color: "warning",
       });
     }
     if (overdue) {
-      waiting.push({ key: "overdue", label: "Overdue", color: "error" });
+      waiting.push({ key: "overdue", label: tr("Overdue"), color: "error" });
     }
     if (!row.assigneeIdValue) {
       waiting.push({
         key: "unassigned",
-        label: "Unassigned",
+        label: tr("Unassigned"),
         color: "default",
       });
     }
     if (row.nextStepDescription) {
       waiting.push({
         key: "has_next_step",
-        label: "Has next step",
+        label: tr("Has next step"),
         color: "blue",
       });
     }
 
     const waitingText = compact([
-      prevOpen ? `Waiting: ${prevTask.titleText}` : "",
-      row.blockedReason ? `Reason: ${row.blockedReason}` : "",
-      row.nextStepDescription ? `Next: ${row.nextStepDescription}` : "",
+      prevOpen ? tr("Waiting: {0}", { 0: prevTask.titleText }) : "",
+      row.blockedReason ? tr("Reason: {0}", { 0: row.blockedReason }) : "",
+      row.nextStepDescription ? tr("Next: {0}", { 0: row.nextStepDescription }) : "",
     ]).join(" | ");
 
     return {
@@ -921,14 +1042,14 @@ const enrichRows = ({
 };
 
 const getPrimaryWaitingLabel = (row) => {
-  if (!row.waiting?.length) return "No waiting issue";
-  return row.waiting[0]?.label || "Waiting issue";
+  if (!row.waiting?.length) return tr("No waiting issue");
+  return row.waiting[0]?.label || tr("Waiting issue");
 };
 
 const getGroupInfo = (row, groupBy) => {
   const key = normalizeGroupBy(groupBy);
   if (key === "all") {
-    return { key: "all", label: "All tasks", sortValue: 0 };
+    return { key: "all", label: tr("All tasks"), sortValue: 0 };
   }
   if (key === "case") {
     return {
@@ -936,7 +1057,7 @@ const getGroupInfo = (row, groupBy) => {
       label:
         row.projectLabel && row.projectLabel !== "-"
           ? row.projectLabel
-          : "No case",
+          : tr("No case"),
       sortValue: timestampValue(row.projectCreatedAtValue),
     };
   }
@@ -946,7 +1067,7 @@ const getGroupInfo = (row, groupBy) => {
       label:
         row.projectInternalLabel && row.projectInternalLabel !== "-"
           ? row.projectInternalLabel
-          : "No internal project",
+          : tr("No internal project"),
       sortValue: timestampValue(row.projectInternalCreatedAtValue),
     };
   }
@@ -954,27 +1075,27 @@ const getGroupInfo = (row, groupBy) => {
     const cfg = STATUS_CFG[row.status] || {};
     return {
       key: `status:${row.status || "none"}`,
-      label: cfg.label || row.status || "No status",
+      label: cfg.label || row.status || tr("No status"),
     };
   }
   if (key === "assignee") {
     return {
       key: `assignee:${row.assigneeIdValue || "none"}`,
-      label: row.assigneeIdValue ? row.assigneeLabel : "Unassigned",
+      label: row.assigneeIdValue ? row.assigneeLabel : tr("Unassigned"),
     };
   }
   if (key === "start") {
     const label = formatDate(row.startDateValue);
     return {
       key: `start:${label}`,
-      label: label === "-" ? "No start date" : label,
+      label: label === "-" ? tr("No start date") : label,
     };
   }
   if (key === "due") {
     const label = formatDate(row.dueDateValue);
     return {
       key: `due:${label}`,
-      label: label === "-" ? "No due date" : label,
+      label: label === "-" ? tr("No due date") : label,
     };
   }
   if (key === "waiting") {
@@ -986,24 +1107,24 @@ const getGroupInfo = (row, groupBy) => {
       key: row.nextStepDescription
         ? `nextStep:${row.nextStepDescription}`
         : "nextStep:none",
-      label: row.nextStepDescription || "No next step",
+      label: row.nextStepDescription || tr("No next step"),
     };
   }
   if (key === "updatedAt") {
     const label = formatDate(row.updatedAtValue);
     return {
       key: `updatedAt:${label}`,
-      label: label === "-" ? "No updated date" : label,
+      label: label === "-" ? tr("No updated date") : label,
     };
   }
   if (key === "closedDate") {
     const label = formatDate(row.closedDateValue);
     return {
       key: `closedDate:${label}`,
-      label: label === "-" ? "No closed date" : label,
+      label: label === "-" ? tr("No closed date") : label,
     };
   }
-  return { key: "all", label: "All tasks" };
+  return { key: "all", label: tr("All tasks") };
 };
 
 const rowMatchesGroupBy = (row, groupBy) => {
@@ -1102,7 +1223,7 @@ const buildServiceSubGroups = (rows, topGroupBy) => {
     const svcLabel =
       row.serviceLabel && row.serviceLabel !== "-"
         ? row.serviceLabel
-        : "No service";
+        : tr("No service");
     const caseKey = row.projectIdValue || "none";
     const key = `${caseKey}::${svcLabel}`;
     if (!buckets[key]) {
@@ -1112,7 +1233,7 @@ const buildServiceSubGroups = (rows, topGroupBy) => {
         caseLabel:
           row.projectLabel && row.projectLabel !== "-"
             ? row.projectLabel
-            : "No case",
+            : tr("No case"),
         sortValue: timestampValue(row.projectCreatedAtValue),
         rows: [],
       };
@@ -1144,7 +1265,7 @@ const getColumnValue = (row, field) => {
     return cfg.label || row.status || "";
   }
   if (field === "assignee")
-    return row.assigneeIdValue ? row.assigneeLabel : "Unassigned";
+    return row.assigneeIdValue ? row.assigneeLabel : tr("Unassigned");
   if (field === "start") return formatDate(row.startDateValue);
   if (field === "due") return formatDate(row.dueDateValue);
   if (field === "closedDate") return formatDate(row.closedDateValue);
@@ -1315,14 +1436,14 @@ const AllTaskBlock = () => {
     const subTaskId = getRowDetailSubTaskId(row);
     const detailRoute = buildTaskDetailRoute(taskId);
     if (!detailRoute) {
-      message.warning("Could not resolve task id.");
+      message.warning(tr("Could not resolve task id."));
       return;
     }
 
     const popupTitle =
       row?.recordType === "subTask" && row.parentTaskTitle
-        ? `${row.titleText || "Subtask"} - ${row.parentTaskTitle}`
-        : row?.titleText || "Task detail";
+        ? `${row.titleText || tr("Subtask")} - ${row.parentTaskTitle}`
+        : row?.titleText || tr("Task detail");
     const sourceProjectId = extractId(row?.projectIdValue);
     const collectionName = subTaskId ? "subTasks" : "tasks";
     const recordType = subTaskId ? "subTask" : "task";
@@ -1445,7 +1566,7 @@ const AllTaskBlock = () => {
   const saveViewConfig = async (nextView) => {
     const userId = extractId(currentUser?.id ?? currentUser);
     if (!userId) {
-      message.warning("Could not resolve current user to save view.");
+      message.warning(tr("Could not resolve current user to save view."));
       return;
     }
 
@@ -1467,7 +1588,7 @@ const AllTaskBlock = () => {
       });
     } catch (error) {
       console.warn("[AllTaskBlock] save user view config failed", error);
-      message.warning("Could not save view for this user.");
+      message.warning(tr("Could not save view for this user."));
     }
   };
 
@@ -1509,7 +1630,7 @@ const AllTaskBlock = () => {
         sortConfig: null,
       }),
     );
-    message.success("Columns reset.");
+    message.success(tr("Columns reset."));
   };
 
   const resetFilters = () => {
@@ -1578,7 +1699,7 @@ const AllTaskBlock = () => {
             subTaskRows.length >= TASK_FETCH_LIMIT)
         ) {
           message.warning(
-            `Đang hiển thị tối đa ${TASK_FETCH_LIMIT} tasks/subtasks. Dùng filter để thu hẹp kết quả và xem đầy đủ.`,
+            tr("Showing at most {0} tasks/subtasks. Use filters to narrow the results and see everything.", { 0: TASK_FETCH_LIMIT }),
             6,
           );
         }
@@ -1690,7 +1811,7 @@ const AllTaskBlock = () => {
         setRows(enrichedRows);
       } catch (error) {
         console.error("[AllTaskBlock] load failed", error);
-        message.error("Could not load tasks.");
+        message.error(tr("Could not load tasks."));
       } finally {
         setLoading(false);
       }
@@ -1976,7 +2097,7 @@ const AllTaskBlock = () => {
       });
 
       if (!rowsToDelete.length) {
-        message.warning("No task selected.");
+        message.warning(tr("No task selected."));
         return;
       }
 
@@ -2009,13 +2130,13 @@ const AllTaskBlock = () => {
         await reload({ notifyLimit: false });
         message.success(
           rowsToDelete.length === 1
-            ? "Task deleted."
-            : `${rowsToDelete.length} tasks deleted.`,
+            ? tr("Task deleted.")
+            : tr("{0} tasks deleted.", { 0: rowsToDelete.length }),
         );
       } catch (error) {
         console.error("[AllTaskBlock] delete task failed", error);
         setRows(previousRows);
-        message.error("Could not delete task.");
+        message.error(tr("Could not delete task."));
         reload({ notifyLimit: false });
       } finally {
         setDeletingRowKeys((prev) => prev.filter((key) => !keySet.has(key)));
@@ -2035,7 +2156,7 @@ const AllTaskBlock = () => {
       });
 
       if (!rowsToDelete.length) {
-        message.warning("No task selected.");
+        message.warning(tr("No task selected."));
         return;
       }
 
@@ -2044,16 +2165,16 @@ const AllTaskBlock = () => {
       ).length;
       const subTaskCount = rowsToDelete.length - taskCount;
       const breakdown = compact([
-        taskCount ? `${taskCount} task${taskCount > 1 ? "s" : ""}` : "",
+        taskCount ? tr("{0} task{1}", { 0: taskCount, 1: taskCount > 1 ? "s" : "" }) : "",
         subTaskCount
-          ? `${subTaskCount} subtask${subTaskCount > 1 ? "s" : ""}`
+          ? tr("{0} subtask{1}", { 0: subTaskCount, 1: subTaskCount > 1 ? "s" : "" })
           : "",
       ]).join(", ");
-      const singleTitle = rowsToDelete[0]?.titleText || "this task";
+      const singleTitle = rowsToDelete[0]?.titleText || tr("this task");
       const title =
         rowsToDelete.length === 1
-          ? `Delete "${singleTitle}"?`
-          : `Delete ${rowsToDelete.length} selected items?`;
+          ? tr("Delete \"{0}\"?", { 0: singleTitle })
+          : tr("Delete {0} selected items?", { 0: rowsToDelete.length });
       const content = React.createElement(
         "div",
         { style: { fontFamily: FONT } },
@@ -2061,8 +2182,8 @@ const AllTaskBlock = () => {
           "div",
           null,
           rowsToDelete.length === 1
-            ? "This action cannot be undone."
-            : `Selected: ${breakdown}. This action cannot be undone.`,
+            ? tr("This action cannot be undone.")
+            : tr("Selected: {0}. This action cannot be undone.", { 0: breakdown }),
         ),
       );
       const onOk = () => destroyRows(rowsToDelete);
@@ -2071,15 +2192,15 @@ const AllTaskBlock = () => {
         Modal.confirm({
           title,
           content,
-          okText: "Delete",
+          okText: tr("Delete"),
           okType: "danger",
-          cancelText: "Cancel",
+          cancelText: tr("Cancel"),
           onOk,
         });
         return;
       }
 
-      if (window.confirm(`${title}\nThis action cannot be undone.`)) {
+      if (((message) => { try { return window.confirm(message); } catch { return false; } })(tr("{0}\nThis action cannot be undone.", { 0: title }))) {
         onOk();
       }
     },
@@ -2107,7 +2228,7 @@ const AllTaskBlock = () => {
       ),
     getCheckboxProps: (record) => ({
       disabled: deletingKeySet.has(record.key),
-      title: deletingKeySet.has(record.key) ? "Deleting..." : undefined,
+      title: deletingKeySet.has(record.key) ? tr("Deleting...") : undefined,
     }),
   });
 
@@ -2115,7 +2236,7 @@ const AllTaskBlock = () => {
     if (!field || !event) return;
     event.preventDefault();
     event.stopPropagation();
-    const ownerWindow = event.view || document.defaultView || window;
+    const ownerWindow = event.view || event.currentTarget?.ownerDocument?.defaultView || null;
     const bodyStyle = ownerWindow?.document?.body?.style;
     const previousCursor = bodyStyle?.cursor;
     const previousUserSelect = bodyStyle?.userSelect;
@@ -2191,7 +2312,7 @@ const AllTaskBlock = () => {
           {
             size: "small",
             type: "text",
-            title: "Cancel",
+            title: tr("Cancel"),
             onClick: () => setOpenColumnMenu(null),
           },
           "x",
@@ -2205,7 +2326,7 @@ const AllTaskBlock = () => {
           onClick: () => setSelectedColumn(field),
           style: menuButtonStyle,
         },
-        "Select column",
+        tr("Select column"),
       ),
       React.createElement(
         Button,
@@ -2218,7 +2339,7 @@ const AllTaskBlock = () => {
           onClick: () => applySort(field, "asc"),
           style: menuButtonStyle,
         },
-        "Sort ascending",
+        tr("Sort ascending"),
       ),
       React.createElement(
         Button,
@@ -2231,7 +2352,7 @@ const AllTaskBlock = () => {
           onClick: () => applySort(field, "desc"),
           style: menuButtonStyle,
         },
-        "Sort descending",
+        tr("Sort descending"),
       ),
       sortConfig?.field === field
         ? React.createElement(
@@ -2242,7 +2363,7 @@ const AllTaskBlock = () => {
               onClick: () => applySort(field, null),
               style: menuButtonStyle,
             },
-            "Clear sort",
+            tr("Clear sort"),
           )
         : null,
       React.createElement(
@@ -2257,7 +2378,7 @@ const AllTaskBlock = () => {
         React.createElement(
           Text,
           { type: hasColumnFilter ? undefined : "secondary" },
-          "Filter by values",
+          tr("Filter by values"),
         ),
         React.createElement(Select, {
           mode: "multiple",
@@ -2278,7 +2399,7 @@ const AllTaskBlock = () => {
           onClick: () => canGroupByField && setGroupByValue(field),
           style: { ...menuButtonStyle, marginTop: token.marginXS },
         },
-        "Group by values",
+        tr("Group by values"),
       ),
       React.createElement(
         Button,
@@ -2289,7 +2410,7 @@ const AllTaskBlock = () => {
           onClick: () => hideColumn(field),
           style: menuButtonStyle,
         },
-        "Hide field",
+        tr("Hide field"),
       ),
       React.createElement(
         Button,
@@ -2299,7 +2420,7 @@ const AllTaskBlock = () => {
           onClick: () => moveColumn(field, "left"),
           style: menuButtonStyle,
         },
-        "Move left",
+        tr("Move left"),
       ),
       React.createElement(
         Button,
@@ -2309,7 +2430,7 @@ const AllTaskBlock = () => {
           onClick: () => moveColumn(field, "right"),
           style: menuButtonStyle,
         },
-        "Move right",
+        tr("Move right"),
       ),
       React.createElement(
         Button,
@@ -2323,7 +2444,7 @@ const AllTaskBlock = () => {
             borderTop: `1px solid ${token.colorSplit}`,
           },
         },
-        "x Clear column config",
+        tr("x Clear column config"),
       ),
     );
   };
@@ -2434,7 +2555,7 @@ const AllTaskBlock = () => {
 
   const buildColumns = (tableScope = "main") => [
     {
-      title: renderColumnTitle("task", "Task", tableScope),
+      title: renderColumnTitle("task", tr("Task"), tableScope),
       dataIndex: "titleText",
       key: "task",
       fixed: "left",
@@ -2471,14 +2592,14 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("status", "Status", tableScope),
+      title: renderColumnTitle("status", tr("Status"), tableScope),
       dataIndex: "status",
       key: "status",
       width: columnWidths.status,
       render: statusTag,
     },
     {
-      title: renderColumnTitle("assignee", "Assignee", tableScope),
+      title: renderColumnTitle("assignee", tr("Assignee"), tableScope),
       dataIndex: "assigneeLabel",
       key: "assignee",
       width: columnWidths.assignee,
@@ -2486,10 +2607,10 @@ const AllTaskBlock = () => {
       render: (value, row) =>
         row.assigneeIdValue
           ? React.createElement(Text, null, value)
-          : React.createElement(Text, { type: "secondary" }, "Unassigned"),
+          : React.createElement(Text, { type: "secondary" }, tr("Unassigned")),
     },
     {
-      title: renderColumnTitle("start", "Start", tableScope),
+      title: renderColumnTitle("start", tr("Start"), tableScope),
       dataIndex: "startDateValue",
       key: "start",
       width: columnWidths.start,
@@ -2501,7 +2622,7 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("due", "Due", tableScope),
+      title: renderColumnTitle("due", tr("Due"), tableScope),
       dataIndex: "dueDateValue",
       key: "due",
       width: columnWidths.due,
@@ -2516,7 +2637,7 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("closedDate", "Closed date", tableScope),
+      title: renderColumnTitle("closedDate", tr("Closed date"), tableScope),
       dataIndex: "closedDateValue",
       key: "closedDate",
       width: columnWidths.closedDate,
@@ -2528,7 +2649,7 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("waiting", "Waiting issue", tableScope),
+      title: renderColumnTitle("waiting", tr("Waiting issue"), tableScope),
       dataIndex: "waiting",
       key: "waiting",
       width: columnWidths.waiting,
@@ -2540,7 +2661,7 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: renderColumnTitle("nextStep", "Next step", tableScope),
+      title: renderColumnTitle("nextStep", tr("Next step"), tableScope),
       dataIndex: "nextStepDescription",
       key: "nextStep",
       width: columnWidths.nextStep,
@@ -2555,7 +2676,7 @@ const AllTaskBlock = () => {
           : React.createElement(Text, { type: "secondary" }, "-"),
     },
     {
-      title: renderColumnTitle("updatedAt", "Updated", tableScope),
+      title: renderColumnTitle("updatedAt", tr("Updated"), tableScope),
       dataIndex: "updatedAtValue",
       key: "updatedAt",
       width: columnWidths.updatedAt,
@@ -2567,7 +2688,7 @@ const AllTaskBlock = () => {
         ),
     },
     {
-      title: "Actions",
+      title: tr("Actions"),
       key: "actions",
       fixed: "right",
       width: TASK_ACTION_COLUMN_WIDTH,
@@ -2584,7 +2705,7 @@ const AllTaskBlock = () => {
               confirmDeleteRows([row]);
             },
           },
-          "Delete",
+          tr("Delete"),
         ),
     },
   ];
@@ -2745,7 +2866,7 @@ const AllTaskBlock = () => {
           fontSize: token.fontSizeSM,
         },
       },
-      "Visible columns",
+      tr("Visible columns"),
     ),
     React.createElement(
       Checkbox.Group,
@@ -2768,7 +2889,7 @@ const AllTaskBlock = () => {
             disabled: item.locked,
             style: { marginInlineStart: 0 },
           },
-          item.locked ? `${item.label} (fixed)` : item.label,
+          item.locked ? tr("{0} (fixed)", { 0: item.label }) : item.label,
         ),
       ),
     ),
@@ -2786,7 +2907,7 @@ const AllTaskBlock = () => {
       React.createElement(
         Button,
         { size: "small", onClick: resetColumns },
-        "Reset columns",
+        tr("Reset columns"),
       ),
     ),
   );
@@ -2797,13 +2918,13 @@ const AllTaskBlock = () => {
         {
           trigger: "click",
           placement: "bottomRight",
-          title: "View config",
+          title: tr("View config"),
           content: columnConfigContent,
         },
         React.createElement(
           Button,
           { style: { width: "100%" } },
-          `View config`,
+          tr("View config"),
         ),
       )
     : React.createElement(
@@ -2869,7 +2990,7 @@ const AllTaskBlock = () => {
           optionFilterProp: "searchText",
           optionLabelProp: "plainLabel",
           value: filters.caseIds,
-          placeholder: "Case",
+          placeholder: tr("Case"),
           options: caseOptions,
           onChange: (value) => setFilter("caseIds", value),
           style: filterControlStyle,
@@ -2881,7 +3002,7 @@ const AllTaskBlock = () => {
           maxTagCount: "responsive",
           optionFilterProp: "label",
           value: filters.assigneeIds,
-          placeholder: "Assignees",
+          placeholder: tr("Assignees"),
           options: assigneeOptions,
           onChange: (value) => setFilter("assigneeIds", value),
           style: filterControlStyle,
@@ -2891,7 +3012,7 @@ const AllTaskBlock = () => {
           allowClear: true,
           maxTagCount: "responsive",
           value: filters.statuses,
-          placeholder: "Status",
+          placeholder: tr("Status"),
           options: STATUS_OPTIONS,
           onChange: (value) => setFilter("statuses", value),
           style: filterControlStyle,
@@ -2901,7 +3022,7 @@ const AllTaskBlock = () => {
           allowClear: true,
           maxTagCount: "responsive",
           value: filters.waitingKinds,
-          placeholder: "Waiting issue",
+          placeholder: tr("Waiting issue"),
           options: WAITING_OPTIONS,
           onChange: (value) => setFilter("waitingKinds", value),
           style: filterControlStyle,
@@ -2913,7 +3034,7 @@ const AllTaskBlock = () => {
         React.createElement(Input.Search, {
           allowClear: true,
           value: filters.keyword,
-          placeholder: "Search task, case, blocker...",
+          placeholder: tr("Search task, case, blocker..."),
           onChange: (event) => setFilter("keyword", event.target.value),
           onSearch: (value) => setFilter("keyword", value),
           style: filterControlStyle,
@@ -2922,7 +3043,7 @@ const AllTaskBlock = () => {
           ? React.createElement(Select, {
               value: groupBy,
               options: GROUP_BY_OPTIONS,
-              placeholder: "Group by",
+              placeholder: tr("Group by"),
               onChange: setGroupByValue,
               style: filterControlStyle,
             })
@@ -2932,7 +3053,7 @@ const AllTaskBlock = () => {
               allowClear: true,
               value: filters.dateRange,
               format: "DD/MM/YYYY",
-              placeholder: ["Ngày bắt đầu từ", "Ngày bắt đầu đến"],
+              placeholder: [tr("Start date from"), tr("Start date to")],
               onChange: (value) => setFilter("dateRange", value || null),
               style: filterControlStyle,
             })
@@ -2949,13 +3070,13 @@ const AllTaskBlock = () => {
                 onClick: () => confirmDeleteRows(selectedRows),
                 style: filterControlStyle,
               },
-              `Delete selected (${selectedRows.length})`,
+              tr("Delete selected ({0})", { 0: selectedRows.length }),
             )
           : null,
         React.createElement(
           Button,
           { onClick: resetFilters, style: filterControlStyle },
-          "Reset",
+          tr("Reset"),
         ),
       ),
     ),
@@ -3127,7 +3248,7 @@ const AllTaskBlock = () => {
     if (!row || row.status === nextStatus) return;
     const recordId = extractId(row.id);
     if (!recordId) {
-      message.error("Could not resolve task id.");
+      message.error(tr("Could not resolve task id."));
       return;
     }
 
@@ -3146,11 +3267,11 @@ const AllTaskBlock = () => {
         data: { status: nextStatus },
       });
       await reload({ notifyLimit: false });
-      message.success("Task status updated.");
+      message.success(tr("Task status updated."));
     } catch (error) {
       console.error("[AllTaskBlock] update task status failed", error);
       setRows(previousRows);
-      message.error("Could not update task status.");
+      message.error(tr("Could not update task status."));
     }
   };
 
@@ -3218,7 +3339,7 @@ const AllTaskBlock = () => {
         React.createElement(
           Text,
           { type: "secondary", style: { fontSize: token.fontSizeSM } },
-          row.assigneeLabel || "Unassigned",
+          row.assigneeLabel || tr("Unassigned"),
         ),
         React.createElement(
           Text,
@@ -3340,7 +3461,7 @@ const AllTaskBlock = () => {
                 : React.createElement(
                     Text,
                     { type: "secondary", style: { padding: token.paddingXS } },
-                    "No tasks",
+                    tr("No tasks"),
                   ),
             ),
           ),
@@ -3436,7 +3557,7 @@ const AllTaskBlock = () => {
         start: makeTime(startDay),
         end: makeTime(endDay),
         label: `${startDay}-${endDay}`,
-        subLabel: "Past",
+        subLabel: tr("Past"),
       });
     }
 
@@ -3459,7 +3580,7 @@ const AllTaskBlock = () => {
             key: "month",
             start: monthStart,
             end: monthEnd,
-            label: "Month",
+            label: tr("Month"),
             subLabel: "",
           },
         ];
@@ -3629,7 +3750,7 @@ const AllTaskBlock = () => {
             React.createElement(
               Text,
               { type: "secondary", style: { fontSize: token.fontSizeSM } },
-              item.row.assigneeLabel || "Unassigned",
+              item.row.assigneeLabel || tr("Unassigned"),
             ),
           ),
         ),
@@ -3699,7 +3820,7 @@ const AllTaskBlock = () => {
                     fontSize: token.fontSizeSM,
                   },
                 },
-                `Outside ${formatRoadmapMonth(monthStart)}`,
+                tr("Outside {0}", { 0: formatRoadmapMonth(monthStart) }),
               ),
         ),
       );
@@ -3757,7 +3878,7 @@ const AllTaskBlock = () => {
                 fontSize: token.fontSizeSM,
               },
             },
-            `${allItems.length} tasks | Today: ${formatRoadmapFullDate(today)}`,
+            tr("{0} tasks | Today: {1}", { 0: allItems.length, 1: formatRoadmapFullDate(today) }),
           ),
         ),
         renderTimelineCell(
@@ -3870,7 +3991,7 @@ const AllTaskBlock = () => {
                     fontSize: token.fontSizeSM,
                   },
                 },
-                `Group range: ${groupRangeText}`,
+                tr("Group range: {0}", { 0: groupRangeText }),
               ),
               { minHeight: 44, background: groupColors.background },
             ),
@@ -3894,7 +4015,7 @@ const AllTaskBlock = () => {
     if (!sortedRows.length) {
       return React.createElement(Empty, {
         image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "No task matched the current filters.",
+        description: tr("No task matched the current filters."),
         style: { padding: 48 },
       });
     }
@@ -3917,7 +4038,7 @@ const AllTaskBlock = () => {
         pagination: {
           pageSize: 30,
           showSizeChanger: true,
-          showTotal: (total) => `${total} tasks`,
+          showTotal: (total) => tr("{0} tasks", { 0: total }),
         },
         scroll: { x: tableScrollX, y: 640 },
         sticky: true,
@@ -3927,7 +4048,7 @@ const AllTaskBlock = () => {
     if (!allGroups.length) {
       return React.createElement(Empty, {
         image: Empty.PRESENTED_IMAGE_SIMPLE,
-        description: "No task matched the current filters.",
+        description: tr("No task matched the current filters."),
         style: { padding: 48 },
       });
     }
@@ -3958,7 +4079,7 @@ const AllTaskBlock = () => {
               showSizeChanger: false,
               onChange: (page) => setCasePage(page),
               showTotal: (total, range) =>
-                `${range[0]}-${range[1]} of ${total} groups`,
+                tr("{0}-{1} of {2} groups", { 0: range[0], 1: range[1], 2: total }),
             }),
           )
         : null;
@@ -3995,7 +4116,7 @@ const AllTaskBlock = () => {
           loading,
           onClick: () => reload({ notifyLimit: true }),
         },
-        "Refresh",
+        tr("Refresh"),
       ),
       bodyStyle: {
         padding: 0,

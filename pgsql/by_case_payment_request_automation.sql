@@ -118,6 +118,43 @@ DROP TRIGGER IF EXISTS trg_by_case_create_scheduled_payment_requests ON contract
 -- ---- database's `fields` metadata table, since the Admin UI's field
 -- ---- editor shows the association name ("linkedPaymentRequestId"), not
 -- ---- the underlying SQL column.
+-- ---- 2026-09-29: By Case "One time" with trigger tasks. Its single payment
+-- ---- (by_case_one_time_ensure_payment_request) waits for the Case to be
+-- ---- Done; once tasks are linked to it (contract form's Payment Triggers,
+-- ---- Case creation, Task Management) it waits for ALL of them instead —
+-- ---- triggerType 'on_task_done', so the Case-done trigger leaves it alone.
+-- ---- With no task linked any more it waits for the Case again. Only a
+-- ---- pending One time payment is switched; installments keep their type.
+CREATE OR REPLACE FUNCTION public.by_case_one_time_sync_trigger_mode(p_payment_request_id BIGINT)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_pr RECORD;
+  v_mode TEXT;
+BEGIN
+  SELECT pr.id, pr.status, pr."triggerType", pr."contractPaymentScheduleId"
+  INTO v_pr
+  FROM "paymentRequests" pr
+  JOIN contracts c ON c.id = pr."contractId"
+  WHERE pr.id = p_payment_request_id
+    AND c."contractType" = 'byCase'
+    AND COALESCE(c."billingCycle", 'one_time') <> 'multiple_payments';
+  IF v_pr.id IS NULL OR v_pr.status IS DISTINCT FROM 'pending'
+     OR v_pr."triggerType" NOT IN ('on_case_done', 'on_task_done') THEN
+    RETURN;
+  END IF;
+
+  v_mode := CASE WHEN EXISTS (SELECT 1 FROM tasks WHERE "paymentRequestId" = v_pr.id)
+                 THEN 'on_task_done' ELSE 'on_case_done' END;
+  IF v_mode IS DISTINCT FROM v_pr."triggerType" THEN
+    UPDATE "paymentRequests" SET "triggerType" = v_mode, "updatedAt" = now() WHERE id = v_pr.id;
+    UPDATE "contractPaymentSchedules" SET "triggerType" = v_mode, "updatedAt" = now()
+    WHERE id = v_pr."contractPaymentScheduleId" AND "triggerType" IS DISTINCT FROM v_mode;
+  END IF;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.by_case_activate_payment_request_if_ready(p_payment_request_id BIGINT)
 RETURNS void
 LANGUAGE plpgsql
@@ -129,16 +166,53 @@ BEGIN
     RETURN;
   END IF;
 
+  -- a One time payment follows its trigger tasks when it has some (above)
+  PERFORM public.by_case_one_time_sync_trigger_mode(p_payment_request_id);
+
   SELECT id, status, "dueDate" INTO v_pr FROM "paymentRequests" WHERE id = p_payment_request_id;
   IF v_pr.id IS NULL OR v_pr.status <> 'pending' THEN
     RETURN;
   END IF;
 
+  -- 2026-09-24 fix: AND logic across every task linked to this installment
+  -- (same rule as By Service's trigger tasks). Previously the FIRST linked
+  -- task reaching 'done' activated the request even when other tasks linked
+  -- to the same installment (e.g. A and B both on installment 1) were still
+  -- open. Now: at least one linked task, and none of them not 'done'.
+  IF NOT EXISTS (SELECT 1 FROM tasks WHERE "paymentRequestId" = v_pr.id)
+     OR EXISTS (
+       SELECT 1 FROM tasks
+       WHERE "paymentRequestId" = v_pr.id
+         AND status IS DISTINCT FROM 'done'
+     )
+  THEN
+    RETURN;
+  END IF;
+
+  -- 2026-09-25: a request with no due date yet (By Service + Combo pricing
+  -- billing items are created without one) gets it now — +7 days from
+  -- activation — instead of staying pending. By Case installments always
+  -- carry a due date already, so this doesn't change them.
   UPDATE "paymentRequests"
   SET "conditionMet" = true,
-      status = CASE WHEN v_pr."dueDate" IS NOT NULL THEN 'active' ELSE 'pending' END,
+      status = 'active',
+      "dueDate" = COALESCE(v_pr."dueDate", now() + INTERVAL '7 days'),
       "updatedAt" = now()
   WHERE id = v_pr.id;
+
+  -- A due date set just now (it had none) also goes onto the request's line
+  -- item and snapshot, which views such as ContractDetailView read.
+  IF v_pr."dueDate" IS NULL THEN
+    UPDATE "paymentRequestItems"
+    SET "plannedPaymentDate" = COALESCE("plannedPaymentDate", now() + INTERVAL '7 days'),
+        "updatedAt" = now()
+    WHERE "paymentRequestId" = v_pr.id;
+
+    UPDATE "paymentRequests"
+    SET "sourceSnapshot" = COALESCE("sourceSnapshot"::jsonb, '{}'::jsonb)
+          || jsonb_build_object('dueDate', "dueDate")
+    WHERE id = v_pr.id;
+  END IF;
 END;
 $function$;
 
@@ -183,11 +257,28 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $function$
 BEGIN
+  -- 2026-09-29: a One time payment starts following its tasks as soon as one
+  -- is linked, done or not (by_case_one_time_sync_trigger_mode)
+  IF NEW."paymentRequestId" IS NOT NULL
+     AND OLD."paymentRequestId" IS DISTINCT FROM NEW."paymentRequestId"
+  THEN
+    PERFORM public.by_case_one_time_sync_trigger_mode(NEW."paymentRequestId");
+  END IF;
+
   IF NEW."paymentRequestId" IS NOT NULL
      AND OLD."paymentRequestId" IS DISTINCT FROM NEW."paymentRequestId"
      AND NEW.status = 'done'
   THEN
     PERFORM public.by_case_activate_payment_request_if_ready(NEW."paymentRequestId");
+  END IF;
+
+  -- 2026-09-24: with AND logic, unlinking (or moving away) the last open
+  -- task can leave the previous installment's remaining tasks all done —
+  -- re-check it so it isn't stuck pending.
+  IF OLD."paymentRequestId" IS NOT NULL
+     AND OLD."paymentRequestId" IS DISTINCT FROM NEW."paymentRequestId"
+  THEN
+    PERFORM public.by_case_activate_payment_request_if_ready(OLD."paymentRequestId");
   END IF;
 
   RETURN NEW;
@@ -200,14 +291,37 @@ CREATE TRIGGER trg_by_case_task_linked_activates_payment_request
   FOR EACH ROW
   EXECUTE FUNCTION public.by_case_task_linked_activates_payment_request();
 
+-- ---- Trigger: tasks AFTER DELETE — 2026-09-24, completes the AND fix:
+-- ---- deleting the last open task linked to an installment is an unlink
+-- ---- too; without this, remaining tasks could all be done while the
+-- ---- installment stays pending forever (A done + B open on installment 1,
+-- ---- B deleted → nothing re-checked).
+CREATE OR REPLACE FUNCTION public.by_case_task_deleted_rechecks_payment_request()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  IF OLD."paymentRequestId" IS NOT NULL THEN
+    PERFORM public.by_case_activate_payment_request_if_ready(OLD."paymentRequestId");
+  END IF;
+  RETURN OLD;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_by_case_task_deleted_rechecks_payment_request ON tasks;
+CREATE TRIGGER trg_by_case_task_deleted_rechecks_payment_request
+  AFTER DELETE ON tasks
+  FOR EACH ROW
+  EXECUTE FUNCTION public.by_case_task_deleted_rechecks_payment_request();
+
 -- ---- Trigger: projects AFTER UPDATE OF status — a Case becoming done
 -- ---- marks its on_case_done Payment Request's trigger condition met ----
--- Runs independently of, and has no effect on, the existing
--- auto_create_payment_request_on_case_done trigger
--- (contract_payment_status_workflow.sql) — both react to the same "case
--- became done" event side by side; that trigger's lump-sum
--- "outstanding balance" fallback still fires for contracts with no
--- scheduled on_case_done installment, unchanged.
+-- Since 2026-09-24 this is the ONLY case-done payment mechanism: the legacy
+-- lump-sum trigger trg_case_done_payment_request
+-- (contract_payment_status_workflow.sql) is dropped, and By Case "One time"
+-- contracts get a single 100% on_case_done installment when a Case is
+-- linked (by_case_one_time_ensure_payment_request,
+-- unified_contract_payment_schedule.sql), which this trigger activates.
 CREATE OR REPLACE FUNCTION public.by_case_case_done_activates_payment_request()
 RETURNS trigger
 LANGUAGE plpgsql

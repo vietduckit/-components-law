@@ -1,3 +1,64 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Create failed": "Tạo thất bại",
+  "Upload file failed": "Tải tệp lên thất bại",
+  "Company #{0}": "Công ty #{0}",
+  "Company": "Công ty",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Case": "Hồ sơ",
+  "Reference #{0}": "Reference #{0}",
+  "Case Reference": "Case Reference",
+  "Discard changes?": "Bỏ các thay đổi?",
+  "Your unsaved legal study input will be lost.": "Dữ liệu legal study chưa lưu sẽ bị mất.",
+  "Discard": "Bỏ",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Failed to create relation link": "Không tạo được liên kết",
+  "Missing Legal Study or Case ID": "Thiếu ID Legal Study hoặc Hồ sơ",
+  "Missing Legal Study or Legal Reference ID": "Thiếu ID Legal Study hoặc Legal Reference",
+  "Could not load create form data.": "Không thể tải dữ liệu biểu mẫu.",
+  "Legal Study created, but its root folder could not be created.": "Đã tạo Legal Study, nhưng không tạo được thư mục gốc.",
+  "Created Legal Study, but could not detect its ID for document upload.": "Đã tạo Legal Study nhưng không xác định được ID để tải tài liệu lên.",
+  "Legal Study created.": "Đã tạo Legal Study.",
+  "Some documents failed to upload.": "Một số tài liệu tải lên thất bại.",
+  "Some case/reference links failed.": "Một số liên kết hồ sơ/tham chiếu thất bại.",
+  "Legal Study created successfully.": "Đã tạo Legal Study.",
+  "Create Legal Study failed.": "Tạo Legal Study thất bại.",
+  "Title": "Tiêu đề",
+  "Please enter a title": "Vui lòng nhập tiêu đề",
+  "Enter legal study title...": "Nhập tiêu đề legal study...",
+  "Internal Company": "Công ty nội bộ",
+  "Please select an internal company": "Vui lòng chọn công ty nội bộ",
+  "Select company...": "Chọn công ty...",
+  "Summary": "Tóm tắt",
+  "Summarize the legal study...": "Tóm tắt legal study...",
+  "Reference To Case": "Tham chiếu tới hồ sơ",
+  "Link this legal study to active cases in the system.": "Liên kết legal study này với các hồ sơ đang hoạt động.",
+  "Select linked cases...": "Chọn hồ sơ liên kết...",
+  "Upload documents (optional)": "Tải tài liệu lên (không bắt buộc)",
+  "Choose file": "Chọn tệp",
+  "Choose folder": "Chọn thư mục",
+  "Clear selection": "Bỏ chọn",
+  "{0} file": "{0} tệp",
+  "{0} folder files": "{0} tệp trong thư mục",
+  "Cancel": "Hủy",
+  "Submit": "Gửi",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const {
@@ -195,7 +256,7 @@ const createWithFallback = async (resources, payloadVariants = []) => {
       console.warn("[LegalStudyCreateBlock] create fallback failed", error);
     }
   }
-  throw lastError || new Error("Create failed");
+  throw lastError || new Error(tr("Create failed"));
 };
 
 const legalStudyScopeVariants = (payload) => {
@@ -245,7 +306,7 @@ const uploadAttachment = async (file, fileName = null) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   const attachment = uploadRes?.data?.data;
-  if (!attachment?.id) throw new Error("Upload file failed");
+  if (!attachment?.id) throw new Error(tr("Upload file failed"));
   return attachment;
 };
 
@@ -258,11 +319,11 @@ const getUploadRelativePath = (file) =>
 
 const companyLabel = (record) =>
   firstPresent(record, ["shortName", "name", "legalName", "companyName", "title"]) ||
-  (record?.id ? `Company #${record.id}` : "Company");
+  (record?.id ? tr("Company #{0}", { 0: record.id }) : tr("Company"));
 
 const customerLabel = (record) =>
   firstPresent(record, ["shortName", "customerName", "name", "fullName"]) ||
-  (record?.id ? `Customer #${record.id}` : "");
+  (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const projectLabel = (record) => {
   const customer = record?.customer || record?.customers;
@@ -271,12 +332,12 @@ const projectLabel = (record) => {
       firstPresent(record, ["caseCode", "projectCode", "code"]),
       customer ? customerLabel(customer) : "",
       firstPresent(record, ["projectName", "caseName", "name", "title"]),
-    ]).join(" - ") || (record?.id ? `Case #${record.id}` : "Case")
+    ]).join(" - ") || (record?.id ? tr("Case #{0}", { 0: record.id }) : tr("Case"))
   );
 };
 
 const legalReferenceLabel = (record) =>
-  firstPresent(record, ["title", "name"]) || (record?.id ? `Reference #${record.id}` : "Case Reference");
+  firstPresent(record, ["title", "name"]) || (record?.id ? tr("Reference #{0}", { 0: record.id }) : tr("Case Reference"));
 
 const getRecordCompanyId = (record) =>
   extractId(record?.internalCompanyId) ||
@@ -456,10 +517,10 @@ const showDiscardConfirm = (onOk) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: "Discard changes?",
-      content: "Your unsaved legal study input will be lost.",
-      okText: "Discard",
-      cancelText: "Keep editing",
+      title: tr("Discard changes?"),
+      content: tr("Your unsaved legal study input will be lost."),
+      okText: tr("Discard"),
+      cancelText: tr("Keep editing"),
       okButtonProps: { danger: true },
       maskClosable: false,
       onCancel: () => {
@@ -553,13 +614,13 @@ const postRelationCandidates = async (candidates) => {
       }
     }
   }
-  throw lastError || new Error("Failed to create relation link");
+  throw lastError || new Error(tr("Failed to create relation link"));
 };
 
 const linkCaseToLegalStudy = (legalStudyId, caseId) => {
   const studyId = extractId(legalStudyId);
   const cId = extractId(caseId);
-  if (!studyId || !cId) return Promise.reject(new Error("Missing Legal Study or Case ID"));
+  if (!studyId || !cId) return Promise.reject(new Error(tr("Missing Legal Study or Case ID")));
   return postRelationCandidates([
     { url: `projects/${encodeURIComponent(cId)}/legalStudy:add`, targetId: studyId },
     { url: `projects/${encodeURIComponent(cId)}/legalStudies:add`, targetId: studyId },
@@ -579,7 +640,7 @@ const linkCaseToLegalStudy = (legalStudyId, caseId) => {
 const linkLegalReferenceToLegalStudy = (legalStudyId, legalReferenceId) => {
   const studyId = extractId(legalStudyId);
   const refId = extractId(legalReferenceId);
-  if (!studyId || !refId) return Promise.reject(new Error("Missing Legal Study or Legal Reference ID"));
+  if (!studyId || !refId) return Promise.reject(new Error(tr("Missing Legal Study or Legal Reference ID")));
   return postRelationCandidates([
     { url: `legalReference/${encodeURIComponent(refId)}/legalStudy:add`, targetId: studyId },
     { url: `legalReference/${encodeURIComponent(refId)}/legalStudies:add`, targetId: studyId },
@@ -818,7 +879,7 @@ const LegalStudyCreateBlock = () => {
       })
       .catch((error) => {
         console.error("[LegalStudyCreateBlock] load failed", error);
-        message.error("Could not load create form data.");
+        message.error(tr("Could not load create form data."));
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -893,13 +954,13 @@ const LegalStudyCreateBlock = () => {
           rootFolderId = extractId(rootFolder);
         } catch (error) {
           console.error("[LegalStudyCreateBlock] create root folder failed", error);
-          message.warning("Legal Study created, but its root folder could not be created.");
+          message.warning(tr("Legal Study created, but its root folder could not be created."));
         }
       }
 
       if ((files.length || folderFiles.length) && !studyId) {
         uploadFailed = true;
-        message.warning("Created Legal Study, but could not detect its ID for document upload.");
+        message.warning(tr("Created Legal Study, but could not detect its ID for document upload."));
       }
 
       const caseIds = Array.from(new Set((values.caseIds || []).map((id) => extractId(id)).filter(Boolean)));
@@ -945,13 +1006,13 @@ const LegalStudyCreateBlock = () => {
       if (uploadFailed || linkFailed) {
         message.warning(
           compact([
-            "Legal Study created.",
-            uploadFailed ? "Some documents failed to upload." : "",
-            linkFailed ? "Some case/reference links failed." : "",
+            tr("Legal Study created."),
+            uploadFailed ? tr("Some documents failed to upload.") : "",
+            linkFailed ? tr("Some case/reference links failed.") : "",
           ]).join(" "),
         );
       } else {
-        message.success("Legal Study created successfully.");
+        message.success(tr("Legal Study created successfully."));
       }
 
       // Flip savingRef before closing so the guarded close patch (which
@@ -964,7 +1025,7 @@ const LegalStudyCreateBlock = () => {
       closeCurrentPopup();
     } catch (error) {
       console.error("[LegalStudyCreateBlock] submit failed", error);
-      message.error(error?.message || "Create Legal Study failed.");
+      message.error(error?.message || tr("Create Legal Study failed."));
     } finally {
       setSavingState(false);
     }
@@ -1050,10 +1111,10 @@ const LegalStudyCreateBlock = () => {
             Form.Item,
             {
               name: "title",
-              label: "Title",
-              rules: [{ required: true, message: "Please enter a title" }],
+              label: tr("Title"),
+              rules: [{ required: true, message: tr("Please enter a title") }],
             },
-            React.createElement(Input, { placeholder: "Enter legal study title..." }),
+            React.createElement(Input, { placeholder: tr("Enter legal study title...") }),
           ),
         ),
         React.createElement(
@@ -1063,13 +1124,13 @@ const LegalStudyCreateBlock = () => {
             Form.Item,
             {
               name: "internalCompanyId",
-              label: "Internal Company",
-              rules: [{ required: true, message: "Please select an internal company" }],
+              label: tr("Internal Company"),
+              rules: [{ required: true, message: tr("Please select an internal company") }],
             },
             React.createElement(Select, {
               showSearch: true,
               allowClear: true,
-              placeholder: "Select company...",
+              placeholder: tr("Select company..."),
               optionFilterProp: "label",
               options: companyOptions,
             }),
@@ -1078,10 +1139,10 @@ const LegalStudyCreateBlock = () => {
       ),
       React.createElement(
         Form.Item,
-        { name: "description", label: "Summary" },
+        { name: "description", label: tr("Summary") },
         React.createElement(Input.TextArea, {
           rows: 4,
-          placeholder: "Summarize the legal study...",
+          placeholder: tr("Summarize the legal study..."),
         }),
       ),
       React.createElement(
@@ -1094,14 +1155,14 @@ const LegalStudyCreateBlock = () => {
             Form.Item,
             {
               name: "caseIds",
-              label: "Reference To Case",
-              extra: "Link this legal study to active cases in the system.",
+              label: tr("Reference To Case"),
+              extra: tr("Link this legal study to active cases in the system."),
             },
             React.createElement(Select, {
               mode: "multiple",
               showSearch: true,
               allowClear: true,
-              placeholder: "Select linked cases...",
+              placeholder: tr("Select linked cases..."),
               filterOption: (input, option) =>
                 (option?.searchText || "").toLowerCase().includes(String(input).toLowerCase()),
               options: caseOptions,
@@ -1124,7 +1185,7 @@ const LegalStudyCreateBlock = () => {
         React.createElement(
           Typography.Text,
           { strong: true, style: { display: "block", marginBottom: 10, color: "#374151" } },
-          "Upload documents (optional)",
+          tr("Upload documents (optional)"),
         ),
         React.createElement(
           "div",
@@ -1132,12 +1193,12 @@ const LegalStudyCreateBlock = () => {
           React.createElement(
             Button,
             { onClick: () => fileInputRef.current?.click() },
-            "Choose file",
+            tr("Choose file"),
           ),
           React.createElement(
             Button,
             { onClick: () => folderInputRef.current?.click() },
-            "Choose folder",
+            tr("Choose folder"),
           ),
           files.length || folderFiles.length
             ? React.createElement(
@@ -1150,7 +1211,7 @@ const LegalStudyCreateBlock = () => {
                     setFolderFiles([]);
                   },
                 },
-                "Clear selection",
+                tr("Clear selection"),
               )
             : null,
         ),
@@ -1158,9 +1219,9 @@ const LegalStudyCreateBlock = () => {
           ? React.createElement(
               "div",
               { style: { marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" } },
-              files.length ? React.createElement(Tag, { color: "blue" }, `${files.length} file`) : null,
+              files.length ? React.createElement(Tag, { color: "blue" }, tr("{0} file", { 0: files.length })) : null,
               folderFiles.length
-                ? React.createElement(Tag, { color: "green" }, `${folderFiles.length} folder files`)
+                ? React.createElement(Tag, { color: "green" }, tr("{0} folder files", { 0: folderFiles.length }))
                 : null,
             )
           : null,
@@ -1190,11 +1251,11 @@ const LegalStudyCreateBlock = () => {
       React.createElement(
         "div",
         { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
-        React.createElement(Button, { onClick: handleCancel, disabled: saving }, "Cancel"),
+        React.createElement(Button, { onClick: handleCancel, disabled: saving }, tr("Cancel")),
         React.createElement(
           Button,
           { type: "primary", htmlType: "submit", loading: saving },
-          "Submit",
+          tr("Submit"),
         ),
       ),
     ),

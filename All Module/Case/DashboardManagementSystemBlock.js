@@ -3,6 +3,191 @@
 // Default admin view. Data is loaded from core collections.
 // View modes: Dashboard, Table, Charts.
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Dashboard": "Dashboard",
+  "Table": "Bảng",
+  "Charts": "Biểu đồ",
+  "Case code": "Mã hồ sơ",
+  "Record name": "Tên bản ghi",
+  "Customer": "Khách hàng",
+  "Status": "Trạng thái",
+  "Owner": "Người phụ trách",
+  "Internal company": "Công ty nội bộ",
+  "Progress": "Tiến độ",
+  "Revenue": "Doanh thu",
+  "Created date": "Ngày tạo",
+  "Deadline": "Hạn",
+  "Case manager": "Quản lý hồ sơ",
+  "Created month": "Tháng tạo",
+  "Progress band": "Mức tiến độ",
+  "Revenue band": "Mức doanh thu",
+  "Case count": "Số hồ sơ",
+  "Average progress": "Tiến độ trung bình",
+  "Completed cases": "Hồ sơ hoàn thành",
+  "Pending cases": "Hồ sơ đang chờ",
+  "Overdue cases": "Hồ sơ quá hạn",
+  "Column": "Cột",
+  "Bar": "Thanh",
+  "Line": "Dòng",
+  "Area": "Vùng",
+  "Donut": "Donut",
+  "Pie": "Tròn",
+  "Stacked bar": "Thanh chồng",
+  "Radar": "Radar",
+  "Funnel": "Phễu",
+  "Treemap": "Treemap",
+  "Scatter": "Phân tán",
+  "Number": "Số",
+  "Compact": "Gọn",
+  "Comfortable": "Vừa",
+  "Spacious": "Rộng",
+  "Blocked": "Bị chặn",
+  "No date": "Không có ngày",
+  "No revenue": "Không có doanh thu",
+  "Unknown": "Không xác định",
+  "No chart data": "Không có dữ liệu biểu đồ",
+  "Top {0}": "Top {0}",
+  "Case name": "Tên hồ sơ",
+  "Entity ID {0}": "ID {0}",
+  "Category": "Danh mục",
+  "Actions": "Thao tác",
+  "More": "Thêm",
+  "Average progress:": "Tiến độ trung bình:",
+  "Revenue:": "Doanh thu:",
+  "VND": "VND",
+  "Table display": "Hiển thị bảng",
+  "{0} rows": "{0} dòng",
+  "Fields": "Trường",
+  "Sort and group": "Sắp xếp và nhóm",
+  "Descending": "Giảm dần",
+  "Ascending": "Tăng dần",
+  "No grouping": "Không nhóm",
+  "Show summary": "Hiện tổng hợp",
+  "Hide summary": "Ẩn tổng hợp",
+  "Table actions": "Thao tác bảng",
+  "Row selection": "Chọn dòng",
+  "Reset table": "Đặt lại bảng",
+  "Table settings": "Cài đặt bảng",
+  "Filters": "Bộ lọc",
+  "Widget": "Widget",
+  "View": "Xem",
+  "Configuration": "Cấu hình",
+  "Default admin view settings": "Cài đặt view quản trị mặc định",
+  "Field configuration": "Cấu hình trường",
+  "Advanced filter builder": "Bộ lọc nâng cao",
+  "Clear": "Bỏ chọn",
+  "Any": "Bất kỳ",
+  "Active": "Đang hoạt động",
+  "Pending": "Chờ gửi",
+  "Completed": "Đã hoàn tất",
+  "Archived": "Đã lưu trữ",
+  "Reset": "Đặt lại",
+  "Condition added to the default admin view": "Đã thêm điều kiện vào view quản trị mặc định",
+  "Add condition": "Thêm điều kiện",
+  "Table behavior": "Hành vi bảng",
+  "{0} rows per page": "{0} dòng mỗi trang",
+  "Show row selection": "Hiện ô chọn dòng",
+  "Show summary row": "Hiện dòng tổng hợp",
+  "Comparison chart A": "Biểu đồ so sánh A",
+  "Comparison chart B": "Biểu đồ so sánh B",
+  "Widget settings": "Cài đặt widget",
+  "Summary cards": "Thẻ tổng hợp",
+  "Top metrics": "Chỉ số chính",
+  "Comparison charts": "Biểu đồ so sánh",
+  "Configurable dimension and metric": "Chiều và chỉ số tùy chỉnh",
+  "Table widget": "Widget bảng",
+  "Record list": "Danh sách bản ghi",
+  "Default view state": "Trạng thái view mặc định",
+  "Default admin view": "View quản trị mặc định",
+  "Single administrator-facing configuration": "Một cấu hình dành cho quản trị viên",
+  "Current": "Hiện tại",
+  "Sort": "Sắp xếp",
+  "Group by": "Nhóm theo",
+  "Owner #{0}": "Người phụ trách #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Category #{0}": "Danh mục #{0}",
+  "Unassigned": "Chưa phân công",
+  "No customer": "Không có khách hàng",
+  "Company #{0}": "Công ty #{0}",
+  "No internal company": "Không có công ty nội bộ",
+  "Owner: Any": "Người phụ trách: Bất kỳ",
+  "Category: Any": "Danh mục: Bất kỳ",
+  "Default admin view saved": "Đã lưu view quản trị mặc định",
+  "This browser context can't store the default view.": "Trình duyệt này không lưu được view mặc định.",
+  "Default view reset": "Đã đặt lại view mặc định",
+  "Record code copied": "Đã sao chép mã bản ghi",
+  "Cannot copy record code in this browser context": "Không thể sao chép mã bản ghi trong trình duyệt này",
+  "Table view": "Dạng bảng",
+  "Sorted by {0} ({1}), grouped by {2}": "Sắp xếp theo {0} ({1}), nhóm theo {2}",
+  "customer matters": "vụ việc của khách hàng",
+  "Customer cases, task progress and contract revenue in one configurable table.": "Hồ sơ khách hàng, tiến độ công việc và doanh thu hợp đồng trong một bảng tùy chỉnh.",
+  "rows/page": "dòng/trang",
+  "Customer matter progress": "Tiến độ vụ việc khách hàng",
+  "Revenue source comparison": "So sánh nguồn doanh thu",
+  "Table preview": "Xem trước bảng",
+  "Configurable fields, sorting and grouping": "Trường, sắp xếp và nhóm tùy chỉnh",
+  "Open table": "Mở bảng",
+  "Manage fields": "Quản lý trường",
+  "Dashboards / Default Admin View": "Dashboard / View quản trị mặc định",
+  "Dashboard Management System": "Hệ thống quản lý Dashboard",
+  "Default view": "View mặc định",
+  "Administrator-facing dashboard configured from core collections.": "Dashboard cho quản trị viên, cấu hình từ các collection chính.",
+  "Hide config": "Ẩn cấu hình",
+  "Show config": "Hiện cấu hình",
+  "Refresh data": "Làm mới dữ liệu",
+  "Save default view": "Lưu view mặc định",
+  "Filter": "Lọc",
+  "Sort:": "Sắp xếp:",
+  "Group:": "Nhóm:",
+  "Chart builder": "Tạo biểu đồ",
+  "Refresh": "Làm mới",
+  "Search records...": "Tìm bản ghi...",
+  "Status: Any": "Trạng thái: Bất kỳ",
+  "Date: This quarter": "Ngày: Quý này",
+  "This month": "Tháng này",
+  "All dates": "Mọi ngày",
+  "Status:": "Trạng thái:",
+  "Owner:": "Người phụ trách:",
+  "Category:": "Danh mục:",
+  "Date:": "Ngày:",
+  "Search:": "Tìm:",
+  "Clear filters": "Xóa bộ lọc",
+  "Customer matters": "Vụ việc khách hàng",
+  "{0} loaded": "đã tải {0}",
+  "after current filters": "sau bộ lọc hiện tại",
+  "Work progress": "Tiến độ công việc",
+  "{0} completed": "{0} hoàn thành",
+  "from task status": "từ trạng thái công việc",
+  "Needs attention": "Cần chú ý",
+  "{0} overdue": "{0} quá hạn",
+  "Review": "Xem lại",
+  "On track": "Đúng tiến độ",
+  "Contract revenue": "Doanh thu hợp đồng",
+  "Live": "Trực tiếp",
+  "from case/contract services": "từ dịch vụ hồ sơ/hợp đồng",
+  "Record detail": "Chi tiết bản ghi",
+  "Copy code": "Sao chép mã",
+  "Record code": "Mã bản ghi",
+  "Value": "Giá trị",
+  "This quick view is powered by the same filtered core data as the dashboard.": "Xem nhanh này dùng cùng dữ liệu đã lọc như dashboard.",
+  "No record selected": "Chưa chọn bản ghi",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React, antd } = ctx;
 const { useCallback, useEffect, useMemo, useState } = React;
 const {
@@ -74,62 +259,62 @@ const DEFAULT_CONFIG = {
 };
 
 const ModeOptions = [
-  { label: "Dashboard", value: "dashboard" },
-  { label: "Table", value: "table" },
-  { label: "Charts", value: "charts" },
+  { label: tr("Dashboard"), value: "dashboard" },
+  { label: tr("Table"), value: "table" },
+  { label: tr("Charts"), value: "charts" },
 ];
 
 const FieldDefs = [
-  { key: "code", label: "Case code", type: "Sequence field" },
-  { key: "name", label: "Record name", type: "Text, pinned left" },
-  { key: "customer", label: "Customer", type: "Customer short name" },
-  { key: "status", label: "Status", type: "Status badge" },
-  { key: "owner", label: "Owner", type: "User field" },
-  { key: "category", label: "Internal company", type: "Grouping field" },
-  { key: "progress", label: "Progress", type: "Progress field" },
-  { key: "value", label: "Revenue", type: "Contract service value" },
-  { key: "createdAt", label: "Created date", type: "Date field" },
-  { key: "deadline", label: "Deadline", type: "Date field" },
+  { key: "code", label: tr("Case code"), type: "Sequence field" },
+  { key: "name", label: tr("Record name"), type: "Text, pinned left" },
+  { key: "customer", label: tr("Customer"), type: "Customer short name" },
+  { key: "status", label: tr("Status"), type: "Status badge" },
+  { key: "owner", label: tr("Owner"), type: "User field" },
+  { key: "category", label: tr("Internal company"), type: "Grouping field" },
+  { key: "progress", label: tr("Progress"), type: "Progress field" },
+  { key: "value", label: tr("Revenue"), type: "Contract service value" },
+  { key: "createdAt", label: tr("Created date"), type: "Date field" },
+  { key: "deadline", label: tr("Deadline"), type: "Date field" },
 ];
 
 const DimensionOptions = [
-  { value: "status", label: "Status" },
-  { value: "customer", label: "Customer" },
-  { value: "category", label: "Internal company" },
-  { value: "owner", label: "Case manager" },
-  { value: "createdMonth", label: "Created month" },
-  { value: "progressBand", label: "Progress band" },
-  { value: "revenueBand", label: "Revenue band" },
+  { value: "status", label: tr("Status") },
+  { value: "customer", label: tr("Customer") },
+  { value: "category", label: tr("Internal company") },
+  { value: "owner", label: tr("Case manager") },
+  { value: "createdMonth", label: tr("Created month") },
+  { value: "progressBand", label: tr("Progress band") },
+  { value: "revenueBand", label: tr("Revenue band") },
 ];
 
 const MetricOptions = [
-  { value: "count", label: "Case count" },
-  { value: "revenue", label: "Revenue" },
-  { value: "avgProgress", label: "Average progress" },
-  { value: "completed", label: "Completed cases" },
-  { value: "pending", label: "Pending cases" },
-  { value: "overdue", label: "Overdue cases" },
+  { value: "count", label: tr("Case count") },
+  { value: "revenue", label: tr("Revenue") },
+  { value: "avgProgress", label: tr("Average progress") },
+  { value: "completed", label: tr("Completed cases") },
+  { value: "pending", label: tr("Pending cases") },
+  { value: "overdue", label: tr("Overdue cases") },
 ];
 
 const ChartTypeOptions = [
-  { value: "column", label: "Column" },
-  { value: "bar", label: "Bar" },
-  { value: "line", label: "Line" },
-  { value: "area", label: "Area" },
-  { value: "donut", label: "Donut" },
-  { value: "pie", label: "Pie" },
-  { value: "stackedBar", label: "Stacked bar" },
-  { value: "radar", label: "Radar" },
-  { value: "funnel", label: "Funnel" },
-  { value: "treemap", label: "Treemap" },
-  { value: "scatter", label: "Scatter" },
-  { value: "kpi", label: "Number" },
+  { value: "column", label: tr("Column") },
+  { value: "bar", label: tr("Bar") },
+  { value: "line", label: tr("Line") },
+  { value: "area", label: tr("Area") },
+  { value: "donut", label: tr("Donut") },
+  { value: "pie", label: tr("Pie") },
+  { value: "stackedBar", label: tr("Stacked bar") },
+  { value: "radar", label: tr("Radar") },
+  { value: "funnel", label: tr("Funnel") },
+  { value: "treemap", label: tr("Treemap") },
+  { value: "scatter", label: tr("Scatter") },
+  { value: "kpi", label: tr("Number") },
 ];
 
 const TableDensityOptions = [
-  { value: "small", label: "Compact" },
-  { value: "middle", label: "Comfortable" },
-  { value: "large", label: "Spacious" },
+  { value: "small", label: tr("Compact") },
+  { value: "middle", label: tr("Comfortable") },
+  { value: "large", label: tr("Spacious") },
 ];
 
 const STATUS_META = {
@@ -144,7 +329,7 @@ const STATUS_META = {
   cancelled: { label: "Archived", color: "default" },
   canceled: { label: "Archived", color: "default" },
   archived: { label: "Archived", color: "default" },
-  blocked: { label: "Blocked", color: "error" },
+  blocked: { label: tr("Blocked"), color: "error" },
 };
 
 const statusColor = {
@@ -952,7 +1137,7 @@ const formatMetricValue = (value, metric) => {
 
 const createdMonthLabel = (record) => {
   const date = new Date(record.createdAt);
-  if (Number.isNaN(date.getTime())) return "No date";
+  if (Number.isNaN(date.getTime())) return tr("No date");
   return `M${date.getMonth() + 1}/${date.getFullYear()}`;
 };
 
@@ -970,14 +1155,14 @@ const revenueBand = (value) => {
   if (revenue >= 300000000) return "300M-1B";
   if (revenue >= 100000000) return "100M-300M";
   if (revenue > 0) return "< 100M";
-  return "No revenue";
+  return tr("No revenue");
 };
 
 const dimensionValue = (record, dimension) => {
   if (dimension === "createdMonth") return createdMonthLabel(record);
   if (dimension === "progressBand") return progressBand(record.progress);
   if (dimension === "revenueBand") return revenueBand(record.value);
-  return record[dimension] || "Unknown";
+  return record[dimension] || tr("Unknown");
 };
 
 const metricValue = (record, metric) => {
@@ -1275,7 +1460,7 @@ function KpiChart({ data, metric }) {
 
 function GenericChart({ data, config }) {
   if (!data.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No chart data" />;
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No chart data")} />;
   }
 
   if (config.type === "bar") return <BarChart data={data} metric={config.metric} />;
@@ -1304,7 +1489,7 @@ function ChartConfigControls({ config, onChange }) {
         <Select
           value={config.limit}
           onChange={(value) => update({ limit: value })}
-          options={[4, 6, 8, 10, 12].map((value) => ({ value, label: `Top ${value}` }))}
+          options={[4, 6, 8, 10, 12].map((value) => ({ value, label: tr("Top {0}", { 0: value }) }))}
         />
       </div>
     </div>
@@ -1356,46 +1541,46 @@ function DataTable({ records, visibleFields, tableConfig, compact = false, onRow
       render: () => <Checkbox />,
     },
     visibleFields.code && {
-      title: "Case code",
+      title: tr("Case code"),
       dataIndex: "code",
       width: 140,
       fixed: "left",
       ellipsis: true,
     },
     visibleFields.name && {
-      title: "Case name",
+      title: tr("Case name"),
       dataIndex: "name",
       width: 280,
       render: (value, row) => (
         <Space direction="vertical" size={0}>
           <Text strong>{value}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>{row.code || `Entity ID ${row.id}`}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>{row.code || tr("Entity ID {0}", { 0: row.id })}</Text>
         </Space>
       ),
     },
-    visibleFields.customer && { title: "Customer", dataIndex: "customer", width: 170, ellipsis: true },
+    visibleFields.customer && { title: tr("Customer"), dataIndex: "customer", width: 170, ellipsis: true },
     visibleFields.status && {
-      title: "Status",
+      title: tr("Status"),
       dataIndex: "status",
       width: 120,
-      render: (value) => <Tag color={statusColor[value] || "default"}>{value || "-"}</Tag>,
+      render: (value) => <Tag color={statusColor[value] || "default"}>{value ? tr(value) : "-"}</Tag>,
     },
-    visibleFields.owner && { title: "Owner", dataIndex: "owner", width: 150, ellipsis: true },
-    visibleFields.category && { title: "Category", dataIndex: "category", width: 160, ellipsis: true },
+    visibleFields.owner && { title: tr("Owner"), dataIndex: "owner", width: 150, ellipsis: true },
+    visibleFields.category && { title: tr("Category"), dataIndex: "category", width: 160, ellipsis: true },
     visibleFields.progress && {
-      title: "Progress",
+      title: tr("Progress"),
       dataIndex: "progress",
       width: 150,
       render: (value) => <Progress percent={value} size="small" />,
     },
-    visibleFields.value && { title: "Revenue", dataIndex: "valueLabel", width: 130, align: "right" },
-    visibleFields.createdAt && { title: "Created date", dataIndex: "createdAtLabel", width: 140 },
-    visibleFields.deadline && { title: "Deadline", dataIndex: "deadlineLabel", width: 140 },
+    visibleFields.value && { title: tr("Revenue"), dataIndex: "valueLabel", width: 130, align: "right" },
+    visibleFields.createdAt && { title: tr("Created date"), dataIndex: "createdAtLabel", width: 140 },
+    visibleFields.deadline && { title: tr("Deadline"), dataIndex: "deadlineLabel", width: 140 },
     {
-      title: "Actions",
+      title: tr("Actions"),
       dataIndex: "actions",
       width: 100,
-      render: (_, row) => <Button type="text" size="small" onClick={() => onRowAction(row)}>More</Button>,
+      render: (_, row) => <Button type="text" size="small" onClick={() => onRowAction(row)}>{tr("More")}</Button>,
     },
   ].filter(Boolean);
 
@@ -1414,8 +1599,8 @@ function DataTable({ records, visibleFields, tableConfig, compact = false, onRow
               <Table.Summary.Cell index={0} colSpan={Math.max(1, columns.length)}>
                 <Space wrap size={16}>
                   <Text strong>{fmtNumber(records.length)} cases</Text>
-                  <Text type="secondary">Average progress: {Math.round(avgProgress)}%</Text>
-                  <Text type="secondary">Revenue: {fmtCompact(totalRevenue)} VND</Text>
+                  <Text type="secondary">{tr("Average progress:")} {Math.round(avgProgress)}%</Text>
+                  <Text type="secondary">{tr("Revenue:")} {fmtCompact(totalRevenue)} {tr("VND")}</Text>
                 </Space>
               </Table.Summary.Cell>
             </Table.Summary.Row>
@@ -1444,7 +1629,7 @@ function TableSettingsPopover({
   const content = (
     <div className="dms-settings-menu">
       <div>
-        <div className="dms-section-title">Table display</div>
+        <div className="dms-section-title">{tr("Table display")}</div>
         <div className="dms-control-grid">
           <Select
             value={tableConfig.density}
@@ -1454,13 +1639,13 @@ function TableSettingsPopover({
           <Select
             value={tableConfig.pageSize}
             onChange={(value) => updateTable({ pageSize: value })}
-            options={[8, 10, 20, 50].map((value) => ({ value, label: `${value} rows` }))}
+            options={[8, 10, 20, 50].map((value) => ({ value, label: tr("{0} rows", { 0: value }) }))}
           />
         </div>
       </div>
 
       <div>
-        <div className="dms-section-title">Fields</div>
+        <div className="dms-section-title">{tr("Fields")}</div>
         <div className="dms-field-checks">
           {FieldDefs.map((field) => (
             <Checkbox key={field.key} checked={!!visibleFields[field.key]} onChange={() => toggleField(field.key)}>
@@ -1471,53 +1656,53 @@ function TableSettingsPopover({
       </div>
 
       <div>
-        <div className="dms-section-title">Sort and group</div>
+        <div className="dms-section-title">{tr("Sort and group")}</div>
         <div className="dms-control-grid">
           <Select
             value={sortBy}
             onChange={setSortBy}
             options={[
-              { value: "createdAt", label: "Created date" },
-              { value: "value", label: "Revenue" },
-              { value: "progress", label: "Progress" },
-              { value: "name", label: "Case name" },
+              { value: "createdAt", label: tr("Created date") },
+              { value: "value", label: tr("Revenue") },
+              { value: "progress", label: tr("Progress") },
+              { value: "name", label: tr("Case name") },
             ]}
           />
           <Select
             value={sortDir}
             onChange={setSortDir}
             options={[
-              { value: "desc", label: "Descending" },
-              { value: "asc", label: "Ascending" },
+              { value: "desc", label: tr("Descending") },
+              { value: "asc", label: tr("Ascending") },
             ]}
           />
           <Select
             value={groupBy}
             onChange={setGroupBy}
             options={[
-              { value: "none", label: "No grouping" },
-              { value: "status", label: "Status" },
-              { value: "customer", label: "Customer" },
-              { value: "category", label: "Internal company" },
-              { value: "owner", label: "Case manager" },
+              { value: "none", label: tr("No grouping") },
+              { value: "status", label: tr("Status") },
+              { value: "customer", label: tr("Customer") },
+              { value: "category", label: tr("Internal company") },
+              { value: "owner", label: tr("Case manager") },
             ]}
           />
           <Select
             value={tableConfig.showSummary ? "summary" : "plain"}
             onChange={(value) => updateTable({ showSummary: value === "summary" })}
             options={[
-              { value: "summary", label: "Show summary" },
-              { value: "plain", label: "Hide summary" },
+              { value: "summary", label: tr("Show summary") },
+              { value: "plain", label: tr("Hide summary") },
             ]}
           />
         </div>
       </div>
 
       <div>
-        <div className="dms-section-title">Table actions</div>
+        <div className="dms-section-title">{tr("Table actions")}</div>
         <Space wrap>
           <Checkbox checked={tableConfig.showSelection} onChange={(event) => updateTable({ showSelection: event.target.checked })}>
-            Row selection
+            {tr("Row selection")}
           </Checkbox>
           <Button
             onClick={() => {
@@ -1528,7 +1713,7 @@ function TableSettingsPopover({
               setGroupBy(DEFAULT_CONFIG.groupBy);
             }}
           >
-            Reset table
+            {tr("Reset table")}
           </Button>
         </Space>
       </div>
@@ -1537,7 +1722,7 @@ function TableSettingsPopover({
 
   return (
     <Popover trigger="click" placement="bottomRight" content={content}>
-      <Button className="dms-icon-button" aria-label="Table settings">
+      <Button className="dms-icon-button" aria-label={tr("Table settings")}>
         <span className="dms-settings-icon"><span /></span>
       </Button>
     </Popover>
@@ -1564,12 +1749,12 @@ function ConfigurationPanel({
   setActiveWidgets,
 }) {
   const tabItems = [
-    { key: "fields", label: "Fields" },
-    { key: "table", label: "Table" },
-    { key: "charts", label: "Charts" },
-    { key: "filters", label: "Filters" },
-    { key: "widget", label: "Widget" },
-    { key: "view", label: "View" },
+    { key: "fields", label: tr("Fields") },
+    { key: "table", label: tr("Table") },
+    { key: "charts", label: tr("Charts") },
+    { key: "filters", label: tr("Filters") },
+    { key: "widget", label: tr("Widget") },
+    { key: "view", label: tr("View") },
   ];
 
   const toggleField = (key) => {
@@ -1581,10 +1766,10 @@ function ConfigurationPanel({
     <aside className="dms-card dms-config">
       <div className="dms-config-head">
         <div>
-          <div className="dms-config-title">Configuration</div>
-          <div className="dms-subtitle">Default admin view settings</div>
+          <div className="dms-config-title">{tr("Configuration")}</div>
+          <div className="dms-subtitle">{tr("Default admin view settings")}</div>
         </div>
-        <Button type="text" onClick={() => setTab("view")}>View</Button>
+        <Button type="text" onClick={() => setTab("view")}>{tr("View")}</Button>
       </div>
       <div className="dms-config-body">
         <Tabs
@@ -1596,7 +1781,7 @@ function ConfigurationPanel({
 
         {tab === "fields" && (
           <div>
-            <div className="dms-section-title">Field configuration</div>
+            <div className="dms-section-title">{tr("Field configuration")}</div>
             <div className="dms-config-list">
               {FieldDefs.map((field) => (
                 <div className="dms-config-item" key={field.key}>
@@ -1617,7 +1802,7 @@ function ConfigurationPanel({
 
         {tab === "filters" && (
           <div>
-            <div className="dms-section-title">Advanced filter builder</div>
+            <div className="dms-section-title">{tr("Advanced filter builder")}</div>
             <Space direction="vertical" style={{ width: "100%" }} size={8}>
               <div className="dms-rule-row">
                 <Select value="Search" options={[{ value: "Search" }]} />
@@ -1626,33 +1811,33 @@ function ConfigurationPanel({
                   value={filters.search}
                   onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
                 />
-                <Button type="text" onClick={() => setFilters((prev) => ({ ...prev, search: "" }))}>Clear</Button>
+                <Button type="text" onClick={() => setFilters((prev) => ({ ...prev, search: "" }))}>{tr("Clear")}</Button>
               </div>
               <div className="dms-rule-row">
-                <Select value="Status" options={[{ value: "Status" }]} />
+                <Select value={tr("Status")} options={[{ value: "Status" }]} />
                 <Select value="equals" options={[{ value: "equals" }]} />
                 <Select
                   value={filters.status}
                   onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
                   options={[
-                    { value: "all", label: "Any" },
-                    { value: "Active", label: "Active" },
-                    { value: "Pending", label: "Pending" },
-                    { value: "Completed", label: "Completed" },
-                    { value: "Archived", label: "Archived" },
-                    { value: "Blocked", label: "Blocked" },
+                    { value: "all", label: tr("Any") },
+                    { value: "Active", label: tr("Active") },
+                    { value: "Pending", label: tr("Pending") },
+                    { value: "Completed", label: tr("Completed") },
+                    { value: "Archived", label: tr("Archived") },
+                    { value: "Blocked", label: tr("Blocked") },
                   ]}
                 />
-                <Button type="text" onClick={() => setFilters((prev) => ({ ...prev, status: "all" }))}>Reset</Button>
+                <Button type="text" onClick={() => setFilters((prev) => ({ ...prev, status: "all" }))}>{tr("Reset")}</Button>
               </div>
-              <Button onClick={() => message.info("Condition added to the default admin view")}>Add condition</Button>
+              <Button onClick={() => message.info(tr("Condition added to the default admin view"))}>{tr("Add condition")}</Button>
             </Space>
           </div>
         )}
 
         {tab === "table" && (
           <div>
-            <div className="dms-section-title">Table behavior</div>
+            <div className="dms-section-title">{tr("Table behavior")}</div>
             <Space direction="vertical" style={{ width: "100%" }} size={10}>
               <Select
                 value={tableConfig.density}
@@ -1662,13 +1847,13 @@ function ConfigurationPanel({
               <Select
                 value={tableConfig.pageSize}
                 onChange={(value) => updateTable({ pageSize: value })}
-                options={[8, 10, 20, 50].map((value) => ({ value, label: `${value} rows per page` }))}
+                options={[8, 10, 20, 50].map((value) => ({ value, label: tr("{0} rows per page", { 0: value }) }))}
               />
               <Checkbox checked={tableConfig.showSelection} onChange={(event) => updateTable({ showSelection: event.target.checked })}>
-                Show row selection
+                {tr("Show row selection")}
               </Checkbox>
               <Checkbox checked={tableConfig.showSummary} onChange={(event) => updateTable({ showSummary: event.target.checked })}>
-                Show summary row
+                {tr("Show summary row")}
               </Checkbox>
             </Space>
           </div>
@@ -1676,22 +1861,22 @@ function ConfigurationPanel({
 
         {tab === "charts" && (
           <div>
-            <div className="dms-section-title">Comparison chart A</div>
+            <div className="dms-section-title">{tr("Comparison chart A")}</div>
             <ChartConfigControls config={chartA} onChange={setChartA} />
             <Divider />
-            <div className="dms-section-title">Comparison chart B</div>
+            <div className="dms-section-title">{tr("Comparison chart B")}</div>
             <ChartConfigControls config={chartB} onChange={setChartB} />
           </div>
         )}
 
         {tab === "widget" && (
           <div>
-            <div className="dms-section-title">Widget settings</div>
+            <div className="dms-section-title">{tr("Widget settings")}</div>
             <div className="dms-config-list">
               {[
-                ["summary", "Summary cards", "Top metrics"],
-                ["chart", "Comparison charts", "Configurable dimension and metric"],
-                ["table", "Table widget", "Record list"],
+                ["summary", tr("Summary cards"), tr("Top metrics")],
+                ["chart", tr("Comparison charts"), tr("Configurable dimension and metric")],
+                ["table", tr("Table widget"), tr("Record list")],
               ].map(([key, title, subtitle]) => (
                 <div className="dms-config-item" key={key}>
                   <span className="dms-drag">::</span>
@@ -1711,20 +1896,20 @@ function ConfigurationPanel({
 
         {tab === "view" && (
           <div>
-            <div className="dms-section-title">Default view state</div>
+            <div className="dms-section-title">{tr("Default view state")}</div>
             <div className="dms-config-list">
               <div className="dms-config-item">
                 <span className="dms-drag">::</span>
                 <div>
-                  <Text strong>Default admin view</Text>
-                  <div className="dms-subtitle">Single administrator-facing configuration</div>
+                  <Text strong>{tr("Default admin view")}</Text>
+                  <div className="dms-subtitle">{tr("Single administrator-facing configuration")}</div>
                 </div>
-                <Tag color="blue">Current</Tag>
+                <Tag color="blue">{tr("Current")}</Tag>
               </div>
               <div className="dms-config-item">
                 <span className="dms-drag">::</span>
                 <div>
-                  <Text strong>Sort</Text>
+                  <Text strong>{tr("Sort")}</Text>
                   <div className="dms-subtitle">{sortBy} / {sortDir}</div>
                 </div>
                 <Tag>{sortDir}</Tag>
@@ -1732,8 +1917,8 @@ function ConfigurationPanel({
               <div className="dms-config-item">
                 <span className="dms-drag">::</span>
                 <div>
-                  <Text strong>Group by</Text>
-                  <div className="dms-subtitle">{groupBy === "none" ? "No grouping" : groupBy}</div>
+                  <Text strong>{tr("Group by")}</Text>
+                  <div className="dms-subtitle">{groupBy === "none" ? tr("No grouping") : groupBy}</div>
                 </div>
                 <Tag>{groupBy}</Tag>
               </div>
@@ -1806,7 +1991,7 @@ function DashboardManagementSystemBlock() {
   const lawyerMap = useMemo(() => {
     const map = {};
     lawyers.forEach((lawyer) => {
-      map[String(lawyer.id)] = lawyer.lawyerName || `Owner #${lawyer.id}`;
+      map[String(lawyer.id)] = lawyer.lawyerName || tr("Owner #{0}", { 0: lawyer.id });
     });
     return map;
   }, [lawyers]);
@@ -1814,7 +1999,7 @@ function DashboardManagementSystemBlock() {
   const customerMap = useMemo(() => {
     const map = {};
     customers.forEach((customer) => {
-      map[String(customer.id)] = customer.shortName || customer.customerName || `Customer #${customer.id}`;
+      map[String(customer.id)] = customer.shortName || customer.customerName || tr("Customer #{0}", { 0: customer.id });
     });
     return map;
   }, [customers]);
@@ -1822,7 +2007,7 @@ function DashboardManagementSystemBlock() {
   const companyMap = useMemo(() => {
     const map = {};
     companies.forEach((company) => {
-      map[String(company.id)] = company.shortName || company.name || company.companyName || `Category #${company.id}`;
+      map[String(company.id)] = company.shortName || company.name || company.companyName || tr("Category #{0}", { 0: company.id });
     });
     return map;
   }, [companies]);
@@ -1893,14 +2078,14 @@ function DashboardManagementSystemBlock() {
       const owner =
         assigneeIds.map((id) => lawyerMap[String(id)]).filter(Boolean).join(", ") ||
         lawyerMap[String(managerId)] ||
-        "Unassigned";
+        tr("Unassigned");
       const status = normalizeStatus(project.status);
-      const customer = customerMap[String(extractId(project.customerId))] || "No customer";
+      const customer = customerMap[String(extractId(project.customerId))] || tr("No customer");
       const internalCompanyId = extractId(project.internalCompanyId);
       const category =
         companyMap[String(internalCompanyId)] ||
-        (internalCompanyId ? `Company #${internalCompanyId}` : "") ||
-        "No internal company";
+        (internalCompanyId ? tr("Company #{0}", { 0: internalCompanyId }) : "") ||
+        tr("No internal company");
       const value = valueByProject[projectId] || 0;
       const progress = taskStats.total ? Math.round((taskStats.done / taskStats.total) * 100) : 0;
 
@@ -1930,12 +2115,12 @@ function DashboardManagementSystemBlock() {
 
   const ownerOptions = useMemo(() => {
     const values = Array.from(new Set(records.map((record) => record.owner).filter(Boolean))).sort();
-    return [{ value: "all", label: "Owner: Any" }, ...values.map((value) => ({ value, label: value }))];
+    return [{ value: "all", label: tr("Owner: Any") }, ...values.map((value) => ({ value, label: value }))];
   }, [records]);
 
   const categoryOptions = useMemo(() => {
     const values = Array.from(new Set(records.map((record) => record.category).filter(Boolean))).sort();
-    return [{ value: "all", label: "Category: Any" }, ...values.map((value) => ({ value, label: value }))];
+    return [{ value: "all", label: tr("Category: Any") }, ...values.map((value) => ({ value, label: value }))];
   }, [records]);
 
   const filteredRecords = useMemo(() => {
@@ -1975,7 +2160,7 @@ function DashboardManagementSystemBlock() {
   const groupedRecords = useMemo(() => {
     if (groupBy === "none") return { "All records": filteredRecords };
     return filteredRecords.reduce((acc, record) => {
-      const key = record[groupBy] || "Unknown";
+      const key = record[groupBy] || tr("Unknown");
       if (!acc[key]) acc[key] = [];
       acc[key].push(record);
       return acc;
@@ -2019,12 +2204,19 @@ function DashboardManagementSystemBlock() {
       chartB,
       activeWidgets,
     };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    message.success("Default admin view saved");
+    // localStorage is blocked in the RunJS sandbox.
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      message.success(tr("Default admin view saved"));
+    } catch {
+      message.warning(tr("This browser context can't store the default view."));
+    }
   };
 
   const resetDefaultView = () => {
-    window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {}
     setMode(DEFAULT_CONFIG.mode);
     setShowConfig(DEFAULT_CONFIG.showConfig);
     setConfigTab(DEFAULT_CONFIG.configTab);
@@ -2036,7 +2228,7 @@ function DashboardManagementSystemBlock() {
     setChartA(DEFAULT_CONFIG.chartA);
     setChartB(DEFAULT_CONFIG.chartB);
     setActiveWidgets(DEFAULT_CONFIG.activeWidgets);
-    message.success("Default view reset");
+    message.success(tr("Default view reset"));
   };
 
   const cycleSort = () => {
@@ -2084,9 +2276,9 @@ function DashboardManagementSystemBlock() {
     if (!selectedRecord?.code) return;
     try {
       await navigator.clipboard.writeText(selectedRecord.code);
-      message.success("Record code copied");
+      message.success(tr("Record code copied"));
     } catch {
-      message.warning("Cannot copy record code in this browser context");
+      message.warning(tr("Cannot copy record code in this browser context"));
     }
   };
 
@@ -2103,8 +2295,8 @@ function DashboardManagementSystemBlock() {
     if (mode === "table") {
       return (
         <WidgetFrame
-          title="Table view"
-          subtitle={`Sorted by ${sortBy} (${sortDir}), grouped by ${groupBy}`}
+          title={tr("Table view")}
+          subtitle={tr("Sorted by {0} ({1}), grouped by {2}", { 0: sortBy, 1: sortDir, 2: groupBy })}
           actions={(
             <TableSettingsPopover
               visibleFields={visibleFields}
@@ -2123,12 +2315,12 @@ function DashboardManagementSystemBlock() {
         >
           <div className="dms-table-actions">
             <div>
-              <Text strong>{fmtNumber(filteredRecords.length)} customer matters</Text>
-              <div className="dms-subtitle">Customer cases, task progress and contract revenue in one configurable table.</div>
+              <Text strong>{fmtNumber(filteredRecords.length)} {tr("customer matters")}</Text>
+              <div className="dms-subtitle">{tr("Customer cases, task progress and contract revenue in one configurable table.")}</div>
             </div>
             <Space wrap>
               <Tag color="blue">{optionLabel(TableDensityOptions, tableConfig.density)}</Tag>
-              <Tag>{tableConfig.pageSize} rows/page</Tag>
+              <Tag>{tableConfig.pageSize} {tr("rows/page")}</Tag>
             </Space>
           </div>
           {groupBy === "none" ? table : (
@@ -2153,8 +2345,8 @@ function DashboardManagementSystemBlock() {
     if (mode === "charts") {
       return (
         <div className="dms-chart-layout">
-          <ChartPanel title="Comparison chart A" config={chartA} data={chartDataA} onChange={setChartA} />
-          <ChartPanel title="Comparison chart B" config={chartB} data={chartDataB} onChange={setChartB} />
+          <ChartPanel title={tr("Comparison chart A")} config={chartA} data={chartDataA} onChange={setChartA} />
+          <ChartPanel title={tr("Comparison chart B")} config={chartB} data={chartDataB} onChange={setChartB} />
         </div>
       );
     }
@@ -2163,15 +2355,15 @@ function DashboardManagementSystemBlock() {
       <div className="dms-widget-grid">
         {activeWidgets.chart && (
           <>
-            <ChartPanel title="Customer matter progress" config={chartA} data={chartDataA} onChange={setChartA} configurable={false} />
-            <ChartPanel title="Revenue source comparison" config={chartB} data={chartDataB} onChange={setChartB} configurable={false} />
+            <ChartPanel title={tr("Customer matter progress")} config={chartA} data={chartDataA} onChange={setChartA} configurable={false} />
+            <ChartPanel title={tr("Revenue source comparison")} config={chartB} data={chartDataB} onChange={setChartB} configurable={false} />
           </>
         )}
         {activeWidgets.table && (
           <WidgetFrame
-            title="Table preview"
-            subtitle="Configurable fields, sorting and grouping"
-            actions={<><Button onClick={() => handleModeChange("table")}>Open table</Button><Button onClick={() => openConfig("fields")}>Manage fields</Button></>}
+            title={tr("Table preview")}
+            subtitle={tr("Configurable fields, sorting and grouping")}
+            actions={<><Button onClick={() => handleModeChange("table")}>{tr("Open table")}</Button><Button onClick={() => openConfig("fields")}>{tr("Manage fields")}</Button></>}
             span={12}
           >
             <DataTable
@@ -2208,20 +2400,20 @@ function DashboardManagementSystemBlock() {
         <section className="dms-card dms-header">
           <div className="dms-header-row">
             <div>
-              <div className="dms-breadcrumb">Dashboards / Default Admin View</div>
+              <div className="dms-breadcrumb">{tr("Dashboards / Default Admin View")}</div>
               <div className="dms-title-line">
-                <Title level={4}>Dashboard Management System</Title>
-                <Tag color="blue">Default view</Tag>
+                <Title level={4}>{tr("Dashboard Management System")}</Title>
+                <Tag color="blue">{tr("Default view")}</Tag>
               </div>
               <div className="dms-header-subtitle">
-                Administrator-facing dashboard configured from core collections.
+                {tr("Administrator-facing dashboard configured from core collections.")}
               </div>
             </div>
             <Space wrap>
-              <Button onClick={resetDefaultView}>Reset</Button>
-              <Button onClick={() => setShowConfig((value) => !value)}>{showConfig ? "Hide config" : "Show config"}</Button>
-              <Button onClick={reload} loading={loading}>Refresh data</Button>
-              <Button type="primary" onClick={saveDefaultView}>Save default view</Button>
+              <Button onClick={resetDefaultView}>{tr("Reset")}</Button>
+              <Button onClick={() => setShowConfig((value) => !value)}>{showConfig ? tr("Hide config") : tr("Show config")}</Button>
+              <Button onClick={reload} loading={loading}>{tr("Refresh data")}</Button>
+              <Button type="primary" onClick={saveDefaultView}>{tr("Save default view")}</Button>
             </Space>
           </div>
         </section>
@@ -2230,18 +2422,18 @@ function DashboardManagementSystemBlock() {
           <div className="dms-toolbar-row">
             <Segmented value={mode} onChange={handleModeChange} options={ModeOptions} />
             <Space wrap>
-              <Button onClick={() => openConfig("filters")}>Filter</Button>
-              <Button onClick={cycleSort}>Sort: {sortBy}/{sortDir}</Button>
-              <Button onClick={cycleGroup}>Group: {groupBy}</Button>
-              <Button onClick={() => openConfig("fields")}>Fields</Button>
-              <Button onClick={() => { handleModeChange("table"); openConfig("table"); }}>Table settings</Button>
-              <Button onClick={() => { handleModeChange("charts"); openConfig("charts"); }}>Chart builder</Button>
-              <Button onClick={reload} loading={loading}>Refresh</Button>
+              <Button onClick={() => openConfig("filters")}>{tr("Filter")}</Button>
+              <Button onClick={cycleSort}>{tr("Sort:")} {sortBy}/{sortDir}</Button>
+              <Button onClick={cycleGroup}>{tr("Group:")} {groupBy}</Button>
+              <Button onClick={() => openConfig("fields")}>{tr("Fields")}</Button>
+              <Button onClick={() => { handleModeChange("table"); openConfig("table"); }}>{tr("Table settings")}</Button>
+              <Button onClick={() => { handleModeChange("charts"); openConfig("charts"); }}>{tr("Chart builder")}</Button>
+              <Button onClick={reload} loading={loading}>{tr("Refresh")}</Button>
             </Space>
           </div>
           <div className="dms-filter-grid">
             <Input
-              placeholder="Search records..."
+              placeholder={tr("Search records...")}
               value={filters.search}
               onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
             />
@@ -2249,12 +2441,12 @@ function DashboardManagementSystemBlock() {
               value={filters.status}
               onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
               options={[
-                { value: "all", label: "Status: Any" },
-                { value: "Active", label: "Active" },
-                { value: "Pending", label: "Pending" },
-                { value: "Completed", label: "Completed" },
-                { value: "Archived", label: "Archived" },
-                { value: "Blocked", label: "Blocked" },
+                { value: "all", label: tr("Status: Any") },
+                { value: "Active", label: tr("Active") },
+                { value: "Pending", label: tr("Pending") },
+                { value: "Completed", label: tr("Completed") },
+                { value: "Archived", label: tr("Archived") },
+                { value: "Blocked", label: tr("Blocked") },
               ]}
             />
             <Select
@@ -2273,19 +2465,19 @@ function DashboardManagementSystemBlock() {
               value={filters.dateRange}
               onChange={(value) => setFilters((prev) => ({ ...prev, dateRange: value }))}
               options={[
-                { value: "quarter", label: "Date: This quarter" },
-                { value: "month", label: "This month" },
-                { value: "all", label: "All dates" },
+                { value: "quarter", label: tr("Date: This quarter") },
+                { value: "month", label: tr("This month") },
+                { value: "all", label: tr("All dates") },
               ]}
             />
           </div>
           <div className="dms-chip-row">
-            {filters.status !== "all" && <span className="dms-chip dms-chip-active">Status: {filters.status}</span>}
-            {filters.owner !== "all" && <span className="dms-chip">Owner: {filters.owner}</span>}
-            {filters.category !== "all" && <span className="dms-chip">Category: {filters.category}</span>}
-            {filters.dateRange !== "all" && <span className="dms-chip">Date: {filters.dateRange}</span>}
-            {filters.search && <span className="dms-chip">Search: {filters.search}</span>}
-            <Button type="link" size="small" onClick={clearFilters}>Clear filters</Button>
+            {filters.status !== "all" && <span className="dms-chip dms-chip-active">{tr("Status:")} {tr(filters.status)}</span>}
+            {filters.owner !== "all" && <span className="dms-chip">{tr("Owner:")} {filters.owner}</span>}
+            {filters.category !== "all" && <span className="dms-chip">{tr("Category:")} {filters.category}</span>}
+            {filters.dateRange !== "all" && <span className="dms-chip">{tr("Date:")} {filters.dateRange}</span>}
+            {filters.search && <span className="dms-chip">{tr("Search:")} {filters.search}</span>}
+            <Button type="link" size="small" onClick={clearFilters}>{tr("Clear filters")}</Button>
           </div>
         </section>
 
@@ -2297,10 +2489,10 @@ function DashboardManagementSystemBlock() {
           <>
             {activeWidgets.summary && (
               <section className="dms-summary-grid">
-                <MetricCard label="Customer matters" value={fmtNumber(metrics.total)} trend={`${fmtNumber(records.length)} loaded`} note="after current filters" />
-                <MetricCard label="Work progress" value={`${Math.round(metrics.avgProgress)}%`} trend={`${fmtNumber(metrics.completed)} completed`} note="from task status" />
-                <MetricCard label="Needs attention" value={fmtNumber(metrics.pending)} note={`${metrics.overdue} overdue`} status={{ color: metrics.overdue ? "warning" : "success", label: metrics.overdue ? "Review" : "On track" }} />
-                <MetricCard label="Contract revenue" value={fmtCompact(metrics.totalValue)} trend="Live" note="from case/contract services" />
+                <MetricCard label={tr("Customer matters")} value={fmtNumber(metrics.total)} trend={tr("{0} loaded", { 0: fmtNumber(records.length) })} note={tr("after current filters")} />
+                <MetricCard label={tr("Work progress")} value={`${Math.round(metrics.avgProgress)}%`} trend={tr("{0} completed", { 0: fmtNumber(metrics.completed) })} note={tr("from task status")} />
+                <MetricCard label={tr("Needs attention")} value={fmtNumber(metrics.pending)} note={tr("{0} overdue", { 0: metrics.overdue })} status={{ color: metrics.overdue ? "warning" : "success", label: metrics.overdue ? tr("Review") : tr("On track") }} />
+                <MetricCard label={tr("Contract revenue")} value={fmtCompact(metrics.totalValue)} trend={tr("Live")} note={tr("from case/contract services")} />
               </section>
             )}
 
@@ -2332,13 +2524,13 @@ function DashboardManagementSystemBlock() {
         )}
       </div>
       <Drawer
-        title={selectedRecord?.name || "Record detail"}
+        title={selectedRecord?.name || tr("Record detail")}
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         width={520}
         extra={(
           <Space>
-            <Button onClick={copyRecordCode} disabled={!selectedRecord?.code}>Copy code</Button>
+            <Button onClick={copyRecordCode} disabled={!selectedRecord?.code}>{tr("Copy code")}</Button>
             <Button
               type="primary"
               onClick={() => {
@@ -2346,7 +2538,7 @@ function DashboardManagementSystemBlock() {
                 setDetailOpen(false);
               }}
             >
-              Open table
+              {tr("Open table")}
             </Button>
           </Space>
         )}
@@ -2354,25 +2546,25 @@ function DashboardManagementSystemBlock() {
         {selectedRecord ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <Descriptions column={1} size="small" bordered>
-              <Descriptions.Item label="Record code">{selectedRecord.code || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Status">
+              <Descriptions.Item label={tr("Record code")}>{selectedRecord.code || "-"}</Descriptions.Item>
+              <Descriptions.Item label={tr("Status")}>
                 <Tag color={statusColor[selectedRecord.status] || "default"}>{selectedRecord.status || "-"}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Owner">{selectedRecord.owner || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Category">{selectedRecord.category || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Progress">
+              <Descriptions.Item label={tr("Owner")}>{selectedRecord.owner || "-"}</Descriptions.Item>
+              <Descriptions.Item label={tr("Category")}>{selectedRecord.category || "-"}</Descriptions.Item>
+              <Descriptions.Item label={tr("Progress")}>
                 <Progress percent={selectedRecord.progress || 0} size="small" />
               </Descriptions.Item>
-              <Descriptions.Item label="Value">{fmtNumber(selectedRecord.value)} VND</Descriptions.Item>
-              <Descriptions.Item label="Created date">{selectedRecord.createdAtLabel || "-"}</Descriptions.Item>
-              <Descriptions.Item label="Deadline">{fmtDate(selectedRecord.deadline)}</Descriptions.Item>
+              <Descriptions.Item label={tr("Value")}>{fmtNumber(selectedRecord.value)} {tr("VND")}</Descriptions.Item>
+              <Descriptions.Item label={tr("Created date")}>{selectedRecord.createdAtLabel || "-"}</Descriptions.Item>
+              <Descriptions.Item label={tr("Deadline")}>{fmtDate(selectedRecord.deadline)}</Descriptions.Item>
             </Descriptions>
             <Text type="secondary">
-              This quick view is powered by the same filtered core data as the dashboard.
+              {tr("This quick view is powered by the same filtered core data as the dashboard.")}
             </Text>
           </Space>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No record selected" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No record selected")} />
         )}
       </Drawer>
     </div>

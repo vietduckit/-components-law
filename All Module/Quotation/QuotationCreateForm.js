@@ -68,6 +68,312 @@
  */
 
 // <ai-section name="runtime-bindings-and-config">
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "≈ {0} VND": "≈ {0} VND",
+  "Base currency": "Tiền tệ gốc",
+  "No rate": "Chưa có tỷ giá",
+  "Manual": "Thủ công",
+  "Discard changes?": "Bỏ các thay đổi?",
+  "Your unsaved input will be lost.": "Dữ liệu chưa lưu sẽ bị mất.",
+  "Discard": "Bỏ",
+  "Continue editing": "Tiếp tục chỉnh sửa",
+  "Please configure POPUP_VIEW_UIDS.{0} first.": "Vui lòng cấu hình POPUP_VIEW_UIDS.{0} trước.",
+  "ctx.openView is not available in this runtime.": "ctx.openView không khả dụng trong môi trường này.",
+  "Cannot open configured popup view.": "Không thể mở popup đã cấu hình.",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Case": "Hồ sơ",
+  "Immediate": "Thanh toán ngay",
+  "Net 15 days": "Trong 15 ngày",
+  "Net 30 days": "Trong 30 ngày",
+  "Net 45 days": "Trong 45 ngày",
+  "End of following month": "Cuối tháng kế tiếp",
+  "Balance payment": "Thanh toán phần còn lại",
+  "January": "Tháng 1",
+  "February": "Tháng 2",
+  "March": "Tháng 3",
+  "April": "Tháng 4",
+  "May": "Tháng 5",
+  "June": "Tháng 6",
+  "July": "Tháng 7",
+  "August": "Tháng 8",
+  "September": "Tháng 9",
+  "October": "Tháng 10",
+  "November": "Tháng 11",
+  "December": "Tháng 12",
+  "Sun": "CN",
+  "Mon": "T2",
+  "Tue": "T3",
+  "Wed": "T4",
+  "Thu": "T5",
+  "Fri": "T6",
+  "Sat": "T7",
+  "Select date": "Chọn ngày",
+  "Clear selected date": "Xóa ngày đã chọn",
+  "The firm entity that issues the quotation. Services and templates are filtered by it.": "Pháp nhân của công ty phát hành báo giá. Dịch vụ và mẫu được lọc theo pháp nhân này.",
+  "The lead, when the quotation comes from a sales opportunity that is not a customer yet.": "Lead, khi báo giá đến từ cơ hội bán hàng chưa là khách hàng.",
+  "The customer, when they already have a customer record.": "Khách hàng, khi đã có hồ sơ khách hàng.",
+  "The lawyer in charge of the quotation and the services that follow.": "Luật sư phụ trách báo giá và các dịch vụ tiếp theo.",
+  "Tick when someone must review the quotation before it is sent.": "Đánh dấu khi cần có người duyệt báo giá trước khi gửi.",
+  "The person who reviews the quotation.": "Người duyệt báo giá.",
+  "Expected payment terms, e.g. immediate, net 15, net 30.": "Điều khoản thanh toán dự kiến, VD: ngay, trong 15 ngày, trong 30 ngày.",
+  "The template used to generate the quotation document.": "Mẫu dùng để tạo tài liệu báo giá.",
+  "The last day the quotation is valid.": "Ngày cuối cùng báo giá còn hiệu lực.",
+  "The address printed on the quotation, if the template uses one.": "Địa chỉ in trên báo giá, nếu mẫu có dùng.",
+  "A short note about the quotation.": "Ghi chú ngắn về báo giá.",
+  "The services offered in this quotation.": "Các dịch vụ được báo giá.",
+  "A service from the internal company's catalog.": "Một dịch vụ trong danh mục của công ty nội bộ.",
+  "The scope of work of each line; edit it for this quotation.": "Phạm vi công việc của từng dòng; chỉnh sửa cho báo giá này.",
+  "The price of one unit, before VAT, in the line's currency.": "Giá một đơn vị, chưa VAT, theo tiền tệ của dòng.",
+  "The VAT rate of the line.": "Thuế suất VAT của dòng.",
+  "The amount before VAT.": "Số tiền trước VAT.",
+  "The VAT of the line.": "Tiền VAT của dòng.",
+  "The amount after VAT, in VND.": "Số tiền sau VAT, theo VND.",
+  "Add new": "Thêm mới",
+  "Selected": "Đã chọn",
+  "Lead #{0}": "Lead #{0}",
+  "Clear selection": "Bỏ chọn",
+  "— Search or select lead —": "— Tìm hoặc chọn lead —",
+  "Add new lead": "Thêm lead mới",
+  "Search by name, phone, email...": "Tìm theo tên, điện thoại, email...",
+  "No results found": "Không tìm thấy kết quả",
+  "{0} results": "{0} kết quả",
+  "{0} leads — newest first": "{0} lead — mới nhất trước",
+  "Add new customer": "Thêm khách hàng mới",
+  "Clear": "Bỏ chọn",
+  "Customer #{0}": "Khách hàng #{0}",
+  "— Search or select customer —": "— Tìm hoặc chọn khách hàng —",
+  "Current": "Hiện tại",
+  "{0} customers — newest first": "{0} khách hàng — mới nhất trước",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Sales": "Kinh doanh",
+  "Suppliant": "Trợ lý pháp lý",
+  "— Select lawyer —": "— Chọn luật sư —",
+  "Search by name, email...": "Tìm theo tên, email...",
+  "{0} users": "{0} người dùng",
+  "Require approval before sending": "Cần duyệt trước khi gửi",
+  "Quotation will need approval from authorized personnel": "Báo giá cần được người có thẩm quyền duyệt",
+  "Pending Approval": "Chờ duyệt",
+  "Not Required": "Không yêu cầu",
+  "Approver": "Người duyệt",
+  "— optional": "— không bắt buộc",
+  "Please enter a combo name": "Vui lòng nhập tên combo",
+  "Please select a currency": "Vui lòng chọn tiền tệ",
+  "Please add at least 1 service to the combo": "Vui lòng thêm ít nhất 1 dịch vụ vào combo",
+  "One or more services are missing a name": "Một hoặc nhiều dịch vụ chưa có tên",
+  "Duplicate service name in combo": "Trùng tên dịch vụ trong combo",
+  "Please enter service name": "Vui lòng nhập tên dịch vụ",
+  "Unit price must be greater than 0": "Đơn giá phải lớn hơn 0",
+  "Please select currency": "Vui lòng chọn tiền tệ",
+  "Search combo...": "Tìm combo...",
+  "+ New combo": "+ Combo mới",
+  "Combo": "Combo",
+  "Combo Price": "Giá combo",
+  "Services": "Dịch vụ",
+  "No combos yet": "Chưa có combo",
+  "New combo": "Combo mới",
+  "Combo #{0}": "Combo #{0}",
+  "VAT {0}%": "VAT {0}%",
+  "Save {0} ({1}%)": "Tiết kiệm {0} ({1}%)",
+  "Select": "Chọn",
+  "Close": "Đóng",
+  "Combo Name": "Tên combo",
+  "E.g. Business incorporation consulting combo...": "VD: Combo tư vấn thành lập doanh nghiệp...",
+  "Combo Type": "Loại combo",
+  "E.g. Business, Education...": "VD: Doanh nghiệp, Giáo dục...",
+  "Combo Subtotal": "Tạm tính combo",
+  "Currency": "Tiền tệ",
+  "Individual price: {0}": "Giá lẻ: {0}",
+  "Discount {0}": "Giảm {0}",
+  "Increase {0}": "Tăng {0}",
+  "VAT %": "VAT %",
+  "Services in combo ({0})": "Dịch vụ trong combo ({0})",
+  "+ Add existing service...": "+ Thêm dịch vụ có sẵn...",
+  "Service #{0}": "Dịch vụ #{0}",
+  "+ New service": "+ Dịch vụ mới",
+  "No services yet — add one from the list or create a new one.": "Chưa có dịch vụ — thêm từ danh sách hoặc tạo mới.",
+  "Service name": "Tên dịch vụ",
+  "Type": "Loại",
+  "Unit Price": "Đơn giá",
+  "Description": "Mô tả",
+  "New service name...": "Tên dịch vụ mới...",
+  "Already in the standardized catalog": "Đã có trong danh mục chuẩn",
+  "Type (optional)...": "Loại (không bắt buộc)...",
+  "Description (optional)...": "Mô tả (không bắt buộc)...",
+  "Remove": "Gỡ",
+  "Also save this combo to the shared catalog (created only if you finish creating this quotation). All custom services in it are saved too — services already in the catalog are simply reused.": "Lưu combo này vào danh mục chung (chỉ tạo khi bạn hoàn tất tạo báo giá). Các dịch vụ tự tạo trong combo cũng được lưu — dịch vụ đã có trong danh mục sẽ được dùng lại.",
+  "Back": "Quay lại",
+  "Applying...": "Đang áp dụng...",
+  "Submit": "Gửi",
+  "Select from list": "Chọn từ danh sách",
+  "Create new service": "Tạo dịch vụ mới",
+  "New Combo": "Combo mới",
+  "Select Combo": "Chọn combo",
+  "Line pricing": "Giá theo dòng",
+  "Combo pricing": "Giá combo",
+  "Add to combo:": "Thêm vào combo:",
+  "Combo pricing keeps every service inside a combo.": "Giá combo giữ mọi dịch vụ trong một combo.",
+  "Search service name...": "Tìm tên dịch vụ...",
+  "Create new": "Tạo mới",
+  "Service Name": "Tên dịch vụ",
+  "No services found": "Không tìm thấy dịch vụ",
+  "Create now": "Tạo ngay",
+  "e.g., Labor contract consulting...": "VD: Tư vấn hợp đồng lao động...",
+  "Service Type": "Loại dịch vụ",
+  "e.g., Consulting, Legal...": "VD: Tư vấn, Pháp lý...",
+  "VAT (%)": "VAT (%)",
+  "Scope of work, notes...": "Phạm vi công việc, ghi chú...",
+  "No currencies configured": "Chưa cấu hình tiền tệ",
+  "Select currency": "Chọn tiền tệ",
+  "This name already exists in the shared catalog — it will be reused, not duplicated.": "Tên này đã có trong danh mục chung — sẽ được dùng lại, không tạo trùng.",
+  "Also save to the shared catalog (created only if you finish creating this quotation).": "Lưu vào danh mục chung (chỉ tạo khi bạn hoàn tất tạo báo giá).",
+  "Cancel": "Hủy",
+  "Save & Select": "Lưu & Chọn",
+  "No description": "Không có mô tả",
+  "Show less": "Thu gọn",
+  "Show more": "Xem thêm",
+  "— not selected —": "— chưa chọn —",
+  "Compare each service in the form with the company service catalog.": "So sánh từng dịch vụ trong biểu mẫu với danh mục dịch vụ của công ty.",
+  "No.": "STT",
+  "Service in Quotation": "Dịch vụ trong báo giá",
+  "Catalog Service": "Dịch vụ trong danh mục",
+  "No catalog": "Không có danh mục",
+  "Changes": "Thay đổi",
+  "No catalog link": "Chưa liên kết danh mục",
+  "{0} changed": "{0} thay đổi",
+  "No change": "Không thay đổi",
+  "Detail": "Chi tiết",
+  "View": "Xem",
+  "{0} field(s) changed": "{0} trường thay đổi",
+  "No catalog service": "Không có dịch vụ trong danh mục",
+  "This service is not linked to a catalog service — no comparison data available.": "Dịch vụ này chưa liên kết với dịch vụ trong danh mục — không có dữ liệu so sánh.",
+  "Field": "Trường",
+  "Catalog (Original)": "Danh mục (gốc)",
+  "Current in Form": "Hiện tại trong biểu mẫu",
+  "Status": "Trạng thái",
+  "Changed": "Đã thay đổi",
+  "Same": "Giống nhau",
+  "View currency breakdown ({0} currencies)": "Xem chi tiết tiền tệ ({0} loại tiền)",
+  "Missing exchange rate ({0}) — the total is not final.": "Thiếu tỷ giá ({0}) — tổng chưa phải cuối cùng.",
+  "Combo subtotal:": "Tạm tính combo:",
+  "VAT (%):": "VAT (%):",
+  "VAT amount:": "Tiền VAT:",
+  "Combo total:": "Tổng combo:",
+  "Subtotal (excl. VAT)": "Tạm tính (chưa VAT)",
+  "VAT amount": "Tiền VAT",
+  "Total": "Tổng",
+  "COMBO": "COMBO",
+  "Add service to this combo": "Thêm dịch vụ vào combo này",
+  "+ Add service": "+ Thêm dịch vụ",
+  "Remove this combo": "Gỡ combo này",
+  "× Remove combo": "× Gỡ combo",
+  "Please select Internal Company first": "Vui lòng chọn Công ty nội bộ trước",
+  "Service List": "Danh sách dịch vụ",
+  "Review Changes": "Xem lại thay đổi",
+  "New service": "Dịch vụ mới",
+  "Pricing Mode": "Cách tính giá",
+  "Service Name & Type": "Tên & loại dịch vụ",
+  "No services added — click \"New service\"": "Chưa có dịch vụ — bấm \"Dịch vụ mới\"",
+  "Service name...": "Tên dịch vụ...",
+  "Service type...": "Loại dịch vụ...",
+  "Service scope or row note...": "Phạm vi dịch vụ hoặc ghi chú dòng...",
+  "Included in combo": "Đã gồm trong combo",
+  "Original: {0}": "Gốc: {0}",
+  "Missing rate to {0}": "Thiếu tỷ giá sang {0}",
+  "Done editing": "Xong chỉnh sửa",
+  "Edit service": "Sửa dịch vụ",
+  "Delete service": "Xóa dịch vụ",
+  "Currency breakdown": "Chi tiết tiền tệ",
+  "Base currency: {0}. Rates of today.": "Tiền tệ gốc: {0}. Tỷ giá hôm nay.",
+  "Original total": "Tổng gốc",
+  "Rate to ": "Tỷ giá sang ",
+  "Missing": "Thiếu",
+  "Converted total": "Tổng quy đổi",
+  "Effective date": "Ngày hiệu lực",
+  "Source": "Nguồn",
+  "Converted total in ": "Tổng quy đổi theo ",
+  "Review Service Changes": "Xem lại thay đổi dịch vụ",
+  "Review All Service Changes": "Xem lại mọi thay đổi dịch vụ",
+  "← Back to list": "← Quay lại danh sách",
+  "Related": "Liên quan",
+  "Quotation terms": "Điều khoản báo giá",
+  "Totals": "Tổng cộng",
+  "Currencies": "Tiền tệ",
+  "Each service keeps its own currency; totals are in VND at today's rate. View currency breakdown shows the rates used.": "Mỗi dịch vụ giữ tiền tệ riêng; tổng tính bằng VND theo tỷ giá hôm nay. Xem chi tiết tiền tệ để thấy tỷ giá đã dùng.",
+  "Quotation fields": "Các trường báo giá",
+  "What each field means. The quotation document itself is generated from the template.": "Ý nghĩa của từng trường. Tài liệu báo giá được tạo từ mẫu.",
+  "Cannot close this popup from the current runtime.": "Không thể đóng popup này từ môi trường hiện tại.",
+  "No exchange rate from the combo's currency to VND — the original amount is kept; check the rates.": "Không có tỷ giá từ tiền tệ của combo sang VND — giữ nguyên số tiền gốc; hãy kiểm tra tỷ giá.",
+  "This combo has no services yet.": "Combo này chưa có dịch vụ.",
+  "Skipped {0} service(s) already on the quotation: {1}": "Bỏ qua {0} dịch vụ đã có trên báo giá: {1}",
+  "Merged {0} standalone service(s) into combo \"{1}\": {2}": "Đã gộp {0} dịch vụ lẻ vào combo \"{1}\": {2}",
+  "Service": "Dịch vụ",
+  "Combo \"{0}\" applied.": "Đã áp dụng combo \"{0}\".",
+  "Also removed {0} service(s) merged into this combo: {1}": "Đồng thời gỡ {0} dịch vụ đã gộp vào combo này: {1}",
+  "This service is already on the quotation.": "Dịch vụ này đã có trên báo giá.",
+  "Missing exchange rate {0} → VND — this service is not in the total yet; check the rates.": "Thiếu tỷ giá {0} → VND — dịch vụ này chưa được tính vào tổng; hãy kiểm tra tỷ giá.",
+  "Please select Internal Issuing Company": "Vui lòng chọn Công ty phát hành",
+  "Please select Related Lead or Customer": "Vui lòng chọn Lead hoặc Khách hàng liên quan",
+  "Please select Quotation Currency": "Vui lòng chọn tiền tệ báo giá",
+  "Please select or pass the main quotation before creating a supplementary quotation.": "Vui lòng chọn báo giá chính trước khi tạo báo giá bổ sung.",
+  "Please add at least 1 service": "Vui lòng thêm ít nhất 1 dịch vụ",
+  "Please select service information": "Vui lòng chọn thông tin dịch vụ",
+  "Please fill in all service information": "Vui lòng điền đầy đủ thông tin dịch vụ",
+  "Please enter combo subtotal": "Vui lòng nhập tạm tính combo",
+  "Note: You have not selected an approver. Quotation will be created with pending status.": "Lưu ý: Bạn chưa chọn người duyệt. Báo giá sẽ được tạo ở trạng thái chờ.",
+  "Creating quotation...": "Đang tạo báo giá...",
+  "Checking quotation exchange rates...": "Đang kiểm tra tỷ giá báo giá...",
+  "Missing exchange rate for quotation total: {0}": "Thiếu tỷ giá cho tổng báo giá: {0}",
+  "Could not retrieve quotation id after creation": "Không lấy được ID báo giá sau khi tạo",
+  "Saving service {0}/{1}...": "Đang lưu dịch vụ {0}/{1}...",
+  "Could not link the case line to the quotation.": "Không thể liên kết dòng dịch vụ của hồ sơ với báo giá.",
+  "Could not sync the contract lines.": "Không thể đồng bộ các dòng dịch vụ của hợp đồng.",
+  "Quotation created successfully!": "Đã tạo báo giá!",
+  "Saving to catalog...": "Đang lưu vào danh mục...",
+  "{0} service{1} added to the catalog.": "Đã thêm {0} dịch vụ vào danh mục.",
+  "Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).": "Combo \"{0}\" chưa được lưu vào danh mục — không liên kết được các dịch vụ (có thể tên đã được dùng, hoặc lưu một dịch vụ bị lỗi).",
+  "Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.": "Đã lưu combo \"{0}\" vào danh mục — bỏ qua {1} dịch vụ tự tạo chưa liên kết danh mục.",
+  "Combo \"{0}\" saved to the catalog.": "Đã lưu combo \"{0}\" vào danh mục.",
+  "Could not save combo \"{0}\" to the catalog.": "Không thể lưu combo \"{0}\" vào danh mục.",
+  "Error: ": "Lỗi: ",
+  "Please try again": "Vui lòng thử lại",
+  "Guide": "Hướng dẫn",
+  "Quotation Information": "Thông tin báo giá",
+  "Internal Issuing Company": "Công ty phát hành",
+  "— Select company —": "— Chọn công ty —",
+  "Company #{0}": "Công ty #{0}",
+  "Related Case": "Hồ sơ liên quan",
+  "-- Select case --": "-- Chọn hồ sơ --",
+  "Related Lead": "Lead liên quan",
+  "Related Customer": "Khách hàng liên quan",
+  "Assigned Lawyer": "Luật sư phụ trách",
+  "Quotation Template": "Mẫu báo giá",
+  "select company first": "chọn công ty trước",
+  "— Select company first —": "— Chọn công ty trước —",
+  "— Select template —": "— Chọn mẫu —",
+  "+ New Template": "+ Mẫu mới",
+  "Short Description": "Mô tả ngắn",
+  "Quotation description...": "Mô tả báo giá...",
+  "Processing...": "Đang xử lý...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef } = React;
 const {
@@ -252,7 +558,7 @@ const formatMoneyAmount = (value, currency = null) => {
   if (!Number.isFinite(n)) return "—";
   const decimals = getCurrencyDecimals(info);
   return n.toLocaleString(getCurrencyLocale(info), {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
 };
@@ -273,16 +579,31 @@ const parseDateMillis = (value) => {
   const ms = new Date(value).getTime();
   return Number.isFinite(ms) ? ms : null;
 };
-const calcLine = (basePrice, quantity, vat) => {
-  const sub = parseNum(basePrice) * parseNum(quantity);
-  const vatA = Math.round((sub * parseNum(vat)) / 100);
-  return { subTotal: sub, vatAmount: vatA, totalAmount: sub + vatA };
+// ---- line amount helpers (pure; tested by scripts/tests/money-rounding.test.js) ----
+// 2026-09-29: a line is rounded to its own currency's decimals — whole đồng
+// for VND, cents for USD / EUR / SGD. Rounding a foreign line to whole units
+// turned 10 USD + 8% VAT into 11 USD (10%) and dropped VAT under 5%.
+const roundToDecimals = (value, decimals = 0) => {
+  const factor = 10 ** Math.max(0, Math.floor(Number(decimals) || 0));
+  const n = parseNum(value);
+  return Math.round((n + Math.sign(n) * Number.EPSILON * Math.abs(n)) * factor) / factor;
 };
-const calcPackageTotals = (subTotal, vatRate) => {
-  const sub = parseNum(subTotal);
-  const vatA = Math.round((sub * parseNum(vatRate)) / 100);
-  return { subTotal: sub, vatAmount: vatA, totalAmount: sub + vatA };
+// currency: a currency object (its decimalPlaces) or the number of decimals; none = VND
+const lineDecimals = (currency) =>
+  typeof currency === "number" ? currency : currency ? getCurrencyDecimals(currency) : 0;
+const calcLine = (basePrice, quantity, vat, currency) => {
+  const decimals = lineDecimals(currency);
+  const sub = roundToDecimals(parseNum(basePrice) * parseNum(quantity), decimals);
+  const vatA = roundToDecimals((sub * parseNum(vat)) / 100, decimals);
+  return { subTotal: sub, vatAmount: vatA, totalAmount: roundToDecimals(sub + vatA, decimals) };
 };
+const calcPackageTotals = (subTotal, vatRate, currency) => {
+  const decimals = lineDecimals(currency);
+  const sub = roundToDecimals(subTotal, decimals);
+  const vatA = roundToDecimals((sub * parseNum(vatRate)) / 100, decimals);
+  return { subTotal: sub, vatAmount: vatA, totalAmount: roundToDecimals(sub + vatA, decimals) };
+};
+// ---- end line amount helpers ----
 const buildServicePricingPayload = ({
   pricingMode,
   basePrice,
@@ -290,9 +611,11 @@ const buildServicePricingPayload = ({
   vat,
   packageSubTotal,
   packageVatRate,
+  currency,
+  packageCurrency,
 }) => {
   if (isPackagePricing(pricingMode)) {
-    const totals = calcPackageTotals(packageSubTotal, packageVatRate);
+    const totals = calcPackageTotals(packageSubTotal, packageVatRate, packageCurrency);
     return {
       pricingMode: PRICING_MODE_PACKAGE,
       basePrice: 0,
@@ -308,7 +631,7 @@ const buildServicePricingPayload = ({
     };
   }
   const qty = parseNum(quantity) || 1;
-  const line = calcLine(basePrice, qty, vat);
+  const line = calcLine(basePrice, qty, vat, currency);
   return {
     pricingMode: PRICING_MODE_LINE,
     basePrice: parseNum(basePrice),
@@ -360,58 +683,181 @@ const exchangeRateMatchesCurrency = (rate, side, currency) => {
     !!rateCurrencyCode && !!currencyCode && rateCurrencyCode === currencyCode
   );
 };
-const pickExchangeRate = (
-  rates = [],
-  fromCurrency,
-  toCurrency,
-  pricingDate,
-) => {
-  const cutoff = parseDateMillis(pricingDate) || Date.now();
-  return (
-    (rates || [])
-      .map((rate) => {
-        const effectiveMs = parseDateMillis(rate?.effectiveDate);
-        return {
-          record: rate,
-          rate: parseNum(rate?.rate),
-          effectiveMs: effectiveMs || 0,
-        };
-      })
-      .filter(
-        (item) =>
-          item.rate > 0 &&
-          isUsableExchangeRateStatus(item.record?.status) &&
-          (!item.effectiveMs || item.effectiveMs <= cutoff) &&
-          exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
-          exchangeRateMatchesCurrency(item.record, "to", toCurrency),
-      )
-      .sort((a, b) => b.effectiveMs - a.effectiveMs)[0] || null
-  );
+// ---- rate lookup helpers (pure; tested by scripts/tests/money-cases.test.js) ----
+// Business dates are Vietnam dates, as in the database (money_local_date):
+// "2026-09-01" stays as it is; a timestamp is read in Asia/Ho_Chi_Minh.
+const moneyDateKey = (value) => {
+  if (!value && value !== 0) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const ms = parseDateMillis(value);
+  return ms === null ? null : new Date(ms + 7 * 3600 * 1000).toISOString().slice(0, 10);
 };
-const pickConversionRate = (
-  rates = [],
-  fromCurrency,
-  toCurrency,
-  pricingDate,
-) => {
-  const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate);
-  if (direct) return { ...direct, direction: "direct" };
-  const inverse = pickExchangeRate(
-    rates,
-    toCurrency,
-    fromCurrency,
-    pricingDate,
-  );
-  if (inverse?.rate > 0) {
-    return {
-      ...inverse,
-      direction: "inverse",
-      originalRate: inverse.rate,
-      rate: 1 / inverse.rate,
-    };
+// Rates carry 15 significant digits, as float8 -> numeric does in Postgres.
+const rate15 = (value) => Number(Number(value).toPrecision(15));
+const pickExchangeRate = (rates = [], fromCurrency, toCurrency, pricingDate, when = "onOrBefore") => {
+  const cutoff = moneyDateKey(pricingDate) || moneyDateKey(Date.now());
+  const candidates = (rates || [])
+    .map((rate) => ({
+      record: rate,
+      rate: parseNum(rate?.rate),
+      effectiveMs: parseDateMillis(rate?.effectiveDate) || 0,
+      day: moneyDateKey(rate?.effectiveDate) || "1900-01-01",
+    }))
+    .filter(
+      (item) =>
+        item.rate > 0 &&
+        isUsableExchangeRateStatus(item.record?.status) &&
+        exchangeRateMatchesCurrency(item.record, "from", fromCurrency) &&
+        exchangeRateMatchesCurrency(item.record, "to", toCurrency),
+    );
+  if (when === "after") {
+    return candidates.filter((item) => item.day > cutoff).sort((a, b) => a.effectiveMs - b.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
+  }
+  return candidates.filter((item) => item.day <= cutoff).sort((a, b) => b.effectiveMs - a.effectiveMs || (Number(b.record?.id) || 0) - (Number(a.record?.id) || 0))[0] || null;
+};
+// same order as money_rate_to_base(): the latest direct rate on or before
+// the date, else the latest inverse one; only then the earliest after it.
+const pickConversionRate = (rates = [], fromCurrency, toCurrency, pricingDate) => {
+  for (const when of ["onOrBefore", "after"]) {
+    const direct = pickExchangeRate(rates, fromCurrency, toCurrency, pricingDate, when);
+    if (direct) return { ...direct, rate: rate15(direct.rate), direction: "direct" };
+    const inverse = pickExchangeRate(rates, toCurrency, fromCurrency, pricingDate, when);
+    if (inverse) {
+      return {
+        ...inverse,
+        direction: "inverse",
+        originalRate: inverse.rate,
+        rate: rate15(1 / rate15(inverse.rate)),
+      };
+    }
   }
   return null;
 };
+// ---- end rate lookup helpers ----
+// ---- catalog VND text (pure; tested by scripts/tests/catalog-vnd-display.test.js) ----
+// The VND a catalog / company price was converted to at the latest rate
+// (stored by pgsql/currency_catalog.sql): a company price shows only its own
+// priceVnd, a catalog service its basePriceVnd; nothing for a VND price.
+const catalogVndText = (record, currency) => {
+  const code = String(currency?.code || currency?.currencyCode || "").toUpperCase();
+  if (!record || code === "VND") return null;
+  const own = Object.prototype.hasOwnProperty.call(record, "priceVnd") ? record.priceVnd : record.basePriceVnd;
+  const n = Number(own);
+  return own === null || own === undefined || own === "" || !Number.isFinite(n)
+    ? null
+    : tr("≈ {0} VND", { 0: Math.round(n).toLocaleString("vi-VN") });
+};
+// ---- end catalog VND text ----
+// ---- base conversion helpers (pure; tested by scripts/tests/money-cases.test.js) ----
+// VND of some lines: each line converted and rounded on its own, then summed,
+// as the database does (money_line_amounts), so the total shown is the one
+// the database stores.
+const convertLinesToBase = (lines, rate) =>
+  (lines || []).reduce(
+    (acc, line) => {
+      const sub = Math.round((Number(line?.subTotal) || 0) * rate);
+      const vat = Math.round((Number(line?.vatAmount) || 0) * rate);
+      return {
+        subTotal: acc.subTotal + sub,
+        vatAmount: acc.vatAmount + vat,
+        totalAmount: acc.totalAmount + sub + vat,
+      };
+    },
+    { subTotal: 0, vatAmount: 0, totalAmount: 0 },
+  );
+// ---- end base conversion helpers ----
+// ---- cross-document payload helpers (pure; tested by scripts/tests/cross-document-writes.test.js) ----
+// What a form sends to a service line (spec 2026-09-30 §6). The database
+// prices a line (trg_money_line_compute) and copies a service's content to
+// its linked lines (trg_money_thread_after): line totals are never sent, and
+// a follow-up write to a line the save already linked sends no content.
+const LINE_TOTAL_KEYS = ["subTotal", "vatAmount", "totalAmount"];
+const THREAD_CONTENT_KEYS = [
+  "serviceId", "ServiceId", "services", "serviceName", "serviceType",
+  "description", "comboId", "serviceCombo", "comboName",
+];
+const withoutKeys = (payload, keys) => {
+  const next = { ...(payload || {}) };
+  keys.forEach((key) => delete next[key]);
+  return next;
+};
+const isLinePricedPayload = (payload) =>
+  String(payload?.pricingMode || "line").toLowerCase() === "line";
+// Own lines, a write that creates a link, or an edit made at its origin:
+// content stays (it must win); a priced line drops its totals.
+const lineWritePayload = (payload) =>
+  isLinePricedPayload(payload) ? withoutKeys(payload, LINE_TOTAL_KEYS) : { ...(payload || {}) };
+// A line already linked by an earlier write of the same save: links, status
+// and pricing only (pricing is not copied across pricing modes).
+const linkedLineFollowUpPayload = (payload) =>
+  withoutKeys(lineWritePayload(payload), THREAD_CONTENT_KEYS);
+// A request the database refused carries its reason in errors[0].message.
+const apiErrorText = (error, fallback) =>
+  error?.response?.data?.errors?.[0]?.message || error?.message || fallback;
+// ---- end cross-document payload helpers ----
+// ---- currency breakdown helpers (pure; tested by scripts/tests/create-forms-look.test.js) ----
+// One row per currency for the "Currency breakdown" modal, the columns of the
+// Case form: original total, rate to VND, converted total (each line on its
+// own, as the database), rate date and source.
+const currencyBreakdownRows = (groups, { isBase, matchOf, codeOf, convert }) =>
+  (groups || []).map((group, index) => {
+    const base = isBase(group);
+    const matched = base ? { rate: 1, record: null, direction: "base" } : matchOf(group);
+    const rate = Number(matched?.rate) || 0;
+    const converted = rate ? convert(group.lines || [], rate) : null;
+    return {
+      key: `${codeOf(group.currency)}-${index}`,
+      currency: group.currency,
+      currencyCode: codeOf(group.currency),
+      lineCount: group.lineCount || (group.lines || []).length,
+      originalTotal: group.totalAmount,
+      rate: rate || null,
+      convertedTotal: converted ? converted.totalAmount : null,
+      effectiveDate: base ? null : matched?.record?.effectiveDate || null,
+      source: base
+        ? tr("Base currency")
+        : !rate
+          ? tr("No rate")
+          : `${matched?.record?.source || matched?.record?.status || tr("Manual")}${matched?.direction === "inverse" ? " (inverse)" : ""}`,
+      status: base ? "base" : rate ? "converted" : "missing",
+    };
+  });
+// ---- end currency breakdown helpers ----
+// ---- package group sum (pure; tested by scripts/tests/package-group-totals.test.js) ----
+// Combo pricing on a Case/Quotation: every combo keeps its OWN amount,
+// stamped on each of its rows (packageSubTotal) — rows do not carry the
+// document total. The package total is the sum of each distinct group,
+// counted once: group = comboId, else comboName, else the row itself —
+// exactly CaseServices' servicePricingSummary, so a Contract made from a
+// Case shows the same total as the Case. VAT is on the summed subtotal
+// (rate from the lines, else fallbackVatRate). 2026-09-25: reading the
+// first package line gave a Case with combos A + B a contract total of
+// combo A only.
+const sumPackageGroups = (packageLines = [], fallbackVatRate = 0) => {
+  const groups = new Map();
+  (packageLines || []).forEach((line, index) => {
+    const comboIdVal = extractId(line?.comboId) || extractId(line?._comboCatalogId);
+    const comboName = String(line?.comboName || "").trim();
+    const key = comboIdVal
+      ? `id:${comboIdVal}`
+      : comboName
+        ? `name:${comboName}`
+        : `row:${line?.id ?? line?.projectServiceId ?? index}`;
+    if (!groups.has(key)) groups.set(key, parseNum(line?.packageSubTotal));
+  });
+  const subTotal = Array.from(groups.values()).reduce((sum, amount) => sum + amount, 0);
+  const rateLine = (packageLines || []).find(
+    (line) =>
+      line?.packageVatRate !== undefined &&
+      line?.packageVatRate !== null &&
+      line?.packageVatRate !== "" &&
+      (parseNum(line?.packageSubTotal) || parseNum(line?.packageTotalAmount)),
+  );
+  const vatRate = rateLine ? parseNum(rateLine.packageVatRate) : parseNum(fallbackVatRate);
+  const vatAmount = Math.round((subTotal * vatRate) / 100);
+  return { subTotal, vatRate, vatAmount, totalAmount: subTotal + vatAmount };
+};
+// ---- end package group sum ----
 const buildQuotationFinancialSummary = ({
   rows = [],
   currencies = [],
@@ -437,8 +883,8 @@ const buildQuotationFinancialSummary = ({
   const byCurrency = {};
   (rows || []).forEach((row) => {
     if (!row?.serviceName?.trim()) return;
-    const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat);
     const rowCurrency = currencyFromRecord(row, currencies, targetCurrency);
+    const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat, rowCurrency);
     const key =
       extractCurrencyId(row.currencyId) ||
       extractCurrencyId(rowCurrency) ||
@@ -450,12 +896,14 @@ const buildQuotationFinancialSummary = ({
         vatAmount: 0,
         totalAmount: 0,
         lineCount: 0,
+        lines: [],
       };
     }
     byCurrency[key].subTotal += amounts.subTotal;
     byCurrency[key].vatAmount += amounts.vatAmount;
     byCurrency[key].totalAmount += amounts.totalAmount;
     byCurrency[key].lineCount += 1;
+    byCurrency[key].lines.push(amounts);
   });
   const groups = Object.values(byCurrency);
   const missing = [];
@@ -473,10 +921,13 @@ const buildQuotationFinancialSummary = ({
         missing.push(group);
         return acc;
       }
+      // Whole đồng per line, total = subtotal + VAT: the quotation total
+      // shown here is the one the database stores (Σ of its lines).
+      const g = convertLinesToBase(group.lines, matched.rate);
       return {
-        subTotal: acc.subTotal + group.subTotal * matched.rate,
-        vatAmount: acc.vatAmount + group.vatAmount * matched.rate,
-        totalAmount: acc.totalAmount + group.totalAmount * matched.rate,
+        subTotal: acc.subTotal + g.subTotal,
+        vatAmount: acc.vatAmount + g.vatAmount,
+        totalAmount: acc.totalAmount + g.totalAmount,
       };
     },
     { subTotal: 0, vatAmount: 0, totalAmount: 0 },
@@ -503,7 +954,7 @@ const getConversionSourceCurrencyIds = (groups = [], baseCurrency = null) =>
 const formatMissingRatePairs = (groups = [], baseCurrency = null) => {
   const baseCode = getCurrencyCode(baseCurrency || defaultCurrencyObject());
   return (groups || [])
-    .map((group) => `${getCurrencyCode(group.currency)} -> ${baseCode}`)
+    .map((group) => `${getCurrencyCode(group.currency)} → ${baseCode}`)
     .join(", ");
 };
 const isPackagePricing = (mode) =>
@@ -589,64 +1040,28 @@ const localSyncContractHeaderFromServices = async (contractId) => {
     let totalAmount = 0;
     let packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
 
-    if (isRetainer) {
-      subTotal =
-        parseNum(contract.monthlyFee) * parseNum(contract.retainerDuration);
-      packageVatRate = parseNum(contract.packageVatRate ?? contract.vatRate);
-      vatAmount = (subTotal * packageVatRate) / 100;
-      totalAmount = subTotal + vatAmount;
-    } else {
-      const packageLine = lines.find(
-        (line) =>
-          localIsPackage(line) ||
-          parseNum(line.packageSubTotal) ||
-          parseNum(line.packageTotalAmount),
-      );
-
-      if (localIsPackage(contract) || packageLine) {
-        const packageAmounts = localGetContractLineAmounts(
-          packageLine || contract,
-        );
-        subTotal = packageAmounts.subTotal;
-        vatAmount = packageAmounts.vatAmount;
-        totalAmount = packageAmounts.totalAmount;
-        packageVatRate = packageAmounts.packageVatRate || packageVatRate;
-      } else {
-        const preliminarySummary = buildQuotationFinancialSummary({
-          rows: lines,
-          currencies: syncCurrencies,
-          baseCurrency: contractCurrency,
-        });
-        const rateCurrencyIds = getConversionSourceCurrencyIds(
-          preliminarySummary.groups,
-          contractCurrency,
-        );
-        const contractExchangeRates = rateCurrencyIds.length
-          ? await fetchExchangeRatesForConversion(
-              rateCurrencyIds,
-              extractCurrencyId(contractCurrency),
-            )
-          : [];
-        const contractSummary = buildQuotationFinancialSummary({
-          rows: lines,
-          currencies: syncCurrencies,
-          baseCurrency: contractCurrency,
-          exchangeRates: contractExchangeRates,
-        });
-        if (!contractSummary.converted.canConvert) {
-          throw new Error(
-            `Missing exchange rate for contract total: ${formatMissingRatePairs(
-              contractSummary.missing,
-              contractCurrency,
-            )}`,
-          );
-        }
-        const totals = contractSummary.converted;
-        subTotal = totals.subTotal;
-        vatAmount = totals.vatAmount;
-        totalAmount = totals.totalAmount;
-      }
-    }
+    // Only a combo contract's header is synced here: a retainer's is its typed
+    // fee (the form never sends monthlyFee — monthlyFee × duration wrote 0),
+    // and a line-priced contract's (and its case's) is recomputed by the
+    // database when its lines change.
+    if (isRetainer) return; // a retainer's header is its typed fee
+    const packageLines = lines.filter(
+      (line) =>
+        localIsPackage(line) ||
+        parseNum(line.packageSubTotal) ||
+        parseNum(line.packageTotalAmount),
+    );
+    const packageLine = packageLines[0];
+    if (!(localIsPackage(contract) || packageLine)) return; // line pricing: trg_money_contract_header
+    // every combo group counts, not only the first line's
+    const packageAmounts = packageLines.length
+      ? sumPackageGroups(packageLines, packageVatRate)
+      : localGetContractLineAmounts(contract);
+    subTotal = packageAmounts.subTotal;
+    vatAmount = packageAmounts.vatAmount;
+    totalAmount = packageAmounts.totalAmount;
+    packageVatRate =
+      (packageLines.length ? packageAmounts.vatRate : packageAmounts.packageVatRate) || packageVatRate;
 
     await ctx.api.request({
       url: "contracts:update",
@@ -782,7 +1197,8 @@ async function fetchExchangeRatesForConversion(
   );
   if (!toId || !fromIds.length) return [];
 
-  const pageSize = Math.max(100, fromIds.length * 5);
+  // enough history for an older rate date (newest first)
+  const pageSize = Math.max(1000, fromIds.length * 5);
   const filterProfiles = [
     { fromCurrencyId: { $in: fromIds }, toCurrencyId: { $eq: toId } },
     {
@@ -1196,10 +1612,10 @@ const showDiscardConfirm = (onOk) => {
   if (Modal?.confirm) {
     showDiscardConfirm._open = true;
     Modal.confirm({
-      title: "Discard changes?",
-      content: "Your unsaved input will be lost.",
-      okText: "Discard",
-      cancelText: "Continue editing",
+      title: tr("Discard changes?"),
+      content: tr("Your unsaved input will be lost."),
+      okText: tr("Discard"),
+      cancelText: tr("Continue editing"),
       okButtonProps: { danger: true },
       maskClosable: false,
       onCancel: () => {
@@ -1411,12 +1827,12 @@ const debugQuotationContext = (step, payload) => {
 const openPopupViewByUid = async (viewKey) => {
   const uid = POPUP_VIEW_UIDS[viewKey];
   if (!uid) {
-    message.warning(`Please configure POPUP_VIEW_UIDS.${viewKey} first.`);
+    message.warning(tr("Please configure POPUP_VIEW_UIDS.{0} first.", { 0: viewKey }));
     return false;
   }
 
   if (!ctx.openView) {
-    message.error("ctx.openView is not available in this runtime.");
+    message.error(tr("ctx.openView is not available in this runtime."));
     return false;
   }
 
@@ -1426,7 +1842,7 @@ const openPopupViewByUid = async (viewKey) => {
     return true;
   } catch (error) {
     console.warn("[QuotationCreateForm] ctx.openView failed", error);
-    message.error("Cannot open configured popup view.");
+    message.error(tr("Cannot open configured popup view."));
     return false;
   }
 };
@@ -1693,7 +2109,7 @@ const projectLabel = (project) => {
   ]);
   return (
     [code, name].filter(Boolean).join(" - ") ||
-    (project?.id ? `Case #${project.id}` : "Case")
+    (project?.id ? tr("Case #{0}", { 0: project.id }) : tr("Case"))
   );
 };
 
@@ -1725,12 +2141,12 @@ const quoteStatusToServiceStatus = (status) => {
 };
 
 const PAYMENT_TERMS = [
-  { value: "immediate", label: "Immediate" },
-  { value: "15days", label: "Net 15 days" },
-  { value: "30days", label: "Net 30 days" },
-  { value: "45days", label: "Net 45 days" },
-  { value: "endFollowingMonth", label: "End of following month" },
-  { value: "balance", label: "Balance payment" },
+  { value: "immediate", label: tr("Immediate") },
+  { value: "15days", label: tr("Net 15 days") },
+  { value: "30days", label: tr("Net 30 days") },
+  { value: "45days", label: tr("Net 45 days") },
+  { value: "endFollowingMonth", label: tr("End of following month") },
+  { value: "balance", label: tr("Balance payment") },
 ];
 
 // </ai-section>
@@ -1855,20 +2271,20 @@ const DatePicker = ({ value, onChange, minDate }) => {
   const selected = value ? new Date(value) : null;
   if (selected) selected.setHours(0, 0, 0, 0);
   const MONTHS_VI = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    tr("January"),
+    tr("February"),
+    tr("March"),
+    tr("April"),
+    tr("May"),
+    tr("June"),
+    tr("July"),
+    tr("August"),
+    tr("September"),
+    tr("October"),
+    tr("November"),
+    tr("December"),
   ];
-  const DAYS_VI = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const DAYS_VI = [tr("Sun"), tr("Mon"), tr("Tue"), tr("Wed"), tr("Thu"), tr("Fri"), tr("Sat")];
   const firstDay = new Date(display.y, display.m, 1).getDay();
   const daysInMon = new Date(display.y, display.m + 1, 0).getDate();
   const prevMonth = () =>
@@ -1912,7 +2328,7 @@ const DatePicker = ({ value, onChange, minDate }) => {
       React.createElement(
         "span",
         { style: { color: displayStr ? C.text : C.textSub, fontSize: 13.5 } },
-        displayStr || "Select date",
+        displayStr || tr("Select date"),
       ),
       React.createElement(
         "span",
@@ -2084,49 +2500,79 @@ const DatePicker = ({ value, onChange, minDate }) => {
                 padding: "4px 0",
               },
             },
-            "Clear selected date",
+            tr("Clear selected date"),
           ),
       ),
   );
 };
 
 // ==================== PRICE INPUT ====================
-const PriceInput = ({ value, onChange, prefilled }) => {
-  const fmt = (v) =>
-    !v && v !== 0
-      ? ""
-      : v
-          .toString()
-          .replace(/[^\d]/g, "")
-          .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const raw = (s) => {
-    const cleaned = String(s ?? "").replace(/[^\d]/g, "");
-    return cleaned ? Number(cleaned) : 0;
-  };
-  const [draft, setDraft] = useState(() => fmt(value));
+// ---- money draft helpers (pure; tested by scripts/tests/money-input.test.js) ----
+// What a price box shows and hands back, by the currency's decimals:
+// VND whole đồng grouped "1.000.000"; USD / EUR / SGD typed as "120.50".
+// Vietnamese typing too: a comma is the decimal point when 1-2 digits (or
+// nothing yet) follow it, and groups thousands when 3 do ("1,500"); a dot is
+// the decimal point unless several dots group thousands ("1.500.000").
+const cleanDecimalDraft = (value, decimals) => {
+  const s = String(value ?? "").replace(/[^\d.,]/g, "");
+  const last = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
+  if (last < 0) return s;
+  const tail = s.slice(last + 1);
+  const sameSeps = (s.match(/[.,]/g) || []).every((c) => c === s[last]);
+  const grouping = tail.length === 3 && sameSeps && (s[last] === "," || s.split(".").length > 2);
+  if (grouping) return s.replace(/[.,]/g, "");
+  return `${s.slice(0, last).replace(/[.,]/g, "")}.${tail.slice(0, Math.max(0, decimals))}`;
+};
+// A VND box being typed in: digits only, grouped "1.000.000".
+const groupWholeDraft = (value) => {
+  const digits = String(value ?? "").replace(/[^\d]/g, "");
+  return digits ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : "";
+};
+// A stored amount shown in a VND box: a decimal one (a price switched from
+// USD, "120.50") rounds to whole đồng instead of losing its point.
+const moneyDraftShow = (value, decimals) => {
+  if (value === undefined || value === null || value === "") return "";
+  if (decimals <= 0) {
+    const s = String(value).trim();
+    return groupWholeDraft(/^\d+\.\d+$/.test(s) ? String(Math.round(Number(s))) : s);
+  }
+  return cleanDecimalDraft(value, decimals);
+};
+const moneyDraftValue = (draft, decimals) => {
+  const cleaned = decimals <= 0 ? String(draft ?? "").replace(/[^\d]/g, "") : cleanDecimalDraft(draft, decimals);
+  const n = Number(cleaned);
+  return cleaned && Number.isFinite(n) ? n : 0;
+};
+// ---- end money draft helpers ----
 
+const PriceInput = ({ value, onChange, prefilled, currency = null }) => {
+  const decimals = currency ? getCurrencyDecimals(currency) : 0;
+  const [draft, setDraft] = useState(() => moneyDraftShow(value, decimals));
+
+  // keep what is being typed ("120.") while it still means the same value
   useEffect(() => {
-    setDraft(fmt(value));
-  }, [value]);
+    setDraft((prev) =>
+      moneyDraftValue(prev, decimals) === Number(value || 0) && prev !== ""
+        ? prev
+        : moneyDraftShow(value, decimals),
+    );
+  }, [value, decimals]);
 
   const handleChange = (inputValue) => {
-    const cleaned = String(inputValue ?? "").replace(/[^\d]/g, "");
-    const display = cleaned
-      ? cleaned.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-      : "";
-    setDraft(display);
-    onChange(raw(cleaned));
+    const next = decimals > 0 ? cleanDecimalDraft(inputValue, decimals) : groupWholeDraft(inputValue);
+    setDraft(next);
+    onChange(moneyDraftValue(next, decimals));
   };
 
   const normalizeDraft = () => {
-    setDraft(fmt(raw(draft)));
+    setDraft(moneyDraftShow(moneyDraftValue(draft, decimals), decimals));
   };
 
   if (AntInput) {
     return React.createElement(AntInput, {
       value: draft,
       placeholder: "0",
-      inputMode: "numeric",
+      inputMode: decimals > 0 ? "decimal" : "numeric",
       onChange: (e) => handleChange(e.target.value),
       onBlur: normalizeDraft,
       style: {
@@ -2141,6 +2587,7 @@ const PriceInput = ({ value, onChange, prefilled }) => {
     type: "text",
     value: draft,
     placeholder: "0",
+    inputMode: decimals > 0 ? "decimal" : "numeric",
     onChange: (e) => handleChange(e.target.value),
     style: { ...(prefilled ? inpPre() : inp()), textAlign: "right" },
     onFocus: prefilled ? onFocusP : onFocus,
@@ -2208,33 +2655,25 @@ const Grid = ({ cols = 2, gap = 16, mb = 16, children }) =>
   );
 
 const FIELD_HELP = {
-  "Internal Issuing Company":
-    "Pháp nhân nội bộ đứng tên phát hành báo giá. Danh sách dịch vụ sẽ được lọc theo công ty này.",
-  "Related Lead":
-    "Lead liên quan nếu báo giá được tạo từ cơ hội bán hàng/chưa chuyển thành khách hàng.",
-  "Related Customer":
-    "Khách hàng liên quan nếu đã có hồ sơ khách hàng chính thức.",
-  "Assigned Lawyer":
-    "Luật sư phụ trách chính cho báo giá hoặc dịch vụ sau này.",
-  "Require approval before sending":
-    "Bật nếu báo giá cần người có thẩm quyền review trước khi gửi khách hàng.",
-  Approver: "Người được chỉ định xét duyệt báo giá khi bật yêu cầu approval.",
-  "Payment Terms":
-    "Điều khoản thanh toán dự kiến, ví dụ thanh toán ngay, net 15, net 30 hoặc phần còn lại.",
-  "Quotation Template":
-    "File mẫu dùng cho tính năng generate báo giá. Form không còn nhập nội dung mẫu ở bước này.",
-  "Valid Until": "Ngày hết hiệu lực của báo giá.",
-  Address: "Địa chỉ liên hệ hoặc địa chỉ xuất hiện trên báo giá nếu cần.",
-  "Short Description": "Ghi chú hoặc mô tả ngắn cho báo giá.",
-  "Service List": "Danh sách dịch vụ sẽ được đưa vào báo giá.",
-  "Service Name": "Dịch vụ được chọn từ danh sách dịch vụ của công ty nội bộ.",
-  Description:
-    "Mô tả phạm vi công việc của từng dòng dịch vụ. Có thể chỉnh lại theo nội dung báo giá cụ thể.",
-  "Unit Price": "Đơn giá chưa VAT của dòng dịch vụ.",
-  "VAT %": "Thuế VAT áp dụng cho dòng dịch vụ.",
-  Subtotal: "Giá trị trước VAT.",
-  "VAT Amount": "Số tiền VAT của dòng dịch vụ.",
-  Total: "Tổng tiền sau VAT.",
+  "Internal Issuing Company": tr("The firm entity that issues the quotation. Services and templates are filtered by it."),
+  "Related Lead": tr("The lead, when the quotation comes from a sales opportunity that is not a customer yet."),
+  "Related Customer": tr("The customer, when they already have a customer record."),
+  "Assigned Lawyer": tr("The lawyer in charge of the quotation and the services that follow."),
+  "Require approval before sending": tr("Tick when someone must review the quotation before it is sent."),
+  Approver: tr("The person who reviews the quotation."),
+  "Payment Terms": tr("Expected payment terms, e.g. immediate, net 15, net 30."),
+  "Quotation Template": tr("The template used to generate the quotation document."),
+  "Valid Until": tr("The last day the quotation is valid."),
+  Address: tr("The address printed on the quotation, if the template uses one."),
+  "Short Description": tr("A short note about the quotation."),
+  "Service List": tr("The services offered in this quotation."),
+  "Service Name": tr("A service from the internal company's catalog."),
+  Description: tr("The scope of work of each line; edit it for this quotation."),
+  "Unit Price": tr("The price of one unit, before VAT, in the line's currency."),
+  "VAT %": tr("The VAT rate of the line."),
+  Subtotal: tr("The amount before VAT."),
+  "VAT amount": tr("The VAT of the line."),
+  Total: tr("The amount after VAT, in VND."),
 };
 
 const HelpMark = ({ text }) => {
@@ -2270,7 +2709,7 @@ const Field = ({ label, required, hint, children, mb = 0, tooltip }) => {
     "span",
     { style: { display: "inline-flex", alignItems: "center", minWidth: 0 } },
     React.createElement("span", { style: { color: C.textLabel } }, label),
-    React.createElement(HelpMark, { text: tooltip || FIELD_HELP[label] }),
+    React.createElement(HelpMark, { text: tooltip || (FIELD_HELP[label] || FIELD_HELP[Object.keys(VI).find((k) => VI[k] === label && k in FIELD_HELP)]) }),
     hint &&
       React.createElement(
         "span",
@@ -2325,7 +2764,7 @@ const Field = ({ label, required, hint, children, mb = 0, tooltip }) => {
           { style: { color: C.danger, marginLeft: 3, fontSize: 12 } },
           "*",
         ),
-      React.createElement(HelpMark, { text: tooltip || FIELD_HELP[label] }),
+      React.createElement(HelpMark, { text: tooltip || (FIELD_HELP[label] || FIELD_HELP[Object.keys(VI).find((k) => VI[k] === label && k in FIELD_HELP)]) }),
       hint &&
         React.createElement(
           "span",
@@ -2368,7 +2807,7 @@ const Avatar = ({ name, size = 32 }) =>
     },
     getInitials(name),
   );
-const AddNewIconButton = ({ onClick, title = "Add new" }) =>
+const AddNewIconButton = ({ onClick, title = tr("Add new") }) =>
   React.createElement(
     "button",
     {
@@ -2408,7 +2847,7 @@ const SelectedCheckIcon = () =>
   React.createElement(
     "span",
     {
-      title: "Selected",
+      title: tr("Selected"),
       style: {
         display: "inline-flex",
         alignItems: "center",
@@ -2481,10 +2920,10 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
         l.customerName ||
         l.fullName ||
         l.name ||
-        `Lead #${l.id}`
+        tr("Lead #{0}", { 0: l.id })
       );
     return (
-      l.fullName || l.customerName || l.name || l.companyName || `Lead #${l.id}`
+      l.fullName || l.customerName || l.name || l.companyName || tr("Lead #{0}", { 0: l.id })
     );
   };
   const selectedName = selected ? getLeadName(selected) : "";
@@ -2561,7 +3000,7 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
                   display: "flex",
                   alignItems: "center",
                 },
-                title: "Clear selection",
+                title: tr("Clear selection"),
               },
               React.createElement(
                 "svg",
@@ -2585,11 +3024,11 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
             React.createElement(
               "span",
               { style: { color: C.textSub, fontSize: 13, flex: 1 } },
-              "— Search or select lead —",
+              tr("— Search or select lead —"),
             ),
             onAddNew &&
               React.createElement(AddNewIconButton, {
-                title: "Add new lead",
+                title: tr("Add new lead"),
                 onClick: () => {
                   setOpen(false);
                   onAddNew();
@@ -2655,7 +3094,7 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
               autoFocus: true,
               value: search,
               onChange: (e) => setSearch(e.target.value),
-              placeholder: "Search by name, phone, email...",
+              placeholder: tr("Search by name, phone, email..."),
               style: {
                 ...inp({ paddingLeft: 11, paddingTop: 7, paddingBottom: 7 }),
               },
@@ -2679,7 +3118,7 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
                     fontSize: 13,
                   },
                 },
-                "No results found",
+                tr("No results found"),
               )
             : filtered.map((l, i) => {
                 const lName = getLeadName(l);
@@ -2758,15 +3197,15 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
             "span",
             { style: { fontSize: 11.5, color: C.textSub } },
             search
-              ? `${filtered.length} results`
-              : `${filtered.length} leads — newest first`,
+              ? tr("{0} results", { 0: filtered.length })
+              : tr("{0} leads — newest first", { 0: filtered.length }),
           ),
           React.createElement(
             "div",
             { style: { display: "flex", alignItems: "center", gap: 12 } },
             onAddNew &&
               React.createElement(AddNewIconButton, {
-                title: "Add new customer",
+                title: tr("Add new customer"),
                 onClick: () => {
                   setOpen(false);
                   onAddNew();
@@ -2779,7 +3218,7 @@ const LeadDropdown = ({ leads, value, onChange, currentLead, onAddNew }) => {
                   onClick: () => onChange(null),
                   style: { fontSize: 11.5, color: C.danger, cursor: "pointer" },
                 },
-                "Clear",
+                tr("Clear"),
               ),
           ),
         ),
@@ -2837,7 +3276,7 @@ const CustomerDropdown = ({
         c.customerName ||
         c.fullName ||
         c.name ||
-        `Khách hàng #${c.id}`
+        tr("Customer #{0}", { 0: c.id })
       );
     return (
       c.fullName ||
@@ -2845,7 +3284,7 @@ const CustomerDropdown = ({
       c.name ||
       c.companyLegalName ||
       c.companyName ||
-      `Khách hàng #${c.id}`
+      tr("Customer #{0}", { 0: c.id })
     );
   };
   const selectedName = selected ? getCustomerName(selected) : "";
@@ -2922,7 +3361,7 @@ const CustomerDropdown = ({
                   display: "flex",
                   alignItems: "center",
                 },
-                title: "Clear selection",
+                title: tr("Clear selection"),
               },
               React.createElement(
                 "svg",
@@ -2946,11 +3385,11 @@ const CustomerDropdown = ({
             React.createElement(
               "span",
               { style: { color: C.textSub, fontSize: 13, flex: 1 } },
-              "— Search or select customer —",
+              tr("— Search or select customer —"),
             ),
             onAddNew &&
               React.createElement(AddNewIconButton, {
-                title: "Add new customer",
+                title: tr("Add new customer"),
                 onClick: () => {
                   setOpen(false);
                   onAddNew();
@@ -3016,7 +3455,7 @@ const CustomerDropdown = ({
               autoFocus: true,
               value: search,
               onChange: (e) => setSearch(e.target.value),
-              placeholder: "Search by name, phone, email...",
+              placeholder: tr("Search by name, phone, email..."),
               style: {
                 ...inp({ paddingLeft: 11, paddingTop: 7, paddingBottom: 7 }),
               },
@@ -3038,7 +3477,7 @@ const CustomerDropdown = ({
                     fontSize: 13,
                   },
                 },
-                "No results found",
+                tr("No results found"),
               )
             : filtered.map((c, i) => {
                 const cName = getCustomerName(c);
@@ -3109,7 +3548,7 @@ const CustomerDropdown = ({
                               flexShrink: 0,
                             },
                           },
-                          "Current",
+                          tr("Current"),
                         ),
                     ),
                   ),
@@ -3134,15 +3573,15 @@ const CustomerDropdown = ({
             "span",
             { style: { fontSize: 11.5, color: C.textSub } },
             search
-              ? `${filtered.length} results`
-              : `${filtered.length} customers — newest first`,
+              ? tr("{0} results", { 0: filtered.length })
+              : tr("{0} customers — newest first", { 0: filtered.length }),
           ),
           React.createElement(
             "div",
             { style: { display: "flex", alignItems: "center", gap: 12 } },
             onAddNew &&
               React.createElement(AddNewIconButton, {
-                title: "Add new lead",
+                title: tr("Add new lead"),
                 onClick: () => {
                   setOpen(false);
                   onAddNew();
@@ -3155,7 +3594,7 @@ const CustomerDropdown = ({
                   onClick: () => onChange(null),
                   style: { fontSize: 11.5, color: C.danger, cursor: "pointer" },
                 },
-                "Clear",
+                tr("Clear"),
               ),
           ),
         ),
@@ -3174,14 +3613,14 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
     l.name ||
     [l.firstName, l.lastName].filter(Boolean).join(" ") ||
     l.email ||
-    `Lawyer #${l.id}`;
+    tr("Lawyer #{0}", { 0: l.id });
 
   const GROUP_CONFIG = [
-    { key: "partner", label: "Partner", color: "#7c3aed", bg: "#f3e8ff" },
-    { key: "lawyer", label: "Lawyer", color: "#2563eb", bg: "#eff6ff" },
-    { key: "associate", label: "Associate", color: "#059669", bg: "#d1fae5" },
-    { key: "sales", label: "Sales", color: "#d97706", bg: "#fef3c7" },
-    { key: "suppliant", label: "Suppliant", color: "#4b5563", bg: "#f3f4f6" },
+    { key: "partner", label: tr("Partner"), color: "#7c3aed", bg: "#f3e8ff" },
+    { key: "lawyer", label: tr("Lawyer"), color: "#2563eb", bg: "#eff6ff" },
+    { key: "associate", label: tr("Associate"), color: "#059669", bg: "#d1fae5" },
+    { key: "sales", label: tr("Sales"), color: "#d97706", bg: "#fef3c7" },
+    { key: "suppliant", label: tr("Suppliant"), color: "#4b5563", bg: "#f3f4f6" },
   ];
 
   const filtered = useMemo(() => {
@@ -3299,7 +3738,7 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
                   display: "flex",
                   alignItems: "center",
                 },
-                title: "Clear selection",
+                title: tr("Clear selection"),
               },
               React.createElement(
                 "svg",
@@ -3341,7 +3780,7 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
             React.createElement(
               "span",
               { style: { color: C.textSub, fontSize: 13, flex: 1 } },
-              "— Select lawyer —",
+              tr("— Select lawyer —"),
             ),
             React.createElement(
               "span",
@@ -3403,7 +3842,7 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
               autoFocus: true,
               value: search,
               onChange: (e) => setSearch(e.target.value),
-              placeholder: "Search by name, email...",
+              placeholder: tr("Search by name, email..."),
               style: {
                 ...inp({ paddingLeft: 11, paddingTop: 7, paddingBottom: 7 }),
               },
@@ -3427,7 +3866,7 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
                     fontSize: 13,
                   },
                 },
-                "No results found",
+                tr("No results found"),
               )
             : GROUP_CONFIG.map((group) => {
                 const items = grouped[group.key];
@@ -3507,7 +3946,7 @@ const LawyerPicker = ({ lawyers = [], value, onChange, accentColor }) => {
           React.createElement(
             "span",
             { style: { fontSize: 11.5, color: C.textSub } },
-            `${filtered.length} users`,
+            tr("{0} users", { 0: filtered.length }),
           ),
         ),
       ),
@@ -3591,7 +4030,7 @@ const ApprovalSection = ({
               color: isRequired ? C.approvalText : C.text,
             },
           },
-          "Require approval before sending",
+          tr("Require approval before sending"),
           React.createElement(HelpMark, {
             text: FIELD_HELP["Require approval before sending"],
           }),
@@ -3599,7 +4038,7 @@ const ApprovalSection = ({
         React.createElement(
           "div",
           { style: { fontSize: 11.5, color: C.textSub, marginTop: 1 } },
-          "Quotation will need approval from authorized personnel",
+          tr("Quotation will need approval from authorized personnel"),
         ),
       ),
 
@@ -3618,7 +4057,7 @@ const ApprovalSection = ({
             border: `1px solid ${isRequired ? C.approvalBorder : "#e5e7eb"}`,
           },
         },
-        isRequired ? "Pending Approval" : "Not Required",
+        isRequired ? tr("Pending Approval") : tr("Not Required"),
       ),
     ),
 
@@ -3650,13 +4089,13 @@ const ApprovalSection = ({
             {
               style: { fontSize: 11.5, fontWeight: 700, color: C.approvalText },
             },
-            "Approver",
+            tr("Approver"),
             React.createElement(HelpMark, { text: FIELD_HELP.Approver }),
           ),
           React.createElement(
             "span",
             { style: { fontSize: 11, color: "#9ca3af", fontStyle: "italic" } },
-            "— optional",
+            tr("— optional"),
           ),
         ),
         React.createElement(LawyerPicker, {
@@ -3690,6 +4129,39 @@ const findDuplicateServiceRow = (rows = [], { serviceId, serviceName } = {}) => 
 };
 
 // ==================== SERVICE PICKER MODAL ====================
+// ---- combo merge helpers (pure; tested by scripts/tests/combo-merge.test.js) ----
+// Line/Combo pricing sync (2026-09-25, user rule): when a combo is added
+// while standalone services exist (picked in Line pricing, or added with
+// "New service" before any combo), they are merged INTO that combo — Combo
+// pricing never shows loose lines next to combos. Blank placeholder rows
+// are left alone. Each merged row is tagged with the combo, priced by it
+// (its own value kept as _comboItemSnapshot for reference) and flagged
+// _mergedIntoCombo; its value (contributionOf) joins the combo's amount.
+const mergeStandaloneIntoCombo = (rows, combo, contributionOf) => {
+  const merged = [];
+  let contribution = 0;
+  const next = (rows || []).map((row) => {
+    if (row?._comboInstanceId || !String(row?.serviceName || "").trim()) return row;
+    const value = Math.max(Number(contributionOf(row)) || 0, 0);
+    contribution += value;
+    const mergedRow = {
+      ...row,
+      basePrice: 0,
+      vat: 0,
+      _packageBasePrice: 0,
+      _comboInstanceId: combo.instanceId,
+      _comboCatalogId: combo.catalogId ?? null,
+      _comboName: combo.name || "",
+      _mergedIntoCombo: true,
+      _comboItemSnapshot: row._comboItemSnapshot || { price: value, vat: 0, currency: combo.currency || null },
+    };
+    merged.push(mergedRow);
+    return mergedRow;
+  });
+  return { rows: next, merged, contribution };
+};
+// ---- end combo merge helpers ----
+
 const ServicePickerModal = ({
   svcOpts,
   selectedIds,
@@ -3704,6 +4176,9 @@ const ServicePickerModal = ({
   onApplyCombo,
   onApplyAdhocCombo,
   comboScopeId = null,
+  comboTargets = [],
+  comboTarget = null,
+  onComboTargetChange,
   convertComboAmountToVndSync,
   vndCurrency,
 }) => {
@@ -3820,15 +4295,15 @@ const ServicePickerModal = ({
   };
   const handleApplyAdhocCombo = async () => {
     const errs = {};
-    if (!comboName.trim()) errs.comboName = "Please enter a combo name";
+    if (!comboName.trim()) errs.comboName = tr("Please enter a combo name");
     if (currencies.length && !extractCurrencyId(comboCurrencyId))
-      errs.comboCurrencyId = "Please select a currency";
+      errs.comboCurrencyId = tr("Please select a currency");
     if (!comboItems.length) {
-      errs.items = "Please add at least 1 service to the combo";
+      errs.items = tr("Please add at least 1 service to the combo");
     } else {
       const emptyNameItem = comboItems.find((it) => !String(it.serviceName || "").trim());
       if (emptyNameItem) {
-        errs.items = "One or more services are missing a name";
+        errs.items = tr("One or more services are missing a name");
       } else {
         const seenNames = new Set();
         const duplicateItem = comboItems.find((it) => {
@@ -3837,7 +4312,7 @@ const ServicePickerModal = ({
           seenNames.add(key);
           return false;
         });
-        if (duplicateItem) errs.items = "Duplicate service name in combo";
+        if (duplicateItem) errs.items = tr("Duplicate service name in combo");
       }
     }
     setComboErrors(errs);
@@ -3916,11 +4391,11 @@ const ServicePickerModal = ({
 
   const validate = () => {
     const e = {};
-    if (!newSvc.name.trim()) e.name = "Please enter service name";
+    if (!newSvc.name.trim()) e.name = tr("Please enter service name");
     if (!newSvc.price || newSvc.price <= 0)
-      e.price = "Unit price must be greater than 0";
+      e.price = tr("Unit price must be greater than 0");
     if (currencies.length && !extractCurrencyId(newSvc.currencyId))
-      e.currencyId = "Please select currency";
+      e.currencyId = tr("Please select currency");
     setErrors(e);
     return !Object.keys(e).length;
   };
@@ -3945,7 +4420,7 @@ const ServicePickerModal = ({
           autoFocus: true,
           value: comboSearch,
           onChange: (e) => setComboSearch(e.target.value),
-          placeholder: "Search combo...",
+          placeholder: tr("Search combo..."),
           style: { ...inp(), flex: 1 },
           onFocus,
           onBlur,
@@ -3970,7 +4445,7 @@ const ServicePickerModal = ({
               flexShrink: 0,
             },
           },
-          "+ New combo",
+          tr("+ New combo"),
         ),
       ),
       React.createElement(
@@ -3986,9 +4461,9 @@ const ServicePickerModal = ({
               "tr",
               null,
               React.createElement("th", { style: thS({ width: 36, textAlign: "center" }) }, "#"),
-              React.createElement("th", { style: thS() }, "Combo"),
-              React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, "Combo Price"),
-              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, "Services"),
+              React.createElement("th", { style: thS() }, tr("Combo")),
+              React.createElement("th", { style: thS({ width: 160, textAlign: "right" }) }, tr("Combo Price")),
+              React.createElement("th", { style: thS({ width: 100, textAlign: "center" }) }, tr("Services")),
               React.createElement("th", { style: thS({ width: 90, textAlign: "center" }) }, ""),
             ),
           ),
@@ -4005,14 +4480,14 @@ const ServicePickerModal = ({
                     React.createElement(
                       "div",
                       { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 } },
-                      React.createElement("div", null, "No combos yet"),
+                      React.createElement("div", null, tr("No combos yet")),
                       React.createElement(
                         "span",
                         {
                           onClick: () => setComboTab("create"),
                           style: { color: C.primary, cursor: "pointer", fontSize: 12, textDecoration: "underline" },
                         },
-                        "New combo",
+                        tr("New combo"),
                       ),
                     ),
                   ),
@@ -4069,7 +4544,7 @@ const ServicePickerModal = ({
                         React.createElement(
                           "span",
                           { style: { fontWeight: 700, color: C.text, overflowWrap: "anywhere" } },
-                          c.comboName || `Combo #${c.id}`,
+                          c.comboName || tr("Combo #{0}", { 0: c.id }),
                         ),
                         c.serviceComboType &&
                           React.createElement(
@@ -4108,13 +4583,13 @@ const ServicePickerModal = ({
                         React.createElement(
                           "span",
                           { style: { fontSize: 10.5, color: C.textSub } },
-                          `VAT ${parseNum(c.packageVatRate)}%`,
+                          tr("VAT {0}%", { 0: parseNum(c.packageVatRate) }),
                         ),
                         comboSavings > 0 &&
                           React.createElement(
                             "span",
                             { style: { fontSize: 10.5, color: C.success, fontWeight: 600 } },
-                            `Tiết kiệm ${formatMoneyByCurrency(comboSavings, vndCurrency)} (${comboSavingsPct}%)`,
+                            tr("Save {0} ({1}%)", { 0: formatMoneyByCurrency(comboSavings, vndCurrency), 1: comboSavingsPct }),
                           ),
                       ),
                     ),
@@ -4139,7 +4614,7 @@ const ServicePickerModal = ({
                             fontWeight: 600,
                           },
                         },
-                        "Select",
+                        tr("Select"),
                       ),
                     ),
                   );
@@ -4165,7 +4640,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          "Close",
+          tr("Close"),
         ),
       ),
     );
@@ -4192,7 +4667,7 @@ const ServicePickerModal = ({
               React.createElement(
                 "span",
                 { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.text } },
-                "Combo Name",
+                tr("Combo Name"),
               ),
               React.createElement("span", { style: { color: C.danger, marginLeft: 3, fontSize: 12 } }, "*"),
             ),
@@ -4202,7 +4677,7 @@ const ServicePickerModal = ({
                 setComboName(e.target.value);
                 setComboErrors((p) => ({ ...p, comboName: "" }));
               },
-              placeholder: "E.g. Business incorporation consulting combo...",
+              placeholder: tr("E.g. Business incorporation consulting combo..."),
               style: { ...inp(), ...(comboErrors.comboName ? { borderColor: C.danger } : {}) },
               onFocus,
               onBlur,
@@ -4219,14 +4694,14 @@ const ServicePickerModal = ({
               React.createElement(
                 "span",
                 { style: { fontFamily: FONT, fontSize: 11.5, fontWeight: 600, color: C.text } },
-                "Combo Type",
+                tr("Combo Type"),
               ),
               React.createElement("span", { style: { color: "#9ca3af", marginLeft: 6, fontSize: 11, fontStyle: "italic" } }, "optional"),
             ),
             React.createElement("input", {
               value: comboType,
               onChange: (e) => setComboType(e.target.value),
-              placeholder: "E.g. Business, Education...",
+              placeholder: tr("E.g. Business, Education..."),
               style: inp(),
               onFocus,
               onBlur,
@@ -4242,7 +4717,7 @@ const ServicePickerModal = ({
             React.createElement(
               "div",
               { style: { fontSize: 11.5, fontWeight: 600, color: C.text, marginBottom: 5 } },
-              "Combo Subtotal",
+              tr("Combo Subtotal"),
             ),
             React.createElement(
               "div",
@@ -4253,6 +4728,7 @@ const ServicePickerModal = ({
                 React.createElement(PriceInput, {
                   value: comboSubTotal,
                   onChange: setComboSubTotal,
+                  currency: selectedComboCurrency,
                 }),
               ),
               React.createElement(
@@ -4266,7 +4742,7 @@ const ServicePickerModal = ({
                     style: inp(),
                     disabled: !currencies.length,
                   },
-                  React.createElement("option", { value: "" }, "Currency"),
+                  React.createElement("option", { value: "" }, tr("Currency")),
                   ...currencyOptions.map((option) =>
                     React.createElement("option", { key: option.value, value: option.value }, option.label),
                   ),
@@ -4285,11 +4761,11 @@ const ServicePickerModal = ({
                 return React.createElement(
                   "div",
                   { style: { marginTop: 6, fontSize: 11.5, color: C.textSub, display: "flex", flexWrap: "wrap", gap: 6 } },
-                  React.createElement("span", null, `Giá lẻ: ${formatMoney(originalTotal, selectedComboCurrency)}`),
+                  React.createElement("span", null, tr("Individual price: {0}", { 0: formatMoneyByCurrency(originalTotal, selectedComboCurrency) })),
                   delta < 0 &&
-                    React.createElement("span", { style: { color: C.success, fontWeight: 600 } }, `Giảm ${formatMoney(-delta, selectedComboCurrency)}`),
+                    React.createElement("span", { style: { color: C.success, fontWeight: 600 } }, tr("Discount {0}", { 0: formatMoneyByCurrency(-delta, selectedComboCurrency) })),
                   delta > 0 &&
-                    React.createElement("span", { style: { color: C.warning, fontWeight: 600 } }, `Tăng ${formatMoney(delta, selectedComboCurrency)}`),
+                    React.createElement("span", { style: { color: C.warning, fontWeight: 600 } }, tr("Increase {0}", { 0: formatMoneyByCurrency(delta, selectedComboCurrency) })),
                 );
               })(),
           ),
@@ -4299,7 +4775,7 @@ const ServicePickerModal = ({
             React.createElement(
               "div",
               { style: { fontSize: 11.5, fontWeight: 600, color: C.text, marginBottom: 5 } },
-              "VAT %",
+              tr("VAT %"),
             ),
             React.createElement("input", {
               type: "number",
@@ -4320,7 +4796,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             { style: { fontSize: 13, fontWeight: 700, color: C.text, fontFamily: FONT } },
-            `Services in combo (${comboItems.length})`,
+            tr("Services in combo ({0})", { 0: comboItems.length }),
           ),
           React.createElement(
             "div",
@@ -4337,12 +4813,12 @@ const ServicePickerModal = ({
                 },
                 style: { ...inp(), width: 220 },
               },
-              React.createElement("option", { value: "" }, "+ Add existing service..."),
+              React.createElement("option", { value: "" }, tr("+ Add existing service...")),
               ...comboAvailableCatalogItems.map((s) =>
                 React.createElement(
                   "option",
                   { key: serviceOptionServiceId(s), value: serviceOptionServiceId(s) },
-                  serviceOptionName(s) || `Service #${serviceOptionServiceId(s)}`,
+                  serviceOptionName(s) || tr("Service #{0}", { 0: serviceOptionServiceId(s) }),
                 ),
               ),
             ),
@@ -4364,7 +4840,7 @@ const ServicePickerModal = ({
                   whiteSpace: "nowrap",
                 },
               },
-              "+ New service",
+              tr("+ New service"),
             ),
           ),
         ),
@@ -4385,7 +4861,7 @@ const ServicePickerModal = ({
                   fontFamily: FONT,
                 },
               },
-              "No services yet — add one from the list or create a new one.",
+              tr("No services yet — add one from the list or create a new one."),
             )
           : React.createElement(
               "div",
@@ -4400,10 +4876,10 @@ const ServicePickerModal = ({
                   "tr",
                   null,
                   React.createElement("th", { style: comboTh({ width: 28, textAlign: "center" }) }, "#"),
-                  React.createElement("th", { style: comboTh({ width: "28%" }) }, "Service name"),
-                  React.createElement("th", { style: comboTh({ width: 110 }) }, "Type"),
-                  React.createElement("th", { style: comboTh({ width: 130, textAlign: "right" }) }, "Unit Price"),
-                  React.createElement("th", { style: comboTh() }, "Description"),
+                  React.createElement("th", { style: comboTh({ width: "28%" }) }, tr("Service name")),
+                  React.createElement("th", { style: comboTh({ width: 110 }) }, tr("Type")),
+                  React.createElement("th", { style: comboTh({ width: 130, textAlign: "right" }) }, tr("Unit Price")),
+                  React.createElement("th", { style: comboTh() }, tr("Description")),
                   React.createElement("th", { style: comboTh({ width: 32 }) }, ""),
                 ),
               ),
@@ -4430,13 +4906,13 @@ const ServicePickerModal = ({
                             React.createElement("input", {
                               value: item.serviceName || "",
                               onChange: (e) => updateComboItem(item._id, "serviceName", e.target.value),
-                              placeholder: "New service name...",
+                              placeholder: tr("New service name..."),
                               style: inp({ fontSize: 13, padding: "5px 8px" }),
                               onFocus,
                               onBlur,
                             }),
                             isNameAlreadyInCatalog &&
-                              React.createElement("div", { style: { fontSize: 11, color: C.textSub, marginTop: 3 } }, "Already in the standardized catalog"),
+                              React.createElement("div", { style: { fontSize: 11, color: C.textSub, marginTop: 3 } }, tr("Already in the standardized catalog")),
                           )
                         : React.createElement("span", { style: { fontWeight: 600, color: C.text } }, item.serviceName),
                     ),
@@ -4447,7 +4923,7 @@ const ServicePickerModal = ({
                         ? React.createElement("input", {
                             value: item.serviceType || "",
                             onChange: (e) => updateComboItem(item._id, "serviceType", e.target.value),
-                            placeholder: "Type (optional)...",
+                            placeholder: tr("Type (optional)..."),
                             style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                             onFocus,
                             onBlur,
@@ -4463,7 +4939,7 @@ const ServicePickerModal = ({
                             onChange: (v) => updateComboItem(item._id, "basePrice", v),
                             currency: selectedComboCurrency,
                           })
-                        : React.createElement("span", { style: { color: C.text, fontSize: 12.5, fontFamily: FONT_MONO } }, formatMoney(item.basePrice || 0, selectedComboCurrency)),
+                        : React.createElement("span", { style: { color: C.text, fontSize: 12.5, fontFamily: FONT_MONO } }, formatMoneyByCurrency(item.basePrice || 0, selectedComboCurrency)),
                     ),
                     React.createElement(
                       "td",
@@ -4472,7 +4948,7 @@ const ServicePickerModal = ({
                         ? React.createElement("input", {
                             value: item.description || "",
                             onChange: (e) => updateComboItem(item._id, "description", e.target.value),
-                            placeholder: "Description (optional)...",
+                            placeholder: tr("Description (optional)..."),
                             style: inp({ fontSize: 12.5, padding: "5px 8px" }),
                             onFocus,
                             onBlur,
@@ -4487,7 +4963,7 @@ const ServicePickerModal = ({
                         {
                           type: "button",
                           onClick: () => removeComboItem(item._id),
-                          title: "Remove",
+                          title: tr("Remove"),
                           style: { border: "none", background: "transparent", color: C.danger, cursor: "pointer", fontSize: 15, lineHeight: 1 },
                         },
                         "×",
@@ -4527,7 +5003,7 @@ const ServicePickerModal = ({
           React.createElement(
             "span",
             null,
-            "Also save this combo to the shared catalog (created only if you finish creating this quotation). All custom services in it are saved too — services already in the catalog are simply reused.",
+            tr("Also save this combo to the shared catalog (created only if you finish creating this quotation). All custom services in it are saved too — services already in the catalog are simply reused."),
           ),
         ),
       ),
@@ -4559,7 +5035,7 @@ const ServicePickerModal = ({
               color: C.text,
             },
           },
-          "Back",
+          tr("Back"),
         ),
         React.createElement(
           "button",
@@ -4578,7 +5054,7 @@ const ServicePickerModal = ({
               fontFamily: FONT,
             },
           },
-          comboApplying ? "Applying..." : "Submit",
+          comboApplying ? tr("Applying...") : tr("Submit"),
         ),
       ),
     );
@@ -4662,8 +5138,8 @@ const ServicePickerModal = ({
               "div",
               { style: { display: "flex", alignItems: "center", gap: 4 } },
               [
-                [false, "Select from list"],
-                [true, "Create new service"],
+                [false, tr("Select from list")],
+                [true, tr("Create new service")],
               ].map(([tabIsAdd, label]) =>
                 React.createElement(
                   "button",
@@ -4693,7 +5169,7 @@ const ServicePickerModal = ({
           : React.createElement(
               "span",
               { style: { fontWeight: 700, fontSize: 15, color: C.text, fontFamily: FONT } },
-              comboTab === "create" ? "New Combo" : "Select Combo",
+              comboTab === "create" ? tr("New Combo") : tr("Select Combo"),
             ),
         React.createElement(
           "span",
@@ -4706,7 +5182,7 @@ const ServicePickerModal = ({
               lineHeight: 1,
             },
           },
-          "Close",
+          tr("Close"),
         ),
       ),
 
@@ -4727,8 +5203,8 @@ const ServicePickerModal = ({
               value: mode,
               onChange: (value) => setMode(value),
               options: [
-                { value: "individual", label: "Line pricing" },
-                { value: "combo", label: "Combo pricing" },
+                { value: "individual", label: tr("Line pricing") },
+                { value: "combo", label: tr("Combo pricing") },
               ],
               style: { width: "100%", maxWidth: 360 },
             })
@@ -4745,8 +5221,8 @@ const ServicePickerModal = ({
                 },
               },
               [
-                ["individual", "Line pricing"],
-                ["combo", "Combo pricing"],
+                ["individual", tr("Line pricing")],
+                ["combo", tr("Combo pricing")],
               ].map(([m, label]) =>
                 React.createElement(
                   "button",
@@ -4773,6 +5249,50 @@ const ServicePickerModal = ({
             ),
       ),
 
+      !comboScopeId &&
+      mode === "individual" &&
+      comboTarget &&
+      comboTargets.length > 0 &&
+      React.createElement(
+        "div",
+        {
+          style: {
+            padding: "10px 20px",
+            borderBottom: `1px solid ${C.border}`,
+            background: C.bgSection,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexWrap: "wrap",
+            flexShrink: 0,
+          },
+        },
+        React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: C.text } }, tr("Add to combo:")),
+        React.createElement(
+          "select",
+          {
+            value: comboTarget,
+            onChange: (e) => onComboTargetChange?.(e.target.value),
+            style: {
+              border: `1px solid ${C.border}`,
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 13,
+              minWidth: 220,
+              maxWidth: "100%",
+              background: "#fff",
+            },
+          },
+          comboTargets.map((target) =>
+            React.createElement("option", { key: target.key, value: target.key }, target.name),
+          ),
+        ),
+        React.createElement(
+          "span",
+          { style: { fontSize: 12, color: C.textSub } },
+          tr("Combo pricing keeps every service inside a combo."),
+        ),
+      ),
       mode === "individual" &&
       (!showAdd
         ? React.createElement(
@@ -4793,7 +5313,7 @@ const ServicePickerModal = ({
                 autoFocus: true,
                 value: search,
                 onChange: (e) => setSearch(e.target.value),
-                placeholder: "Search service name...",
+                placeholder: tr("Search service name..."),
                 style: { ...inp(), flex: 1 },
                 onFocus,
                 onBlur,
@@ -4814,7 +5334,7 @@ const ServicePickerModal = ({
                     fontFamily: FONT,
                   },
                 },
-                "Create new",
+                tr("Create new"),
               ),
             ),
             React.createElement(
@@ -4834,21 +5354,21 @@ const ServicePickerModal = ({
                       { style: thS({ width: 36, textAlign: "center" }) },
                       "#",
                     ),
-                    React.createElement("th", { style: thS() }, "Service Name"),
+                    React.createElement("th", { style: thS() }, tr("Service Name")),
                     React.createElement(
                       "th",
                       { style: thS({ width: 130 }) },
-                      "Type",
+                      tr("Type"),
                     ),
                     React.createElement(
                       "th",
                       { style: thS({ width: 160, textAlign: "right" }) },
-                      "Unit Price",
+                      tr("Unit Price"),
                     ),
                     React.createElement(
                       "th",
                       { style: thS({ width: 80, textAlign: "center" }) },
-                      "Currency",
+                      tr("Currency"),
                     ),
                     React.createElement(
                       "th",
@@ -4887,7 +5407,7 @@ const ServicePickerModal = ({
                             React.createElement(
                               "div",
                               null,
-                              "No services found",
+                              tr("No services found"),
                             ),
                             React.createElement(
                               "span",
@@ -4900,7 +5420,7 @@ const ServicePickerModal = ({
                                   textDecoration: "underline",
                                 },
                               },
-                              "Create now",
+                              tr("Create now"),
                             ),
                           ),
                         ),
@@ -4909,7 +5429,7 @@ const ServicePickerModal = ({
                         const svcId = serviceOptionServiceId(s);
                         const isUsed = selectedIds.includes(String(svcId));
                         const svcName =
-                          serviceOptionName(s) || `Service #${svcId || s.id}`;
+                          serviceOptionName(s) || tr("Service #{0}", { 0: svcId || s.id });
                         const price = serviceOptionPrice(s);
                         const svcType = serviceOptionType(s);
                         const description = serviceOptionDescription(s);
@@ -5011,7 +5531,7 @@ const ServicePickerModal = ({
                           React.createElement(
                             "td",
                             { style: tdS({ textAlign: "right" }) },
-                            formatMoneyByCurrency(price, serviceCurrency),
+                            React.createElement("div", null, formatMoneyByCurrency(price, serviceCurrency), catalogVndText(s, serviceCurrency) && React.createElement("div", { style: { fontSize: 11, color: "rgba(0, 0, 0, 0.45)", fontWeight: 400 } }, catalogVndText(s, serviceCurrency))),
                           ),
                           React.createElement(
                             "td",
@@ -5032,7 +5552,7 @@ const ServicePickerModal = ({
                               ? React.createElement(
                                   "span",
                                   {
-                                    title: "Selected",
+                                    title: tr("Selected"),
                                     style: {
                                       display: "inline-flex",
                                       alignItems: "center",
@@ -5077,7 +5597,7 @@ const ServicePickerModal = ({
                                       fontFamily: FONT,
                                     },
                                   },
-                                  "Select",
+                                  tr("Select"),
                                 ),
                           ),
                         );
@@ -5110,7 +5630,7 @@ const ServicePickerModal = ({
                     fontFamily: FONT,
                   },
                 },
-                "Close",
+                tr("Close"),
               ),
             ),
           )
@@ -5124,24 +5644,24 @@ const ServicePickerModal = ({
                 [
                   {
                     key: "name",
-                    label: "Service Name",
+                    label: tr("Service Name"),
                     req: true,
                     type: "input",
-                    placeholder: "e.g., Labor contract consulting...",
+                    placeholder: tr("e.g., Labor contract consulting..."),
                   },
                   {
                     key: "serviceType",
-                    label: "Service Type",
+                    label: tr("Service Type"),
                     req: false,
                     type: "input",
-                    placeholder: "e.g., Consulting, Legal...",
+                    placeholder: tr("e.g., Consulting, Legal..."),
                     hint: "optional",
                   },
                 ],
                 [
                   {
                     key: "price",
-                    label: "Unit Price",
+                    label: tr("Unit Price"),
                     req: true,
                     type: "price_currency",
                   },
@@ -5149,7 +5669,7 @@ const ServicePickerModal = ({
                 [
                   {
                     key: "vat",
-                    label: "VAT (%)",
+                    label: tr("VAT (%)"),
                     req: false,
                     type: "vat",
                     hint: "optional",
@@ -5158,10 +5678,10 @@ const ServicePickerModal = ({
                 [
                   {
                     key: "description",
-                    label: "Description",
+                    label: tr("Description"),
                     req: false,
                     type: "textarea",
-                    placeholder: "Scope of work, notes...",
+                    placeholder: tr("Scope of work, notes..."),
                     hint: "optional",
                   },
                 ],
@@ -5192,6 +5712,7 @@ const ServicePickerModal = ({
                                     setNewSvc({ ...newSvc, price: v });
                                     setErrors((p) => ({ ...p, price: "" }));
                                   },
+                                  currency: findCurrencyById(currencies, newSvc.currencyId) || null,
                                 }),
                               ),
                               React.createElement(
@@ -5220,7 +5741,7 @@ const ServicePickerModal = ({
                                   React.createElement(
                                     "option",
                                     { value: "" },
-                                    currencies.length ? "Currency" : "No currencies configured",
+                                    currencies.length ? tr("Currency") : tr("No currencies configured"),
                                   ),
                                   ...currencyOptions.map((option) =>
                                     React.createElement(
@@ -5257,8 +5778,8 @@ const ServicePickerModal = ({
                                 "option",
                                 { value: "" },
                                 currencies.length
-                                  ? "Select currency"
-                                  : "No currencies configured",
+                                  ? tr("Select currency")
+                                  : tr("No currencies configured"),
                               ),
                               ...currencyOptions.map((option) =>
                                 React.createElement(
@@ -5275,6 +5796,7 @@ const ServicePickerModal = ({
                                   setNewSvc({ ...newSvc, price: v });
                                   setErrors((p) => ({ ...p, price: "" }));
                                 },
+                                currency: findCurrencyById(currencies, newSvc.currencyId) || null,
                               })
                             : f.type === "vat"
                               ? React.createElement("input", {
@@ -5364,8 +5886,8 @@ const ServicePickerModal = ({
                   "span",
                   null,
                   isNameAlreadyInCatalog
-                    ? "This name already exists in the shared catalog — it will be reused, not duplicated."
-                    : "Also save to the shared catalog (created only if you finish creating this quotation).",
+                    ? tr("This name already exists in the shared catalog — it will be reused, not duplicated.")
+                    : tr("Also save to the shared catalog (created only if you finish creating this quotation)."),
                 ),
               ),
             ),
@@ -5400,7 +5922,7 @@ const ServicePickerModal = ({
                     color: C.text,
                   },
                 },
-                "Cancel",
+                tr("Cancel"),
               ),
               React.createElement(
                 "button",
@@ -5426,7 +5948,7 @@ const ServicePickerModal = ({
                     fontFamily: FONT,
                   },
                 },
-                "Save & Select",
+                tr("Save & Select"),
               ),
             ),
           )),
@@ -5511,7 +6033,7 @@ const ExpandableText = ({ text, limit = 100 }) => {
     return React.createElement(
       "span",
       { style: { fontSize: 12, color: "#d1d5db", fontStyle: "italic" } },
-      "No description",
+      tr("No description"),
     );
   }
   if (value.length <= limit) {
@@ -5541,7 +6063,7 @@ const ExpandableText = ({ text, limit = 100 }) => {
           whiteSpace: "nowrap",
         },
       },
-      expanded ? "Show less" : "Show more",
+      expanded ? tr("Show less") : tr("Show more"),
     ),
   );
 };
@@ -5581,9 +6103,14 @@ const ServicesTable = ({
   // of landing as an untagged row, and the picker's Individual/Combo mode
   // toggle is hidden (adding INTO an existing combo, not creating another).
   const [comboAddInstanceId, setComboAddInstanceId] = useState(null);
+  // Line/Combo sync (2026-09-25): in Combo pricing with combos present, a
+  // service added from the top-level "New service" goes into a combo the
+  // user picks (default: the last one) instead of a loose line.
+  const [addToComboTarget, setAddToComboTarget] = useState(null);
   const closePicker = () => {
     setPickerOpen(false);
     setComboAddInstanceId(null);
+    setAddToComboTarget(null);
   };
   const [editingRows, setEditingRows] = useState({});
   const toggleRowEdit = (rowId) =>
@@ -5592,6 +6119,16 @@ const ServicesTable = ({
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [exchangeRates, setExchangeRates] = useState([]);
   const packageMode = isPackagePricing(pricingMode);
+  const comboTargets = [];
+  rows.forEach((row) => {
+    const key = row._comboInstanceId;
+    if (!key || comboTargets.some((target) => target.key === key)) return;
+    comboTargets.push({ key, name: row._comboName || row.comboName || "Combo" });
+  });
+  const openTopLevelPicker = () => {
+    setAddToComboTarget(packageMode && comboTargets.length ? comboTargets[comboTargets.length - 1].key : null);
+    setPickerOpen(true);
+  };
   const baseCurrency = selectedCurrency || findDefaultCurrency(currencies);
   const baseCurrencyId = extractCurrencyId(baseCurrency);
   // Separate from `exchangeRates` above (which is cleared to [] while in
@@ -5705,17 +6242,15 @@ const ServicesTable = ({
       sameCurrency: false,
       canConvert: true,
       rate: matched.rate,
-      subTotal: amounts.subTotal * matched.rate,
-      vatAmount: amounts.vatAmount * matched.rate,
-      totalAmount: amounts.totalAmount * matched.rate,
+      ...convertLinesToBase([amounts], matched.rate),
     };
   };
 
   // ── Review Changes helpers ──
   const compareFields = [
-    { key: "serviceName", label: "Service Name", type: "text" },
-    { key: "description", label: "Description", type: "text" },
-    { key: "basePrice", label: "Unit Price", type: "money" },
+    { key: "serviceName", label: tr("Service Name"), type: "text" },
+    { key: "description", label: tr("Description"), type: "text" },
+    { key: "basePrice", label: tr("Unit Price"), type: "money" },
   ];
   const fmtCmpVal = (v, type) => {
     if (type === "money")
@@ -5823,7 +6358,7 @@ const ServicesTable = ({
         no: idx + 1,
         row,
         catalogMissing: !cat,
-        serviceName: row.serviceName || "— not selected —",
+        serviceName: row.serviceName || tr("— not selected —"),
         originalName: cat ? getCatalogVal(cat, "serviceName") : "",
         changedCount: diffRows.length,
         changedLabels: diffRows.map((r) => r.field).join(", "),
@@ -5846,7 +6381,7 @@ const ServicesTable = ({
             fontFamily: FONT,
           },
         },
-        "So sánh giá trị dịch vụ hiện tại trong form với dữ liệu gốc từ Company Service catalog.",
+        tr("Compare each service in the form with the company service catalog."),
       ),
       React.createElement(AntTable, {
         dataSource: tableRows,
@@ -5856,9 +6391,9 @@ const ServicesTable = ({
         bordered: true,
         scroll: { x: "max-content" },
         columns: [
-          { title: "No.", dataIndex: "no", width: 54, align: "center" },
+          { title: tr("No."), dataIndex: "no", width: 54, align: "center" },
           {
-            title: "Service in Quotation",
+            title: tr("Service in Quotation"),
             dataIndex: "serviceName",
             width: 230,
             render: (v) =>
@@ -5876,7 +6411,7 @@ const ServicesTable = ({
               ),
           },
           {
-            title: "Catalog Service",
+            title: tr("Catalog Service"),
             dataIndex: "originalName",
             width: 220,
             render: (v, row) =>
@@ -5884,7 +6419,7 @@ const ServicesTable = ({
                 ? React.createElement(
                     ctx.antd.Tag,
                     { color: "default" },
-                    "No catalog",
+                    tr("No catalog"),
                   )
                 : React.createElement(
                     "span",
@@ -5893,14 +6428,14 @@ const ServicesTable = ({
                   ),
           },
           {
-            title: "Changes",
+            title: tr("Changes"),
             width: 220,
             render: (_, row) =>
               row.catalogMissing
                 ? React.createElement(
                     ctx.antd.Tag,
                     { color: "default" },
-                    "No catalog link",
+                    tr("No catalog link"),
                   )
                 : row.changedCount
                   ? React.createElement(
@@ -5909,7 +6444,7 @@ const ServicesTable = ({
                       React.createElement(
                         ctx.antd.Tag,
                         { color: "red" },
-                        `${row.changedCount} changed`,
+                        tr("{0} changed", { 0: row.changedCount }),
                       ),
                       React.createElement(
                         "div",
@@ -5928,11 +6463,11 @@ const ServicesTable = ({
                   : React.createElement(
                       ctx.antd.Tag,
                       { color: "green" },
-                      "No change",
+                      tr("No change"),
                     ),
           },
           {
-            title: "Detail",
+            title: tr("Detail"),
             width: 90,
             align: "center",
             render: (_, row) =>
@@ -5942,7 +6477,7 @@ const ServicesTable = ({
                   size: "small",
                   onClick: () => setCompareModal({ open: true, data: row.row }),
                 },
-                "View",
+                tr("View"),
               ),
           },
         ],
@@ -5986,7 +6521,7 @@ const ServicesTable = ({
                 fontFamily: FONT,
               },
             },
-            "Service in Quotation",
+            tr("Service in Quotation"),
           ),
           React.createElement(
             "div",
@@ -5999,7 +6534,7 @@ const ServicesTable = ({
                 fontFamily: FONT,
               },
             },
-            row.serviceName || "— not selected —",
+            row.serviceName || tr("— not selected —"),
           ),
         ),
         cat
@@ -6010,13 +6545,13 @@ const ServicesTable = ({
                 style: { marginRight: 0 },
               },
               changedRows.length
-                ? `${changedRows.length} field(s) changed`
-                : "No change",
+                ? tr("{0} field(s) changed", { 0: changedRows.length })
+                : tr("No change"),
             )
           : React.createElement(
               ctx.antd.Tag,
               { color: "default", style: { marginRight: 0 } },
-              "No catalog service",
+              tr("No catalog service"),
             ),
       ),
       !cat &&
@@ -6034,7 +6569,7 @@ const ServicesTable = ({
               fontFamily: FONT,
             },
           },
-          "This service is not linked to a catalog service — no comparison data available.",
+          tr("This service is not linked to a catalog service — no comparison data available."),
         ),
       React.createElement(AntTable, {
         dataSource: cmpRows,
@@ -6044,9 +6579,9 @@ const ServicesTable = ({
         bordered: true,
         rowClassName: (r) => (r.changed ? "" : ""),
         columns: [
-          { title: "Field", dataIndex: "field", width: 140 },
+          { title: tr("Field"), dataIndex: "field", width: 140 },
           {
-            title: "Catalog (Original)",
+            title: tr("Catalog (Original)"),
             dataIndex: "original",
             render: (v, r) =>
               React.createElement(
@@ -6062,7 +6597,7 @@ const ServicesTable = ({
               ),
           },
           {
-            title: "Current in Form",
+            title: tr("Current in Form"),
             dataIndex: "quoted",
             render: (v, r) =>
               React.createElement(
@@ -6078,7 +6613,7 @@ const ServicesTable = ({
               ),
           },
           {
-            title: "Status",
+            title: tr("Status"),
             width: 110,
             align: "center",
             render: (_, r) =>
@@ -6086,18 +6621,18 @@ const ServicesTable = ({
                 ? React.createElement(
                     ctx.antd.Tag,
                     { color: "default" },
-                    "No catalog",
+                    tr("No catalog"),
                   )
                 : r.changed
                   ? React.createElement(
                       ctx.antd.Tag,
                       { color: "red" },
-                      "Changed",
+                      tr("Changed"),
                     )
                   : React.createElement(
                       ctx.antd.Tag,
                       { color: "green" },
-                      "Same",
+                      tr("Same"),
                     ),
           },
         ],
@@ -6203,7 +6738,7 @@ const ServicesTable = ({
                     cursor: "pointer",
                   },
                 },
-                `Xem quy đổi tiền tệ (${financialSummary.groups.length} loại)`,
+                tr("View currency breakdown ({0} currencies)", { 0: financialSummary.groups.length }),
               ),
             !packageMode &&
               !canShowTotals &&
@@ -6222,7 +6757,7 @@ const ServicesTable = ({
                     maxWidth: 320,
                   },
                 },
-                `Thiếu tỷ giá quy đổi (${formatMissingRatePairs(financialSummary.missing, baseCurrency)}) — tổng báo giá chưa được cập nhật chính xác.`,
+                tr("Missing exchange rate ({0}) — the total is not final.", { 0: formatMissingRatePairs(financialSummary.missing, baseCurrency) }),
               ),
           ),
           React.createElement(
@@ -6236,7 +6771,7 @@ const ServicesTable = ({
                     React.createElement(
                       "div",
                       { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 24 } },
-                      React.createElement("span", { style: summaryLabelStyle(false) }, "Combo Subtotal:"),
+                      React.createElement("span", { style: summaryLabelStyle(false) }, tr("Combo subtotal:")),
                       React.createElement(PriceInput, {
                         value: packageSubTotal,
                         onChange: (v) => onPackageChange("packageSubTotal", v),
@@ -6246,7 +6781,7 @@ const ServicesTable = ({
                   React.createElement(
                     "div",
                     { key: "vatRate", style: summaryRowStyle(true) },
-                    React.createElement("span", { style: summaryLabelStyle(false) }, "VAT %:"),
+                    React.createElement("span", { style: summaryLabelStyle(false) }, tr("VAT (%):")),
                     React.createElement("input", {
                       type: "number",
                       min: 0,
@@ -6263,7 +6798,7 @@ const ServicesTable = ({
                   React.createElement(
                     "div",
                     { key: "vatAmount", style: summaryRowStyle(true) },
-                    React.createElement("span", { style: summaryLabelStyle(false) }, "VAT Amount:"),
+                    React.createElement("span", { style: summaryLabelStyle(false) }, tr("VAT amount:")),
                     React.createElement(
                       "span",
                       { style: summaryValueStyle("#d48806", false) },
@@ -6273,7 +6808,7 @@ const ServicesTable = ({
                   React.createElement(
                     "div",
                     { key: "total", style: summaryRowStyle(false) },
-                    React.createElement("span", { style: summaryLabelStyle(true) }, "Combo Total:"),
+                    React.createElement("span", { style: summaryLabelStyle(true) }, tr("Combo total:")),
                     React.createElement(
                       "span",
                       { style: summaryValueStyle("#389e0d", true) },
@@ -6283,7 +6818,7 @@ const ServicesTable = ({
                 ]
               : [
                   [
-                    "Subtotal (excl. VAT)",
+                    tr("Subtotal (excl. VAT)"),
                     canShowTotals
                       ? formatMoneyByCurrency(financialSummary.converted.subTotal, baseCurrency)
                       : "—",
@@ -6291,7 +6826,7 @@ const ServicesTable = ({
                     false,
                   ],
                   [
-                    "VAT Amount",
+                    tr("VAT amount"),
                     canShowTotals
                       ? formatMoneyByCurrency(financialSummary.converted.vatAmount, baseCurrency)
                       : "—",
@@ -6299,7 +6834,7 @@ const ServicesTable = ({
                     false,
                   ],
                   [
-                    "Total",
+                    tr("Total"),
                     canShowTotals
                       ? formatMoneyByCurrency(financialSummary.converted.totalAmount, baseCurrency)
                       : "—",
@@ -6317,14 +6852,6 @@ const ServicesTable = ({
           ),
         )
       : null;
-
-  const getBreakdownGroupRate = (group) => {
-    const sameBase = isSameCurrency(group.currency, baseCurrency);
-    const matched = sameBase
-      ? { rate: 1 }
-      : pickConversionRate(exchangeRates, group.currency, baseCurrency);
-    return matched?.rate || null;
-  };
 
   // One header <tr> (colSpan across all 7 columns) rendered right before the
   // first row of each applied-combo section, so combo-derived rows are
@@ -6440,12 +6967,12 @@ const ServicesTable = ({
                   flexShrink: 0,
                 },
               },
-              "COMBO",
+              tr("COMBO"),
             ),
             React.createElement(
               "span",
               { style: { fontWeight: 700, color: C.text, fontSize: 13.5, overflowWrap: "anywhere" } },
-              combo?.comboName || "Combo",
+              combo?.comboName || tr("Combo"),
             ),
           ),
           // Bottom row: pricing on the left, actions pinned to the right.
@@ -6486,13 +7013,13 @@ const ServicesTable = ({
                 React.createElement(
                   "span",
                   { style: { fontSize: 11.5, color: C.textSub } },
-                  `Giá lẻ: ${formatMoneyByCurrency(priceComparison.individualTotal, priceComparison.currency)}`,
+                  tr("Individual price: {0}", { 0: formatMoneyByCurrency(priceComparison.individualTotal, priceComparison.currency) }),
                 ),
               priceComparison && priceComparison.savings > 0 &&
                 React.createElement(
                   "span",
                   { style: { fontSize: 11.5, color: C.success, fontWeight: 600 } },
-                  `Tiết kiệm ${formatMoneyByCurrency(priceComparison.savings, priceComparison.currency)} (${priceComparison.savingsPct}%)`,
+                  tr("Save {0} ({1}%)", { 0: formatMoneyByCurrency(priceComparison.savings, priceComparison.currency), 1: priceComparison.savingsPct }),
                 ),
             ),
             React.createElement(
@@ -6507,7 +7034,7 @@ const ServicesTable = ({
                       setComboAddInstanceId(instanceId);
                       setPickerOpen(true);
                     },
-                    title: "Add service to this combo",
+                    title: tr("Add service to this combo"),
                     style: {
                       border: `1px dashed ${C.primary}`,
                       background: "#fff",
@@ -6520,7 +7047,7 @@ const ServicesTable = ({
                       fontFamily: FONT,
                     },
                   },
-                  "+ Add service",
+                  tr("+ Add service"),
                 ),
               onRemoveCombo &&
                 React.createElement(
@@ -6528,7 +7055,7 @@ const ServicesTable = ({
                   {
                     type: "button",
                     onClick: () => onRemoveCombo(instanceId),
-                    title: "Remove this combo",
+                    title: tr("Remove this combo"),
                     style: {
                       border: `1px solid ${C.danger}`,
                       background: "#fff",
@@ -6541,7 +7068,7 @@ const ServicesTable = ({
                       fontFamily: FONT,
                     },
                   },
-                  "× Remove combo",
+                  tr("× Remove combo"),
                 ),
             ),
           ),
@@ -6591,7 +7118,7 @@ const ServicesTable = ({
               fontFamily: FONT,
             },
           },
-          "Please select Internal Company first",
+          tr("Please select Internal Company first"),
         ),
       ),
 
@@ -6604,6 +7131,9 @@ const ServicesTable = ({
         currencyOptions,
         defaultCurrencyId: extractCurrencyId(selectedCurrency),
         comboScopeId: comboAddInstanceId,
+        comboTargets: packageMode ? comboTargets : [],
+        comboTarget: addToComboTarget,
+        onComboTargetChange: setAddToComboTarget,
         onSelect: (svc) => {
           const svcPayload = {
             serviceId: svc.id,
@@ -6620,6 +7150,8 @@ const ServicesTable = ({
           };
           if (comboAddInstanceId) {
             onAddServiceToCombo(comboAddInstanceId, svcPayload);
+          } else if (addToComboTarget && packageMode) {
+            onAddServiceToCombo(addToComboTarget, svcPayload);
           } else {
             onAddFromService(svcPayload);
           }
@@ -6644,6 +7176,8 @@ const ServicesTable = ({
             };
             if (comboAddInstanceId) {
               onAddServiceToCombo(comboAddInstanceId, svcPayload);
+            } else if (addToComboTarget && packageMode) {
+              onAddServiceToCombo(addToComboTarget, svcPayload);
             } else {
               onAddFromService(svcPayload);
             }
@@ -6723,7 +7257,7 @@ const ServicesTable = ({
               color: C.text,
             },
           },
-          "Service List",
+          tr("Service List"),
         ),
       ),
       React.createElement(
@@ -6737,7 +7271,7 @@ const ServicesTable = ({
                 disabled: rows.length <= 0,
                 onClick: () => setCompareModal({ open: true, data: null }),
               },
-              "Review Changes",
+              tr("Review Changes"),
             )
           : React.createElement(
               "div",
@@ -6758,22 +7292,22 @@ const ServicesTable = ({
                   opacity: rows.length > 0 ? 1 : 0.5,
                 },
               },
-              "Review Changes",
+              tr("Review Changes"),
             ),
         AntButton
           ? React.createElement(
               AntButton,
               {
                 size: "small",
-                onClick: () => setPickerOpen(true),
+                onClick: openTopLevelPicker,
                 style: { borderStyle: "dashed" },
               },
-              "New service",
+              tr("New service"),
             )
           : React.createElement(
               "div",
               {
-                onClick: () => setPickerOpen(true),
+                onClick: openTopLevelPicker,
                 style: {
                   padding: "5px 14px",
                   borderRadius: 6,
@@ -6785,7 +7319,7 @@ const ServicesTable = ({
                   fontFamily: FONT,
                 },
               },
-              "New service",
+              tr("New service"),
             ),
       ),
     ),
@@ -6822,7 +7356,7 @@ const ServicesTable = ({
               fontFamily: FONT,
             },
           },
-          "Pricing Mode",
+          tr("Pricing Mode"),
         ),
         React.createElement(
           "div",
@@ -6843,14 +7377,14 @@ const ServicesTable = ({
                 value: pricingMode,
                 onChange: onPricingModeChange,
                 options: [
-                  { value: PRICING_MODE_LINE, label: "Line pricing" },
-                  { value: PRICING_MODE_PACKAGE, label: "Combo pricing" },
+                  { value: PRICING_MODE_LINE, label: tr("Line pricing") },
+                  { value: PRICING_MODE_PACKAGE, label: tr("Combo pricing") },
                 ],
                 style: { width: "100%" },
               })
             : [
-                [PRICING_MODE_LINE, "Line pricing"],
-                [PRICING_MODE_PACKAGE, "Combo pricing"],
+                [PRICING_MODE_LINE, tr("Line pricing")],
+                [PRICING_MODE_PACKAGE, tr("Combo pricing")],
               ].map(([mode, label]) =>
                 React.createElement(
                   "button",
@@ -6895,11 +7429,11 @@ const ServicesTable = ({
             "tr",
             null,
             React.createElement("th", { style: th({ width: 36, textAlign: "center" }) }, "#"),
-            React.createElement("th", { style: th({ minWidth: 280 }) }, "Service Name & Type"),
-            React.createElement("th", { style: th({ minWidth: 320 }) }, "Description"),
-            React.createElement("th", { style: th({ width: 220, textAlign: "right" }) }, "Unit Price"),
-            React.createElement("th", { style: th({ width: 80, textAlign: "center" }) }, "VAT (%)"),
-            React.createElement("th", { style: th({ width: 160, textAlign: "right", color: "#1d4ed8" }) }, "Total"),
+            React.createElement("th", { style: th({ minWidth: 280 }) }, tr("Service Name & Type")),
+            React.createElement("th", { style: th({ minWidth: 320 }) }, tr("Description")),
+            React.createElement("th", { style: th({ width: 220, textAlign: "right" }) }, tr("Unit Price")),
+            React.createElement("th", { style: th({ width: 80, textAlign: "center" }) }, tr("VAT (%)")),
+            React.createElement("th", { style: th({ width: 160, textAlign: "right", color: "#1d4ed8" }) }, tr("Total")),
             React.createElement("th", { style: th({ width: 84 }) }, ""),
           ),
         ),
@@ -6913,7 +7447,7 @@ const ServicesTable = ({
                 React.createElement(
                   "td",
                   { colSpan: 7, style: td({ textAlign: "center", color: "#9ca3af", padding: "32px 0" }) },
-                  'No services added — click "New service"',
+                  tr("No services added — click \"New service\""),
                 ),
               )
             : rows.map((r, idx) => {
@@ -6922,8 +7456,8 @@ const ServicesTable = ({
                   findCurrencyById(currencies, r.currencyId) ||
                   currencyFromRecord(r, currencies, selectedCurrency);
                 const line = packageMode
-                  ? calcLine(0, 1, 0)
-                  : calcLine(r.basePrice, 1, r.vat);
+                  ? calcLine(0, 1, 0, rowCurrency)
+                  : calcLine(r.basePrice, 1, r.vat, rowCurrency);
                 const rowConversion = !packageMode ? getRowConversion(rowCurrency, line) : null;
                 // The "#" column numbers rows per section (combo instance,
                 // or the contiguous run of non-combo rows) instead of
@@ -6971,13 +7505,13 @@ const ServicesTable = ({
                           React.createElement("input", {
                             value: r.serviceName || "",
                             onChange: (e) => onUpdate(r._id, "serviceName", e.target.value),
-                            placeholder: "Service name...",
+                            placeholder: tr("Service name..."),
                             style: inp({ fontSize: 13.5, padding: "6px 9px" }),
                           }),
                           React.createElement("input", {
                             value: r.serviceType || "",
                             onChange: (e) => onUpdate(r._id, "serviceType", e.target.value),
-                            placeholder: "Service type...",
+                            placeholder: tr("Service type..."),
                             style: inp({ fontSize: 12.5, padding: "5px 9px" }),
                           }),
                         )
@@ -7015,7 +7549,7 @@ const ServicesTable = ({
                       ? React.createElement(AutoTextarea, {
                           value: r.description || "",
                           onChange: (v) => onUpdate(r._id, "description", v),
-                          placeholder: "Service scope or row note...",
+                          placeholder: tr("Service scope or row note..."),
                           minRows: 2,
                         })
                       : React.createElement(ExpandableText, { text: r.description, limit: 100 }),
@@ -7042,13 +7576,13 @@ const ServicesTable = ({
                               : React.createElement(
                                   "span",
                                   { style: { display: "inline-block", padding: "4px 8px", borderRadius: 10, fontSize: 12, fontWeight: 700, background: "#e6f4ff", color: C.primary } },
-                                  "Included in combo",
+                                  tr("Included in combo"),
                                 ),
                             individual &&
                               React.createElement(
                                 "span",
                                 { style: { fontSize: 10.5, color: C.primary, fontWeight: 600 } },
-                                "Included in combo",
+                                tr("Included in combo"),
                               ),
                           );
                         })()
@@ -7062,6 +7596,7 @@ const ServicesTable = ({
                               React.createElement(PriceInput, {
                                 value: r.basePrice,
                                 onChange: (v) => onUpdate(r._id, "basePrice", v),
+                                currency: rowCurrency,
                               }),
                             ),
                             React.createElement(
@@ -7129,7 +7664,7 @@ const ServicesTable = ({
                               React.createElement(
                                 "span",
                                 { style: { color: C.textSub, fontSize: 10.5, fontWeight: 600 } },
-                                `Gốc: ${formatMoneyByCurrency(line.totalAmount, rowCurrency)}`,
+                                tr("Original: {0}", { 0: formatMoneyByCurrency(line.totalAmount, rowCurrency) }),
                               ),
                           )
                         : React.createElement(
@@ -7139,7 +7674,7 @@ const ServicesTable = ({
                             React.createElement(
                               "span",
                               { style: { color: "#d48806", fontSize: 10.5, fontWeight: 700 } },
-                              `Thiếu tỷ giá → ${getCurrencyCode(baseCurrency)}`,
+                              tr("Missing rate to {0}", { 0: getCurrencyCode(baseCurrency) }),
                             ),
                           ),
                   ),
@@ -7153,7 +7688,7 @@ const ServicesTable = ({
                         "button",
                         {
                           type: "button",
-                          title: isRowEdit ? "Done editing" : "Edit service",
+                          title: isRowEdit ? tr("Done editing") : tr("Edit service"),
                           onClick: () => toggleRowEdit(r._id),
                           style: iconButtonStyle(C.primary, isRowEdit),
                         },
@@ -7163,7 +7698,7 @@ const ServicesTable = ({
                         "button",
                         {
                           type: "button",
-                          title: "Delete service",
+                          title: tr("Delete service"),
                           onClick: () => onDelete(r._id),
                           style: iconButtonStyle(C.danger),
                         },
@@ -7182,7 +7717,7 @@ const ServicesTable = ({
     React.createElement(
       Modal,
       {
-        title: "Quy đổi tiền tệ dịch vụ",
+        title: tr("Currency breakdown"),
         open: breakdownOpen,
         onCancel: () => setBreakdownOpen(false),
         footer: React.createElement(
@@ -7190,91 +7725,72 @@ const ServicesTable = ({
           AntButton
             ? { type: "primary", onClick: () => setBreakdownOpen(false) }
             : { onClick: () => setBreakdownOpen(false) },
-          "Đóng",
+          tr("Close"),
         ),
-        width: 720,
+        width: 900,
       },
       breakdownOpen &&
+        React.createElement(
+          "div",
+          null,
+          React.createElement(
+            "div",
+            { style: { marginBottom: 12, color: C.textSub, fontSize: 12.5 } },
+            tr("Base currency: {0}. Rates of today.", { 0: getCurrencyCode(baseCurrency) }),
+          ),
         React.createElement(Table, {
-          dataSource: financialSummary.groups.map((group, idx) => ({
-            ...group,
-            _key: idx,
-          })),
-          rowKey: "_key",
+          dataSource: currencyBreakdownRows(financialSummary.groups, {
+            isBase: (group) => isSameCurrency(group.currency, baseCurrency),
+            matchOf: (group) => pickConversionRate(exchangeRates, group.currency, baseCurrency),
+            codeOf: getCurrencyCode,
+            convert: convertLinesToBase,
+          }),
+          rowKey: "key",
           pagination: false,
           size: "small",
           bordered: true,
+          scroll: { x: 760 },
           columns: [
+            { title: tr("Currency"), key: "currency", render: (_, item) => React.createElement("span", { style: { fontWeight: 700 } }, `${item.currencyCode} (${item.lineCount})`) },
+            { title: tr("Original total"), key: "originalTotal", align: "right", render: (_, item) => formatMoneyByCurrency(item.originalTotal, item.currency) },
             {
-              title: "Tiền tệ",
-              key: "currency",
-              render: (_, group) =>
-                React.createElement(
-                  "span",
-                  { style: { fontWeight: 700 } },
-                  getCurrencyCode(group.currency),
-                ),
-            },
-            {
-              title: "Số dòng",
-              key: "lineCount",
-              align: "center",
-              render: (_, group) => group.lineCount,
-            },
-            {
-              title: "Tổng gốc",
-              key: "originalTotal",
-              align: "right",
-              render: (_, group) =>
-                formatMoneyByCurrency(group.totalAmount, group.currency),
-            },
-            {
-              title: "Tỷ giá",
+              title: tr("Rate to ") + getCurrencyCode(baseCurrency),
               key: "rate",
-              align: "center",
-              render: (_, group) => {
-                const rate = getBreakdownGroupRate(group);
-                return rate
-                  ? rate.toLocaleString("en-US", { maximumFractionDigits: 6 })
-                  : React.createElement(
-                      "span",
-                      { style: { color: C.danger } },
-                      "Thiếu",
-                    );
-              },
+              align: "right",
+              render: (_, item) =>
+                item.rate
+                  ? item.rate.toLocaleString("en-US", { maximumFractionDigits: 6 })
+                  : React.createElement("span", { style: { color: "#d48806" } }, tr("Missing")),
             },
             {
-              title: "Quy đổi",
+              title: tr("Converted total"),
               key: "converted",
               align: "right",
-              render: (_, group) => {
-                const rate = getBreakdownGroupRate(group);
-                return rate
-                  ? React.createElement(
-                      "span",
-                      { style: { fontWeight: 700, color: "#1d4ed8" } },
-                      formatMoneyByCurrency(
-                        group.totalAmount * rate,
-                        baseCurrency,
-                      ),
-                    )
-                  : React.createElement(
-                      "span",
-                      { style: { color: C.danger } },
-                      "—",
-                    );
-              },
+              render: (_, item) =>
+                item.convertedTotal === null
+                  ? "—"
+                  : React.createElement("span", { style: { fontWeight: 700, color: "#389e0d" } }, formatMoneyByCurrency(item.convertedTotal, baseCurrency)),
             },
+            { title: tr("Effective date"), key: "effectiveDate", render: (_, item) => (item.effectiveDate ? String(item.effectiveDate).slice(0, 10).split("-").reverse().join("/") : "—") },
+            { title: tr("Source"), key: "source", render: (_, item) => item.source },
           ],
         }),
+          financialSummary.converted.canConvert &&
+            React.createElement(
+              "div",
+              { style: { marginTop: 12, padding: "10px 12px", borderRadius: 7, background: "#f6ffed", border: "1px solid #b7eb8f", display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" } },
+              React.createElement("span", { style: { fontWeight: 700, color: C.text } }, tr("Converted total in ") + getCurrencyCode(baseCurrency)),
+              React.createElement("span", { style: { fontWeight: 800, color: "#389e0d" } }, formatMoneyByCurrency(financialSummary.converted.totalAmount, baseCurrency)),
+            ),
+        ),
     ),
 
     React.createElement(
       Modal,
       {
         title: compareModal.data
-          ? "Review Service Changes"
-          : "Review All Service Changes",
+          ? tr("Review Service Changes")
+          : tr("Review All Service Changes"),
         open: compareModal.open,
         onCancel: () => setCompareModal({ open: false, data: null }),
         footer: React.createElement(
@@ -7286,7 +7802,7 @@ const ServicesTable = ({
               {
                 onClick: () => setCompareModal({ open: true, data: null }),
               },
-              "← Back to list",
+              tr("← Back to list"),
             ),
           React.createElement(
             ctx.antd.Button,
@@ -7295,7 +7811,7 @@ const ServicesTable = ({
               onClick: () => setCompareModal({ open: false, data: null }),
               style: { background: C.primary },
             },
-            "Close",
+            tr("Close"),
           ),
         ),
         width: 900,
@@ -7309,74 +7825,16 @@ const ServicesTable = ({
 };
 
 const QuotationTutorialPanel = () => {
+  const fromHelp = (keys) => keys.map((key) => [key, FIELD_HELP[key]]);
   const groups = [
+    { title: tr("Related"), rows: fromHelp(["Internal Issuing Company", "Related Lead", "Related Customer", "Assigned Lawyer"]) },
+    { title: tr("Quotation terms"), rows: fromHelp(["Payment Terms", "Quotation Template", "Valid Until", "Address"]) },
+    { title: tr("Services"), rows: fromHelp(["Service Name", "Description", "Unit Price", "VAT %"]) },
     {
-      title: "Thông tin liên quan",
+      title: tr("Totals"),
       rows: [
-        [
-          "Internal Issuing Company",
-          "Công ty/pháp nhân nội bộ phát hành báo giá. Sau khi chọn, form sẽ lọc dịch vụ và template theo công ty này.",
-        ],
-        [
-          "Related Lead",
-          "Dùng khi báo giá xuất phát từ lead hoặc cơ hội bán hàng chưa chuyển thành khách hàng chính thức.",
-        ],
-        [
-          "Related Customer",
-          "Dùng khi báo giá lập trực tiếp cho khách hàng đã có trong hệ thống.",
-        ],
-        [
-          "Assigned Lawyer",
-          "Luật sư phụ trách nội dung chuyên môn hoặc follow-up báo giá.",
-        ],
-      ],
-    },
-    {
-      title: "Điều khoản báo giá",
-      rows: [
-        [
-          "Payment Terms",
-          "Điều khoản thanh toán dự kiến. Field này được lưu trên báo giá để hợp đồng hoặc invoice có thể tham chiếu sau.",
-        ],
-        [
-          "Quotation Template",
-          "File mẫu dùng để generate báo giá. Vì nội dung được tạo theo template nên form này không còn cần nhập nội dung mẫu.",
-        ],
-        [
-          "Valid Until",
-          "Ngày hết hiệu lực của báo giá. Có thể bỏ trống nếu báo giá chưa chốt thời hạn.",
-        ],
-        [
-          "Address",
-          "Địa chỉ liên hệ hoặc địa chỉ xuất hiện trên báo giá nếu mẫu in cần dùng.",
-        ],
-      ],
-    },
-    {
-      title: "Dịch vụ",
-      rows: [
-        [
-          "Service Name",
-          "Chọn dịch vụ gốc từ danh sách dịch vụ của công ty. Đơn giá mặc định được lấy từ company service.",
-        ],
-        [
-          "Description",
-          "Mô tả phạm vi công việc cho từng dòng. Người dùng có thể chỉnh lại để phù hợp báo giá cụ thể.",
-        ],
-        ["Qty", "Số lượng dịch vụ hoặc số đơn vị tính phí."],
-        ["Unit Price", "Đơn giá chưa VAT của dòng dịch vụ."],
-        ["VAT %", "Phần trăm VAT áp dụng cho dòng dịch vụ."],
-      ],
-    },
-    {
-      title: "Tổng tiền",
-      rows: [
-        ["Subtotal", "Tổng tiền trước VAT, tự tính từ đơn giá và số lượng."],
-        ["VAT Amount", "Số tiền VAT, tự tính theo VAT %."],
-        [
-          "Total",
-          "Tổng tiền sau VAT. Giá trị này được lưu vào quotation và các quotation service.",
-        ],
+        ...fromHelp(["Subtotal", "VAT amount", "Total"]),
+        [tr("Currencies"), tr("Each service keeps its own currency; totals are in VND at today's rate. View currency breakdown shows the rates used.")],
       ],
     },
   ];
@@ -7401,7 +7859,7 @@ const QuotationTutorialPanel = () => {
           marginBottom: 8,
         },
       },
-      "Hướng dẫn tạo báo giá",
+      tr("Quotation fields"),
     ),
     React.createElement(
       "div",
@@ -7413,7 +7871,7 @@ const QuotationTutorialPanel = () => {
           marginBottom: 14,
         },
       },
-      "Phần này giải thích ý nghĩa các field trong form. Báo giá hiện chỉ lưu dữ liệu cấu trúc và template; nội dung chi tiết sẽ được generate theo file mẫu.",
+      tr("What each field means. The quotation document itself is generated from the template."),
     ),
     React.createElement(
       "div",
@@ -7467,7 +7925,7 @@ const QuotationTutorialPanel = () => {
                       marginBottom: 2,
                     },
                   },
-                  name,
+                  tr(name),
                 ),
                 React.createElement(
                   "div",
@@ -7611,7 +8069,7 @@ const QuotationCreateForm = () => {
       return;
     }
     if (!closeCurrentPopup()) {
-      message.warning("Cannot close this popup from the current runtime.");
+      message.warning(tr("Cannot close this popup from the current runtime."));
     }
   }, []);
   const requestClose = useCallback(
@@ -8018,15 +8476,6 @@ const QuotationCreateForm = () => {
             description: popupParentQuotation?.description || p.description,
             serviceDescription:
               popupParentQuotation?.serviceDescription || p.serviceDescription,
-            currencyId: (() => {
-              const contextCurrencyId =
-                getRecordCurrencyId(popupParentQuotation) ||
-                getRecordCurrencyId(popupProject) ||
-                getRecordCurrencyId(popupProjectService);
-              return contextCurrencyId
-                ? String(contextCurrencyId)
-                : p.currencyId;
-            })(),
             pricingMode: popupParentQuotation?.pricingMode || p.pricingMode,
             packageSubTotal: parentPackageMode
               ? parentPackageSubTotal
@@ -8310,11 +8759,12 @@ const QuotationCreateForm = () => {
       ),
     [projects],
   );
+  // The header is VND (INV-1): foreign-currency services are converted to it
+  // for the services footer and the totals. There is no header currency
+  // picker; it used to follow the parent quotation / the case.
   const selectedCurrency = useMemo(
-    () =>
-      findCurrencyById(currencies, form.currencyId) ||
-      findDefaultCurrency(currencies),
-    [currencies, form.currencyId],
+    () => findDefaultCurrency(currencies),
+    [currencies],
   );
   const currencyOptions = useMemo(
     () =>
@@ -8326,8 +8776,8 @@ const QuotationCreateForm = () => {
   );
 
   const packageTotals = useMemo(
-    () => calcPackageTotals(form.packageSubTotal, form.packageVatRate),
-    [form.packageSubTotal, form.packageVatRate],
+    () => calcPackageTotals(form.packageSubTotal, form.packageVatRate, selectedCurrency),
+    [form.packageSubTotal, form.packageVatRate, selectedCurrency],
   );
 
   const handlePricingModeChange = (mode) => {
@@ -8369,12 +8819,12 @@ const QuotationCreateForm = () => {
       return { convertedSubTotal: subTotal, wasConverted: false };
     }
     const rates = await fetchExchangeRatesForConversion([comboCurrencyId], vndId);
-    const matched = pickConversionRate(rates, comboCurrencyId, vndId, form.validUntil);
+    const matched = pickConversionRate(rates, comboCurrencyId, vndId, null);
     if (matched?.rate > 0) {
       return { convertedSubTotal: Math.round(subTotal * matched.rate), wasConverted: true };
     }
     message.warning(
-      "Không tìm thấy tỷ giá quy đổi từ tiền tệ của combo dịch vụ sang VND — giữ nguyên số tiền gốc, vui lòng kiểm tra lại.",
+      tr("No exchange rate from the combo's currency to VND — the original amount is kept; check the rates."),
     );
     return { convertedSubTotal: subTotal, wasConverted: false };
   };
@@ -8384,7 +8834,7 @@ const QuotationCreateForm = () => {
     if (!combo) return;
     const items = combo.serviceComboItems || [];
     if (!items.length) {
-      message.warning("Gói dịch vụ này chưa có dịch vụ nào.");
+      message.warning(tr("This combo has no services yet."));
       return;
     }
 
@@ -8428,14 +8878,14 @@ const QuotationCreateForm = () => {
       const mergedFoldRates = foldRates;
       foldedExistingRows = rows.map((row) => {
         if (!row?.serviceName?.trim()) return { ...row, basePrice: 0, vat: 0 };
-        const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat);
         const rowCurrency = currencyFromRecord(row, currencies, targetCurrency);
+        const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat, rowCurrency);
         const matched = isSameCurrency(rowCurrency, targetCurrency)
           ? { rate: 1 }
-          : pickConversionRate(mergedFoldRates, rowCurrency, targetCurrency, form.validUntil);
-        const contributionVnd = matched?.rate ? amounts.subTotal * matched.rate : 0;
+          : pickConversionRate(mergedFoldRates, rowCurrency, targetCurrency, null);
+        const contributionVnd = matched?.rate ? Math.round(amounts.subTotal * matched.rate) : 0;
         existingLineContributionVnd += contributionVnd;
-        return { ...row, basePrice: 0, vat: 0 };
+        return { ...row, basePrice: 0, vat: 0, _packageBasePrice: contributionVnd };
       });
     }
 
@@ -8446,7 +8896,9 @@ const QuotationCreateForm = () => {
     // represented as that many duplicate rows.
     const newRows = [];
     const skippedDuplicateNames = [];
-    const dedupeBaseline = wasPackageMode ? [...rows] : [];
+    // Existing rows stay on the quotation either way (folded / merged into
+    // this combo below), so a combo item duplicating one of them is skipped.
+    const dedupeBaseline = [...rows];
     items.forEach((item) => {
       const svc = item.services || {};
       if (findDuplicateServiceRow(dedupeBaseline, { serviceId: svc.id, serviceName: svc.serviceName })) {
@@ -8495,7 +8947,7 @@ const QuotationCreateForm = () => {
       }
     });
     if (skippedDuplicateNames.length) {
-      message.warning(`Đã bỏ qua ${skippedDuplicateNames.length} dịch vụ đã có trên báo giá: ${skippedDuplicateNames.join(", ")}`);
+      message.warning(tr("Skipped {0} service(s) already on the quotation: {1}", { 0: skippedDuplicateNames.length, 1: skippedDuplicateNames.join(", ") }));
     }
     if (!newRows.length) return;
 
@@ -8506,7 +8958,15 @@ const QuotationCreateForm = () => {
     // simply the sum of every applied combo's own amount (see
     // updateComboAmount, which edits one combo's amount without touching
     // any other).
-    const comboOwnAmount = convertedSubTotal + existingLineContributionVnd;
+    // Line/Combo sync: standalone services join this combo — their value
+    // (_packageBasePrice: the folded VND line price, or the package share
+    // they already added in Combo pricing) becomes part of its amount.
+    const mergeResult = mergeStandaloneIntoCombo(
+      foldedExistingRows,
+      { instanceId: comboInstanceId, catalogId: runtimeExtractId(combo), name: combo.comboName || "", currency: defaultCurrencyObject() },
+      (row) => parseNum(row._packageBasePrice),
+    );
+    const comboOwnAmount = convertedSubTotal + mergeResult.contribution;
     const vatRateForRows = parseNum(form.packageVatRate) || parseNum(combo.packageVatRate) || 0;
     const comboOwnVatAmount = Math.round((comboOwnAmount * vatRateForRows) / 100);
     const newRowsWithOwnPricing = newRows.map((row) => ({
@@ -8516,11 +8976,32 @@ const QuotationCreateForm = () => {
       packageVatAmount: comboOwnVatAmount,
       packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
     }));
-    setRows((p) => [...(wasPackageMode ? p : foldedExistingRows), ...newRowsWithOwnPricing]);
+    const mergedRowIds = new Set(mergeResult.merged.map((row) => row._id));
+    const existingRowsAfterMerge = mergeResult.rows.map((row) =>
+      mergedRowIds.has(row._id)
+        ? {
+            ...row,
+            packageSubTotal: comboOwnAmount,
+            packageVatRate: vatRateForRows,
+            packageVatAmount: comboOwnVatAmount,
+            packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
+          }
+        : row,
+    );
+    setRows([...existingRowsAfterMerge, ...newRowsWithOwnPricing]);
+    // Merged values moved into comboOwnAmount (package mode: they were
+    // already counted in packageSubTotal).
     setPackageField(
       "packageSubTotal",
-      parseNum(wasPackageMode ? form.packageSubTotal : 0) + comboOwnAmount,
+      parseNum(wasPackageMode ? form.packageSubTotal : existingLineContributionVnd) -
+        mergeResult.contribution +
+        comboOwnAmount,
     );
+    if (mergeResult.merged.length) {
+      message.info(
+        tr("Merged {0} standalone service(s) into combo \"{1}\": {2}", { 0: mergeResult.merged.length, 1: combo.comboName || "", 2: mergeResult.merged.map((row) => row.serviceName || tr("Service")).join(", ") }),
+      );
+    }
     // The flat VAT % field is shared across every combo on the quotation,
     // so only the first combo applied seeds it — later combos leave
     // whatever rate is already there untouched.
@@ -8544,7 +9025,7 @@ const QuotationCreateForm = () => {
         wasConverted: comboWasConverted,
       },
     ]);
-    message.success(`Đã áp dụng combo dịch vụ "${combo.comboName}".`);
+    message.success(tr("Combo \"{0}\" applied.", { 0: combo.comboName }));
   };
 
   // Ad-hoc combo — a one-off bundle of services grouped under a single flat
@@ -8593,19 +9074,21 @@ const QuotationCreateForm = () => {
       const mergedFoldRates = foldRates;
       foldedExistingRows = rows.map((row) => {
         if (!row?.serviceName?.trim()) return { ...row, basePrice: 0, vat: 0 };
-        const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat);
         const rowCurrency = currencyFromRecord(row, currencies, targetCurrency);
+        const amounts = calcLine(row.basePrice, row.quantity || 1, row.vat, rowCurrency);
         const matched = isSameCurrency(rowCurrency, targetCurrency)
           ? { rate: 1 }
-          : pickConversionRate(mergedFoldRates, rowCurrency, targetCurrency, form.validUntil);
-        const contributionVnd = matched?.rate ? amounts.subTotal * matched.rate : 0;
+          : pickConversionRate(mergedFoldRates, rowCurrency, targetCurrency, null);
+        const contributionVnd = matched?.rate ? Math.round(amounts.subTotal * matched.rate) : 0;
         existingLineContributionVnd += contributionVnd;
-        return { ...row, basePrice: 0, vat: 0 };
+        return { ...row, basePrice: 0, vat: 0, _packageBasePrice: contributionVnd };
       });
     }
     const newRows = [];
     const skippedDuplicateNames = [];
-    const dedupeBaseline = wasPackageMode ? [...rows] : [];
+    // Existing rows stay on the quotation either way (folded / merged into
+    // this combo below), so a combo item duplicating one of them is skipped.
+    const dedupeBaseline = [...rows];
     items.forEach((item) => {
       if (findDuplicateServiceRow(dedupeBaseline, { serviceId: item.serviceId, serviceName: item.serviceName })) {
         skippedDuplicateNames.push(item.serviceName || "");
@@ -8649,14 +9132,22 @@ const QuotationCreateForm = () => {
       }
     });
     if (skippedDuplicateNames.length) {
-      message.warning(`Đã bỏ qua ${skippedDuplicateNames.length} dịch vụ đã có trên báo giá: ${skippedDuplicateNames.join(", ")}`);
+      message.warning(tr("Skipped {0} service(s) already on the quotation: {1}", { 0: skippedDuplicateNames.length, 1: skippedDuplicateNames.join(", ") }));
     }
     if (!newRows.length) return;
 
     // See applyCombo's matching comment: no merge into one pool — this
     // combo's own amount is tracked independently on its own rows/
     // appliedCombos entry.
-    const comboOwnAmount = convertedSubTotal + existingLineContributionVnd;
+    // Line/Combo sync: standalone services join this combo — their value
+    // (_packageBasePrice: the folded VND line price, or the package share
+    // they already added in Combo pricing) becomes part of its amount.
+    const mergeResult = mergeStandaloneIntoCombo(
+      foldedExistingRows,
+      { instanceId: adhocComboId, catalogId: null, name: comboName, currency: defaultCurrencyObject() },
+      (row) => parseNum(row._packageBasePrice),
+    );
+    const comboOwnAmount = convertedSubTotal + mergeResult.contribution;
     const vatRateForRows = parseNum(form.packageVatRate) || packageVatRate || 0;
     const comboOwnVatAmount = Math.round((comboOwnAmount * vatRateForRows) / 100);
     const newRowsWithOwnPricing = newRows.map((row) => ({
@@ -8666,11 +9157,32 @@ const QuotationCreateForm = () => {
       packageVatAmount: comboOwnVatAmount,
       packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
     }));
-    setRows((p) => [...(wasPackageMode ? p : foldedExistingRows), ...newRowsWithOwnPricing]);
+    const mergedRowIds = new Set(mergeResult.merged.map((row) => row._id));
+    const existingRowsAfterMerge = mergeResult.rows.map((row) =>
+      mergedRowIds.has(row._id)
+        ? {
+            ...row,
+            packageSubTotal: comboOwnAmount,
+            packageVatRate: vatRateForRows,
+            packageVatAmount: comboOwnVatAmount,
+            packageTotalAmount: comboOwnAmount + comboOwnVatAmount,
+          }
+        : row,
+    );
+    setRows([...existingRowsAfterMerge, ...newRowsWithOwnPricing]);
+    // Merged values moved into comboOwnAmount (package mode: they were
+    // already counted in packageSubTotal).
     setPackageField(
       "packageSubTotal",
-      parseNum(wasPackageMode ? form.packageSubTotal : 0) + comboOwnAmount,
+      parseNum(wasPackageMode ? form.packageSubTotal : existingLineContributionVnd) -
+        mergeResult.contribution +
+        comboOwnAmount,
     );
+    if (mergeResult.merged.length) {
+      message.info(
+        tr("Merged {0} standalone service(s) into combo \"{1}\": {2}", { 0: mergeResult.merged.length, 1: comboName, 2: mergeResult.merged.map((row) => row.serviceName || tr("Service")).join(", ") }),
+      );
+    }
     if (appliedCombos.length === 0) {
       setPackageField("packageVatRate", packageVatRate);
     }
@@ -8707,7 +9219,7 @@ const QuotationCreateForm = () => {
         },
       ]);
     }
-    message.success(`Đã áp dụng combo dịch vụ "${comboName}".`);
+    message.success(tr("Combo \"{0}\" applied.", { 0: comboName }));
   };
 
   // Removes one applied combo instance entirely — its rows AND its own
@@ -8718,6 +9230,14 @@ const QuotationCreateForm = () => {
     const entry = appliedCombos.find((c) => c.instanceId === instanceId);
     if (!entry) return;
     markDirty();
+    // Services merged into this combo (Line/Combo sync) are part of it and
+    // go with it; say so, since they were added separately.
+    const mergedGoing = rows.filter((r) => r._comboInstanceId === instanceId && r._mergedIntoCombo);
+    if (mergedGoing.length) {
+      message.info(
+        tr("Also removed {0} service(s) merged into this combo: {1}", { 0: mergedGoing.length, 1: mergedGoing.map((r) => r.serviceName || tr("Service")).join(", ") }),
+      );
+    }
     setRows((prev) => prev.filter((r) => r._comboInstanceId !== instanceId));
     setPackageField(
       "packageSubTotal",
@@ -8787,7 +9307,6 @@ const QuotationCreateForm = () => {
     const customerId = recordCustomerId(project);
     const companyId = recordInternalCompanyId(project);
     const lawyerId = recordLawyerId(project);
-    const projectCurrencyId = getRecordCurrencyId(project);
 
     if (customerId) {
       let foundCustomer = customers.find(
@@ -8810,7 +9329,6 @@ const QuotationCreateForm = () => {
       internalCompanyId: companyId ? String(companyId) : p.internalCompanyId,
       lawyerId: lawyerId ? String(lawyerId) : p.lawyerId,
       assignedLawyerId: lawyerId ? String(lawyerId) : p.assignedLawyerId,
-      currencyId: projectCurrencyId ? String(projectCurrencyId) : p.currencyId,
     }));
   };
 
@@ -8887,7 +9405,7 @@ const QuotationCreateForm = () => {
   // the exact same field shape the old __service__-merge branch of updateRow used to consume.
   const addRowFromService = async (value) => {
     if (findDuplicateServiceRow(rows, { serviceId: value.serviceId, serviceName: value.serviceName })) {
-      message.warning("Dịch vụ này đã có trên báo giá.");
+      message.warning(tr("This service is already on the quotation."));
       return;
     }
     markDirty();
@@ -8902,20 +9420,20 @@ const QuotationCreateForm = () => {
     if (wasPackageMode) {
       const vndId = extractCurrencyId(findDefaultCurrency(currencies)?.id);
       const targetCurrency = findCurrencyById(currencies, vndId) || defaultCurrencyObject();
-      const amounts = calcLine(value.basePrice, 1, value.vat ?? 0);
       const rowCurrency = currencyFromRecord(value, currencies, targetCurrency);
+      const amounts = calcLine(value.basePrice, 1, value.vat ?? 0, rowCurrency);
       // (No persistent `exchangeRates` cache here — that state lives in the
       // separate ServicesTable component — so fetch fresh for this one
       // currency instead.)
       let matched = isSameCurrency(rowCurrency, targetCurrency) ? { rate: 1 } : null;
       if (!matched) {
         const rates = await fetchExchangeRatesForConversion([extractCurrencyId(rowCurrency)], vndId);
-        matched = pickConversionRate(rates, rowCurrency, targetCurrency, form.validUntil);
+        matched = pickConversionRate(rates, rowCurrency, targetCurrency, null);
       }
       if (matched?.rate) {
-        packageContributionVnd = amounts.subTotal * matched.rate;
+        packageContributionVnd = Math.round(amounts.subTotal * matched.rate);
       } else if (!isSameCurrency(rowCurrency, targetCurrency)) {
-        message.warning(`Thiếu tỷ giá quy đổi ${getCurrencyCode(rowCurrency)} sang VND — giá dịch vụ này chưa được cộng vào Total, vui lòng kiểm tra tỷ giá.`);
+        message.warning(tr("Missing exchange rate {0} → VND — this service is not in the total yet; check the rates.", { 0: getCurrencyCode(rowCurrency) }));
       }
     }
     setRows((p) => [
@@ -8948,7 +9466,7 @@ const QuotationCreateForm = () => {
   // along on the combo's existing package price, it does not add its own charge.
   const onAddServiceToCombo = (instanceId, value) => {
     if (findDuplicateServiceRow(rows, { serviceId: value.serviceId, serviceName: value.serviceName })) {
-      message.warning("Dịch vụ này đã có trên báo giá.");
+      message.warning(tr("This service is already on the quotation."));
       return;
     }
     const siblingRow = rows.find((r) => r._comboInstanceId === instanceId);
@@ -9060,25 +9578,25 @@ const QuotationCreateForm = () => {
   // <ai-section name="main-form-submit-transaction">
   const handleSubmit = async () => {
     if (!form.internalCompanyId) {
-      message.warning("Please select Internal Issuing Company");
+      message.warning(tr("Please select Internal Issuing Company"));
       return;
     }
     if (!form.leadId && !form.customerId) {
-      message.warning("Please select Related Lead or Customer");
+      message.warning(tr("Please select Related Lead or Customer"));
       return;
     }
     if (currencies.length && !form.currencyId) {
-      message.warning("Please select Quotation Currency");
+      message.warning(tr("Please select Quotation Currency"));
       return;
     }
     if (form.quotationKind === "supplement" && !form.parentId) {
       message.warning(
-        "Please select or pass the main quotation before creating a supplementary quotation.",
+        tr("Please select or pass the main quotation before creating a supplementary quotation."),
       );
       return;
     }
     if (rows.length === 0) {
-      message.warning("Please add at least 1 service");
+      message.warning(tr("Please add at least 1 service"));
       return;
     }
     const packageMode = isPackagePricing(form.pricingMode);
@@ -9087,32 +9605,30 @@ const QuotationCreateForm = () => {
         (r) => !r.serviceId && !r.projectServiceId && !r.serviceName?.trim(),
       )
     ) {
-      message.warning("Please select service information");
+      message.warning(tr("Please select service information"));
       return;
     }
     if (!packageMode && rows.find((r) => parseNum(r.basePrice) <= 0)) {
-      message.warning("Please fill in all service information");
+      message.warning(tr("Please fill in all service information"));
       return;
     }
     if (packageMode && parseNum(form.packageSubTotal) <= 0) {
-      message.warning("Please enter combo subtotal");
+      message.warning(tr("Please enter combo subtotal"));
       return;
     }
 
     // Nếu yêu cầu xét duyệt nhưng chưa chọn người duyệt → cảnh báo (không block, vì approvedById là optional)
     if (form.isRequiredApproval && !form.approvedById) {
       message.info(
-        "Note: You have not selected an approver. Quotation will be created with pending status.",
+        tr("Note: You have not selected an approver. Quotation will be created with pending status."),
       );
     }
 
     setSubmittingState(true);
     try {
-      setSubmitStep("Creating quotation...");
-      const submitCurrency =
-        findCurrencyById(currencies, form.currencyId) ||
-        selectedCurrency ||
-        findDefaultCurrency(currencies);
+      setSubmitStep(tr("Creating quotation..."));
+      // The header is VND (INV-1) — see selectedCurrency.
+      const submitCurrency = selectedCurrency;
       const lines = rows.map((r) => ({
         ...r,
         currencyId:
@@ -9126,6 +9642,8 @@ const QuotationCreateForm = () => {
           vat: r.vat,
           packageSubTotal: form.packageSubTotal,
           packageVatRate: form.packageVatRate,
+          currency: findCurrencyById(currencies, r.currencyId) || submitCurrency,
+          packageCurrency: submitCurrency,
         }),
       }));
 
@@ -9150,7 +9668,7 @@ const QuotationCreateForm = () => {
       let lineTotals = calcRowsTotals(lines);
       let quotationFinancialSummary = null;
       if (!packageMode) {
-        setSubmitStep("Checking quotation exchange rates...");
+        setSubmitStep(tr("Checking quotation exchange rates..."));
         const preliminarySummary = buildQuotationFinancialSummary({
           rows: lines,
           currencies,
@@ -9176,16 +9694,16 @@ const QuotationCreateForm = () => {
         });
         if (!quotationFinancialSummary.converted.canConvert) {
           throw new Error(
-            `Missing exchange rate for quotation total: ${formatMissingRatePairs(
+            tr("Missing exchange rate for quotation total: {0}", { 0: formatMissingRatePairs(
               quotationFinancialSummary.missing,
               submitCurrency,
-            )}`,
+            ) }),
           );
         }
         lineTotals = quotationFinancialSummary.converted;
       }
       const totals = packageMode
-        ? calcPackageTotals(form.packageSubTotal, form.packageVatRate)
+        ? calcPackageTotals(form.packageSubTotal, form.packageVatRate, selectedCurrency)
         : lineTotals;
 
       // ── approvedAt: ghi nhận datetime lúc tạo nếu isRequiredApproval = true ──
@@ -9198,8 +9716,8 @@ const QuotationCreateForm = () => {
         form.quotationKind || (parentId ? "supplement" : "main");
       const quotationTitle =
         quotationKind === "supplement"
-          ? `Báo giá bổ sung${popupContext?.projectService?.serviceName ? ` - ${popupContext.projectService.serviceName}` : ""}`
-          : "Báo giá";
+          ? `Supplementary quotation${popupContext?.projectService?.serviceName ? ` - ${popupContext.projectService.serviceName}` : ""}`
+          : "Quotation";
       const quotationStatus = "new";
       const projectServiceStatus = form.isRequiredApproval
         ? "quote_pending_approval"
@@ -9246,7 +9764,7 @@ const QuotationCreateForm = () => {
 
       const quotationId = qRes?.data?.data?.id || qRes?.data?.id;
       if (!quotationId)
-        throw new Error("Could not retrieve quotation id after creation");
+        throw new Error(tr("Could not retrieve quotation id after creation"));
       const createdQuotation = qRes?.data?.data ||
         qRes?.data || {
           id: quotationId,
@@ -9273,7 +9791,7 @@ const QuotationCreateForm = () => {
         };
       for (let i = 0; i < lines.length; i++) {
         const l = lines[i];
-        setSubmitStep(`Saving service ${i + 1}/${lines.length}...`);
+        setSubmitStep(tr("Saving service {0}/{1}...", { 0: i + 1, 1: lines.length }));
         const svcMeta = svcOpts.find(
           (s) => String(serviceOptionServiceId(s)) === String(l.serviceId),
         );
@@ -9312,7 +9830,7 @@ const QuotationCreateForm = () => {
           qsRes = await ctx.api.request({
             url: "quotationServices:create",
             method: "POST",
-            data: quotationServiceData,
+            data: lineWritePayload(quotationServiceData),
           });
         } catch (error) {
           // quotationServices may not have comboId/serviceCombo/comboName
@@ -9326,7 +9844,7 @@ const QuotationCreateForm = () => {
           qsRes = await ctx.api.request({
             url: "quotationServices:create",
             method: "POST",
-            data: fallback,
+            data: lineWritePayload(fallback),
           });
         }
         const quotationServiceId = qsRes?.data?.data?.id || qsRes?.data?.id;
@@ -9334,11 +9852,14 @@ const QuotationCreateForm = () => {
           l.projectServiceId ||
           (lines.length === 1 ? form.projectServiceId : null);
         if (targetProjectServiceId) {
+          try {
           await ctx.api.request({
             url: "projectServices:update",
             method: "POST",
             params: { filterByTk: targetProjectServiceId },
-            data: {
+            // links the case line to the new quotation line: its content
+            // must go with it (the thread spreads this write's content)
+            data: lineWritePayload({
               quotationId,
               quotationServiceId,
               quotationServices: quotationServiceId,
@@ -9364,8 +9885,15 @@ const QuotationCreateForm = () => {
                 : "lineBillable",
               financialSourceType: "quotation",
               status: projectServiceStatus,
-            },
+            }),
           });
+          } catch (linkError) {
+            // e.g. the case line belongs to a billed contract: say why, and
+            // skip its contract lines (they would be refused the same way)
+            message.warning(apiErrorText(linkError, tr("Could not link the case line to the quotation.")));
+            console.warn("[QuotationCreateForm] Could not link projectService:", linkError);
+            continue;
+          }
 
           try {
             const csListRes = await ctx.api.request({
@@ -9411,7 +9939,7 @@ const QuotationCreateForm = () => {
                 await ctx.api.request({
                   url: `contractServices:update?filterByTk=${contractServiceId}`,
                   method: "POST",
-                  data: contractServicePayload,
+                  data: linkedLineFollowUpPayload(contractServicePayload),
                 });
                 const targetContractId =
                   extractId(matchedCS.contractId) ||
@@ -9422,6 +9950,7 @@ const QuotationCreateForm = () => {
               }
             }
           } catch (contractSyncError) {
+            message.warning(apiErrorText(contractSyncError, tr("Could not sync the contract lines.")));
             console.warn(
               "[QuotationCreateForm] Could not sync contract services:",
               contractSyncError,
@@ -9438,9 +9967,13 @@ const QuotationCreateForm = () => {
           // is a silently-ignored unknown key on this collection.
           currencies: extractCurrencyId(submitCurrency) || null,
           currencyId: extractCurrencyId(submitCurrency) || null,
-          subTotal: totals.subTotal,
-          vatAmount: totals.vatAmount,
-          totalAmount: totals.totalAmount,
+          // line pricing: the case's totals are the database's
+          // (trg_money_project_header); a combo's are not
+          ...(packageMode ? {
+            subTotal: totals.subTotal,
+            vatAmount: totals.vatAmount,
+            totalAmount: totals.totalAmount,
+          } : {}),
         };
         await ctx.api
           .request({
@@ -9474,7 +10007,7 @@ const QuotationCreateForm = () => {
       }
 
       emitQuickCreateCreated("quotations", createdQuotation);
-      message.success("Quotation created successfully!");
+      message.success(tr("Quotation created successfully!"));
       isDirtyRef.current = false;
 
       // The user already opted in per-row (the "Also save to the shared
@@ -9492,7 +10025,7 @@ const QuotationCreateForm = () => {
       // for a custom combo item too, not just already-catalog ones.
       const newServiceIdByRowId = new Map();
       if (rowsToSaveToCatalog.length > 0) {
-        setSubmitStep("Saving to catalog...");
+        setSubmitStep(tr("Saving to catalog..."));
         let savedCount = 0;
         for (const r of rowsToSaveToCatalog) {
           // Defensive re-check — svcOpts could only have gone stale within
@@ -9544,7 +10077,7 @@ const QuotationCreateForm = () => {
           }
         }
         if (savedCount > 0) {
-          message.success(`${savedCount} service${savedCount === 1 ? "" : "s"} added to the catalog.`);
+          message.success(tr("{0} service{1} added to the catalog.", { 0: savedCount, 1: savedCount === 1 ? "" : "s" }));
         }
       }
 
@@ -9573,7 +10106,7 @@ const QuotationCreateForm = () => {
           if (!resolved.length) {
             console.warn(`Skipped saving combo "${comboEntry.comboName}" to the catalog — no service in it has a real catalog link.`);
             message.warning(
-              `Combo "${comboEntry.comboName}" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).`,
+              tr("Combo \"{0}\" was not saved to the catalog — its services could not be linked (a name may already be in use, or saving one of them failed).", { 0: comboEntry.comboName }),
             );
             continue;
           }
@@ -9620,13 +10153,13 @@ const QuotationCreateForm = () => {
               );
               message.success(
                 skippedCount > 0
-                  ? `Combo "${comboEntry.comboName}" saved to the catalog — ${skippedCount} custom service(s) without a catalog link were left out.`
-                  : `Combo "${comboEntry.comboName}" saved to the catalog.`,
+                  ? tr("Combo \"{0}\" saved to the catalog — {1} custom service(s) without a catalog link were left out.", { 0: comboEntry.comboName, 1: skippedCount })
+                  : tr("Combo \"{0}\" saved to the catalog.", { 0: comboEntry.comboName }),
               );
             }
           } catch (comboErr) {
             console.warn(`Could not save combo "${comboEntry.comboName}" to the catalog:`, comboErr);
-            message.warning(`Could not save combo "${comboEntry.comboName}" to the catalog.`);
+            message.warning(tr("Could not save combo \"{0}\" to the catalog.", { 0: comboEntry.comboName }));
           }
         }
       }
@@ -9634,11 +10167,11 @@ const QuotationCreateForm = () => {
       setSubmittingState(false);
       setSubmitStep("");
       if (!(await closePopupAfterSubmit())) {
-        message.warning("Cannot close this popup from the current runtime.");
+        message.warning(tr("Cannot close this popup from the current runtime."));
       }
       return;
     } catch (e) {
-      message.error("Error: " + (e?.message || "Please try again"));
+      message.error(tr("Error: ") + (e?.message || tr("Please try again")));
     }
     setSubmittingState(false);
     setSubmitStep("");
@@ -9696,14 +10229,14 @@ const QuotationCreateForm = () => {
             fontFamily: FONT,
           },
         },
-        "Hướng dẫn",
+        tr("Guide"),
       ),
     ),
 
     React.createElement(
       Card,
       null,
-      React.createElement(CardHeader, { title: "Quotation Information" }),
+      React.createElement(CardHeader, { title: tr("Quotation Information") }),
       React.createElement(
         "div",
         { style: { padding: 0 } },
@@ -9718,7 +10251,7 @@ const QuotationCreateForm = () => {
           },
           React.createElement(
             Field,
-            { label: "Internal Issuing Company", required: true },
+            { label: tr("Internal Issuing Company"), required: true },
             React.createElement(
               "select",
               {
@@ -9737,13 +10270,13 @@ const QuotationCreateForm = () => {
               React.createElement(
                 "option",
                 { value: "" },
-                "— Select company —",
+                tr("— Select company —"),
               ),
               ...internalCompanies.map((c) =>
                 React.createElement(
                   "option",
                   { key: c.id, value: c.id },
-                  c.companyName || c.name || `Company #${c.id}`,
+                  c.companyName || c.name || tr("Company #{0}", { 0: c.id }),
                 ),
               ),
             ),
@@ -9756,7 +10289,7 @@ const QuotationCreateForm = () => {
           { style: { marginBottom: 18 } },
           React.createElement(
             Field,
-            { label: "Related Case", hint: "optional" },
+            { label: tr("Related Case"), hint: "optional" },
             React.createElement(
               "select",
               {
@@ -9768,7 +10301,7 @@ const QuotationCreateForm = () => {
                   fontSize: 13,
                 },
               },
-              React.createElement("option", { value: "" }, "-- Select case --"),
+              React.createElement("option", { value: "" }, tr("-- Select case --")),
               ...projectOptions.map((project) =>
                 React.createElement(
                   "option",
@@ -9786,7 +10319,7 @@ const QuotationCreateForm = () => {
           React.createElement(
             Field,
             {
-              label: "Related Lead",
+              label: tr("Related Lead"),
               hint: !form.customerId ? "1 of 2 required" : "optional",
             },
             React.createElement(LeadDropdown, {
@@ -9810,7 +10343,7 @@ const QuotationCreateForm = () => {
           React.createElement(
             Field,
             {
-              label: "Related Customer",
+              label: tr("Related Customer"),
               hint: !form.leadId ? "1 of 2 required" : "optional",
             },
             React.createElement(CustomerDropdown, {
@@ -9833,7 +10366,7 @@ const QuotationCreateForm = () => {
           ),
           React.createElement(
             Field,
-            { label: "Assigned Lawyer", hint: "optional" },
+            { label: tr("Assigned Lawyer"), hint: "optional" },
             React.createElement(LawyerPicker, {
               lawyers,
               value: form.assignedLawyerId,
@@ -9863,9 +10396,9 @@ const QuotationCreateForm = () => {
           React.createElement(
             Field,
             {
-              label: "Quotation Template",
+              label: tr("Quotation Template"),
               hint: !form.internalCompanyId
-                ? "select company first"
+                ? tr("select company first")
                 : undefined,
             },
             React.createElement(
@@ -9890,8 +10423,8 @@ const QuotationCreateForm = () => {
                   "option",
                   { value: "" },
                   !form.internalCompanyId
-                    ? "— Select company first —"
-                    : "— Select template —",
+                    ? tr("— Select company first —")
+                    : tr("— Select template —"),
                 ),
                 ...filteredTemplates.map((t) =>
                   React.createElement(
@@ -9936,7 +10469,7 @@ const QuotationCreateForm = () => {
                     whiteSpace: "nowrap",
                   },
                 },
-                "+ New Template",
+                tr("+ New Template"),
               ),
             ),
           ),
@@ -9944,11 +10477,11 @@ const QuotationCreateForm = () => {
 
         React.createElement(
           Field,
-          { label: "Short Description", hint: "optional" },
+          { label: tr("Short Description"), hint: "optional" },
           React.createElement(AutoTextarea, {
             value: form.description,
             onChange: (v) => setF("description", v),
-            placeholder: "Quotation description...",
+            placeholder: tr("Quotation description..."),
             minRows: 2,
           }),
         ),
@@ -10012,7 +10545,7 @@ const QuotationCreateForm = () => {
               loading: submitting,
               onClick: handleSubmit,
             },
-            "Submit",
+            tr("Submit"),
           )
         : React.createElement(
             "div",
@@ -10029,7 +10562,7 @@ const QuotationCreateForm = () => {
                 fontFamily: FONT,
               },
             },
-            submitting ? "Processing..." : "Submit",
+            submitting ? tr("Processing...") : tr("Submit"),
           ),
     ),
 

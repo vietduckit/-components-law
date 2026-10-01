@@ -1,6 +1,389 @@
 // ============================================================
 // §1 CONFIG & SETUP
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Internal Work": "Internal Work",
+  "Create Internal Work folder": "Tạo thư mục Internal Work",
+  "Search Internal Work documents...": "Tìm tài liệu Internal Work...",
+  "Contract": "Hợp đồng",
+  "Policy": "Chính sách",
+  "HR": "Nhân sự",
+  "Finance": "Tài chính",
+  "Legal": "Pháp lý",
+  "IT": "IT",
+  "Proposal": "Đề xuất",
+  "Template": "Mẫu",
+  "Company": "Công ty",
+  "Untitled": "Chưa đặt tên",
+  "User #{0}": "Người dùng #{0}",
+  "Lawyer": "Luật sư",
+  "Reference": "Reference",
+  "Viewer": "Người xem",
+  "Editor": "Chỉnh sửa",
+  "Contributed": "Đóng góp",
+  "Document": "Tài liệu",
+  "Legal Reference": "Legal Reference",
+  "Failed to create parent record": "Không tạo được bản ghi cha",
+  "Failed to create legal member row": "Không tạo được thành viên",
+  "Upload failed": "Tải lên thất bại",
+  "File": "Tệp",
+  "Download": "Tải về",
+  "Close": "Đóng",
+  "Loading preview...": "Đang tải bản xem trước...",
+  "Your browser does not support video playback.": "Trình duyệt không hỗ trợ phát video.",
+  "Your browser does not support audio playback.": "Trình duyệt không hỗ trợ phát âm thanh.",
+  "{0} lines · {1} characters": "{0} dòng · {1} ký tự",
+  "Loading content...": "Đang tải nội dung...",
+  "Could not load file content": "Không tải được nội dung tệp",
+  "Download to view": "Tải về để xem",
+  "This document has no file or URL to preview": "Tài liệu chưa có tệp hoặc URL để xem trước",
+  "Cannot preview this format": "Không xem trước được định dạng này",
+  "Download to open with a compatible application": "Tải về để mở bằng ứng dụng phù hợp",
+  "{0} - Manager": "{0} - Manager",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "User": "Người dùng",
+  "No one has been granted access": "Chưa cấp quyền cho ai",
+  "Permissions updated successfully": "Đã cập nhật quyền",
+  "An error occurred while updating permissions": "Có lỗi khi cập nhật quyền",
+  "Cancel": "Hủy",
+  "Save": "Lưu",
+  "Manager": "Quản lý",
+  "Select manager...": "Chọn người quản lý...",
+  "Add members": "Thêm thành viên",
+  "Search and select multiple people...": "Tìm và chọn nhiều người...",
+  "Members": "Thành viên",
+  "No members added yet": "Chưa thêm thành viên",
+  "Document Information": "Thông tin tài liệu",
+  "({0} files)": "({0} tệp)",
+  "Upload": "Tải lên",
+  "Selected file(s):": "Tệp đã chọn:",
+  "The information below will be applied to all": "Thông tin dưới đây sẽ áp dụng cho tất cả",
+  "files\n              (the document name will keep each file's own name if left blank).": "tệp (tên tài liệu sẽ giữ tên riêng của từng tệp nếu để trống).",
+  "Checking existing files…": "Đang kiểm tra tệp đã có…",
+  "File already exists": "Tệp đã tồn tại",
+  "will be saved as new version": "sẽ được lưu thành phiên bản mới",
+  "Upload as separate files": "Tải lên thành các tệp riêng",
+  "Group into a new folder": "Gom vào thư mục mới",
+  "Folder Name": "Tên thư mục",
+  "Please enter a folder name": "Vui lòng nhập tên thư mục",
+  "Enter the new folder's name...": "Nhập tên thư mục mới...",
+  "Document Type": "Loại tài liệu",
+  "e.g. Contract, Meeting Minutes...": "VD: Hợp đồng, Biên bản họp...",
+  "Document Name": "Tên tài liệu",
+  "Leave blank to use file name": "Để trống để dùng tên tệp",
+  "Document Code": "Số hiệu tài liệu",
+  "e.g. 123/2024/CT": "VD: 123/2024/CT",
+  "Opening/Issue Date": "Ngày mở/ban hành",
+  "Signed Date": "Ngày ký",
+  "Effective Date": "Ngày hiệu lực",
+  "Sender": "Người gửi",
+  "Sender name/organization": "Tên người/tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Recipient name/organization": "Tên người/tổ chức nhận",
+  "Description": "Mô tả",
+  "Summarize the main content...": "Tóm tắt nội dung chính...",
+  "All": "Tất cả",
+  "Failed to load data": "Không thể tải dữ liệu",
+  "Folder": "Thư mục",
+  "Uploaded": "Đã tải lên",
+  "Created": "Ngày tạo",
+  "Moved": "Đã di chuyển",
+  "Preview": "Xem trước",
+  "Downloaded": "Đã tải về",
+  "Added to {0}": "Đã thêm vào {0}",
+  "Removed from {0}": "Đã gỡ khỏi {0}",
+  "Share": "Chia sẻ",
+  "Unshare": "Hủy chia sẻ",
+  "Permissions Updated": "Đã cập nhật quyền",
+  "Moved to Trash": "Đã chuyển vào thùng rác",
+  "Restored": "Đã khôi phục",
+  "Updated": "Cập nhật",
+  "Permanently Deleted": "Đã xóa vĩnh viễn",
+  "document type": "loại tài liệu",
+  "linked customer": "khách hàng liên kết",
+  "parent folder": "thư mục cha",
+  "internal company": "công ty nội bộ",
+  "Google Drive link": "link Google Drive",
+  "raw file": "tệp gốc",
+  "sort position": "vị trí sắp xếp",
+  "document category": "danh mục tài liệu",
+  "shared with": "chia sẻ với",
+  "shared document": "tài liệu được chia sẻ",
+  "deletion status": "trạng thái xóa",
+  "deleted date": "ngày xóa",
+  "updated time": "thời gian cập nhật",
+  "created time": "thời gian tạo",
+  "document code": "số hiệu tài liệu",
+  "opening date": "ngày mở",
+  "document format": "định dạng tài liệu",
+  "signed date": "ngày ký",
+  "effective date": "ngày hiệu lực",
+  "permanently deleted": "đã xóa vĩnh viễn",
+  "moved to trash": "đã chuyển vào thùng rác",
+  "unshared document": "đã hủy chia sẻ tài liệu",
+  "updated permissions": "đã cập nhật quyền",
+  "added to {0}": "thêm vào {0}",
+  "removed from {0}": "gỡ khỏi {0}",
+  "Added the document to {0} at \"{1}\"": "Đã thêm tài liệu vào {0} tại \"{1}\"",
+  "Added the document to {0}": "Đã thêm tài liệu vào {0}",
+  "Removed the document from {0}": "Đã gỡ tài liệu khỏi {0}",
+  "Previewed the {0}": "Đã xem trước {0}",
+  "Downloaded the {0}": "Đã tải về {0}",
+  "Shared the document with a user": "Đã chia sẻ tài liệu với một người dùng",
+  "Shared the document with users: {0}": "Đã chia sẻ tài liệu với: {0}",
+  "Shared the document with user {0}": "Đã chia sẻ tài liệu với {0}",
+  "Unshared the document from a user": "Đã hủy chia sẻ tài liệu với một người dùng",
+  "Unshared the document from users: {0}": "Đã hủy chia sẻ tài liệu với: {0}",
+  "Unshared the document from user {0}": "Đã hủy chia sẻ tài liệu với {0}",
+  "Updated {0} permissions: {1}": "Đã cập nhật quyền {0}: {1}",
+  "Updated {0} permissions": "Đã cập nhật quyền {0}",
+  "Created a new folder": "Đã tạo thư mục mới",
+  "Uploaded a new document": "Đã tải lên tài liệu mới",
+  "Permanently deleted the {0}": "Đã xóa vĩnh viễn {0}",
+  "Moved the {0} to Trash": "Đã chuyển {0} vào thùng rác",
+  "Restored the {0} from Trash": "Đã khôi phục {0} từ thùng rác",
+  "Root folder": "Thư mục gốc",
+  "Folder #{0}": "Thư mục #{0}",
+  "Moved the {0} from \"{1}\" to \"{2}\"": "Đã chuyển {0} từ \"{1}\" sang \"{2}\"",
+  "Moved the {0}": "Đã chuyển {0}",
+  "Renamed the {0}: \"{1}\" → \"{2}\"": "Đã đổi tên {0}: \"{1}\" → \"{2}\"",
+  "Renamed the {0} to \"{1}\"": "Đã đổi tên {0} thành \"{1}\"",
+  "Moved from \"{0}\" to \"{1}\"": "Đã chuyển từ \"{0}\" sang \"{1}\"",
+  "Updated {0} of the {1}": "Đã cập nhật {0} của {1}",
+  "[{0}] action on {1}": "Thao tác [{0}] trên {1}",
+  "System": "Hệ thống",
+  "Home": "Trang chủ",
+  "My Workspace": "Không gian của tôi",
+  "Shared Folder": "Thư mục được chia sẻ",
+  "Activity History": "Lịch sử hoạt động",
+  "Trash": "Thùng rác",
+  "Current Internal Work item not found": "Không tìm thấy mục Internal Work hiện tại",
+  "Please select a reference case first": "Vui lòng chọn hồ sơ tham chiếu trước",
+  "Please select a Reference first": "Vui lòng chọn tham chiếu trước",
+  "Please select an internal company first": "Vui lòng chọn công ty nội bộ trước",
+  "Please create the Internal Work folder before uploading documents": "Vui lòng tạo thư mục Internal Work trước khi tải tài liệu lên",
+  "Reference case created successfully!": "Đã tạo hồ sơ tham chiếu!",
+  "Failed to create reference case": "Không thể tạo hồ sơ tham chiếu",
+  "Failed to update case title": "Không thể cập nhật tiêu đề hồ sơ",
+  "Reference case updated successfully!": "Đã cập nhật hồ sơ tham chiếu!",
+  "Update failed": "Cập nhật thất bại",
+  "Please select a Reference Case to link": "Vui lòng chọn hồ sơ tham chiếu để liên kết",
+  "Failed to update case links": "Không thể cập nhật liên kết hồ sơ",
+  "Case link updated successfully": "Đã cập nhật liên kết hồ sơ",
+  "Failed to link case": "Không thể liên kết hồ sơ",
+  "You do not have permission to create a folder at this location": "Bạn không có quyền tạo thư mục tại vị trí này",
+  "Folder created successfully!": "Đã tạo thư mục!",
+  "Failed to create folder": "Không thể tạo thư mục",
+  "Upload {0} file(s) successfully!": "Đã tải lên {0} tệp!",
+  "You do not have permission to upload documents to this folder": "Bạn không có quyền tải tài liệu lên thư mục này",
+  "Analyzing folder structure...": "Đang phân tích cấu trúc thư mục...",
+  "Creating {0} folders...": "Đang tạo {0} thư mục...",
+  "Uploading file {0}/{1}...": "Đang tải tệp {0}/{1}...",
+  "Folder upload complete!": "Đã tải thư mục lên!",
+  "Folder upload failed": "Tải thư mục lên thất bại",
+  "Cannot move a folder into itself": "Không thể chuyển thư mục vào chính nó",
+  "Cannot move a folder into its own subfolder": "Không thể chuyển thư mục vào thư mục con của nó",
+  "Folder moved": "Đã di chuyển thư mục",
+  "Document moved": "Đã di chuyển tài liệu",
+  "Move failed": "Di chuyển thất bại",
+  "Restore {0} selected item(s)?": "Khôi phục {0} mục đã chọn?",
+  "Folders and documents will be restored to their original space.": "Thư mục và tài liệu sẽ được khôi phục về không gian ban đầu.",
+  "Restore": "Khôi phục",
+  "Restored {0} item(s) successfully!": "Đã khôi phục {0} mục!",
+  "Restore failed": "Khôi phục thất bại",
+  "Root folders can't be deleted.": "Không thể xóa thư mục gốc.",
+  "Permanently delete {0} selected item(s)?": "Xóa vĩnh viễn {0} mục đã chọn?",
+  "This action cannot be undone. Files and folders will be permanently removed from the system.": "Thao tác này không thể hoàn tác. Tệp và thư mục sẽ bị xóa vĩnh viễn khỏi hệ thống.",
+  "Permanently Delete": "Xóa vĩnh viễn",
+  "Deleted {0} item(s) successfully!": "Đã xóa {0} mục!",
+  "Delete failed": "Xóa thất bại",
+  "Only administrators can delete these items.": "Chỉ quản trị viên mới xóa được các mục này.",
+  "Move {0} selected item(s) to Trash?": "Chuyển {0} mục đã chọn vào thùng rác?",
+  "Selected items will be moved to Trash.": "Các mục đã chọn sẽ được chuyển vào thùng rác.",
+  "Move to Trash": "Chuyển vào thùng rác",
+  "Moved {0} item(s) to Trash!": "Đã chuyển {0} mục vào thùng rác!",
+  "Moved {0} item(s) successfully!": "Đã di chuyển {0} mục!",
+  "Document reordered": "Đã sắp xếp lại tài liệu",
+  "System template folders cannot be renamed.": "Không thể đổi tên thư mục mẫu hệ thống.",
+  "Folder name updated": "Đã cập nhật tên thư mục",
+  "Document and file name updated": "Đã cập nhật tên tài liệu và tệp",
+  "Failed to update folder name": "Không thể cập nhật tên thư mục",
+  "Failed to update document name": "Không thể cập nhật tên tài liệu",
+  "Failed to update": "Cập nhật thất bại",
+  "System template folders cannot be deleted.": "Không thể xóa thư mục mẫu hệ thống.",
+  "Only administrators can delete this item.": "Chỉ quản trị viên mới xóa được mục này.",
+  "- {0} subfolder(s)": "- {0} thư mục con",
+  "- {0} file(s)": "- {0} tệp",
+  "Confirm delete folder \"{0}\"?": "Xác nhận xóa thư mục \"{0}\"?",
+  "You are about to delete this folder. The following data will also be deleted:": "Bạn sắp xóa thư mục này. Dữ liệu sau cũng sẽ bị xóa:",
+  "(This folder is empty)": "(Thư mục này trống)",
+  "Are you sure you want to delete it?": "Bạn có chắc muốn xóa?",
+  "Folder and its contents moved to Trash": "Đã chuyển thư mục và nội dung vào thùng rác",
+  "Delete this file?": "Xóa tệp này?",
+  "This file will be moved to Trash.": "Tệp này sẽ được chuyển vào thùng rác.",
+  "File moved to Trash": "Đã chuyển tệp vào thùng rác",
+  "Restored successfully": "Đã khôi phục",
+  "Delete this folder?": "Xóa thư mục này?",
+  "Warning: this action cannot be undone — the data will be permanently removed from the database.": "Cảnh báo: thao tác này không thể hoàn tác — dữ liệu sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu.",
+  "Delete": "Xóa",
+  "Deleted": "Đã xóa",
+  "Confirm delete Reference Case \"{0}\"?": "Xác nhận xóa hồ sơ tham chiếu \"{0}\"?",
+  "Confirm delete document type \"{0}\"?": "Xác nhận xóa loại tài liệu \"{0}\"?",
+  "Are you sure you want to delete this Reference Case? Its documents and folders will remain in Trash or become unlinked.": "Bạn có chắc muốn xóa hồ sơ tham chiếu này? Tài liệu và thư mục của nó sẽ nằm trong thùng rác hoặc bị gỡ liên kết.",
+  "Are you sure you want to delete this document type? Documents under this type will remain but become unlinked.": "Bạn có chắc muốn xóa loại tài liệu này? Các tài liệu thuộc loại này vẫn còn nhưng sẽ bị gỡ liên kết.",
+  "Failed to delete": "Xóa thất bại",
+  "Reference Case deleted": "Đã xóa hồ sơ tham chiếu",
+  "Document type deleted": "Đã xóa loại tài liệu",
+  "Failed to rename": "Đổi tên thất bại",
+  "Reference Case renamed": "Đã đổi tên hồ sơ tham chiếu",
+  "Document type renamed": "Đã đổi tên loại tài liệu",
+  "Folder renamed": "Đã đổi tên thư mục",
+  "Document renamed": "Đã đổi tên tài liệu",
+  "Rename failed": "Đổi tên thất bại",
+  "This document has no file or URL": "Tài liệu chưa có tệp hoặc URL",
+  "folders -": "thư mục -",
+  "files)": "tệp)",
+  "No file attached": "Chưa đính kèm tệp",
+  "Click to preview": "Bấm để xem trước",
+  "Could not find this Reference's data.": "Không tìm thấy dữ liệu của tham chiếu này.",
+  "Open Detail": "Mở chi tiết",
+  "Link Case": "Liên kết hồ sơ",
+  "Rename": "Đổi tên",
+  "Move": "Di chuyển",
+  "Permissions": "Phân quyền",
+  "Library / {0}": "Library / {0}",
+  "Library": "Library",
+  "No.": "STT",
+  "Reference Code": "Mã tham chiếu",
+  "Reference Name": "Tên tham chiếu",
+  "Case Summary": "Tóm tắt hồ sơ",
+  "Linked Cases": "Hồ sơ liên kết",
+  "Not linked": "Chưa liên kết",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Actions": "Thao tác",
+  "Size": "Kích thước",
+  "Uploaded By": "Người tải lên",
+  "Uploaded At": "Tải lên lúc",
+  "Deleted By": "Người xóa",
+  "Deleted At": "Xóa lúc",
+  "Created At": "Ngày tạo",
+  "Created By": "Người tạo",
+  "Opening Date": "Ngày mở",
+  "File Name": "Tên tệp",
+  "Name": "Tên",
+  "You only have view access to this folder": "Bạn chỉ có quyền xem thư mục này",
+  "New Folder": "Thư mục mới",
+  "Upload File": "Tải tệp lên",
+  "Upload Folder": "Tải thư mục lên",
+  "Activity Type": "Loại hoạt động",
+  "Performed By": "Người thực hiện",
+  "Document #{0}": "Tài liệu #{0}",
+  "Change Description": "Mô tả thay đổi",
+  "Time": "Thời gian",
+  "Folder permissions: {0}": "Phân quyền thư mục: {0}",
+  "{0} permissions: {1}": "Phân quyền {0}: {1}",
+  "Close sidebar": "Đóng thanh bên",
+  "Search file...": "Tìm tệp...",
+  "No folder yet — click to create": "Chưa có thư mục — bấm để tạo",
+  "Nhanh": "Quick",
+  "Open sidebar": "Mở thanh bên",
+  "Search activity...": "Tìm hoạt động...",
+  "All Activity": "Tất cả hoạt động",
+  "Uploaded File": "Đã tải tệp lên",
+  "Shared File": "Đã chia sẻ tệp",
+  "Unshared": "Đã hủy chia sẻ",
+  "Updated Permissions": "Đã cập nhật quyền",
+  "Created Folder": "Đã tạo thư mục",
+  "Other Update": "Cập nhật khác",
+  "Search...": "Tìm kiếm...",
+  "Newest": "Mới nhất",
+  "Oldest": "Cũ nhất",
+  "Name A-Z": "Tên A-Z",
+  "Format": "Định dạng",
+  "Grid": "Lưới",
+  "Table": "Bảng",
+  "Refresh": "Làm mới",
+  "Create Reference Case": "Tạo hồ sơ tham chiếu",
+  "New": "Tạo mới",
+  "{0}–{1} of {2} activities": "{0}–{1} / {2} hoạt động",
+  "No activity history found": "Không có lịch sử hoạt động",
+  "Manager:": "Quản lý:",
+  "Member:": "Thành viên:",
+  "Selected": "Đã chọn",
+  "item(s)": "mục",
+  "Clear selection": "Bỏ chọn",
+  "This Internal Work item has no root folder yet": "Mục Internal Work này chưa có thư mục gốc",
+  "No Reference Cases yet": "Chưa có hồ sơ tham chiếu",
+  "Trash is empty": "Thùng rác trống",
+  "No results found": "Không tìm thấy kết quả",
+  "This folder is empty": "Thư mục này trống",
+  "Please create this Internal Work item's root folder before uploading documents": "Vui lòng tạo thư mục gốc của mục Internal Work trước khi tải tài liệu lên",
+  "Click + Create Reference Case below to get started": "Bấm + Tạo hồ sơ tham chiếu bên dưới để bắt đầu",
+  "No deleted files or folders": "Không có tệp hay thư mục đã xóa",
+  "Try a different search term": "Thử từ khóa khác",
+  "Click + New to create a folder or upload your first document": "Bấm + Mới để tạo thư mục hoặc tải tài liệu đầu tiên lên",
+  "+ Create Reference Case": "+ Tạo hồ sơ tham chiếu",
+  "+ Add Document": "+ Thêm tài liệu",
+  "+ Add Folder": "+ Thêm thư mục",
+  "Created by:": "Người tạo:",
+  "Created:": "Ngày tạo:",
+  "Resources:": "Tài nguyên:",
+  "Folders ·": "Thư mục ·",
+  "Folders": "Thư mục",
+  "Source:": "Nguồn:",
+  "Deleted by:": "Người xóa:",
+  "Deleted:": "Đã xóa:",
+  "No documents yet": "Chưa có tài liệu",
+  "+ Upload file": "+ Tải tệp lên",
+  "Documents": "Tài liệu",
+  "Location:": "Vị trí:",
+  "Enter folder name...": "Nhập tên thư mục...",
+  "Submit": "Gửi",
+  "Confirm Upload": "Xác nhận tải lên",
+  "file(s) from an external folder.": "tệp từ thư mục bên ngoài.",
+  "Upload to:": "Tải lên vào:",
+  "Choose the destination folder for": "Chọn thư mục đích cho",
+  "Title": "Tiêu đề",
+  "Please enter a title": "Vui lòng nhập tiêu đề",
+  "Enter title...": "Nhập tiêu đề...",
+  "Short description...": "Mô tả ngắn...",
+  "Source Case / Origin Case": "Hồ sơ nguồn / gốc",
+  "Select the source case/project this reference case is generated from (only unlinked cases are shown).": "Chọn hồ sơ/dự án nguồn mà hồ sơ tham chiếu này được tạo từ (chỉ hiện hồ sơ chưa liên kết).",
+  "Select source case...": "Chọn hồ sơ nguồn...",
+  "Currently Linked Cases": "Hồ sơ đang liên kết",
+  "Select active cases in the system to link with this reference case (only unlinked cases are shown).": "Chọn các hồ sơ đang hoạt động để liên kết với hồ sơ tham chiếu này (chỉ hiện hồ sơ chưa liên kết).",
+  "Select cases to link...": "Chọn hồ sơ để liên kết...",
+  "Create": "Tạo",
+  "Edit Document Entry": "Sửa mục tài liệu",
+  "New Name": "Tên mới",
+  "Please enter a name": "Vui lòng nhập tên",
+  "Enter new name...": "Nhập tên mới...",
+  "Link Reference Case": "Liên kết hồ sơ tham chiếu",
+  "Save Link": "Lưu liên kết",
+  "Select Active Cases/Projects to Link": "Chọn hồ sơ/dự án đang hoạt động để liên kết",
+  "This list is populated from the projects currently in the system.": "Danh sách lấy từ các dự án hiện có trong hệ thống.",
+  "Select case...": "Chọn hồ sơ...",
+  "Move Multiple Items": "Di chuyển nhiều mục",
+  "selected item(s)": "mục đã chọn",
+  "folder": "thư mục",
+  "document": "tài liệu",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 const {
@@ -70,10 +453,10 @@ const DASHBOARD_CONFIG = {
 
   // ── Nhãn hiển thị trong UI ────────────────────────────────────────────────
   label: {
-    sidebar: "Internal Work",
-    sidebarItem: "Internal Work",
-    createButton: "Create Internal Work folder",
-    searchPlaceholder: "Search Internal Work documents...",
+    sidebar: tr("Internal Work"),
+    sidebarItem: tr("Internal Work"),
+    createButton: tr("Create Internal Work folder"),
+    searchPlaceholder: tr("Search Internal Work documents..."),
   },
 };
 
@@ -1587,14 +1970,14 @@ const TYPE_DECOR = {
 };
 
 const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
-  { value: "contract", label: "Contract" },
-  { value: "policy", label: "Policy" },
-  { value: "hr", label: "HR" },
-  { value: "finance", label: "Finance" },
-  { value: "legal", label: "Legal" },
-  { value: "it", label: "IT" },
-  { value: "proposal", label: "Proposal" },
-  { value: "template", label: "Template" },
+  { value: "contract", label: tr("Contract") },
+  { value: "policy", label: tr("Policy") },
+  { value: "hr", label: tr("HR") },
+  { value: "finance", label: tr("Finance") },
+  { value: "legal", label: tr("Legal") },
+  { value: "it", label: tr("IT") },
+  { value: "proposal", label: tr("Proposal") },
+  { value: "template", label: tr("Template") },
 ];
 
 const extractId = (val) =>
@@ -1606,13 +1989,13 @@ const normalizeKey = (val) =>
     .trim()
     .toLowerCase();
 const getCompanyName = (company) =>
-  company?.shortName || company?.name || company?.legalName || "Company";
+  company?.shortName || company?.name || company?.legalName || tr("Company");
 const getDocTitle = (doc) =>
   doc?.name ||
   doc?.title ||
   doc?.templateName ||
   getAttachment(doc)?.filename ||
-  "Untitled";
+  tr("Untitled");
 // Sao chép nguyên văn từ Library.js/TaskDetailView.js — cùng 1 thuật toán
 // chống trùng tên cho mọi nơi upload trong hệ thống (2026-09-18: chuẩn
 // hoá 1 format duy nhất "(1)", "(2)"... thay vì để mỗi file tự bịa format
@@ -1670,7 +2053,8 @@ const getLinkedCaseId = (record) =>
 
 const getUrlFilterId = () => {
   try {
-    const href = String(window?.location?.href || "");
+    // location.href is blocked in the RunJS sandbox — the id is in the path.
+    const href = String(window?.location?.pathname || "");
     const pathMatch = href.match(/filterbytk\/(\d+)/i);
     if (pathMatch?.[1]) return pathMatch[1];
     const queryMatch = href.match(/[?&]filterByTk=(\d+)/i);
@@ -1796,20 +2180,20 @@ const getUploadUserName = (record) =>
   getUserDisplayName(record?.uploadedBy) ||
   getUserDisplayName(record?.createdBy) ||
   (extractId(record?.uploadedById)
-    ? `User #${extractId(record.uploadedById)}`
+    ? tr("User #{0}", { 0: extractId(record.uploadedById) })
     : "") ||
   (extractId(record?.createdById)
-    ? `User #${extractId(record.createdById)}`
+    ? tr("User #{0}", { 0: extractId(record.createdById) })
     : "—");
 
 const getDeletedUserName = (record) =>
   getUserDisplayName(record?.updatedBy) ||
   getUserDisplayName(record?.deletedBy) ||
   (extractId(record?.updatedById)
-    ? `User #${extractId(record.updatedById)}`
+    ? tr("User #{0}", { 0: extractId(record.updatedById) })
     : "") ||
   (extractId(record?.deletedById)
-    ? `User #${extractId(record.deletedById)}`
+    ? tr("User #{0}", { 0: extractId(record.deletedById) })
     : "—");
 
 const formatBytes = (bytes) => {
@@ -1860,7 +2244,7 @@ const getPermissionRole = (row, fallback = "viewer") =>
   row?.role ||
   fallback;
 
-const getLawyerDisplayName = (record, fallback = "Lawyer") => {
+const getLawyerDisplayName = (record, fallback = tr("Lawyer")) => {
   const lawyer = getRelationLawyerRecord(record);
   return (
     lawyer.lawyerName ||
@@ -1881,7 +2265,7 @@ const getLawyerDisplayName = (record, fallback = "Lawyer") => {
 // Internal keys (activeSpace "legal_study", storageType "legal_study",
 // field names legalStudyId/legalMembers/...) stay unchanged; only the text
 // shown to the user changes, so this doesn't touch stored data.
-const REFERENCE_LABEL = "Reference";
+const REFERENCE_LABEL = tr("Reference");
 
 // The 5 fixed template folders CaseCreateForm.js auto-creates per case
 // (see its defaultChildren list) — never renameable by anyone, including
@@ -1951,9 +2335,9 @@ const getEntityMemberRowLawyerRecord = (row) => {
 // legalStudy record itself (see loadEntityPermissions/saveEntityPermissions),
 // matching Library.js's ENTITY_MEMBER_ROLE_OPTIONS exactly.
 const ENTITY_MEMBER_ROLE_OPTIONS = [
-  { value: "viewer", label: "Viewer" },
-  { value: "editor", label: "Editor" },
-  { value: "contributed", label: "Contributed" },
+  { value: "viewer", label: tr("Viewer") },
+  { value: "editor", label: tr("Editor") },
+  { value: "contributed", label: tr("Contributed") },
 ];
 
 // Endpoint candidates for writing the legalStudy record's own manager/
@@ -2263,7 +2647,7 @@ const decorateDocumentTypeOption = (option) => {
   return {
     id,
     value: id,
-    label: String(option?.label || option?.title || id || "Document"),
+    label: String(option?.label || option?.title || id || tr("Document")),
     color: option?.color || decor.color,
     background: option?.background || decor.background,
     svgIcon: TYPE_ICONS[key] || TYPE_ICONS.default,
@@ -2384,7 +2768,7 @@ const getLegalReferenceDisplayName = (record) => {
     record.title ||
     record.name ||
     record.description ||
-    (record.id ? `Legal Reference ${record.id}` : "Legal Reference");
+    (record.id ? `Legal Reference ${record.id}` : tr("Legal Reference"));
   return code && String(code) !== String(title) ? `${code} - ${title}` : title;
 };
 
@@ -2404,7 +2788,7 @@ const createLegalReferenceRecord = async (payload) => {
       lastError = e;
     }
   }
-  throw lastError || new Error("Failed to create parent record");
+  throw lastError || new Error(tr("Failed to create parent record"));
 };
 
 const fetchLinkedRelationRows = async (caseId, relationName, extraAppends = []) => {
@@ -2489,7 +2873,7 @@ const createEntityMemberRow = async (fkField, recordId, memberId, role) => {
       lastError = e;
     }
   }
-  throw lastError || new Error("Failed to create legal member row");
+  throw lastError || new Error(tr("Failed to create legal member row"));
 };
 
 const fetchFoldersForInternalTemplates = async () => {
@@ -2789,7 +3173,7 @@ const uploadAttachment = async (file, fileName = null) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
   const attachment = uploadRes?.data?.data;
-  if (!attachment?.id) throw new Error("Upload failed");
+  if (!attachment?.id) throw new Error(tr("Upload failed"));
   return attachment;
 };
 
@@ -2836,7 +3220,7 @@ const PreviewModal = ({ doc, onClose }) => {
     attachment?.filename ||
     doc?.name ||
     doc?.title ||
-    "File";
+    tr("File");
   if (!fileExt && rawName.includes(".")) {
     fileExt = "." + rawName.split(".").pop().toLowerCase();
   }
@@ -2917,8 +3301,14 @@ const PreviewModal = ({ doc, onClose }) => {
     setTextError(false);
 
     const doFetch = async () => {
-      if (typeof window !== "undefined" && typeof window.fetch === "function") {
-        const res = await window.fetch(fullUrl);
+      // window.fetch is blocked in the RunJS sandbox (even `typeof` throws) —
+      // probe it safely, else fall back to ctx.api.
+      let nativeFetch = null;
+      try {
+        nativeFetch = typeof window.fetch === "function" ? window.fetch.bind(window) : null;
+      } catch {}
+      if (nativeFetch) {
+        const res = await nativeFetch(fullUrl);
         if (!res.ok) throw new Error("fetch failed");
         return await res.text();
       } else {
@@ -2983,11 +3373,11 @@ const PreviewModal = ({ doc, onClose }) => {
             icon={DOWNLOAD_ICON}
             onClick={() => window.open(fullUrl, "_blank")}
           >
-            Download
+            {tr("Download")}
           </Button>
         ),
         <Button key="close" onClick={onClose}>
-          Close
+          {tr("Close")}
         </Button>,
       ].filter(Boolean)}
     >
@@ -3002,7 +3392,7 @@ const PreviewModal = ({ doc, onClose }) => {
             zIndex: 0,
           }}
         >
-          <Spin tip="Loading preview..." />
+          <Spin tip={tr("Loading preview...")} />
         </div>
       )}
 
@@ -3100,7 +3490,7 @@ const PreviewModal = ({ doc, onClose }) => {
                         : "video/mp4"
               }
             />
-            Your browser does not support video playback.
+            {tr("Your browser does not support video playback.")}
           </video>
         </div>
       )}
@@ -3160,7 +3550,7 @@ const PreviewModal = ({ doc, onClose }) => {
                             : "audio/mpeg"
               }
             />
-            Your browser does not support audio playback.
+            {tr("Your browser does not support audio playback.")}
           </audio>
         </div>
       )}
@@ -3198,7 +3588,7 @@ const PreviewModal = ({ doc, onClose }) => {
               style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}
             >
               {textContent != null
-                ? `${textContent.split("\n").length} lines · ${textContent.length} characters`
+                ? tr("{0} lines · {1} characters", { 0: textContent.split("\n").length, 1: textContent.length })
                 : ""}
             </span>
           </div>
@@ -3220,7 +3610,7 @@ const PreviewModal = ({ doc, onClose }) => {
                   color: "#ccc",
                 }}
               >
-                <Spin tip="Loading content..." />
+                <Spin tip={tr("Loading content...")} />
               </div>
             )}
             {textError && (
@@ -3237,7 +3627,7 @@ const PreviewModal = ({ doc, onClose }) => {
                 <Empty
                   description={
                     <span style={{ color: "#aaa" }}>
-                      Could not load file content
+                      {tr("Could not load file content")}
                     </span>
                   }
                 />
@@ -3250,7 +3640,7 @@ const PreviewModal = ({ doc, onClose }) => {
                     background: "transparent",
                   }}
                 >
-                  Download to view
+                  {tr("Download to view")}
                 </Button>
               </div>
             )}
@@ -3307,7 +3697,7 @@ const PreviewModal = ({ doc, onClose }) => {
             zIndex: 1,
           }}
         >
-          <Empty description="This document has no file or URL to preview" />
+          <Empty description={tr("This document has no file or URL to preview")} />
         </div>
       )}
 
@@ -3343,7 +3733,7 @@ const PreviewModal = ({ doc, onClose }) => {
                 color: "#374151",
               }}
             >
-              Cannot preview this format{" "}
+              {tr("Cannot preview this format")}{" "}
               <code
                 style={{
                   background: "#f3f4f6",
@@ -3355,7 +3745,7 @@ const PreviewModal = ({ doc, onClose }) => {
               </code>
             </div>
             <div style={{ color: "#6b7280", fontSize: 13 }}>
-              Download to open with a compatible application
+              {tr("Download to open with a compatible application")}
             </div>
             <Button
               type="primary"
@@ -3363,7 +3753,7 @@ const PreviewModal = ({ doc, onClose }) => {
               style={{ marginTop: 8 }}
               onClick={() => window.open(fullUrl, "_blank")}
             >
-              Download to view
+              {tr("Download to view")}
             </Button>
           </div>
         )}
@@ -3435,7 +3825,7 @@ const PermissionManagerModal = ({
         (l) => String(extractId(l.id)) === String(managerId),
       );
       parts.push(
-        `${mgr ? getLawyerDisplayName(mgr) : `Lawyer #${managerId}`} - Manager`,
+        tr("{0} - Manager", { 0: mgr ? getLawyerDisplayName(mgr) : tr("Lawyer #{0}", { 0: managerId }) }),
       );
     }
     shares.forEach((s) => {
@@ -3447,14 +3837,14 @@ const PermissionManagerModal = ({
         {};
       const displayName = getLawyerDisplayName(
         lw.id ? lw : s.lawyerData || s,
-        "User",
+        tr("User"),
       );
       const roleLabel =
         ENTITY_MEMBER_ROLE_OPTIONS.find((o) => o.value === s.role)?.label ||
         s.role;
       parts.push(`${displayName} - ${roleLabel}`);
     });
-    return parts.length ? parts.join("; ") : "No one has been granted access";
+    return parts.length ? parts.join("; ") : tr("No one has been granted access");
   };
 
   const handleAddLawyers = (selectedIds = pendingLawyerIds) => {
@@ -3499,11 +3889,11 @@ const PermissionManagerModal = ({
     setSaving(true);
     try {
       await savePermissions(managerId, shares);
-      message.success("Permissions updated successfully");
+      message.success(tr("Permissions updated successfully"));
       onSuccess({ accessSummary: buildAccessSummary() });
     } catch (e) {
       console.error("[CaseDocument] update permissions failed", e);
-      message.error("An error occurred while updating permissions");
+      message.error(tr("An error occurred while updating permissions"));
     } finally {
       setSaving(false);
     }
@@ -3518,7 +3908,7 @@ const PermissionManagerModal = ({
       destroyOnClose
       footer={[
         <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>
-          Cancel
+          {tr("Cancel")}
         </Button>,
         <Button
           key="save"
@@ -3527,17 +3917,17 @@ const PermissionManagerModal = ({
           onClick={handleSave}
           style={{ fontFamily: FONT }}
         >
-          Save
+          {tr("Save")}
         </Button>,
       ]}
     >
       <div style={{ marginBottom: 16, fontFamily: FONT }}>
-        <div style={{ marginBottom: 8, fontWeight: 600 }}>Manager</div>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>{tr("Manager")}</div>
         <Select
           allowClear
           showSearch
           style={{ width: "100%" }}
-          placeholder="Select manager..."
+          placeholder={tr("Select manager...")}
           options={lawyerOptions}
           value={managerId}
           onChange={(val) => {
@@ -3553,13 +3943,13 @@ const PermissionManagerModal = ({
         />
       </div>
       <div style={{ marginBottom: 16, fontFamily: FONT }}>
-        <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>{tr("Add members")}</div>
         <Select
           mode="multiple"
           showSearch
           allowClear
           style={{ width: "100%" }}
-          placeholder="Search and select multiple people..."
+          placeholder={tr("Search and select multiple people...")}
           options={lawyerOptions.filter(
             (o) =>
               o.value !== managerId &&
@@ -3573,11 +3963,11 @@ const PermissionManagerModal = ({
         />
       </div>
       <div style={{ fontFamily: FONT }}>
-        <div style={{ marginBottom: 12, fontWeight: 600 }}>Members</div>
+        <div style={{ marginBottom: 12, fontWeight: 600 }}>{tr("Members")}</div>
         {shares.length === 0 ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No members added yet"
+            description={tr("No members added yet")}
           />
         ) : (
           shares.map((s) => {
@@ -3749,7 +4139,38 @@ const InlineEditCell = ({
 // flow (only reads it for legacy records), and the user chose to drop this
 // file-less "link" creation path from CaseDocument.js too rather than keep
 // a feature Library doesn't have.
-const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
+// ---- upload naming helpers (pure; tested by scripts/tests/upload-version-preview.test.js) ----
+// A Document Name typed for a single file keeps the file's extension
+// ("Hoang" for Hoang.pdf → "Hoang.pdf"): files that differ only by
+// extension stay distinct, and the extension shows in the list (2026-09-25).
+const withFileExtension = (name, fileName) => {
+  const title = String(name || "").trim();
+  const raw = String(fileName || "");
+  const dotIndex = raw.lastIndexOf(".");
+  const ext = dotIndex > 0 ? raw.slice(dotIndex) : "";
+  if (!title || !ext) return title;
+  return title.toLowerCase().endsWith(ext.toLowerCase()) ? title : `${title}${ext}`;
+};
+
+// The names a batch will be saved under — [{ file, requested, saved,
+// versioned }] — numbered "Name (1).ext" like getUniqueFileName against the
+// folder's existing titles and the earlier files of the same batch. Shown in
+// the upload dialog AND used by the upload itself, so the preview is exactly
+// what gets saved. titleOverride only applies to a single file.
+const planUploadNames = (files, existingTitles, titleOverride) => {
+  const list = Array.from(files || []);
+  const used = new Set(Array.from(existingTitles || [], (n) => String(n || "").trim().toLowerCase()));
+  const override = list.length === 1 ? String(titleOverride || "").trim() : "";
+  return list.map((file) => {
+    const requested = override ? withFileExtension(override, file?.name) : String(file?.name || "");
+    const saved = getUniqueFileName(requested, used);
+    used.add(String(saved).trim().toLowerCase());
+    return { file, requested, saved, versioned: saved !== requested };
+  });
+};
+// ---- end upload naming helpers ----
+
+const DocumentUploadFieldsModal = ({ open, files = [], existingTitles = null, onClose, onSubmit }) => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   // "grouped" only ever offered when files.length > 1 (see the Radio.Group
@@ -3803,6 +4224,15 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
   };
 
   const fileNames = files.map((f) => f.name).join(", ");
+  // Live preview of the saved names: "separate" checks the target folder's
+  // existing files, "grouped" goes into a brand-new folder (only the batch
+  // itself can collide). The Document Name applies to a single file.
+  const watchedTitle = Form.useWatch("title", form);
+  const uploadPlan = planUploadNames(
+    files,
+    uploadMode === "grouped" ? [] : existingTitles || [],
+    files.length === 1 ? watchedTitle : "",
+  );
   const inpStyle = { fontFamily: FONT };
   const dateStyle = { width: "100%", fontFamily: FONT };
 
@@ -3815,7 +4245,7 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
       width={640}
       title={
         <span style={{ fontFamily: FONT }}>
-          Document Information {files.length > 1 ? `(${files.length} files)` : ""}
+          {tr("Document Information")} {files.length > 1 ? tr("({0} files)", { 0: files.length }) : ""}
         </span>
       }
       footer={[
@@ -3825,7 +4255,7 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
           disabled={submitting}
           style={{ fontFamily: FONT }}
         >
-          Cancel
+          {tr("Cancel")}
         </Button>,
         <Button
           key="ok"
@@ -3834,7 +4264,7 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
           onClick={handleOk}
           style={{ fontFamily: FONT }}
         >
-          Upload
+          {tr("Upload")}
         </Button>,
       ]}
     >
@@ -3847,14 +4277,63 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
             color: "#6B7280",
           }}
         >
-          Selected file(s): <b>{fileNames || "—"}</b>
+          {tr("Selected file(s):")} <b>{fileNames || "—"}</b>
           {files.length > 1 && (
             <div style={{ marginTop: 4 }}>
-              The information below will be applied to all {files.length} files
-              (the document name will keep each file's own name if left blank).
+              {tr("The information below will be applied to all")} {files.length} {tr("files\n              (the document name will keep each file's own name if left blank).")}
             </div>
           )}
         </div>
+        {files.length > 0 && (
+          <div style={{ marginBottom: 16, fontFamily: FONT }}>
+            {existingTitles === null ? (
+              <div style={{ fontSize: 12, color: "#6B7280" }}>{tr("Checking existing files…")}</div>
+            ) : (
+              uploadPlan.map((item, index) => (
+                <div
+                  key={`${item.file?.name || "file"}-${index}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    fontSize: 12.5,
+                    padding: "4px 0",
+                    minWidth: 0,
+                  }}
+                >
+                  <span style={{ color: "#374151", overflowWrap: "anywhere" }}>{item.file?.name}</span>
+                  {item.versioned ? (
+                    <>
+                      <span
+                        style={{
+                          color: "#ad6800",
+                          background: "#fffbe6",
+                          border: "1px solid #ffe58f",
+                          borderRadius: 4,
+                          padding: "0 6px",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {tr("File already exists")}
+                      </span>
+                      <span style={{ color: "#6B7280", overflowWrap: "anywhere" }}>
+                        {tr("will be saved as new version")} <b style={{ color: "#111827" }}>{item.saved}</b>
+                      </span>
+                    </>
+                  ) : (
+                    item.saved !== item.file?.name && (
+                      <span style={{ color: "#6B7280", overflowWrap: "anywhere" }}>
+                        → <b style={{ color: "#111827" }}>{item.saved}</b>
+                      </span>
+                    )
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
         {files.length > 1 && (
           <div style={{ marginBottom: 16 }}>
             <Radio.Group
@@ -3862,21 +4341,21 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
               onChange={(e) => setUploadMode(e.target.value)}
               style={{ fontFamily: FONT }}
             >
-              <Radio value="separate">Upload as separate files</Radio>
-              <Radio value="grouped">Group into a new folder</Radio>
+              <Radio value="separate">{tr("Upload as separate files")}</Radio>
+              <Radio value="grouped">{tr("Group into a new folder")}</Radio>
             </Radio.Group>
             {uploadMode === "grouped" && (
               <Form.Item
                 name="groupFolderName"
-                label="Folder Name"
+                label={tr("Folder Name")}
                 style={{ marginTop: 8, marginBottom: 0 }}
                 rules={[
-                  { required: true, message: "Please enter a folder name" },
+                  { required: true, message: tr("Please enter a folder name") },
                 ]}
               >
                 <Input
                   allowClear
-                  placeholder="Enter the new folder's name..."
+                  placeholder={tr("Enter the new folder's name...")}
                   style={{ fontFamily: FONT }}
                 />
               </Form.Item>
@@ -3887,19 +4366,19 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
           <React.Fragment>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="documentType" label="Document Type">
+                <Form.Item name="documentType" label={tr("Document Type")}>
                   <Input
                     allowClear
-                    placeholder="e.g. Contract, Meeting Minutes..."
+                    placeholder={tr("e.g. Contract, Meeting Minutes...")}
                     style={inpStyle}
                   />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="title" label="Document Name">
+                <Form.Item name="title" label={tr("Document Name")}>
                   <Input
                     allowClear
-                    placeholder="Leave blank to use file name"
+                    placeholder={tr("Leave blank to use file name")}
                     style={inpStyle}
                   />
                 </Form.Item>
@@ -3907,57 +4386,57 @@ const DocumentUploadFieldsModal = ({ open, files = [], onClose, onSubmit }) => {
             </Row>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="documentCode" label="Document Code">
+                <Form.Item name="documentCode" label={tr("Document Code")}>
                   <Input
                     allowClear
-                    placeholder="e.g. 123/2024/CT"
+                    placeholder={tr("e.g. 123/2024/CT")}
                     style={inpStyle}
                   />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="openingDate" label="Opening/Issue Date">
+                <Form.Item name="openingDate" label={tr("Opening/Issue Date")}>
                   <Input type="date" style={dateStyle} />
                 </Form.Item>
               </Col>
             </Row>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="signedAt" label="Signed Date">
+                <Form.Item name="signedAt" label={tr("Signed Date")}>
                   <Input type="date" style={dateStyle} />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="effectiveAt" label="Effective Date">
+                <Form.Item name="effectiveAt" label={tr("Effective Date")}>
                   <Input type="date" style={dateStyle} />
                 </Form.Item>
               </Col>
             </Row>
             <Row gutter={12}>
               <Col span={12}>
-                <Form.Item name="senderName" label="Sender">
+                <Form.Item name="senderName" label={tr("Sender")}>
                   <Input
                     allowClear
-                    placeholder="Sender name/organization"
+                    placeholder={tr("Sender name/organization")}
                     style={inpStyle}
                   />
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="recipientName" label="Recipient">
+                <Form.Item name="recipientName" label={tr("Recipient")}>
                   <Input
                     allowClear
-                    placeholder="Recipient name/organization"
+                    placeholder={tr("Recipient name/organization")}
                     style={inpStyle}
                   />
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="description" label="Description">
+            <Form.Item name="description" label={tr("Description")}>
               <Input.TextArea
                 rows={3}
                 allowClear
-                placeholder="Summarize the main content..."
+                placeholder={tr("Summarize the main content...")}
               />
             </Form.Item>
           </React.Fragment>
@@ -4226,7 +4705,7 @@ const InternalTemplates = () => {
       if (ext) exts.add(ext.toUpperCase().replace(".", ""));
     });
     return [
-      { value: "all", label: "All" },
+      { value: "all", label: tr("All") },
       ...Array.from(exts).map((ext) => ({
         value: ext.toLowerCase(),
         label: ext,
@@ -4461,7 +4940,7 @@ const InternalTemplates = () => {
       ]);
     } catch (e) {
       console.error("loadData error", e);
-      message.error("Failed to load data");
+      message.error(tr("Failed to load data"));
     } finally {
       setLoading(false);
     }
@@ -4692,7 +5171,7 @@ const InternalTemplates = () => {
       const title =
         options.title ||
         (isFolder
-          ? record?.name || record?.title || "Folder"
+          ? record?.name || record?.title || tr("Folder")
           : getDocTitle(record));
       const toNullableString = (value) =>
         value === undefined || value === null || value === ""
@@ -4738,7 +5217,7 @@ const InternalTemplates = () => {
         fieldName: "deletedAt",
         newValue:
           record?._type === "folder"
-            ? record?.name || record?.title || "Folder"
+            ? record?.name || record?.title || tr("Folder")
             : getDocTitle(record),
         dataId: extractId(activeCaseIdValue),
       }),
@@ -4751,7 +5230,7 @@ const InternalTemplates = () => {
     if (action === "uploaded") {
       return {
         key: "uploaded",
-        label: "Uploaded",
+        label: tr("Uploaded"),
         color: "#0C447C",
         bg: "#E6F1FB",
         border: "#B5D4F4",
@@ -4777,7 +5256,7 @@ const InternalTemplates = () => {
     if (action === "created") {
       return {
         key: "created",
-        label: "Created",
+        label: tr("Created"),
         color: "#0369A1",
         bg: "#F0F9FF",
         border: "#BAE6FD",
@@ -4802,7 +5281,7 @@ const InternalTemplates = () => {
     if (action === "moved") {
       return {
         key: "moved",
-        label: "Moved",
+        label: tr("Moved"),
         color: "#B45309",
         bg: "#FFFBEB",
         border: "#FEF3C7",
@@ -4831,7 +5310,7 @@ const InternalTemplates = () => {
     if (action === "previewed") {
       return {
         key: "previewed",
-        label: "Preview",
+        label: tr("Preview"),
         color: "#4338CA",
         bg: "#EEF2FF",
         border: "#C7D2FE",
@@ -4856,7 +5335,7 @@ const InternalTemplates = () => {
     if (action === "downloaded") {
       return {
         key: "downloaded",
-        label: "Downloaded",
+        label: tr("Downloaded"),
         color: "#075985",
         bg: "#E0F2FE",
         border: "#BAE6FD",
@@ -4882,7 +5361,7 @@ const InternalTemplates = () => {
     if (action === "linked_legal_study") {
       return {
         key: "linked_legal_study",
-        label: `Added to ${REFERENCE_LABEL}`,
+        label: tr("Added to {0}", { 0: REFERENCE_LABEL }),
         color: "#0369A1",
         bg: "#F0F9FF",
         border: "#BAE6FD",
@@ -4908,7 +5387,7 @@ const InternalTemplates = () => {
     if (action === "unlinked_legal_study") {
       return {
         key: "unlinked_legal_study",
-        label: `Removed from ${REFERENCE_LABEL}`,
+        label: tr("Removed from {0}", { 0: REFERENCE_LABEL }),
         color: "#7C2D12",
         bg: "#FFF7ED",
         border: "#FED7AA",
@@ -4934,7 +5413,7 @@ const InternalTemplates = () => {
     if (action === "shared_file") {
       return {
         key: "shared_file",
-        label: "Share",
+        label: tr("Share"),
         color: "#6D28D9",
         bg: "#F5F3FF",
         border: "#DDD6FE",
@@ -4945,7 +5424,7 @@ const InternalTemplates = () => {
     if (action === "unshared_file") {
       return {
         key: "unshared_file",
-        label: "Unshare",
+        label: tr("Unshare"),
         color: "#991B1B",
         bg: "#FEF2F2",
         border: "#FECACA",
@@ -4956,7 +5435,7 @@ const InternalTemplates = () => {
     if (action === "permission_updated") {
       return {
         key: "permission_updated",
-        label: "Permissions Updated",
+        label: tr("Permissions Updated"),
         color: "#7C2D12",
         bg: "#FFF7ED",
         border: "#FED7AA",
@@ -4981,7 +5460,7 @@ const InternalTemplates = () => {
     if (action === "trash_deleted") {
       return {
         key: "trash_deleted",
-        label: "Moved to Trash",
+        label: tr("Moved to Trash"),
         color: "#B91C1C",
         bg: "#FEF2F2",
         border: "#FEE2E2",
@@ -5006,7 +5485,7 @@ const InternalTemplates = () => {
     if (action === "restored") {
       return {
         key: "restored",
-        label: "Restored",
+        label: tr("Restored"),
         color: "#15803D",
         bg: "#F0FDF4",
         border: "#DCFCE7",
@@ -5033,7 +5512,7 @@ const InternalTemplates = () => {
         if (isTrashDeleteActivity(log)) {
           return {
             key: "trash_deleted",
-            label: "Moved to Trash",
+            label: tr("Moved to Trash"),
             color: "#B91C1C",
             bg: "#FEF2F2",
             border: "#FEE2E2",
@@ -5056,7 +5535,7 @@ const InternalTemplates = () => {
         } else {
           return {
             key: "restored",
-            label: "Restored",
+            label: tr("Restored"),
             color: "#15803D",
             bg: "#F0FDF4",
             border: "#DCFCE7",
@@ -5081,7 +5560,7 @@ const InternalTemplates = () => {
       if (field === "folderId" || field === "parentId") {
         return {
           key: "moved",
-          label: "Moved",
+          label: tr("Moved"),
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -5108,7 +5587,7 @@ const InternalTemplates = () => {
       }
       return {
         key: "updated",
-        label: "Updated",
+        label: tr("Updated"),
         color: "#4D7C0F",
         bg: "#F7FEE7",
         border: "#ECFCCB",
@@ -5133,7 +5612,7 @@ const InternalTemplates = () => {
     if (action === "deleted") {
       return {
         key: "deleted",
-        label: "Permanently Deleted",
+        label: tr("Permanently Deleted"),
         color: "#451A03",
         bg: "#FFF7ED",
         border: "#FFEDD5",
@@ -5191,51 +5670,51 @@ const InternalTemplates = () => {
       collectionName,
     } = log;
     const isFolder = collectionName === "Folder";
-    const entityName = isFolder ? "folder" : "document";
+    const entityName = isFolder ? tr("folder") : tr("document");
 
     const FIELD_LABELS = {
-      internalTemplateId: "document type",
-      internalTemplate: "document type",
-      internalTemplates: "document type",
-      internalTemplatesId: "document type",
-      legalReferenceId: "linked customer",
-      legalReference: "linked customer",
-      customerId: "linked customer",
-      customer: "linked customer",
-      customers: "linked customer",
+      internalTemplateId: tr("document type"),
+      internalTemplate: tr("document type"),
+      internalTemplates: tr("document type"),
+      internalTemplatesId: tr("document type"),
+      legalReferenceId: tr("linked customer"),
+      legalReference: tr("linked customer"),
+      customerId: tr("linked customer"),
+      customer: tr("linked customer"),
+      customers: tr("linked customer"),
       folderId: "folder",
       folder: "folder",
-      parentId: "parent folder",
-      internalCompanyId: "internal company",
-      internalCompany: "internal company",
+      parentId: tr("parent folder"),
+      internalCompanyId: tr("internal company"),
+      internalCompany: tr("internal company"),
       name: "name",
       title: "title",
       description: "description",
-      googleDriveUrl: "Google Drive link",
-      fileAttachment: "raw file",
-      fileIndex: "sort position",
-      documentType: "document category",
+      googleDriveUrl: tr("Google Drive link"),
+      fileAttachment: tr("raw file"),
+      fileIndex: tr("sort position"),
+      documentType: tr("document category"),
       storageType: "storage space",
-      userId: "shared with",
-      users: "shared with",
-      documentId: "shared document",
-      documents: "shared document",
+      userId: tr("shared with"),
+      users: tr("shared with"),
+      documentId: tr("shared document"),
+      documents: tr("shared document"),
       status: "status",
-      isDeleted: "deletion status",
-      deletedAt: "deleted date",
-      deleted_at: "deleted date",
-      updatedAt: "updated time",
-      createdAt: "created time",
-      documentCode: "document code",
-      openingDate: "opening date",
+      isDeleted: tr("deletion status"),
+      deletedAt: tr("deleted date"),
+      deleted_at: tr("deleted date"),
+      updatedAt: tr("updated time"),
+      createdAt: tr("created time"),
+      documentCode: tr("document code"),
+      openingDate: tr("opening date"),
       senderName: "sender",
       recipientName: "recipient",
       language: "language",
-      docFormat: "document format",
-      signedAt: "signed date",
-      effectiveAt: "effective date",
+      docFormat: tr("document format"),
+      signedAt: tr("signed date"),
+      effectiveAt: tr("effective date"),
       note: "note",
-      deteledAt: "deleted date",
+      deteledAt: tr("deleted date"),
     };
 
     const ACTION_LABELS = {
@@ -5243,125 +5722,125 @@ const InternalTemplates = () => {
       created: "created",
       updated: "updated",
       moved: "moved",
-      deleted: "permanently deleted",
-      trash_deleted: "moved to trash",
+      deleted: tr("permanently deleted"),
+      trash_deleted: tr("moved to trash"),
       restored: "restored",
       previewed: "previewed",
       downloaded: "downloaded",
-      shared_file: "shared document",
-      unshared_file: "unshared document",
-      permission_updated: "updated permissions",
-      linked_legal_study: `added to ${REFERENCE_LABEL}`,
-      unlinked_legal_study: `removed from ${REFERENCE_LABEL}`,
+      shared_file: tr("shared document"),
+      unshared_file: tr("unshared document"),
+      permission_updated: tr("updated permissions"),
+      linked_legal_study: tr("added to {0}", { 0: REFERENCE_LABEL }),
+      unlinked_legal_study: tr("removed from {0}", { 0: REFERENCE_LABEL }),
     };
 
     if (action === "linked_legal_study") {
       const parts = String(newV || "").split(" - ");
       const targetLabel = parts.length > 1 ? parts[0].trim() : "";
       return targetLabel
-        ? `Added the document to ${REFERENCE_LABEL} at "${targetLabel}"`
-        : `Added the document to ${REFERENCE_LABEL}`;
+        ? tr("Added the document to {0} at \"{1}\"", { 0: REFERENCE_LABEL, 1: targetLabel })
+        : tr("Added the document to {0}", { 0: REFERENCE_LABEL });
     }
 
     if (action === "unlinked_legal_study") {
-      return `Removed the document from ${REFERENCE_LABEL}`;
+      return tr("Removed the document from {0}", { 0: REFERENCE_LABEL });
     }
 
     if (action === "previewed") {
-      return `Previewed the ${entityName}`;
+      return tr("Previewed the {0}", { 0: entityName });
     }
 
     if (action === "downloaded") {
-      return `Downloaded the ${entityName}`;
+      return tr("Downloaded the {0}", { 0: entityName });
     }
 
     if (action === "shared_file") {
-      if (!newV) return "Shared the document with a user";
+      if (!newV) return tr("Shared the document with a user");
       return String(newV).includes(";")
-        ? `Shared the document with users: ${newV}`
-        : `Shared the document with user ${newV}`;
+        ? tr("Shared the document with users: {0}", { 0: newV })
+        : tr("Shared the document with user {0}", { 0: newV });
     }
 
     if (action === "unshared_file") {
-      if (!newV) return "Unshared the document from a user";
+      if (!newV) return tr("Unshared the document from a user");
       return String(newV).includes(";")
-        ? `Unshared the document from users: ${newV}`
-        : `Unshared the document from user ${newV}`;
+        ? tr("Unshared the document from users: {0}", { 0: newV })
+        : tr("Unshared the document from user {0}", { 0: newV });
     }
 
     if (action === "permission_updated") {
       return newV
-        ? `Updated ${entityName} permissions: ${newV}`
-        : `Updated ${entityName} permissions`;
+        ? tr("Updated {0} permissions: {1}", { 0: entityName, 1: newV })
+        : tr("Updated {0} permissions", { 0: entityName });
     }
 
     if (action === "uploaded" || action === "created") {
-      return isFolder ? "Created a new folder" : "Uploaded a new document";
+      return isFolder ? tr("Created a new folder") : tr("Uploaded a new document");
     }
 
     if (action === "deleted") {
-      return `Permanently deleted the ${entityName}`;
+      return tr("Permanently deleted the {0}", { 0: entityName });
     }
 
     if (action === "trash_deleted") {
-      return `Moved the ${entityName} to Trash`;
+      return tr("Moved the {0} to Trash", { 0: entityName });
     }
 
     if (action === "restored") {
-      return `Restored the ${entityName} from Trash`;
+      return tr("Restored the {0} from Trash", { 0: entityName });
     }
 
     if (action === "moved") {
       const getFolderName = (id) => {
         if (!id || id === "root" || id === "0" || id === 0)
-          return "Root folder";
+          return tr("Root folder");
         const f = foldersList.find(
           (item) => String(extractId(item.id)) === String(id),
         );
-        return f ? f.name : `Folder #${id}`;
+        return f ? f.name : tr("Folder #{0}", { 0: id });
       };
       if (oldV || newV) {
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Moved the ${entityName} from "${oldFolder}" to "${newFolder}"`;
+        return tr("Moved the {0} from \"{1}\" to \"{2}\"", { 0: entityName, 1: oldFolder, 2: newFolder });
       }
-      return `Moved the ${entityName}`;
+      return tr("Moved the {0}", { 0: entityName });
     }
 
     if (action === "updated") {
       if (field === "isDeleted" || DELETE_TIMESTAMP_FIELDS.has(field)) {
         if (isTrashDeleteActivity(log)) {
-          return `Moved the ${entityName} to Trash`;
+          return tr("Moved the {0} to Trash", { 0: entityName });
         } else {
-          return `Restored the ${entityName} from Trash`;
+          return tr("Restored the {0} from Trash", { 0: entityName });
         }
       }
       if (field === "name" || field === "title") {
         if (oldV && newV) {
-          return `Renamed the ${entityName}: "${oldV}" → "${newV}"`;
+          return tr("Renamed the {0}: \"{1}\" → \"{2}\"", { 0: entityName, 1: oldV, 2: newV });
         }
-        return `Renamed the ${entityName} to "${newV}"`;
+        return tr("Renamed the {0} to \"{1}\"", { 0: entityName, 1: newV });
       }
       if (field === "folderId" || field === "parentId") {
         const getFolderName = (id) => {
           if (!id || id === "root" || id === "0" || id === 0)
-            return "Root folder";
+            return tr("Root folder");
           const f = foldersList.find(
             (item) => String(extractId(item.id)) === String(id),
           );
-          return f ? f.name : `Folder #${id}`;
+          return f ? f.name : tr("Folder #{0}", { 0: id });
         };
         const oldFolder = getFolderName(oldV);
         const newFolder = getFolderName(newV);
-        return `Moved from "${oldFolder}" to "${newFolder}"`;
+        return tr("Moved from \"{0}\" to \"{1}\"", { 0: oldFolder, 1: newFolder });
       }
 
       const fieldLabel = FIELD_LABELS[field] || field;
-      return `Updated ${fieldLabel} of the ${entityName}`;
+      return tr("Updated {0} of the {1}", { 0: fieldLabel, 1: entityName });
     }
 
     const actionLabel = ACTION_LABELS[action] || action;
-    return `[${actionLabel}] action on ${entityName}`;
+    return tr("[{0}] action on {1}", { 0: actionLabel, 1: entityName });
   }, []);
 
   const filteredActivityLogs = useMemo(() => {
@@ -5375,7 +5854,7 @@ const InternalTemplates = () => {
 
       if (activitySearchQuery.trim()) {
         const q = activitySearchQuery.toLowerCase();
-        const userName = (log.changedByName || "System").toLowerCase();
+        const userName = (log.changedByName || tr("System")).toLowerCase();
         // isDeleted chỉ phục vụ việc phân loại action (Xóa vào Thùng rác/Khôi
         // phục) — giá trị "true"/"false" của nó không phải tên để tìm kiếm.
         const isBooleanFlagField = log.fieldName === "isDeleted";
@@ -6169,15 +6648,15 @@ const InternalTemplates = () => {
   );
 
   const breadcrumbs = useMemo(() => {
-    let rootName = "Home";
+    let rootName = tr("Home");
     if (activeSpace === "project_internal") {
-      rootName = "Internal Work";
+      rootName = tr("Internal Work");
     } else if (activeSpace === "personal") {
-      rootName = "My Workspace";
+      rootName = tr("My Workspace");
     } else if (activeSpace === "company_shared") {
       rootName = activeCompany
         ? getCompanyName(activeCompany)
-        : "Shared Folder";
+        : tr("Shared Folder");
     } else if (activeSpace === "legal_reference") {
       const items = activeLegalReference
         ? [
@@ -6205,9 +6684,9 @@ const InternalTemplates = () => {
       }
       return items.concat(path);
     } else if (activeSpace === "recent") {
-      rootName = "Activity History";
+      rootName = tr("Activity History");
     } else if (activeSpace === "trash") {
-      rootName = "Trash";
+      rootName = tr("Trash");
     }
 
     const items = [{ id: "root", name: rootName }];
@@ -6496,25 +6975,25 @@ const InternalTemplates = () => {
         .slice()
         .sort(sortByCreatedAt)
         .map((folder) => ({
-          title: folder.name || "Folder",
+          title: folder.name || tr("Folder"),
           value: String(extractId(folder)),
           key: String(extractId(folder)),
           children: build(extractId(folder)),
         }));
 
-    let dynamicRootTitle = "Home";
+    let dynamicRootTitle = tr("Home");
     if (activeSpace === "project_internal") {
-      dynamicRootTitle = "Internal Work";
+      dynamicRootTitle = tr("Internal Work");
     } else if (activeSpace === "personal") {
-      dynamicRootTitle = "My Workspace";
+      dynamicRootTitle = tr("My Workspace");
     } else if (activeSpace === "company_shared") {
       dynamicRootTitle = activeCompany
         ? getCompanyName(activeCompany)
-        : "Shared Folder";
+        : tr("Shared Folder");
     } else if (activeSpace === "legal_reference") {
       dynamicRootTitle = activeLegalReference
         ? getLegalReferenceDisplayName(activeLegalReference)
-        : DASHBOARD_CONFIG.label?.sidebar || "Reference";
+        : DASHBOARD_CONFIG.label?.sidebar || tr("Reference");
     }
 
     const buildRootId =
@@ -6718,29 +7197,29 @@ const InternalTemplates = () => {
   const requireCompany = () => {
     if (activeSpace === "project_internal") {
       if (activeCaseIdValue) return true;
-      message.warning("Current Internal Work item not found");
+      message.warning(tr("Current Internal Work item not found"));
       return false;
     }
     if (activeSpace === "case_reference") {
       if (activeCaseReferenceId) return true;
-      message.warning("Please select a reference case first");
+      message.warning(tr("Please select a reference case first"));
       return false;
     }
     if (activeSpace === "legal_study") {
       if (activeLegalStudyId) return true;
-      message.warning("Please select a Reference first");
+      message.warning(tr("Please select a Reference first"));
       return false;
     }
     if (activeSpace === "personal") return true;
     if (activeCompanyId) return true;
-    message.warning("Please select an internal company first");
+    message.warning(tr("Please select an internal company first"));
     return false;
   };
 
   const requireCaseRootFolderForUpload = (targetFolderId) => {
     if (activeSpace !== "project_internal") return true;
     if (getEffectiveFolderId(targetFolderId)) return true;
-    message.warning("Please create the Internal Work folder before uploading documents");
+    message.warning(tr("Please create the Internal Work folder before uploading documents"));
     return false;
   };
 
@@ -6758,7 +7237,15 @@ const InternalTemplates = () => {
           },
           ...(parentId ? { folderId: { $eq: parentId } } : {}),
         };
-        if (activeSpace === "project_internal" && activeCaseIdValue && !parentId) {
+        // Inside a folder every live document of that folder counts, whatever
+        // its scope or company (as the DB guard pgsql/document_naming_guards.sql
+        // sees it). The space filters below only scope the ROOT level: for a
+        // folder this chain used to fall through to internalCompanyId, which
+        // these documents don't necessarily carry — existing files went unseen,
+        // so same-name uploads weren't numbered and indexes restarted (2026-09-25).
+        if (parentId) {
+          delete filter.moduleScope;
+        } else if (activeSpace === "project_internal" && activeCaseIdValue && !parentId) {
           filter.projectInternalId = { $eq: extractId(activeCaseIdValue) };
         } else if (
           activeSpace === "case_reference" &&
@@ -6836,7 +7323,15 @@ const InternalTemplates = () => {
           },
           ...(parentId ? { folderId: { $eq: parentId } } : {}),
         };
-        if (activeSpace === "project_internal" && activeCaseIdValue && !parentId) {
+        // Inside a folder every live document of that folder counts, whatever
+        // its scope or company (as the DB guard pgsql/document_naming_guards.sql
+        // sees it). The space filters below only scope the ROOT level: for a
+        // folder this chain used to fall through to internalCompanyId, which
+        // these documents don't necessarily carry — existing files went unseen,
+        // so same-name uploads weren't numbered and indexes restarted (2026-09-25).
+        if (parentId) {
+          delete filter.moduleScope;
+        } else if (activeSpace === "project_internal" && activeCaseIdValue && !parentId) {
           filter.projectInternalId = { $eq: extractId(activeCaseIdValue) };
         } else if (
           activeSpace === "case_reference" &&
@@ -6948,13 +7443,13 @@ const InternalTemplates = () => {
         ...(userId ? { createdById: userId, updatedById: userId } : {}),
       };
       await createLegalReferenceRecord(payload);
-      message.success("Reference case created successfully!");
+      message.success(tr("Reference case created successfully!"));
       setIsCreateTemplateOpen(false);
       createTemplateForm.resetFields();
       loadData();
     } catch (e) {
       console.error(e);
-      message.error("Failed to create reference case");
+      message.error(tr("Failed to create reference case"));
     } finally {
       setCreateTemplateLoading(false);
     }
@@ -6987,14 +7482,14 @@ const InternalTemplates = () => {
         }
       }
       if (!success) {
-        throw lastError || new Error("Failed to update case title");
+        throw lastError || new Error(tr("Failed to update case title"));
       }
-      message.success("Reference case updated successfully!");
+      message.success(tr("Reference case updated successfully!"));
       setEditTemplateRecord(null);
       editTemplateForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Update failed");
+      message.error(tr("Update failed"));
     } finally {
       setEditTemplateLoading(false);
     }
@@ -7029,7 +7524,7 @@ const InternalTemplates = () => {
         extractId(linkCaseRecord) || activeLegalReferenceId || "",
       );
       if (!targetLegalReferenceId) {
-        message.warning("Please select a Reference Case to link");
+        message.warning(tr("Please select a Reference Case to link"));
         return;
       }
       const payload = {
@@ -7056,16 +7551,16 @@ const InternalTemplates = () => {
         }
       }
       if (!success) {
-        throw lastError || new Error("Failed to update case links");
+        throw lastError || new Error(tr("Failed to update case links"));
       }
-      message.success("Case link updated successfully");
+      message.success(tr("Case link updated successfully"));
       setIsLinkCaseOpen(false);
       setLinkCaseRecord(null);
       linkCaseForm.resetFields();
       loadData();
     } catch (e) {
       console.error("Case link error:", e);
-      message.error("Failed to link case");
+      message.error(tr("Failed to link case"));
     } finally {
       setLinkCaseLoading(false);
     }
@@ -7073,7 +7568,7 @@ const InternalTemplates = () => {
 
   const handleCreateFolder = async (values) => {
     if (!currentFolderPerms.canCreate) {
-      message.warning("You do not have permission to create a folder at this location");
+      message.warning(tr("You do not have permission to create a folder at this location"));
       return;
     }
     if (activeSpace !== "personal" && !requireCompany()) return;
@@ -7096,12 +7591,12 @@ const InternalTemplates = () => {
       applySpaceFolderPayload(payload);
 
       await createFolderRecord(payload);
-      message.success("Folder created successfully!");
+      message.success(tr("Folder created successfully!"));
       setIsFolderOpen(false);
       folderForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Failed to create folder");
+      message.error(tr("Failed to create folder"));
     } finally {
       setFolderLoading(false);
     }
@@ -7148,15 +7643,16 @@ const InternalTemplates = () => {
         ),
       );
 
-      for (const file of filesToUpload) {
-        const uniqueName = getUniqueFileName(file.name, usedTitles);
-        usedTitles.add(uniqueName.toLowerCase());
+      // Same names the upload dialog previewed (planUploadNames).
+      const uploadPlan = planUploadNames(
+        filesToUpload,
+        usedTitles,
+        applyTitleOverride ? metadata.title : "",
+      );
+      for (const { file, saved } of uploadPlan) {
+        const uniqueName = saved;
         const attachment = await uploadAttachment(file, uniqueName);
-        let title = applyTitleOverride ? metadata.title : uniqueName;
-        if (applyTitleOverride) {
-          title = getUniqueFileName(title, usedTitles);
-          usedTitles.add(title.toLowerCase());
-        }
+        const title = saved;
         const nowIso = new Date().toISOString();
         const payload = {
           name: uniqueName,
@@ -7179,11 +7675,11 @@ const InternalTemplates = () => {
         nextIndex += 1;
       }
 
-      message.success(`Upload ${filesToUpload.length} file(s) successfully!`);
+      message.success(tr("Upload {0} file(s) successfully!", { 0: filesToUpload.length }));
       loadData();
       return true;
     } catch (e) {
-      message.error("Upload failed");
+      message.error(tr("Upload failed"));
       return false;
     }
   };
@@ -7205,10 +7701,15 @@ const InternalTemplates = () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
     if (!requireCaseRootFolderForUpload(targetSelector)) return;
     if (!currentFolderPerms.canCreate) {
-      message.warning("You do not have permission to upload documents to this folder");
+      message.warning(tr("You do not have permission to upload documents to this folder"));
       return;
     }
-    setUploadFieldsTarget({ files, folderId: getEffectiveFolderId(targetSelector) });
+    const folderId = getEffectiveFolderId(targetSelector);
+    // existingTitles: null = still loading (the dialog shows "Checking…").
+    setUploadFieldsTarget({ files, folderId, existingTitles: null });
+    getExistingTitlesInFolder(folderId).then((titles) =>
+      setUploadFieldsTarget((prev) => (prev && prev.files === files ? { ...prev, existingTitles: titles } : prev)),
+    );
   };
 
   // Submits DocumentUploadFieldsModal — creates the "grouped" folder first
@@ -7221,7 +7722,7 @@ const InternalTemplates = () => {
 
     if (metadata.uploadMode === "grouped") {
       if (!currentFolderPerms.canCreate) {
-        message.warning("You do not have permission to create a folder at this location");
+        message.warning(tr("You do not have permission to create a folder at this location"));
         return;
       }
       const userId = getCurrentUserId();
@@ -7241,12 +7742,12 @@ const InternalTemplates = () => {
       try {
         folderRes = await createFolderRecord(folderPayload);
       } catch (e) {
-        message.error("Failed to create folder");
+        message.error(tr("Failed to create folder"));
         return;
       }
       targetFolderId = extractId(folderRes?.data?.data);
       if (!targetFolderId) {
-        message.error("Failed to create folder");
+        message.error(tr("Failed to create folder"));
         return;
       }
     }
@@ -7268,7 +7769,7 @@ const InternalTemplates = () => {
     if (activeSpace !== "personal" && !requireCompany()) return;
     if (!requireCaseRootFolderForUpload(bulkTargetId)) return;
     setBulkUploading(true);
-    setBulkProgress("Analyzing folder structure...");
+    setBulkProgress(tr("Analyzing folder structure..."));
     setBulkPercent(5);
     try {
       const rootParentId = getEffectiveFolderId(bulkTargetId);
@@ -7289,7 +7790,7 @@ const InternalTemplates = () => {
         (a, b) => a.split("/").length - b.split("/").length,
       );
       const userId = getCurrentUserId();
-      setBulkProgress(`Creating ${sortedPaths.length} folders...`);
+      setBulkProgress(tr("Creating {0} folders...", { 0: sortedPaths.length }));
 
       const nowIso = new Date().toISOString();
       for (
@@ -7357,7 +7858,7 @@ const InternalTemplates = () => {
       for (let index = 0; index < pendingFolderFiles.length; index++) {
         const file = pendingFolderFiles[index];
         setBulkProgress(
-          `Uploading file ${index + 1}/${pendingFolderFiles.length}...`,
+          tr("Uploading file {0}/{1}...", { 0: index + 1, 1: pendingFolderFiles.length }),
         );
         setBulkPercent(
           30 +
@@ -7397,13 +7898,13 @@ const InternalTemplates = () => {
         await createDocumentRecord(filePayload);
       }
 
-      message.success("Folder upload complete!");
+      message.success(tr("Folder upload complete!"));
       setBulkPercent(100);
       setBulkConfirmOpen(false);
       setPendingFolderFiles([]);
       loadData();
     } catch (e) {
-      message.error("Folder upload failed");
+      message.error(tr("Folder upload failed"));
     } finally {
       setBulkUploading(false);
       setBulkProgress("");
@@ -7418,11 +7919,11 @@ const InternalTemplates = () => {
       if (record._type === "folder") {
         const folderId = String(extractId(record));
         if (targetId && String(targetId) === folderId) {
-          message.warning("Cannot move a folder into itself");
+          message.warning(tr("Cannot move a folder into itself"));
           return;
         }
         if (targetId && getDescendantIds(folderId).includes(String(targetId))) {
-          message.warning("Cannot move a folder into its own subfolder");
+          message.warning(tr("Cannot move a folder into its own subfolder"));
           return;
         }
         await ctx.api.request({
@@ -7430,7 +7931,7 @@ const InternalTemplates = () => {
           method: "POST",
           data: { parentId: targetId },
         });
-        message.success("Folder moved");
+        message.success(tr("Folder moved"));
       } else {
         const oldFolderId = normalizeParentId(record.folderId);
         await requestDocumentApi({
@@ -7445,23 +7946,23 @@ const InternalTemplates = () => {
           reindexFolderFiles(oldFolderId),
           reindexFolderFiles(targetId),
         ]);
-        message.success("Document moved");
+        message.success(tr("Document moved"));
       }
       setMoveRecord(null);
       loadData();
     } catch (e) {
-      message.error("Move failed");
+      message.error(tr("Move failed"));
     }
   };
 
   const handleBulkRestore = async () => {
     if (selectedRowKeys.length === 0) return;
     Modal.confirm({
-      title: `Restore ${selectedRowKeys.length} selected item(s)?`,
+      title: tr("Restore {0} selected item(s)?", { 0: selectedRowKeys.length }),
       content:
-        "Folders and documents will be restored to their original space.",
-      okText: "Restore",
-      cancelText: "Cancel",
+        tr("Folders and documents will be restored to their original space."),
+      okText: tr("Restore"),
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           const recordsToRestore = selectedRowKeys
@@ -7492,12 +7993,12 @@ const InternalTemplates = () => {
             ),
           );
           message.success(
-            `Restored ${selectedRowKeys.length} item(s) successfully!`,
+            tr("Restored {0} item(s) successfully!", { 0: selectedRowKeys.length }),
           );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Restore failed");
+          message.error(tr("Restore failed"));
         }
       },
     });
@@ -7521,16 +8022,16 @@ const InternalTemplates = () => {
       return true;
     });
     if (deletableKeys.length === 0) {
-      message.warning("Root folders can't be deleted.");
+      message.warning(tr("Root folders can't be deleted."));
       return;
     }
     Modal.confirm({
-      title: `Permanently delete ${deletableKeys.length} selected item(s)?`,
+      title: tr("Permanently delete {0} selected item(s)?", { 0: deletableKeys.length }),
       content:
-        "This action cannot be undone. Files and folders will be permanently removed from the system.",
-      okText: "Permanently Delete",
+        tr("This action cannot be undone. Files and folders will be permanently removed from the system."),
+      okText: tr("Permanently Delete"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           const recordsToDelete = deletableKeys
@@ -7557,17 +8058,17 @@ const InternalTemplates = () => {
                 fieldName: "permanentDelete",
                 newValue:
                   record._type === "folder"
-                    ? record.name || record.title || "Folder"
+                    ? record.name || record.title || tr("Folder")
                     : getDocTitle(record),
                 dataId: extractId(activeCaseIdValue),
               }),
             ),
           );
-          message.success(`Deleted ${deletableKeys.length} item(s) successfully!`);
+          message.success(tr("Deleted {0} item(s) successfully!", { 0: deletableKeys.length }));
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -7578,7 +8079,7 @@ const InternalTemplates = () => {
     // Defense in depth — the bulk bar's "Delete" button is already hidden
     // for non-admins outside Personal (see canBulkMoveToTrashSelected).
     if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
-      message.warning("Only administrators can delete these items.");
+      message.warning(tr("Only administrators can delete these items."));
       return;
     }
     // A root folder (Case root, Personal root, Company Shared root, ...)
@@ -7593,15 +8094,15 @@ const InternalTemplates = () => {
       return true;
     });
     if (deletableKeys.length === 0) {
-      message.warning("Root folders can't be deleted.");
+      message.warning(tr("Root folders can't be deleted."));
       return;
     }
     Modal.confirm({
-      title: `Move ${deletableKeys.length} selected item(s) to Trash?`,
-      content: "Selected items will be moved to Trash.",
-      okText: "Move to Trash",
+      title: tr("Move {0} selected item(s) to Trash?", { 0: deletableKeys.length }),
+      content: tr("Selected items will be moved to Trash."),
+      okText: tr("Move to Trash"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           const nowIso = new Date().toISOString();
@@ -7638,12 +8139,12 @@ const InternalTemplates = () => {
             ),
           );
           message.success(
-            `Moved ${deletableKeys.length} item(s) to Trash!`,
+            tr("Moved {0} item(s) to Trash!", { 0: deletableKeys.length }),
           );
           setSelectedRowKeys([]);
           loadData();
         } catch (e) {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -7696,12 +8197,12 @@ const InternalTemplates = () => {
       if (targetId) {
         await reindexFolderFiles(targetId);
       }
-      message.success(`Moved ${selectedRowKeys.length} item(s) successfully!`);
+      message.success(tr("Moved {0} item(s) successfully!", { 0: selectedRowKeys.length }));
       setIsBulkMoveOpen(false);
       setSelectedRowKeys([]);
       loadData();
     } catch (e) {
-      message.error("Move failed");
+      message.error(tr("Move failed"));
     }
   };
 
@@ -7774,7 +8275,7 @@ const InternalTemplates = () => {
         ),
       );
     }
-    message.success("Document reordered");
+    message.success(tr("Document reordered"));
     loadData();
     return true;
   };
@@ -7858,7 +8359,7 @@ const InternalTemplates = () => {
       documentTypes.find((type) => type.id === String(value || "")) ||
       decorateDocumentTypeOption({
         value: value || "document",
-        label: value || "Document",
+        label: value || tr("Document"),
       }),
     [documentTypes],
   );
@@ -7866,11 +8367,11 @@ const InternalTemplates = () => {
   const startEditTitle = (record) => {
     setEditingTitleId(String(extractId(record)));
     if (record._type === "folder") {
-      setEditingTitleValue(record.name || "Folder");
+      setEditingTitleValue(record.name || tr("Folder"));
     } else {
       const attachment = getAttachment(record);
       setEditingTitleValue(
-        attachment?.title || attachment?.filename || getDocTitle(record),
+        record.title || attachment?.title || attachment?.filename || getDocTitle(record),
       );
     }
   };
@@ -7882,7 +8383,7 @@ const InternalTemplates = () => {
 
   const handleSaveFileTitle = async (record) => {
     if (isRenameLockedFolder(record)) {
-      message.error("System template folders cannot be renamed.");
+      message.error(tr("System template folders cannot be renamed."));
       cancelEditTitle();
       return;
     }
@@ -7903,7 +8404,7 @@ const InternalTemplates = () => {
             ...(userId ? { updatedById: userId } : {}),
           },
         });
-        message.success("Folder name updated");
+        message.success(tr("Folder name updated"));
       } else {
         await requestDocumentApi({
           url: `documents:update?filterByTk=${extractId(record)}`,
@@ -7924,15 +8425,15 @@ const InternalTemplates = () => {
             })
             .catch(() => {});
         }
-        message.success("Document and file name updated");
+        message.success(tr("Document and file name updated"));
       }
       cancelEditTitle();
       loadData();
     } catch (e) {
       message.error(
         record._type === "folder"
-          ? "Failed to update folder name"
-          : "Failed to update document name",
+          ? tr("Failed to update folder name")
+          : tr("Failed to update document name"),
       );
     }
   };
@@ -7959,7 +8460,7 @@ const InternalTemplates = () => {
       });
       loadData();
     } catch (e) {
-      message.error("Failed to update");
+      message.error(tr("Failed to update"));
       throw e;
     }
   };
@@ -7969,11 +8470,11 @@ const InternalTemplates = () => {
     // action) is already hidden for locked system folders and for
     // non-admins outside Personal.
     if (isRenameLockedFolder(folder)) {
-      message.error("System template folders cannot be deleted.");
+      message.error(tr("System template folders cannot be deleted."));
       return;
     }
     if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
-      message.warning("Only administrators can delete this item.");
+      message.warning(tr("Only administrators can delete this item."));
       return;
     }
     const fId = extractId(folder);
@@ -7987,11 +8488,11 @@ const InternalTemplates = () => {
 
     let contentElements = [];
     if (subFoldersCount > 0)
-      contentElements.push(`- ${subFoldersCount} subfolder(s)`);
-    if (filesCount > 0) contentElements.push(`- ${filesCount} file(s)`);
+      contentElements.push(tr("- {0} subfolder(s)", { 0: subFoldersCount }));
+    if (filesCount > 0) contentElements.push(tr("- {0} file(s)", { 0: filesCount }));
 
     Modal.confirm({
-      title: `Confirm delete folder "${folder.name}"?`,
+      title: tr("Confirm delete folder \"{0}\"?", { 0: folder.name }),
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
@@ -7999,7 +8500,7 @@ const InternalTemplates = () => {
       ),
       content: (
         <div style={{ fontFamily: FONT, marginTop: 8 }}>
-          <p>You are about to delete this folder. The following data will also be deleted:</p>
+          <p>{tr("You are about to delete this folder. The following data will also be deleted:")}</p>
           {contentElements.length > 0 ? (
             <div
               style={{
@@ -8019,15 +8520,15 @@ const InternalTemplates = () => {
             </div>
           ) : (
             <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>
-              (This folder is empty)
+              {tr("(This folder is empty)")}
             </p>
           )}
-          <p>Are you sure you want to delete it?</p>
+          <p>{tr("Are you sure you want to delete it?")}</p>
         </div>
       ),
-      okText: "Move to Trash",
+      okText: tr("Move to Trash"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           if (folderIdsToDelete.length > 0) {
@@ -8062,7 +8563,7 @@ const InternalTemplates = () => {
               .catch(() => {});
           }
           await createTrashActivityLog(folder, "trash_deleted");
-          message.success("Folder and its contents moved to Trash");
+          message.success(tr("Folder and its contents moved to Trash"));
           if (
             selectedFolderId !== "root" &&
             folderIdsToDelete.includes(String(selectedFolderId))
@@ -8071,7 +8572,7 @@ const InternalTemplates = () => {
           }
           loadData();
         } catch (e) {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -8081,20 +8582,20 @@ const InternalTemplates = () => {
     // Defense in depth — the Move-to-Trash trigger (context menu) is
     // already hidden for non-admins outside Personal.
     if (activeSpace !== "personal" && !isAdminUser(currentUserState)) {
-      message.warning("Only administrators can delete this item.");
+      message.warning(tr("Only administrators can delete this item."));
       return;
     }
     Modal.confirm({
-      title: "Delete this file?",
+      title: tr("Delete this file?"),
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
         WarningIcon,
       ),
-      content: "This file will be moved to Trash.",
-      okText: "Move to Trash",
+      content: tr("This file will be moved to Trash."),
+      okText: tr("Move to Trash"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           const userId = extractId(currentUserState) || getCurrentUserId();
@@ -8108,10 +8609,10 @@ const InternalTemplates = () => {
             },
           });
           await createTrashActivityLog(record, "trash_deleted");
-          message.success("File moved to Trash");
+          message.success(tr("File moved to Trash"));
           loadData();
         } catch {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -8133,10 +8634,10 @@ const InternalTemplates = () => {
         });
       }
       await createTrashActivityLog(record, "restored");
-      message.success("Restored successfully");
+      message.success(tr("Restored successfully"));
       loadData();
     } catch (e) {
-      message.error("Restore failed");
+      message.error(tr("Restore failed"));
     }
   };
 
@@ -8148,21 +8649,21 @@ const InternalTemplates = () => {
       record._type === "folder" &&
       isFolderTreeRoot(record, permissionAllFolders)
     ) {
-      message.warning("Root folders can't be deleted.");
+      message.warning(tr("Root folders can't be deleted."));
       return;
     }
     Modal.confirm({
-      title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
+      title: record._type === "folder" ? tr("Delete this folder?") : tr("Delete this file?"),
       icon: React.createElement(
         "span",
         { style: { color: "#ff4d4f", marginRight: 16 } },
         WarningIcon,
       ),
       content:
-        "Warning: this action cannot be undone — the data will be permanently removed from the database.",
-      okText: "Delete",
+        tr("Warning: this action cannot be undone — the data will be permanently removed from the database."),
+      okText: tr("Delete"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           if (record._type === "folder") {
@@ -8180,14 +8681,14 @@ const InternalTemplates = () => {
             fieldName: "permanentDelete",
             newValue:
               record._type === "folder"
-                ? record.name || record.title || "Folder"
+                ? record.name || record.title || tr("Folder")
                 : getDocTitle(record),
             dataId: extractId(activeCaseIdValue),
           });
-          message.success("Deleted");
+          message.success(tr("Deleted"));
           loadData();
         } catch {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -8195,13 +8696,13 @@ const InternalTemplates = () => {
 
   const handleCreateFolderFromSidebar = (spaceType, companyId = null) => {
     if (spaceType === "project_internal" && !activeCaseIdValue) {
-      message.warning("Current Internal Work item not found");
+      message.warning(tr("Current Internal Work item not found"));
       return;
     }
     if (spaceType === "company_shared") {
       const targetCompanyId = companyId || activeCompanyId;
       if (!targetCompanyId) {
-        message.warning("Please select an internal company first");
+        message.warning(tr("Please select an internal company first"));
         return;
       }
       setActiveCompanyId(String(targetCompanyId));
@@ -8220,19 +8721,19 @@ const InternalTemplates = () => {
     );
     Modal.confirm({
       title: isLegalRef
-        ? `Confirm delete Reference Case "${templateRecord.title || templateRecord.name}"?`
-        : `Confirm delete document type "${templateRecord.title || templateRecord.name}"?`,
+        ? tr("Confirm delete Reference Case \"{0}\"?", { 0: templateRecord.title || templateRecord.name })
+        : tr("Confirm delete document type \"{0}\"?", { 0: templateRecord.title || templateRecord.name }),
       icon: React.createElement(
         "span",
         { style: { color: "#faad14", marginRight: 16 } },
         WarningIcon,
       ),
       content: isLegalRef
-        ? "Are you sure you want to delete this Reference Case? Its documents and folders will remain in Trash or become unlinked."
-        : "Are you sure you want to delete this document type? Documents under this type will remain but become unlinked.",
-      okText: "Delete",
+        ? tr("Are you sure you want to delete this Reference Case? Its documents and folders will remain in Trash or become unlinked.")
+        : tr("Are you sure you want to delete this document type? Documents under this type will remain but become unlinked."),
+      okText: tr("Delete"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: tr("Cancel"),
       onOk: async () => {
         try {
           if (isLegalRef) {
@@ -8252,7 +8753,7 @@ const InternalTemplates = () => {
                 lastError = e;
               }
             }
-            if (!success) throw lastError || new Error("Failed to delete");
+            if (!success) throw lastError || new Error(tr("Failed to delete"));
           } else {
             await ctx.api.request({
               url: `${INTERNAL_TEMPLATE_COLLECTION}:destroy?filterByTk=${extractId(templateRecord)}`,
@@ -8260,7 +8761,7 @@ const InternalTemplates = () => {
             });
           }
           message.success(
-            isLegalRef ? "Reference Case deleted" : "Document type deleted",
+            isLegalRef ? tr("Reference Case deleted") : tr("Document type deleted"),
           );
           if (
             isLegalRef &&
@@ -8270,7 +8771,7 @@ const InternalTemplates = () => {
           }
           loadData();
         } catch (e) {
-          message.error("Delete failed");
+          message.error(tr("Delete failed"));
         }
       },
     });
@@ -8279,7 +8780,7 @@ const InternalTemplates = () => {
   const handleRenameSubmit = async () => {
     try {
       if (isRenameLockedFolder(renameRecord)) {
-        message.error("System template folders cannot be renamed.");
+        message.error(tr("System template folders cannot be renamed."));
         return;
       }
       const values = await renameForm.validateFields();
@@ -8314,16 +8815,16 @@ const InternalTemplates = () => {
           }
         }
         if (!success) {
-          throw lastError || new Error("Failed to rename");
+          throw lastError || new Error(tr("Failed to rename"));
         }
-        message.success("Reference Case renamed");
+        message.success(tr("Reference Case renamed"));
       } else if (rType === "template" || rType === "document_type") {
         await ctx.api.request({
           url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
           method: "POST",
           data: { title: newName },
         });
-        message.success("Document type renamed");
+        message.success(tr("Document type renamed"));
       } else {
         if (rType === "folder") {
           await ctx.api.request({
@@ -8331,7 +8832,7 @@ const InternalTemplates = () => {
             method: "POST",
             data: { name: newName },
           });
-          message.success("Folder renamed");
+          message.success(tr("Folder renamed"));
         } else {
           await requestDocumentApi({
             url: `documents:update?filterByTk=${rId}`,
@@ -8348,21 +8849,21 @@ const InternalTemplates = () => {
               })
               .catch(() => {});
           }
-          message.success("Document renamed");
+          message.success(tr("Document renamed"));
         }
       }
       setRenameRecord(null);
       renameForm.resetFields();
       loadData();
     } catch (e) {
-      message.error("Rename failed");
+      message.error(tr("Rename failed"));
     }
   };
 
   const openRecordFile = (record) => {
     const fileUrl = getRecordFileUrl(record);
     if (!fileUrl) {
-      message.warning("This document has no file or URL");
+      message.warning(tr("This document has no file or URL"));
       return;
     }
     window.open(fileUrl, "_blank");
@@ -8370,7 +8871,7 @@ const InternalTemplates = () => {
 
   const previewRecordFile = (record) => {
     if (!getRecordFileUrl(record)) {
-      message.warning("This document has no file or URL to preview");
+      message.warning(tr("This document has no file or URL to preview"));
       return;
     }
     setPreviewDoc(record);
@@ -8398,7 +8899,7 @@ const InternalTemplates = () => {
               strong
               style={{ fontFamily: FONT, fontSize: 13, color: "#111827" }}
             >
-              {record.name || "Folder"}
+              {record.name || tr("Folder")}
             </Text>
           </div>
         );
@@ -8462,7 +8963,7 @@ const InternalTemplates = () => {
             <span style={{ color: "#2563eb", display: "inline-flex" }}>
               {TYPE_ICONS.folder}
             </span>
-            {record.name || "Folder"}
+            {record.name || tr("Folder")}
           </button>
           <span
             style={{
@@ -8472,7 +8973,7 @@ const InternalTemplates = () => {
               marginLeft: 8,
             }}
           >
-            ({folderSubFolderCount} folders - {folderFileCount} files)
+            ({folderSubFolderCount} {tr("folders -")} {folderFileCount} {tr("files)")}
           </span>
         </div>
       );
@@ -8481,12 +8982,15 @@ const InternalTemplates = () => {
     // File
     const attachment = getAttachment(record);
     const hasPrefix = !!(isAllFiles && record._displayFileIndex);
+    // The document's own title, extension included (the attachment's title
+    // has it stripped, so Hoang.pdf and Hoang.docx both showed "Hoang").
     const displayName =
+      record.title ||
       attachment?.title ||
       attachment?.filename ||
       record.googleDriveUrl ||
       record.description ||
-      "No file attached";
+      tr("No file attached");
     const hasFile = !!getRecordFileUrl(record);
 
     if (isEditing) {
@@ -8519,7 +9023,7 @@ const InternalTemplates = () => {
         style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}
       >
         {hasFile ? (
-          <Tooltip title="Click to preview" placement="topLeft">
+          <Tooltip title={tr("Click to preview")} placement="topLeft">
             <span
               onClick={(e) => {
                 e.stopPropagation();
@@ -8675,7 +9179,7 @@ const InternalTemplates = () => {
     if (entityStudyId) {
       const study = legalStudyById.get(String(entityStudyId));
       if (!study) {
-        message.warning("Could not find this Reference's data.");
+        message.warning(tr("Could not find this Reference's data."));
         return;
       }
       setPermissionTarget({ kind: "legal_study", record: study });
@@ -8696,7 +9200,7 @@ const InternalTemplates = () => {
       if (isLegalReferenceRecord) {
         items.push({
           key: "open_detail",
-          label: renderContextMenuItemLabel(EYE_ICON, "Open Detail"),
+          label: renderContextMenuItemLabel(EYE_ICON, tr("Open Detail")),
           onClick: () => {
             closeContextMenu();
             openLegalReferenceDetail(record);
@@ -8704,7 +9208,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "link_case",
-          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Link Case"),
+          label: renderContextMenuItemLabel(LINK_CASE_ICON, tr("Link Case")),
           onClick: () => {
             closeContextMenu();
             openLinkCaseModal(record);
@@ -8712,7 +9216,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -8723,7 +9227,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -8735,7 +9239,7 @@ const InternalTemplates = () => {
       if (isTemplate) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -8746,7 +9250,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -8758,7 +9262,7 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         items.push({
           key: "restore",
-          label: renderContextMenuItemLabel(RESTORE_ICON, "Restore"),
+          label: renderContextMenuItemLabel(RESTORE_ICON, tr("Restore")),
           onClick: () => {
             closeContextMenu();
             handleRestoreRecord(record);
@@ -8766,7 +9270,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "permanent_delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handlePermanentDelete(record);
@@ -8813,7 +9317,7 @@ const InternalTemplates = () => {
       if (!isFolder) {
         items.push({
           key: "preview",
-          label: renderContextMenuItemLabel(EYE_ICON, "Preview"),
+          label: renderContextMenuItemLabel(EYE_ICON, tr("Preview")),
           onClick: () => {
             closeContextMenu();
             previewRecordFile(record);
@@ -8821,7 +9325,7 @@ const InternalTemplates = () => {
         });
         items.push({
           key: "download",
-          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Download"),
+          label: renderContextMenuItemLabel(DOWNLOAD_ICON, tr("Download")),
           onClick: () => {
             closeContextMenu();
             openRecordFile(record);
@@ -8832,7 +9336,7 @@ const InternalTemplates = () => {
       if (canRename) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -8846,7 +9350,7 @@ const InternalTemplates = () => {
       if (canMove) {
         items.push({
           key: "move",
-          label: renderContextMenuItemLabel(MOVE_ICON, "Move"),
+          label: renderContextMenuItemLabel(MOVE_ICON, tr("Move")),
           onClick: () => {
             closeContextMenu();
             setMoveRecord(record);
@@ -8858,7 +9362,7 @@ const InternalTemplates = () => {
       if (isFolder && canManagePermissions) {
         items.push({
           key: "permission",
-          label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
+          label: renderContextMenuItemLabel(LOCK_ICON, tr("Permissions")),
           onClick: () => {
             closeContextMenu();
             openPermissionsForFolder(record);
@@ -8869,7 +9373,7 @@ const InternalTemplates = () => {
       if (canDelete) {
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             if (isFolder) showDeleteConfirm(record);
@@ -8912,11 +9416,11 @@ const InternalTemplates = () => {
         if (!folder) break;
         // The case's root folder is a real tree node now (see visibleFolders'
         // cases branch) — include its name in the path like any other folder.
-        pathItems.unshift(folder.name || "Folder");
+        pathItems.unshift(folder.name || tr("Folder"));
         currentId = getFolderParentId(folder);
       }
 
-      let rootName = "Home";
+      let rootName = tr("Home");
       const storage =
         record.storageType ||
         (parentFolderId && folderMap.get(String(parentFolderId))?.storageType);
@@ -8925,13 +9429,13 @@ const InternalTemplates = () => {
         storage === "project_internal" ||
         matchesCaseDocument(record, activeCaseIdValue, caseFolderIdSet)
       ) {
-        rootName = "Internal Work";
+        rootName = tr("Internal Work");
       } else if (storage === "personal") {
-        rootName = "My Workspace";
+        rootName = tr("My Workspace");
       } else if (storage === "company_shared") {
         rootName = activeCompany
           ? getCompanyName(activeCompany)
-          : "Shared Folder";
+          : tr("Shared Folder");
       } else {
         const typeId =
           getRecordDocumentType(record) ||
@@ -8939,9 +9443,9 @@ const InternalTemplates = () => {
             getRecordDocumentType(folderMap.get(String(parentFolderId))));
         if (typeId) {
           const type = documentTypes.find((t) => t.id === String(typeId));
-          rootName = type ? `Library / ${type.label}` : "Library";
+          rootName = type ? tr("Library / {0}", { 0: type.label }) : tr("Library");
         } else {
-          rootName = "Shared Folder";
+          rootName = tr("Shared Folder");
         }
       }
 
@@ -8992,7 +9496,7 @@ const InternalTemplates = () => {
               gap: 6,
             }}
           >
-            <Tooltip title="Restore">
+            <Tooltip title={tr("Restore")}>
               <Button
                 size="small"
                 icon={RESTORE_ICON}
@@ -9007,7 +9511,7 @@ const InternalTemplates = () => {
                 }}
               />
             </Tooltip>
-            <Tooltip title="Delete">
+            <Tooltip title={tr("Delete")}>
               <Button
                 size="small"
                 danger
@@ -9044,7 +9548,7 @@ const InternalTemplates = () => {
       return (
         <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
           {canManagePermissions && (
-            <Tooltip title="Permissions">
+            <Tooltip title={tr("Permissions")}>
               <Button
                 size="small"
                 icon={LOCK_ICON}
@@ -9053,7 +9557,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canRename && (
-            <Tooltip title="Rename">
+            <Tooltip title={tr("Rename")}>
               <Button
                 size="small"
                 icon={EDIT_ICON}
@@ -9062,7 +9566,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canMove && (
-            <Tooltip title="Move">
+            <Tooltip title={tr("Move")}>
               <Button
                 size="small"
                 icon={MOVE_ICON}
@@ -9071,7 +9575,7 @@ const InternalTemplates = () => {
             </Tooltip>
           )}
           {canDelete && (
-            <Tooltip title="Move to Trash">
+            <Tooltip title={tr("Move to Trash")}>
               <Button
                 size="small"
                 danger
@@ -9095,7 +9599,7 @@ const InternalTemplates = () => {
               gap: 6,
             }}
           >
-            <Tooltip title="Restore">
+            <Tooltip title={tr("Restore")}>
               <Button
                 size="small"
                 icon={RESTORE_ICON}
@@ -9110,7 +9614,7 @@ const InternalTemplates = () => {
                 }}
               />
             </Tooltip>
-            <Tooltip title="Delete">
+            <Tooltip title={tr("Delete")}>
               <Button
                 size="small"
                 danger
@@ -9128,7 +9632,7 @@ const InternalTemplates = () => {
         <div
           style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}
         >
-          <Tooltip title="Rename">
+          <Tooltip title={tr("Rename")}>
             <Button
               size="small"
               icon={EDIT_ICON}
@@ -9138,7 +9642,7 @@ const InternalTemplates = () => {
               }}
             />
           </Tooltip>
-          <Tooltip title="Download">
+          <Tooltip title={tr("Download")}>
             <Button
               size="small"
               icon={DOWNLOAD_ICON}
@@ -9155,14 +9659,14 @@ const InternalTemplates = () => {
     if (activeSpace === "legal_reference" && !activeLegalReferenceId) {
       return [
         {
-          title: "STT",
+          title: tr("No."),
           key: "stt",
           width: 60,
           align: "center",
           render: (_, __, index) => index + 1,
         },
         {
-          title: "Reference Code",
+          title: tr("Reference Code"),
           key: "referenceCode",
           width: 150,
           sorter: (a, b) =>
@@ -9174,7 +9678,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Reference Name",
+          title: tr("Reference Name"),
           key: "title",
           minWidth: 250,
           sorter: (a, b) => (a.title || "").localeCompare(b.title || "", "vi"),
@@ -9201,7 +9705,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Case Summary",
+          title: tr("Case Summary"),
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -9209,7 +9713,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Linked Cases",
+          title: tr("Linked Cases"),
           key: "linkedCases",
           minWidth: 200,
           render: (_, record) => (
@@ -9229,7 +9733,7 @@ const InternalTemplates = () => {
                     fontStyle: "italic",
                   }}
                 >
-                  Not linked
+                  {tr("Not linked")}
                 </span>
               ) : (
                 (() => {
@@ -9240,7 +9744,7 @@ const InternalTemplates = () => {
                   const getDisplayName = (project) => {
                     return project.projectName
                       ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}`
-                      : `Case #${extractId(project)}`;
+                      : tr("Case #{0}", { 0: extractId(project) });
                   };
                   return (
                     <React.Fragment>
@@ -9300,7 +9804,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Actions",
+          title: tr("Actions"),
           key: "actions",
           width: 100,
           align: "right",
@@ -9313,7 +9817,7 @@ const InternalTemplates = () => {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <Tooltip title="Link Case">
+              <Tooltip title={tr("Link Case")}>
                 <Button
                   size="small"
                   icon={LINK_CASE_ICON}
@@ -9323,7 +9827,7 @@ const InternalTemplates = () => {
                   }}
                 />
               </Tooltip>
-              <Tooltip title="Delete">
+              <Tooltip title={tr("Delete")}>
                 <Button
                   size="small"
                   danger
@@ -9344,14 +9848,14 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         return [
           {
-            title: "Folder Name",
+            title: tr("Folder Name"),
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, false),
             sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
           },
           {
-            title: "Description",
+            title: tr("Description"),
             key: "description",
             minWidth: 200,
             render: (_, record) => (
@@ -9359,7 +9863,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Size",
+            title: tr("Size"),
             key: "size",
             width: 100,
             sorter: (a, b) =>
@@ -9371,7 +9875,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Uploaded By",
+            title: tr("Uploaded By"),
             key: "createdBy",
             width: 180,
             render: (_, record) => (
@@ -9379,7 +9883,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Uploaded At",
+            title: tr("Uploaded At"),
             key: "createdAt",
             width: 150,
             sorter: (a, b) =>
@@ -9389,7 +9893,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Deleted By",
+            title: tr("Deleted By"),
             key: "deletedBy",
             width: 180,
             render: (_, record) => (
@@ -9397,7 +9901,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Deleted At",
+            title: tr("Deleted At"),
             key: "deletedAt",
             width: 160,
             sorter: (a, b) =>
@@ -9412,7 +9916,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Actions",
+            title: tr("Actions"),
             key: "actions",
             width: 120,
             align: "right",
@@ -9423,14 +9927,14 @@ const InternalTemplates = () => {
 
       return [
         {
-          title: "Folder Name",
+          title: tr("Folder Name"),
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, false),
           sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
         },
         {
-          title: "Description",
+          title: tr("Description"),
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -9443,7 +9947,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Size",
+          title: tr("Size"),
           key: "size",
           width: 100,
           sorter: (a, b) =>
@@ -9455,7 +9959,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Created At",
+          title: tr("Created At"),
           key: "createdAt",
           width: 150,
           sorter: (a, b) =>
@@ -9465,7 +9969,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Created By",
+          title: tr("Created By"),
           key: "createdBy",
           width: 180,
           render: (_, record) => (
@@ -9473,7 +9977,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Actions",
+          title: tr("Actions"),
           key: "actions",
           width: 120,
           align: "right",
@@ -9489,7 +9993,7 @@ const InternalTemplates = () => {
     // Library.js's buildDocMetaColumns().
     const buildDocMetaColumns = () => [
       {
-        title: "Document Type",
+        title: tr("Document Type"),
         key: "documentType",
         width: 140,
         render: (_, record) =>
@@ -9504,7 +10008,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Document Code",
+        title: tr("Document Code"),
         key: "documentCode",
         width: 140,
         render: (_, record) =>
@@ -9519,7 +10023,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Opening Date",
+        title: tr("Opening Date"),
         key: "openingDate",
         width: 120,
         sorter: (a, b) =>
@@ -9537,7 +10041,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Signed Date",
+        title: tr("Signed Date"),
         key: "signedAt",
         width: 120,
         sorter: (a, b) =>
@@ -9555,7 +10059,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Effective Date",
+        title: tr("Effective Date"),
         key: "effectiveAt",
         width: 130,
         sorter: (a, b) =>
@@ -9573,7 +10077,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Sender",
+        title: tr("Sender"),
         key: "senderName",
         width: 150,
         render: (_, record) =>
@@ -9588,7 +10092,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Recipient",
+        title: tr("Recipient"),
         key: "recipientName",
         width: 150,
         render: (_, record) =>
@@ -9608,7 +10112,7 @@ const InternalTemplates = () => {
       if (activeSpace === "trash") {
         return [
           {
-            title: "File Name",
+            title: tr("File Name"),
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, true),
@@ -9619,7 +10123,7 @@ const InternalTemplates = () => {
               ),
           },
           {
-            title: "Description",
+            title: tr("Description"),
             key: "description",
             minWidth: 200,
             render: (_, record) => (
@@ -9627,7 +10131,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Size",
+            title: tr("Size"),
             key: "size",
             width: 100,
             sorter: (a, b) =>
@@ -9639,7 +10143,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Uploaded By",
+            title: tr("Uploaded By"),
             key: "uploadedBy",
             width: 180,
             render: (_, record) => (
@@ -9647,7 +10151,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Uploaded At",
+            title: tr("Uploaded At"),
             key: "uploadedAt",
             width: 160,
             sorter: (a, b) =>
@@ -9659,7 +10163,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Deleted By",
+            title: tr("Deleted By"),
             key: "deletedBy",
             width: 180,
             render: (_, record) => (
@@ -9667,7 +10171,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Deleted At",
+            title: tr("Deleted At"),
             key: "deletedAt",
             width: 160,
             sorter: (a, b) =>
@@ -9682,7 +10186,7 @@ const InternalTemplates = () => {
             ),
           },
           {
-            title: "Actions",
+            title: tr("Actions"),
             key: "actions",
             width: 120,
             align: "right",
@@ -9693,7 +10197,7 @@ const InternalTemplates = () => {
 
       return [
         {
-          title: "File Name",
+          title: tr("File Name"),
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, true),
@@ -9704,7 +10208,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Description",
+          title: tr("Description"),
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -9718,7 +10222,7 @@ const InternalTemplates = () => {
         },
         ...buildDocMetaColumns(),
         {
-          title: "Size",
+          title: tr("Size"),
           key: "size",
           width: 100,
           sorter: (a, b) =>
@@ -9730,7 +10234,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Uploaded At",
+          title: tr("Uploaded At"),
           key: "uploadedAt",
           width: 160,
           sorter: (a, b) =>
@@ -9740,7 +10244,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Uploaded By",
+          title: tr("Uploaded By"),
           key: "uploadedBy",
           width: 180,
           render: (_, record) => (
@@ -9748,7 +10252,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Actions",
+          title: tr("Actions"),
           key: "actions",
           width: 120,
           align: "right",
@@ -9761,7 +10265,7 @@ const InternalTemplates = () => {
     if (activeSpace === "trash") {
       return [
         {
-          title: "Name",
+          title: tr("Name"),
           key: "name",
           minWidth: 250,
           render: (_, record) => renderNameCell(record, true),
@@ -9772,7 +10276,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Description",
+          title: tr("Description"),
           key: "description",
           minWidth: 200,
           render: (_, record) => (
@@ -9780,7 +10284,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Size",
+          title: tr("Size"),
           key: "size",
           width: 100,
           sorter: (a, b) => {
@@ -9803,7 +10307,7 @@ const InternalTemplates = () => {
           },
         },
         {
-          title: "Created At",
+          title: tr("Created At"),
           key: "createdAt",
           width: 120,
           sorter: (a, b) =>
@@ -9816,7 +10320,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Uploaded By",
+          title: tr("Uploaded By"),
           key: "uploadedBy",
           width: 150,
           render: (_, record) =>
@@ -9827,7 +10331,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Uploaded At",
+          title: tr("Uploaded At"),
           key: "uploadedAt",
           width: 150,
           sorter: (a, b) =>
@@ -9842,7 +10346,7 @@ const InternalTemplates = () => {
             ),
         },
         {
-          title: "Deleted By",
+          title: tr("Deleted By"),
           key: "deletedBy",
           width: 150,
           render: (_, record) => (
@@ -9850,7 +10354,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Deleted At",
+          title: tr("Deleted At"),
           key: "deletedAt",
           width: 150,
           sorter: (a, b) =>
@@ -9865,7 +10369,7 @@ const InternalTemplates = () => {
           ),
         },
         {
-          title: "Actions",
+          title: tr("Actions"),
           key: "actions",
           width: 120,
           align: "right",
@@ -9879,7 +10383,7 @@ const InternalTemplates = () => {
 
     return [
       {
-        title: "Name",
+        title: tr("Name"),
         key: "name",
         minWidth: 250,
         render: (_, record) => renderNameCell(record, true),
@@ -9890,7 +10394,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Description",
+        title: tr("Description"),
         key: "description",
         minWidth: 200,
         render: (_, record) => (
@@ -9904,7 +10408,7 @@ const InternalTemplates = () => {
       },
       ...buildDocMetaColumns(),
       {
-        title: "Size",
+        title: tr("Size"),
         key: "size",
         width: 100,
         sorter: (a, b) => {
@@ -9927,7 +10431,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Created At",
+        title: tr("Created At"),
         key: "createdAt",
         width: 120,
         sorter: (a, b) =>
@@ -9940,7 +10444,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Uploaded At",
+        title: tr("Uploaded At"),
         key: "uploadedAt",
         width: 150,
         sorter: (a, b) =>
@@ -9953,7 +10457,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Uploaded By",
+        title: tr("Uploaded By"),
         key: "uploadedBy",
         width: 150,
         render: (_, record) =>
@@ -9964,7 +10468,7 @@ const InternalTemplates = () => {
           ),
       },
       {
-        title: "Actions",
+        title: tr("Actions"),
         key: "actions",
         width: 120,
         align: "right",
@@ -10023,7 +10527,7 @@ const InternalTemplates = () => {
 
   const handleNewActionClick = ({ key }) => {
     if (!currentFolderPerms.canCreate) {
-      message.warning("You only have view access to this folder");
+      message.warning(tr("You only have view access to this folder"));
       return;
     }
     if (!requireCompany()) return;
@@ -10046,12 +10550,12 @@ const InternalTemplates = () => {
     items: [
       {
         key: "folder",
-        label: renderNewMenuLabel(TYPE_ICONS.folder, "New Folder"),
+        label: renderNewMenuLabel(TYPE_ICONS.folder, tr("New Folder")),
       },
-      { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload File") },
+      { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, tr("Upload File")) },
       {
         key: "upload_folder",
-        label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload Folder"),
+        label: renderNewMenuLabel(TYPE_ICONS.folder, tr("Upload Folder")),
       },
     ],
     onClick: handleNewActionClick,
@@ -10060,7 +10564,7 @@ const InternalTemplates = () => {
   const activityColumns = useMemo(
     () => [
       {
-        title: "Activity Type",
+        title: tr("Activity Type"),
         dataIndex: "action",
         key: "action",
         width: 170,
@@ -10089,12 +10593,12 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Performed By",
+        title: tr("Performed By"),
         dataIndex: "changedByName",
         key: "changedByName",
         width: 200,
         render: (name) => {
-          const displayName = name || "System";
+          const displayName = name || tr("System");
           const initials =
             displayName
               .split(" ")
@@ -10139,7 +10643,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Document",
+        title: tr("Document"),
         key: "file",
         width: 320,
         render: (text, log) => {
@@ -10165,8 +10669,8 @@ const InternalTemplates = () => {
             (!isBooleanFlagField && log.newValue) ||
             (!isBooleanFlagField && log.oldValue) ||
             (isFolder
-              ? `Folder #${log.recordId}`
-              : `Document #${log.recordId}`);
+              ? tr("Folder #{0}", { 0: log.recordId })
+              : tr("Document #{0}", { 0: log.recordId }));
 
           let icon = isFolder ? TYPE_ICONS.folder : TYPE_ICONS.default;
           if (!isFolder && docRecord) {
@@ -10227,7 +10731,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Change Description",
+        title: tr("Change Description"),
         key: "desc",
         width: 420,
         render: (text, log) => {
@@ -10251,7 +10755,7 @@ const InternalTemplates = () => {
         },
       },
       {
-        title: "Time",
+        title: tr("Time"),
         dataIndex: "changedAt",
         key: "changedAt",
         width: 160,
@@ -10421,7 +10925,7 @@ const InternalTemplates = () => {
     if (permissionTarget.kind === "folder") {
       const folder = permissionTarget.folder;
       return {
-        title: `Folder permissions: ${folder?.name || ""}`,
+        title: tr("Folder permissions: {0}", { 0: folder?.name || "" }),
         loadPermissions: () => loadFolderPermissions(folder),
         savePermissions: (managerId, members) =>
           saveFolderPermissions(folder, managerId, members),
@@ -10430,7 +10934,7 @@ const InternalTemplates = () => {
     const { record } = permissionTarget;
     const fkField = "legalStudyId";
     return {
-      title: `${REFERENCE_LABEL} permissions: ${record?.title || record?.name || ""}`,
+      title: tr("{0} permissions: {1}", { 0: REFERENCE_LABEL, 1: record?.title || record?.name || "" }),
       loadPermissions: () => loadEntityPermissions(record, fkField),
       savePermissions: (managerId, members) =>
         saveEntityPermissions(record, "legal_study", fkField, managerId, members),
@@ -10502,7 +11006,7 @@ const InternalTemplates = () => {
                   marginBottom: 12,
                 }}
               >
-                <Tooltip title="Close sidebar">
+                <Tooltip title={tr("Close sidebar")}>
                   <Button
                     type="text"
                     icon={SIDEBAR_ICON}
@@ -10521,7 +11025,7 @@ const InternalTemplates = () => {
               {/* ══ SEARCH BOX ══ */}
               <div style={{ marginBottom: 16 }}>
                 <Input
-                  placeholder="Search file..."
+                  placeholder={tr("Search file...")}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   allowClear
@@ -10600,7 +11104,7 @@ const InternalTemplates = () => {
                         fontFamily: FONT,
                       }}
                     >
-                      Internal Work
+                      {tr("Internal Work")}
                     </span>
                   </div>
                 </div>
@@ -10679,7 +11183,7 @@ const InternalTemplates = () => {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {activeCaseRootFolder.name || "Folder"}
+                          {activeCaseRootFolder.name || tr("Folder")}
                         </span>
                       </button>
                     ) : (
@@ -10722,7 +11226,7 @@ const InternalTemplates = () => {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          No folder yet — click to create
+                          {tr("No folder yet — click to create")}
                         </span>
                       </button>
                     )}
@@ -10749,7 +11253,7 @@ const InternalTemplates = () => {
                       fontFamily: FONT,
                     }}
                   >
-                    Nhanh
+                    {tr("Nhanh")}
                   </span>
                 </div>
 
@@ -10816,7 +11320,7 @@ const InternalTemplates = () => {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        Activity History
+                        {tr("Activity History")}
                       </span>
                     </button>
                   );
@@ -10885,7 +11389,7 @@ const InternalTemplates = () => {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        Trash
+                        {tr("Trash")}
                       </span>
                     </button>
                   );
@@ -10911,11 +11415,11 @@ const InternalTemplates = () => {
             }}
           >
             {sidebarCollapsed && (
-              <Tooltip title="Open sidebar">
+              <Tooltip title={tr("Open sidebar")}>
                 <Button
                   icon={SIDEBAR_ICON}
                   onClick={() => setSidebarCollapsed(false)}
-                  aria-label="Open sidebar"
+                  aria-label={tr("Open sidebar")}
                   style={{
                     width: 32,
                     height: 32,
@@ -10945,7 +11449,7 @@ const InternalTemplates = () => {
                 }}
               >
                 <Input.Search
-                  placeholder="Search activity..."
+                  placeholder={tr("Search activity...")}
                   value={activitySearchQuery}
                   onChange={(e) => {
                     setActivitySearchQuery(e.target.value);
@@ -10962,20 +11466,20 @@ const InternalTemplates = () => {
                   }}
                   style={{ width: 180, borderRadius: 8 }}
                   options={[
-                    { value: "all", label: "All Activity" },
-                    { value: "uploaded", label: "Uploaded File" },
-                    { value: "previewed", label: "Preview" },
-                    { value: "downloaded", label: "Download" },
-                    { value: "linked_legal_study", label: `Added to ${REFERENCE_LABEL}` },
-                    { value: "shared_file", label: "Shared File" },
-                    { value: "unshared_file", label: "Unshared" },
-                    { value: "permission_updated", label: "Updated Permissions" },
-                    { value: "created", label: "Created Folder" },
-                    { value: "updated", label: "Other Update" },
-                    { value: "moved", label: "Moved" },
-                    { value: "trash_deleted", label: "Moved to Trash" },
-                    { value: "restored", label: "Restored" },
-                    { value: "deleted", label: "Permanently Deleted" },
+                    { value: "all", label: tr("All Activity") },
+                    { value: "uploaded", label: tr("Uploaded File") },
+                    { value: "previewed", label: tr("Preview") },
+                    { value: "downloaded", label: tr("Download") },
+                    { value: "linked_legal_study", label: tr("Added to {0}", { 0: REFERENCE_LABEL }) },
+                    { value: "shared_file", label: tr("Shared File") },
+                    { value: "unshared_file", label: tr("Unshared") },
+                    { value: "permission_updated", label: tr("Updated Permissions") },
+                    { value: "created", label: tr("Created Folder") },
+                    { value: "updated", label: tr("Other Update") },
+                    { value: "moved", label: tr("Moved") },
+                    { value: "trash_deleted", label: tr("Moved to Trash") },
+                    { value: "restored", label: tr("Restored") },
+                    { value: "deleted", label: tr("Permanently Deleted") },
                   ]}
                 />
               </div>
@@ -10991,7 +11495,7 @@ const InternalTemplates = () => {
                 }}
               >
                 <Input.Search
-                  placeholder="Search..."
+                  placeholder={tr("Search...")}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   style={{ width: 180, borderRadius: 8 }}
@@ -11012,7 +11516,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          STT
+                          {tr("No.")}
                         </span>
                       ),
                     },
@@ -11026,7 +11530,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Newest
+                          {tr("Newest")}
                         </span>
                       ),
                     },
@@ -11040,7 +11544,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Oldest
+                          {tr("Oldest")}
                         </span>
                       ),
                     },
@@ -11054,7 +11558,7 @@ const InternalTemplates = () => {
                             paddingTop: 1,
                           }}
                         >
-                          Name A-Z
+                          {tr("Name A-Z")}
                         </span>
                       ),
                     },
@@ -11062,7 +11566,7 @@ const InternalTemplates = () => {
                 />
                 <Select
                   allowClear
-                  placeholder="Format"
+                  placeholder={tr("Format")}
                   style={{ width: 120, borderRadius: 8 }}
                   value={selectedExt}
                   onChange={setSelectedExt}
@@ -11078,9 +11582,9 @@ const InternalTemplates = () => {
                     background: "#FAFAFA",
                   }}
                 >
-                  <Tooltip title="Grid">
+                  <Tooltip title={tr("Grid")}>
                     <Button
-                      aria-label="Grid"
+                      aria-label={tr("Grid")}
                       icon={GRID_ICON}
                       onClick={() => setViewMode("grid")}
                       style={{
@@ -11094,9 +11598,9 @@ const InternalTemplates = () => {
                       }}
                     />
                   </Tooltip>
-                  <Tooltip title="Table">
+                  <Tooltip title={tr("Table")}>
                     <Button
-                      aria-label="Table"
+                      aria-label={tr("Table")}
                       icon={TABLE_ICON}
                       onClick={() => setViewMode("table")}
                       style={{
@@ -11148,7 +11652,7 @@ const InternalTemplates = () => {
                     justifyContent: "center",
                   }}
                 >
-                  Refresh
+                  {tr("Refresh")}
                 </Button>
               ) : (
                 <React.Fragment>
@@ -11168,7 +11672,7 @@ const InternalTemplates = () => {
                                     key: "create_reference",
                                     label: renderNewMenuLabel(
                                       TYPE_ICONS.folder,
-                                      "Create Reference Case",
+                                      tr("Create Reference Case"),
                                     ),
                                   },
                                 ],
@@ -11193,7 +11697,7 @@ const InternalTemplates = () => {
                             fontWeight: 600,
                           }}
                         >
-                          New
+                          {tr("New")}
                         </Button>
                       </Dropdown>
                     )}
@@ -11211,7 +11715,7 @@ const InternalTemplates = () => {
                       justifyContent: "center",
                     }}
                   >
-                    Refresh
+                    {tr("Refresh")}
                   </Button>
                 </React.Fragment>
               )}
@@ -11255,13 +11759,13 @@ const InternalTemplates = () => {
                     showSizeChanger: false,
                     total: filteredActivityLogs.length,
                     showTotal: (total, range) =>
-                      `${range[0]}–${range[1]} of ${total} activities`,
+                      tr("{0}–{1} of {2} activities", { 0: range[0], 1: range[1], 2: total }),
                   }}
                   locale={{
                     emptyText: (
                       <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="No activity history found"
+                        description={tr("No activity history found")}
                         style={{ padding: "40px 0" }}
                       />
                     ),
@@ -11370,7 +11874,7 @@ const InternalTemplates = () => {
                     }}
                   >
                     <span>
-                      <span style={{ color: "#9CA3AF" }}>Manager: </span>
+                      <span style={{ color: "#9CA3AF" }}>{tr("Manager:")} </span>
                       <strong style={{ color: "#374151", fontWeight: 500 }}>
                         {currentRootFolderPermissionSummary.managerNames.length
                           ? currentRootFolderPermissionSummary.managerNames.join(", ")
@@ -11378,7 +11882,7 @@ const InternalTemplates = () => {
                       </strong>
                     </span>
                     <span>
-                      <span style={{ color: "#9CA3AF" }}>Member: </span>
+                      <span style={{ color: "#9CA3AF" }}>{tr("Member:")} </span>
                       <strong style={{ color: "#374151", fontWeight: 500 }}>
                         {currentRootFolderPermissionSummary.memberNames.length
                           ? currentRootFolderPermissionSummary.memberNames.join(", ")
@@ -11411,11 +11915,11 @@ const InternalTemplates = () => {
                           fontSize: 13,
                         }}
                       >
-                        Selected{" "}
+                        {tr("Selected")}{" "}
                         <strong style={{ color: "#111827", fontWeight: 600 }}>
                           {selectedRowKeys.length}
                         </strong>{" "}
-                        item(s)
+                        {tr("item(s)")}
                       </span>
                     </div>
                     <div
@@ -11433,7 +11937,7 @@ const InternalTemplates = () => {
                           padding: "4px 8px",
                         }}
                       >
-                        Clear selection
+                        {tr("Clear selection")}
                       </Button>
                       <div
                         style={{ width: 1, height: 16, background: "#E5E7EB" }}
@@ -11455,7 +11959,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Restore
+                            {tr("Restore")}
                           </Button>
                           <Button
                             size="small"
@@ -11472,7 +11976,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Delete
+                            {tr("Delete")}
                           </Button>
                         </React.Fragment>
                       ) : (
@@ -11492,7 +11996,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Move
+                            {tr("Move")}
                           </Button>
                           {(activeSpace === "personal" ||
                             isAdminUser(currentUserState)) && (
@@ -11511,7 +12015,7 @@ const InternalTemplates = () => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Delete
+                              {tr("Delete")}
                             </Button>
                           )}
                         </React.Fragment>
@@ -11563,15 +12067,15 @@ const InternalTemplates = () => {
                           {activeSpace === "project_internal" &&
                           selectedFolderId === "root" &&
                           !activeCaseRootFolderId
-                            ? "This Internal Work item has no root folder yet"
+                            ? tr("This Internal Work item has no root folder yet")
                             : activeSpace === "legal_reference" &&
                               !activeLegalReferenceId
-                              ? "No Reference Cases yet"
+                              ? tr("No Reference Cases yet")
                               : activeSpace === "trash"
-                                ? "Trash is empty"
+                                ? tr("Trash is empty")
                                 : query
-                                  ? "No results found"
-                                  : "This folder is empty"}
+                                  ? tr("No results found")
+                                  : tr("This folder is empty")}
                         </div>
                         <div
                           style={{
@@ -11583,15 +12087,15 @@ const InternalTemplates = () => {
                           {activeSpace === "project_internal" &&
                           selectedFolderId === "root" &&
                           !activeCaseRootFolderId
-                            ? "Please create this Internal Work item's root folder before uploading documents"
+                            ? tr("Please create this Internal Work item's root folder before uploading documents")
                             : activeSpace === "legal_reference" &&
                               !activeLegalReferenceId
-                              ? "Click + Create Reference Case below to get started"
+                              ? tr("Click + Create Reference Case below to get started")
                               : activeSpace === "trash"
-                                ? "No deleted files or folders"
+                                ? tr("No deleted files or folders")
                                 : query
-                                  ? "Try a different search term"
-                                  : "Click + New to create a folder or upload your first document"}
+                                  ? tr("Try a different search term")
+                                  : tr("Click + New to create a folder or upload your first document")}
                         </div>
                         {activeSpace === "legal_reference" &&
                         !activeLegalReferenceId ? (
@@ -11614,7 +12118,7 @@ const InternalTemplates = () => {
                               marginTop: 4,
                             }}
                           >
-                            + Create Reference Case
+                            {tr("+ Create Reference Case")}
                           </button>
                         ) : (
                           activeSpace !== "trash" &&
@@ -11640,7 +12144,7 @@ const InternalTemplates = () => {
                                   cursor: "pointer",
                                 }}
                               >
-                                + Add Document
+                                {tr("+ Add Document")}
                               </button>
                               <button
                                 type="button"
@@ -11657,7 +12161,7 @@ const InternalTemplates = () => {
                                   cursor: "pointer",
                                 }}
                               >
-                                + Add Folder
+                                {tr("+ Add Folder")}
                               </button>
                             </div>
                           )
@@ -11773,17 +12277,17 @@ const InternalTemplates = () => {
                                       >
                                         <div>
                                           <span style={{ color: "#9CA3AF" }}>
-                                            Created by:{" "}
+                                            {tr("Created by:")}{" "}
                                           </span>
                                           <strong>
                                             {record.createdBy?.nickname ||
                                               record.createdBy?.username ||
-                                              "System"}
+                                              tr("System")}
                                           </strong>
                                         </div>
                                         <div>
                                           <span style={{ color: "#9CA3AF" }}>
-                                            Created:{" "}
+                                            {tr("Created:")}{" "}
                                           </span>
                                           <span>
                                             {record.createdAt
@@ -11816,7 +12320,7 @@ const InternalTemplates = () => {
                                             color: "#9CA3AF",
                                           }}
                                         >
-                                          Resources:
+                                          {tr("Resources:")}
                                         </span>
                                         <span
                                           style={{
@@ -11825,7 +12329,7 @@ const InternalTemplates = () => {
                                             color: "#185FA5",
                                           }}
                                         >
-                                          {foldersCount} Folders · {filesCount}{" "}
+                                          {foldersCount} {tr("Folders ·")} {filesCount}{" "}
                                           file
                                         </span>
                                       </div>
@@ -11847,7 +12351,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Folders
+                            {tr("Folders")}
                           </div>
                         )}
                         <Row
@@ -12017,7 +12521,7 @@ const InternalTemplates = () => {
                                         </div>
                                       ) : (
                                         <Tooltip
-                                          title={record.name || "Folder"}
+                                          title={record.name || tr("Folder")}
                                           placement="top"
                                         >
                                           <div
@@ -12031,7 +12535,7 @@ const InternalTemplates = () => {
                                               lineHeight: "1.45",
                                             }}
                                           >
-                                            {record.name || "Folder"}
+                                            {record.name || tr("Folder")}
                                           </div>
                                         </Tooltip>
                                       )}
@@ -12057,7 +12561,7 @@ const InternalTemplates = () => {
                                               }}
                                               title={getRecordPathString(record)}
                                             >
-                                              Source: {getRecordPathString(record)}
+                                              {tr("Source:")} {getRecordPathString(record)}
                                             </span>
                                             <span
                                               style={{
@@ -12069,7 +12573,7 @@ const InternalTemplates = () => {
                                               }}
                                               title={getDeletedUserName(record)}
                                             >
-                                              Deleted by: {getDeletedUserName(record)}
+                                              {tr("Deleted by:")} {getDeletedUserName(record)}
                                             </span>
                                             <span
                                               style={{
@@ -12078,7 +12582,7 @@ const InternalTemplates = () => {
                                                 fontFamily: FONT,
                                               }}
                                             >
-                                              Deleted:{" "}
+                                              {tr("Deleted:")}{" "}
                                               {formatDate(
                                                 record.deletedAt ||
                                                   record.updatedAt ||
@@ -12101,7 +12605,7 @@ const InternalTemplates = () => {
                                                     fontFamily: FONT,
                                                   }}
                                                 >
-                                                  No documents yet
+                                                  {tr("No documents yet")}
                                                 </div>
                                                 {getRecordPerms(record).canCreate && (
                                                   <button
@@ -12126,7 +12630,7 @@ const InternalTemplates = () => {
                                                       fontFamily: FONT,
                                                     }}
                                                   >
-                                                    + Upload file
+                                                    {tr("+ Upload file")}
                                                   </button>
                                                 )}
                                               </div>
@@ -12138,7 +12642,7 @@ const InternalTemplates = () => {
                                                   color: "#185FA5",
                                                 }}
                                               >
-                                                {folderSubFolderCount} Folders ·{" "}
+                                                {folderSubFolderCount} {tr("Folders ·")}{" "}
                                                 {folderFileCount} file
                                               </span>
                                             )}
@@ -12156,7 +12660,7 @@ const InternalTemplates = () => {
                                                   fontFamily: FONT,
                                                 }}
                                               >
-                                                Created:{" "}
+                                                {tr("Created:")}{" "}
                                                 {formatDate(
                                                   record.createdAt ||
                                                     record.updatedAt,
@@ -12173,7 +12677,7 @@ const InternalTemplates = () => {
                                                 }}
                                                 title={getUploadUserName(record)}
                                               >
-                                                Created by:{" "}
+                                                {tr("Created by:")}{" "}
                                                 {getUploadUserName(record)}
                                               </span>
                                             </div>
@@ -12198,7 +12702,7 @@ const InternalTemplates = () => {
                               fontFamily: FONT,
                             }}
                           >
-                            Documents
+                            {tr("Documents")}
                           </div>
                         )}
                         <Row gutter={[10, 10]}>
@@ -12209,10 +12713,11 @@ const InternalTemplates = () => {
                                 editingTitleId === String(extractId(record));
                               const attachment = getAttachment(record);
                               const cardFileName =
+                                record.title ||
                                 attachment?.title ||
                                 attachment?.filename ||
                                 record.googleDriveUrl ||
-                                "No file attached";
+                                tr("No file attached");
                               const cardHasFile = !!getRecordFileUrl(record);
                               const ext = getFileExtension(record);
 
@@ -12452,11 +12957,11 @@ const InternalTemplates = () => {
                                             }}
                                             title={getDeletedUserName(record)}
                                           >
-                                            Deleted by:{" "}
+                                            {tr("Deleted by:")}{" "}
                                             {getDeletedUserName(record)}
                                           </div>
                                           <div>
-                                            Deleted:{" "}
+                                            {tr("Deleted:")}{" "}
                                             {formatDate(
                                               record.deletedAt ||
                                                 record.updatedAt,
@@ -12570,10 +13075,10 @@ const InternalTemplates = () => {
                         <div style={{ padding: "40px 0", textAlign: "center" }}>
                           <div style={{ fontSize: 14, color: "#9CA3AF" }}>
                             {query
-                              ? "No results found"
+                              ? tr("No results found")
                               : activeSpace === "trash"
-                                ? "Trash is empty"
-                                : "This folder is empty"}
+                                ? tr("Trash is empty")
+                                : tr("This folder is empty")}
                           </div>
                         </div>
                       ),
@@ -12597,7 +13102,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            New Folder
+            {tr("New Folder")}
           </span>
         }
         open={isFolderOpen}
@@ -12609,7 +13114,7 @@ const InternalTemplates = () => {
         destroyOnClose
       >
         <Text type="secondary">
-          Location: {breadcrumbs.map((item) => item.name).join(" / ")}
+          {tr("Location:")} {breadcrumbs.map((item) => item.name).join(" / ")}
         </Text>
         <Form
           form={folderForm}
@@ -12619,10 +13124,10 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="name"
-            label="Folder Name"
-            rules={[{ required: true, message: "Please enter a folder name" }]}
+            label={tr("Folder Name")}
+            rules={[{ required: true, message: tr("Please enter a folder name") }]}
           >
-            <Input placeholder="Enter folder name..." />
+            <Input placeholder={tr("Enter folder name...")} />
           </Form.Item>
           
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -12634,7 +13139,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Cancel
+              {tr("Cancel")}
             </Button>
             <Button
               type="primary"
@@ -12646,7 +13151,7 @@ const InternalTemplates = () => {
                 borderColor: "#111827",
               }}
             >
-              Submit
+              {tr("Submit")}
             </Button>
           </div>
         </Form>
@@ -12662,6 +13167,7 @@ const InternalTemplates = () => {
       <DocumentUploadFieldsModal
         open={!!uploadFieldsTarget}
         files={uploadFieldsTarget?.files || []}
+        existingTitles={uploadFieldsTarget?.existingTitles ?? null}
         onClose={() => setUploadFieldsTarget(null)}
         onSubmit={handleConfirmUploadFields}
       />
@@ -12676,7 +13182,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Upload Folder
+            {tr("Upload Folder")}
           </span>
         }
         open={bulkConfirmOpen}
@@ -12696,7 +13202,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Cancel
+            {tr("Cancel")}
           </Button>,
           <Button
             key="submit"
@@ -12709,15 +13215,15 @@ const InternalTemplates = () => {
               borderColor: "#111827",
             }}
           >
-            Confirm Upload
+            {tr("Confirm Upload")}
           </Button>,
         ]}
       >
         <Text>
-          Selected {pendingFolderFiles.length} file(s) from an external folder.
+          {tr("Selected")} {pendingFolderFiles.length} {tr("file(s) from an external folder.")}
         </Text>
         <div style={{ marginTop: 16 }}>
-          <Text strong>Upload to:</Text>
+          <Text strong>{tr("Upload to:")}</Text>
           <TreeSelect
             value={bulkTargetId}
             onChange={setBulkTargetId}
@@ -12744,7 +13250,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Move
+            {tr("Move")}
           </span>
         }
         open={!!moveRecord}
@@ -12759,7 +13265,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Cancel
+            {tr("Cancel")}
           </Button>,
           <Button
             key="submit"
@@ -12771,12 +13277,12 @@ const InternalTemplates = () => {
               borderColor: "#111827",
             }}
           >
-            Move
+            {tr("Move")}
           </Button>,
         ]}
       >
         <Text>
-          Choose the destination folder for{" "}
+          {tr("Choose the destination folder for")}{" "}
           <b>
             {moveRecord?._type === "folder"
               ? moveRecord?.name
@@ -12802,7 +13308,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Create Reference Case
+            {tr("Create Reference Case")}
           </span>
         }
         open={isCreateTemplateOpen}
@@ -12820,21 +13326,21 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="title"
-            label="Title"
-            rules={[{ required: true, message: "Please enter a title" }]}
+            label={tr("Title")}
+            rules={[{ required: true, message: tr("Please enter a title") }]}
           >
-            <Input placeholder="Enter title..." />
+            <Input placeholder={tr("Enter title...")} />
           </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} placeholder="Short description..." />
+          <Form.Item name="description" label={tr("Description")}>
+            <Input.TextArea rows={3} placeholder={tr("Short description...")} />
           </Form.Item>
           <Form.Item
             name="sourceCaseId"
-            label="Source Case / Origin Case"
-            extra="Select the source case/project this reference case is generated from (only unlinked cases are shown)."
+            label={tr("Source Case / Origin Case")}
+            extra={tr("Select the source case/project this reference case is generated from (only unlinked cases are shown).")}
           >
             <Select
-              placeholder="Select source case..."
+              placeholder={tr("Select source case...")}
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -12877,7 +13383,7 @@ const InternalTemplates = () => {
                   const pid = String(extractId(proj));
                   const label = proj.projectName
                     ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
-                    : `Case #${pid}`;
+                    : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -12888,12 +13394,12 @@ const InternalTemplates = () => {
           </Form.Item>
           <Form.Item
             name="caseIds"
-            label="Currently Linked Cases"
-            extra="Select active cases in the system to link with this reference case (only unlinked cases are shown)."
+            label={tr("Currently Linked Cases")}
+            extra={tr("Select active cases in the system to link with this reference case (only unlinked cases are shown).")}
           >
             <Select
               mode="multiple"
-              placeholder="Select cases to link..."
+              placeholder={tr("Select cases to link...")}
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -12904,7 +13410,7 @@ const InternalTemplates = () => {
                   const pid = String(extractId(proj));
                   const label = proj.projectName
                     ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
-                    : `Case #${pid}`;
+                    : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -12922,7 +13428,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Cancel
+              {tr("Cancel")}
             </Button>
             <Button
               type="primary"
@@ -12934,7 +13440,7 @@ const InternalTemplates = () => {
                 borderColor: "#185FA5",
               }}
             >
-              Create
+              {tr("Create")}
             </Button>
           </div>
         </Form>
@@ -12950,7 +13456,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Edit Document Entry
+            {tr("Edit Document Entry")}
           </span>
         }
         open={!!editTemplateRecord}
@@ -12968,10 +13474,10 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="title"
-            label="Title"
-            rules={[{ required: true, message: "Please enter a title" }]}
+            label={tr("Title")}
+            rules={[{ required: true, message: tr("Please enter a title") }]}
           >
-            <Input placeholder="Enter title..." />
+            <Input placeholder={tr("Enter title...")} />
           </Form.Item>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <Button
@@ -12982,7 +13488,7 @@ const InternalTemplates = () => {
                 color: "#6B7280",
               }}
             >
-              Cancel
+              {tr("Cancel")}
             </Button>
             <Button
               type="primary"
@@ -12994,7 +13500,7 @@ const InternalTemplates = () => {
                 borderColor: "#111827",
               }}
             >
-              Save
+              {tr("Save")}
             </Button>
           </div>
         </Form>
@@ -13010,7 +13516,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Rename
+            {tr("Rename")}
           </span>
         }
         open={!!renameRecord}
@@ -13019,17 +13525,17 @@ const InternalTemplates = () => {
           renameForm.resetFields();
         }}
         onOk={handleRenameSubmit}
-        okText="Save"
-        cancelText="Cancel"
+        okText={tr("Save")}
+        cancelText={tr("Cancel")}
         destroyOnClose
       >
         <Form form={renameForm} layout="vertical">
           <Form.Item
             name="name"
-            label="New Name"
-            rules={[{ required: true, message: "Please enter a name" }]}
+            label={tr("New Name")}
+            rules={[{ required: true, message: tr("Please enter a name") }]}
           >
-            <Input placeholder="Enter new name..." />
+            <Input placeholder={tr("Enter new name...")} />
           </Form.Item>
         </Form>
       </Modal>
@@ -13044,7 +13550,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Link Reference Case
+            {tr("Link Reference Case")}
           </span>
         }
         open={isLinkCaseOpen}
@@ -13067,7 +13573,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Cancel
+            {tr("Cancel")}
           </Button>,
           <Button
             key="submit"
@@ -13080,7 +13586,7 @@ const InternalTemplates = () => {
               borderColor: "#185FA5",
             }}
           >
-            Save Link
+            {tr("Save Link")}
           </Button>,
         ]}
         destroyOnClose
@@ -13092,12 +13598,12 @@ const InternalTemplates = () => {
         >
           <Form.Item
             name="caseIds"
-            label="Select Active Cases/Projects to Link"
-            extra="This list is populated from the projects currently in the system."
+            label={tr("Select Active Cases/Projects to Link")}
+            extra={tr("This list is populated from the projects currently in the system.")}
           >
             <Select
               mode="multiple"
-              placeholder="Select case..."
+              placeholder={tr("Select case...")}
               allowClear
               optionFilterProp="label"
               style={{ width: "100%" }}
@@ -13112,7 +13618,7 @@ const InternalTemplates = () => {
                   const pid = String(extractId(proj));
                   const label = proj.projectName
                     ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}`
-                    : `Case #${pid}`;
+                    : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -13134,7 +13640,7 @@ const InternalTemplates = () => {
               fontFamily: FONT,
             }}
           >
-            Move Multiple Items
+            {tr("Move Multiple Items")}
           </span>
         }
         open={isBulkMoveOpen}
@@ -13149,7 +13655,7 @@ const InternalTemplates = () => {
               color: "#6B7280",
             }}
           >
-            Cancel
+            {tr("Cancel")}
           </Button>,
           <Button
             key="submit"
@@ -13161,12 +13667,12 @@ const InternalTemplates = () => {
               borderColor: "#185FA5",
             }}
           >
-            Move
+            {tr("Move")}
           </Button>
         ]}
       >
         <Text>
-          Choose the destination folder for <b>{selectedRowKeys.length} selected item(s)</b>
+          {tr("Choose the destination folder for")} <b>{selectedRowKeys.length} {tr("selected item(s)")}</b>
         </Text>
         <TreeSelect
           value={bulkMoveTargetId}

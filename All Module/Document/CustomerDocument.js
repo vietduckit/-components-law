@@ -1,7 +1,364 @@
   // ============================================================
   // §1 CONFIG & SETUP
   // ============================================================
-  const { React } = ctx;
+  // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Customers": "Khách hàng",
+  "Create new customer": "Tạo khách hàng mới",
+  "Search customers...": "Tìm khách hàng...",
+  "Contract": "Hợp đồng",
+  "Policy": "Chính sách",
+  "HR": "Nhân sự",
+  "Finance": "Tài chính",
+  "Legal": "Pháp lý",
+  "IT": "IT",
+  "Proposal": "Đề xuất",
+  "Template": "Mẫu",
+  "Company": "Công ty",
+  "Untitled": "Chưa đặt tên",
+  "User #{0}": "Người dùng #{0}",
+  "Lawyer": "Luật sư",
+  "Document": "Tài liệu",
+  "Customer {0}": "Khách hàng {0}",
+  "Customer": "Khách hàng",
+  "Failed to create customer record": "Không tạo được khách hàng",
+  "Upload failed": "Tải lên thất bại",
+  "File": "Tệp",
+  "Download": "Tải về",
+  "Close": "Đóng",
+  "Loading preview...": "Đang tải bản xem trước...",
+  "Your browser does not support video playback.": "Trình duyệt không hỗ trợ phát video.",
+  "Your browser does not support audio playback.": "Trình duyệt không hỗ trợ phát âm thanh.",
+  "{0} lines · {1} characters": "{0} dòng · {1} ký tự",
+  "Loading content...": "Đang tải nội dung...",
+  "Unable to load file content": "Không tải được nội dung tệp",
+  "Download to view": "Tải về để xem",
+  "This document has no file or URL to preview": "Tài liệu chưa có tệp hoặc URL để xem trước",
+  "Cannot preview format": "Không xem trước được định dạng",
+  "Download to open with a suitable application": "Tải về để mở bằng ứng dụng phù hợp",
+  "Permissions updated successfully": "Đã cập nhật quyền",
+  "An error occurred while updating permissions": "Có lỗi khi cập nhật quyền",
+  "Folder permissions:": "Phân quyền thư mục:",
+  "Cancel": "Hủy",
+  "Save": "Lưu",
+  "Manager": "Quản lý",
+  "Select manager...": "Chọn người quản lý...",
+  "Add members": "Thêm thành viên",
+  "Search and select multiple people...": "Tìm và chọn nhiều người...",
+  "Members": "Thành viên",
+  "No members added yet": "Chưa thêm thành viên",
+  "Editor": "Chỉnh sửa",
+  "Contributed": "Đóng góp",
+  "Viewer": "Người xem",
+  "📎 Document information": "📎 Thông tin tài liệu",
+  "({0} file)": "({0} tệp)",
+  "Upload": "Tải lên",
+  "Selected files:": "Tệp đã chọn:",
+  "The information below will apply to all": "Thông tin dưới đây sẽ áp dụng cho tất cả",
+  "files (document name will default to the file name if left blank).": "tệp (tên tài liệu mặc định là tên tệp nếu để trống).",
+  "Upload as separate files": "Tải lên thành các tệp riêng",
+  "Group into a new folder": "Gom vào thư mục mới",
+  "Folder name": "Tên thư mục",
+  "Please enter a folder name": "Vui lòng nhập tên thư mục",
+  "Enter new folder name...": "Nhập tên thư mục mới...",
+  "Document type": "Loại văn bản",
+  "e.g. Contract, Meeting minutes...": "VD: Hợp đồng, Biên bản họp...",
+  "Document name": "Tên tài liệu",
+  "Leave blank to use the file name": "Để trống để dùng tên tệp",
+  "Reference No.": "Số hiệu",
+  "vd: 123/2024/CT": "e.g. 123/2024/CT",
+  "Issue date": "Ngày ban hành",
+  "Signed date": "Ngày ký",
+  "Effective date": "Ngày hiệu lực",
+  "Sender": "Người gửi",
+  "Sender's name/organization": "Tên người/tổ chức gửi",
+  "Recipient": "Người nhận",
+  "Recipient's name/organization": "Tên người/tổ chức nhận",
+  "Description": "Mô tả",
+  "Summarize the main content...": "Tóm tắt nội dung chính...",
+  "All": "Tất cả",
+  "Failed to load data": "Không thể tải dữ liệu",
+  "Uploaded": "Đã tải lên",
+  "Previewed": "Đã xem trước",
+  "Downloaded": "Đã tải về",
+  "Shared document": "Đã chia sẻ tài liệu",
+  "Unshared": "Đã hủy chia sẻ",
+  "Permissions updated": "Đã cập nhật quyền",
+  "Created": "Ngày tạo",
+  "Moved": "Đã di chuyển",
+  "Moved to Trash": "Đã chuyển vào thùng rác",
+  "Restored": "Đã khôi phục",
+  "Updated": "Cập nhật",
+  "Deleted": "Đã xóa",
+  "document type": "loại tài liệu",
+  "linked customer": "khách hàng liên kết",
+  "parent folder": "thư mục cha",
+  "internal company": "công ty nội bộ",
+  "Google Drive link": "link Google Drive",
+  "raw file": "tệp gốc",
+  "sort position": "vị trí sắp xếp",
+  "document classification": "phân loại tài liệu",
+  "deletion status": "trạng thái xóa",
+  "updated time": "thời gian cập nhật",
+  "created time": "thời gian tạo",
+  "document code": "số hiệu tài liệu",
+  "opening date": "ngày mở",
+  "document format": "định dạng tài liệu",
+  "signed date": "ngày ký",
+  "effective date": "ngày hiệu lực",
+  "deleted date": "ngày xóa",
+  "shared document": "tài liệu được chia sẻ",
+  "unshared document": "đã hủy chia sẻ tài liệu",
+  "permissions updated": "đã cập nhật quyền",
+  "Previewed {0}": "Đã xem trước {0}",
+  "Downloaded {0}": "Đã tải về {0}",
+  "Shared {0} with {1}": "Đã chia sẻ {0} với {1}",
+  "Shared {0}": "Đã chia sẻ {0}",
+  "Unshared {0}": "Đã hủy chia sẻ {0}",
+  "Updated permissions on {0}": "Đã cập nhật quyền trên {0}",
+  "Created a new folder": "Đã tạo thư mục mới",
+  "Uploaded a new document": "Đã tải lên tài liệu mới",
+  "Deleted {0}": "Đã xóa {0}",
+  "Root folder": "Thư mục gốc",
+  "Folder #{0}": "Thư mục #{0}",
+  "Moved {0} from \"{1}\" to \"{2}\"": "Đã chuyển {0} từ \"{1}\" sang \"{2}\"",
+  "Moved {0}": "Đã chuyển {0}",
+  "Moved {0} to Trash": "Đã chuyển {0} vào thùng rác",
+  "Restored {0} from Trash": "Đã khôi phục {0} từ thùng rác",
+  "Renamed {0}: \"{1}\" → \"{2}\"": "Đã đổi tên {0}: \"{1}\" → \"{2}\"",
+  "Renamed {0} to \"{1}\"": "Đã đổi tên {0} thành \"{1}\"",
+  "Moved from \"{0}\" to \"{1}\"": "Đã chuyển từ \"{0}\" sang \"{1}\"",
+  "Updated {0} of {1}": "Đã cập nhật {0} của {1}",
+  "Action [{0}] on {1}": "Thao tác [{0}] trên {1}",
+  "System": "Hệ thống",
+  "Home": "Trang chủ",
+  "My Workspace": "Không gian của tôi",
+  "Shared folder": "Thư mục được chia sẻ",
+  "Activity log": "Nhật ký hoạt động",
+  "Trash": "Thùng rác",
+  "Folder": "Thư mục",
+  "Please select an internal company first": "Vui lòng chọn công ty nội bộ trước",
+  "Linked customer created successfully!": "Đã tạo khách hàng liên kết!",
+  "Failed to create linked customer": "Không thể tạo khách hàng liên kết",
+  "Failed to update customer title": "Không thể cập nhật tên khách hàng",
+  "Customer updated successfully!": "Đã cập nhật khách hàng!",
+  "Update failed": "Cập nhật thất bại",
+  "Please select a customer to link": "Vui lòng chọn khách hàng để liên kết",
+  "Failed to update case links": "Không thể cập nhật liên kết hồ sơ",
+  "Case link updated successfully": "Đã cập nhật liên kết hồ sơ",
+  "Case linking error": "Lỗi liên kết hồ sơ",
+  "Folder created successfully!": "Đã tạo thư mục!",
+  "Failed to create folder": "Không thể tạo thư mục",
+  "You don't have permission to upload documents to this folder": "Bạn không có quyền tải tài liệu lên thư mục này",
+  "Uploaded {0} file(s) successfully!": "Đã tải lên {0} tệp!",
+  "Analyzing folder structure...": "Đang phân tích cấu trúc thư mục...",
+  "Creating {0} folder(s)...": "Đang tạo {0} thư mục...",
+  "Uploading file {0}/{1}...": "Đang tải tệp {0}/{1}...",
+  "Folder upload complete!": "Đã tải thư mục lên!",
+  "Folder upload failed": "Tải thư mục lên thất bại",
+  "Cannot move a folder into itself": "Không thể chuyển thư mục vào chính nó",
+  "Cannot move a folder into its own subfolder": "Không thể chuyển thư mục vào thư mục con của nó",
+  "Folder moved": "Đã di chuyển thư mục",
+  "Document moved": "Đã di chuyển tài liệu",
+  "Move failed": "Di chuyển thất bại",
+  "Skipped {0} item(s) you don't have permission to act on": "Bỏ qua {0} mục bạn không có quyền thao tác",
+  "Restore {0} selected item(s)?": "Khôi phục {0} mục đã chọn?",
+  "Folders and documents will be restored to their original space.": "Thư mục và tài liệu sẽ được khôi phục về không gian ban đầu.",
+  "Restore": "Khôi phục",
+  "Restored {0} item(s) successfully!": "Đã khôi phục {0} mục!",
+  "Restore failed": "Khôi phục thất bại",
+  "Delete {0} selected item(s)?": "Xóa {0} mục đã chọn?",
+  "This action cannot be undone. Files and folders will be permanently deleted from the system.": "Thao tác này không thể hoàn tác. Tệp và thư mục sẽ bị xóa vĩnh viễn khỏi hệ thống.",
+  "Delete": "Xóa",
+  "Only administrators can permanently delete": "Chỉ quản trị viên mới xóa vĩnh viễn được",
+  "Deleted {0} item(s) successfully!": "Đã xóa {0} mục!",
+  "Delete failed": "Xóa thất bại",
+  "Deleted items will be moved to Trash.": "Các mục bị xóa sẽ được chuyển vào thùng rác.",
+  "Only administrators can delete in this space": "Chỉ quản trị viên mới xóa được trong không gian này",
+  "Moved {0} item(s) to Trash!": "Đã chuyển {0} mục vào thùng rác!",
+  "Moved {0} item(s) successfully!": "Đã di chuyển {0} mục!",
+  "Document reordered": "Đã sắp xếp lại tài liệu",
+  "Unable to read the dropped file(s) or folder(s)": "Không đọc được tệp hoặc thư mục vừa thả",
+  "No valid files or folders found": "Không tìm thấy tệp hoặc thư mục hợp lệ",
+  "Folder name updated": "Đã cập nhật tên thư mục",
+  "Document and file name updated": "Đã cập nhật tên tài liệu và tệp",
+  "Failed to update folder name": "Không thể cập nhật tên thư mục",
+  "Failed to update document name": "Không thể cập nhật tên tài liệu",
+  "Cannot delete the root folder": "Không thể xóa thư mục gốc",
+  "Only administrators can delete folders in this space": "Chỉ quản trị viên mới xóa được thư mục trong không gian này",
+  "- {0} subfolder": "- {0} thư mục con",
+  "- {0} file": "- {0} tệp",
+  "Confirm delete folder \"{0}\"?": "Xác nhận xóa thư mục \"{0}\"?",
+  "You are about to delete this folder. The following data will also be deleted:": "Bạn sắp xóa thư mục này. Dữ liệu sau cũng sẽ bị xóa:",
+  "(Folder is empty)": "(Thư mục trống)",
+  "Are you sure you want to delete?": "Bạn có chắc muốn xóa?",
+  "Folder and its contents deleted": "Đã xóa thư mục và nội dung",
+  "Only administrators can delete documents in this space": "Chỉ quản trị viên mới xóa được tài liệu trong không gian này",
+  "Delete this file?": "Xóa tệp này?",
+  "This action will delete the file from the system.": "Thao tác này sẽ xóa tệp khỏi hệ thống.",
+  "File deleted": "Đã xóa tệp",
+  "Restored successfully": "Đã khôi phục",
+  "Delete this folder?": "Xóa thư mục này?",
+  "Warning: This action cannot be undone — the data will be permanently deleted from the database.": "Cảnh báo: thao tác này không thể hoàn tác — dữ liệu sẽ bị xóa vĩnh viễn khỏi cơ sở dữ liệu.",
+  "Confirm delete Customer \"{0}\"?": "Xác nhận xóa khách hàng \"{0}\"?",
+  "Confirm delete document type \"{0}\"?": "Xác nhận xóa loại tài liệu \"{0}\"?",
+  "Deleting this customer moves its folders and documents to Trash (restorable from there). A customer that still has Cases can't be deleted.": "Xóa khách hàng sẽ chuyển thư mục và tài liệu của khách hàng vào thùng rác (có thể khôi phục). Không thể xóa khách hàng còn hồ sơ.",
+  "Are you sure you want to delete this document type? Documents in this category will remain but become unlinked.": "Bạn có chắc muốn xóa loại tài liệu này? Các tài liệu thuộc danh mục này vẫn còn nhưng sẽ bị gỡ liên kết.",
+  "Failed to delete": "Xóa thất bại",
+  "Customer deleted": "Đã xóa khách hàng",
+  "Document type deleted": "Đã xóa loại tài liệu",
+  "Failed to rename": "Đổi tên thất bại",
+  "Customer renamed": "Đã đổi tên khách hàng",
+  "Document type renamed": "Đã đổi tên loại tài liệu",
+  "Folder renamed": "Đã đổi tên thư mục",
+  "Document renamed": "Đã đổi tên tài liệu",
+  "Rename failed": "Đổi tên thất bại",
+  "This document has no file or URL": "Tài liệu chưa có tệp hoặc URL",
+  "Folder -": "thư mục -",
+  "file)": "tệp)",
+  "No attached file": "Chưa đính kèm tệp",
+  "Click to preview": "Bấm để xem trước",
+  "Open detail": "Mở chi tiết",
+  "Link Case": "Liên kết hồ sơ",
+  "Rename": "Đổi tên",
+  "Permanently delete": "Xóa vĩnh viễn",
+  "Preview": "Xem trước",
+  "Move": "Di chuyển",
+  "Permissions": "Phân quyền",
+  "Personal workspace": "Không gian cá nhân",
+  "Library / {0}": "Library / {0}",
+  "Library": "Library",
+  "No.": "STT",
+  "Customer code": "Mã khách hàng",
+  "Customer name": "Tên khách hàng",
+  "Case Summary": "Tóm tắt hồ sơ",
+  "Linked cases": "Hồ sơ liên kết",
+  "Not linked": "Chưa liên kết",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Actions": "Thao tác",
+  "Size": "Kích thước",
+  "Uploaded by": "Người tải lên",
+  "Upload date": "Ngày tải lên",
+  "Deleted by": "Người xóa",
+  "Deleted date": "Ngày xóa",
+  "Created date": "Ngày tạo",
+  "Created by": "Người tạo",
+  "File name": "Tên tệp",
+  "Name": "Tên",
+  "Create folder": "Tạo thư mục",
+  "Upload folder": "Tải thư mục lên",
+  "Activity type": "Loại hoạt động",
+  "Performed by": "Người thực hiện",
+  "Documents": "Tài liệu",
+  "Change description": "Mô tả thay đổi",
+  "Time": "Thời gian",
+  "Collapse sidebar": "Thu gọn thanh bên",
+  "Search documents...": "Tìm tài liệu...",
+  "+ Create": "+ Tạo",
+  "No folders yet": "Chưa có thư mục",
+  "Nhanh": "Quick",
+  "Workspace": "Không gian làm việc",
+  "None yet": "Chưa có",
+  "Collapse": "Thu gọn",
+  "Show more ({0})": "Xem thêm ({0})",
+  "No customers yet": "Chưa có khách hàng",
+  "Expand sidebar": "Mở rộng thanh bên",
+  "Search activity...": "Tìm hoạt động...",
+  "All activity": "Tất cả hoạt động",
+  "Uploaded document": "Đã tải tài liệu lên",
+  "Created folder": "Đã tạo thư mục",
+  "Other update": "Cập nhật khác",
+  "Search...": "Tìm kiếm...",
+  "Newest": "Mới nhất",
+  "Oldest": "Cũ nhất",
+  "Name A-Z": "Tên A-Z",
+  "Format": "Định dạng",
+  "Grid": "Lưới",
+  "Table": "Bảng",
+  "Refresh": "Làm mới",
+  "Create customer": "Tạo khách hàng",
+  "New": "Tạo mới",
+  "Uploading...": "Đang tải lên...",
+  "Drop files or folders here to upload": "Thả tệp hoặc thư mục vào đây để tải lên",
+  "{0}–{1} / {2} activities": "{0}–{1} / {2} hoạt động",
+  "No activity history found": "Không có lịch sử hoạt động",
+  "Manager:": "Quản lý:",
+  "Member:": "Thành viên:",
+  "Selected": "Đã chọn",
+  "item(s)": "mục",
+  "Deselect": "Bỏ chọn",
+  "Trash is empty": "Thùng rác trống",
+  "No results found": "Không tìm thấy kết quả",
+  "Folder is empty": "Thư mục trống",
+  "Click + Create customer below to get started": "Bấm + Tạo khách hàng bên dưới để bắt đầu",
+  "No deleted files or folders": "Không có tệp hay thư mục đã xóa",
+  "Try a different search term": "Thử từ khóa khác",
+  "Click + New to create a folder or upload your first document": "Bấm + Mới để tạo thư mục hoặc tải tài liệu đầu tiên lên",
+  "+ Create customer": "+ Tạo khách hàng",
+  "+ Add document": "+ Thêm tài liệu",
+  "+ Add folder": "+ Thêm thư mục",
+  "Customer code:": "Mã khách hàng:",
+  "Linked case:": "Hồ sơ liên kết:",
+  "Resources:": "Tài nguyên:",
+  "Folder ·": "Thư mục ·",
+  "Source:": "Nguồn:",
+  "Deleted by:": "Người xóa:",
+  "Deleted date:": "Ngày xóa:",
+  "No documents yet": "Chưa có tài liệu",
+  "+ Upload your first file": "+ Tải tệp đầu tiên lên",
+  "Created date:": "Ngày tạo:",
+  "Created by:": "Người tạo:",
+  "Location:": "Vị trí:",
+  "Enter folder name...": "Nhập tên thư mục...",
+  "Short description...": "Mô tả ngắn...",
+  "Confirm upload": "Xác nhận tải lên",
+  "file(s) from an external folder.": "tệp từ thư mục bên ngoài.",
+  "Upload to:": "Tải lên vào:",
+  "Select destination folder for": "Chọn thư mục đích cho",
+  "Please enter a customer name": "Vui lòng nhập tên khách hàng",
+  "Enter customer name...": "Nhập tên khách hàng...",
+  "Note": "Ghi chú",
+  "Short note...": "Ghi chú ngắn...",
+  "Source case / Root case": "Hồ sơ nguồn / gốc",
+  "Select the source case/project related to this customer.": "Chọn hồ sơ/dự án nguồn liên quan đến khách hàng này.",
+  "Select source case...": "Chọn hồ sơ nguồn...",
+  "Currently linked cases": "Hồ sơ đang liên kết",
+  "Select active cases in the system to link with this customer.": "Chọn các hồ sơ đang hoạt động để liên kết với khách hàng này.",
+  "Select linked cases...": "Chọn hồ sơ liên kết...",
+  "Create": "Tạo",
+  "Edit document type": "Sửa loại tài liệu",
+  "Title": "Tiêu đề",
+  "Please enter a title": "Vui lòng nhập tiêu đề",
+  "Enter title...": "Nhập tiêu đề...",
+  "New name": "Tên mới",
+  "Please enter a name": "Vui lòng nhập tên",
+  "Enter new name...": "Nhập tên mới...",
+  "Link Reference Case": "Liên kết hồ sơ tham chiếu",
+  "Save link": "Lưu liên kết",
+  "Select active Cases/Projects to link": "Chọn hồ sơ/dự án đang hoạt động để liên kết",
+  "The list is drawn from existing projects in the system.": "Danh sách lấy từ các dự án hiện có trong hệ thống.",
+  "Select case...": "Chọn hồ sơ...",
+  "Move multiple items": "Di chuyển nhiều mục",
+  "selected item(s)": "mục đã chọn",
+  "folder": "thư mục",
+  "document": "tài liệu",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React } = ctx;
   const { useState, useEffect, useMemo, useCallback, useRef } = React;
   const {
     Spin,
@@ -78,10 +435,10 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
 
     // ── Nhãn hiển thị trong UI ────────────────────────────────────────────────
     label: {
-      sidebar: "Customers",          // title sidebar
-      sidebarItem: "Customers",      // tên 1 item trong sidebar
-      createButton: "Create new customer",
-      searchPlaceholder: "Search customers...",
+      sidebar: tr("Customers"),          // title sidebar
+      sidebarItem: tr("Customers"),      // tên 1 item trong sidebar
+      createButton: tr("Create new customer"),
+      searchPlaceholder: tr("Search customers..."),
     },
   };
 
@@ -652,14 +1009,14 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
   };
 
   const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
-    { value: "contract", label: "Contract" },
-    { value: "policy", label: "Policy" },
-    { value: "hr", label: "HR" },
-    { value: "finance", label: "Finance" },
-    { value: "legal", label: "Legal" },
-    { value: "it", label: "IT" },
-    { value: "proposal", label: "Proposal" },
-    { value: "template", label: "Template" },
+    { value: "contract", label: tr("Contract") },
+    { value: "policy", label: tr("Policy") },
+    { value: "hr", label: tr("HR") },
+    { value: "finance", label: tr("Finance") },
+    { value: "legal", label: tr("Legal") },
+    { value: "it", label: tr("IT") },
+    { value: "proposal", label: tr("Proposal") },
+    { value: "template", label: tr("Template") },
   ];
 
   const ALLOWED_DOCUMENT_TYPE_VALUES = new Set(DEFAULT_DOCUMENT_TYPE_OPTIONS.map((option) => option.value));
@@ -667,8 +1024,8 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
   const extractId = (val) => (typeof val === "object" && val !== null ? val.id : val);
   const extractRelationId = (val) => (Array.isArray(val) ? extractId(val[0]) : extractId(val));
   const normalizeKey = (val) => String(val || "").trim().toLowerCase();
-  const getCompanyName = (company) => company?.shortName || company?.name || company?.legalName || "Company";
-  const getDocTitle = (doc) => doc?.name || doc?.title || doc?.templateName || getAttachment(doc)?.filename || "Untitled";
+  const getCompanyName = (company) => company?.shortName || company?.name || company?.legalName || tr("Company");
+  const getDocTitle = (doc) => doc?.name || doc?.title || doc?.templateName || getAttachment(doc)?.filename || tr("Untitled");
   const getDocCode = (doc) => doc?.documentCode || doc?.templateCode || "";
   const getDocDate = (doc) => doc?.updatedAt || doc?.createdAt;
   const getAttachment = (doc) => (Array.isArray(doc?.fileAttachment) ? doc.fileAttachment[0] : doc?.fileAttachment);
@@ -693,7 +1050,8 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
 
   const getUrlFilterId = () => {
     try {
-      const href = String(window?.location?.href || "");
+      // location.href is blocked in the RunJS sandbox — the id is in the path.
+      const href = String(window?.location?.pathname || "");
       const pathMatch = href.match(/filterbytk\/([^/?#]+)/i);
       if (pathMatch?.[1]) return decodeURIComponent(pathMatch[1]);
       const queryMatch = href.match(/[?&]filterByTk=([^&#]+)/i);
@@ -733,14 +1091,14 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
   const getUploadUserName = (record) =>
     getUserDisplayName(record?.uploadedBy) ||
     getUserDisplayName(record?.createdBy) ||
-    (extractId(record?.uploadedById) ? `User #${extractId(record.uploadedById)}` : "") ||
-    (extractId(record?.createdById) ? `User #${extractId(record.createdById)}` : "—");
+    (extractId(record?.uploadedById) ? tr("User #{0}", { 0: extractId(record.uploadedById) }) : "") ||
+    (extractId(record?.createdById) ? tr("User #{0}", { 0: extractId(record.createdById) }) : "—");
 
   const getDeletedUserName = (record) =>
     getUserDisplayName(record?.updatedBy) ||
     getUserDisplayName(record?.deletedBy) ||
-    (extractId(record?.updatedById) ? `User #${extractId(record.updatedById)}` : "") ||
-    (extractId(record?.deletedById) ? `User #${extractId(record.deletedById)}` : "—");
+    (extractId(record?.updatedById) ? tr("User #{0}", { 0: extractId(record.updatedById) }) : "") ||
+    (extractId(record?.deletedById) ? tr("User #{0}", { 0: extractId(record.deletedById) }) : "—");
 
   const formatBytes = (bytes) => {
     if (!bytes || isNaN(bytes) || bytes === 0) return "--";
@@ -790,7 +1148,7 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
     row?.role ||
     fallback;
 
-  const getLawyerDisplayName = (record, fallback = "Lawyer") => {
+  const getLawyerDisplayName = (record, fallback = tr("Lawyer")) => {
     const lawyer = getRelationLawyerRecord(record);
     return (
       lawyer.lawyerName ||
@@ -1117,7 +1475,7 @@ const CUSTOMER_COL_PROPS = { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 4 };
     return {
       id,
       value: id,
-      label: String(option?.label || option?.title || id || "Document"),
+      label: String(option?.label || option?.title || id || tr("Document")),
       color: option?.color || decor.color,
       background: option?.background || decor.background,
       svgIcon: TYPE_ICONS[key] || TYPE_ICONS.default,
@@ -1258,7 +1616,7 @@ const getCustomerDisplayName = (record) => {
     record.name ||
       record.legalName ||
       record.shortName ||
-      (record.id ? `Customer ${record.id}` : "Customer");
+      (record.id ? tr("Customer {0}", { 0: record.id }) : tr("Customer"));
     return code && String(code) !== String(title) ? `${code} - ${title}` : title;
   };
 
@@ -1331,6 +1689,16 @@ const getCustomerDisplayName = (record) => {
     return [];
   };
 
+  // The server's own reason when there is one — e.g. a duplicate customer
+  // or customer folder blocked by pgsql/document_naming_guards.sql — else
+  // the fallback text.
+  const serverErrorMessage = (error, fallback) =>
+    error?.response?.data?.errors?.[0]?.message || fallback;
+  // Across endpoint candidates, a missing endpoint (404) must not hide the
+  // real error from the one that exists.
+  const keepMeaningfulError = (previous, next) =>
+    !previous || previous?.response?.status === 404 ? next : previous;
+
   const createCustomerRecord = async (payload) => {
     let lastError = null;
     for (const url of DASHBOARD_CONFIG.parentCreateCandidates) {
@@ -1341,10 +1709,10 @@ const getCustomerDisplayName = (record) => {
           data: payload,
         });
       } catch (e) {
-        lastError = e;
+        lastError = keepMeaningfulError(lastError, e);
       }
     }
-    throw lastError || new Error("Failed to create customer record");
+    throw lastError || new Error(tr("Failed to create customer record"));
   };
 
   const fetchFoldersForInternalTemplates = async (customerId = null) => {
@@ -1417,7 +1785,7 @@ const getCustomerDisplayName = (record) => {
       headers: { "Content-Type": "multipart/form-data" },
     });
     const attachment = uploadRes?.data?.data;
-    if (!attachment?.id) throw new Error("Upload failed");
+    if (!attachment?.id) throw new Error(tr("Upload failed"));
     return attachment;
   };
 
@@ -1573,7 +1941,7 @@ const getCustomerDisplayName = (record) => {
         : "";
     }
 
-    const rawName = attachment?.title || attachment?.filename || doc?.name || doc?.title || "File";
+    const rawName = attachment?.title || attachment?.filename || doc?.name || doc?.title || tr("File");
     if (!fileExt && rawName.includes(".")) {
       fileExt = "." + rawName.split(".").pop().toLowerCase();
     }
@@ -1610,8 +1978,14 @@ const getCustomerDisplayName = (record) => {
       setTextError(false);
 
       const doFetch = async () => {
-        if (typeof window !== "undefined" && typeof window.fetch === "function") {
-          const res = await window.fetch(fullUrl);
+        // window.fetch is blocked in the RunJS sandbox (even `typeof` throws) —
+        // probe it safely, else fall back to ctx.api.
+        let nativeFetch = null;
+        try {
+          nativeFetch = typeof window.fetch === "function" ? window.fetch.bind(window) : null;
+        } catch {}
+        if (nativeFetch) {
+          const res = await nativeFetch(fullUrl);
           if (!res.ok) throw new Error("fetch failed");
           return await res.text();
         } else {
@@ -1646,16 +2020,16 @@ const getCustomerDisplayName = (record) => {
         footer={[
           fullUrl && (
             <Button key="download" type="primary" icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")}>
-              Download
+              {tr("Download")}
             </Button>
           ),
-          <Button key="close" onClick={onClose}>Close</Button>,
+          <Button key="close" onClick={onClose}>{tr("Close")}</Button>,
         ].filter(Boolean)}
       >
         {/* Spinner nền */}
         {!isText && (
           <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 0 }}>
-            <Spin tip="Loading preview..." />
+            <Spin tip={tr("Loading preview...")} />
           </div>
         )}
 
@@ -1700,7 +2074,7 @@ const getCustomerDisplayName = (record) => {
                     fileExt === ".ogg" ? "video/ogg" :
                       fileExt === ".mov" ? "video/quicktime" : "video/mp4"
               } />
-              Your browser does not support video playback.
+              {tr("Your browser does not support video playback.")}
             </video>
           </div>
         )}
@@ -1727,7 +2101,7 @@ const getCustomerDisplayName = (record) => {
                         fileExt === ".flac" ? "audio/flac" :
                           fileExt === ".m4a" ? "audio/mp4" : "audio/mpeg"
               } />
-              Your browser does not support audio playback.
+              {tr("Your browser does not support audio playback.")}
             </audio>
           </div>
         )}
@@ -1745,21 +2119,21 @@ const getCustomerDisplayName = (record) => {
                 {fileExt.replace(".", "").toUpperCase()} · {finalFileName}
               </span>
               <span style={{ fontFamily: "monospace", fontSize: 11, color: "#888" }}>
-                {textContent != null ? `${textContent.split("\n").length} lines · ${textContent.length} characters` : ""}
+                {textContent != null ? tr("{0} lines · {1} characters", { 0: textContent.split("\n").length, 1: textContent.length }) : ""}
               </span>
             </div>
             {/* Content */}
             <div style={{ flex: 1, overflow: "auto", background: getMonoBackground() }}>
               {textLoading && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#ccc" }}>
-                  <Spin tip="Loading content..." />
+                  <Spin tip={tr("Loading content...")} />
                 </div>
               )}
               {textError && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16 }}>
-                  <Empty description={<span style={{ color: "#aaa" }}>Unable to load file content</span>} />
+                  <Empty description={<span style={{ color: "#aaa" }}>{tr("Unable to load file content")}</span>} />
                   <Button icon={DOWNLOAD_ICON} onClick={() => window.open(fullUrl, "_blank")} style={{ borderColor: "#555", color: "#ccc", background: "transparent" }}>
-                    Download to view
+                    {tr("Download to view")}
                   </Button>
                 </div>
               )}
@@ -1801,7 +2175,7 @@ const getCustomerDisplayName = (record) => {
         {/* ── NO URL ── */}
         {!fullUrl && (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1 }}>
-            <Empty description="This document has no file or URL to preview" />
+            <Empty description={tr("This document has no file or URL to preview")} />
           </div>
         )}
 
@@ -1810,11 +2184,11 @@ const getCustomerDisplayName = (record) => {
           <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#fff", position: "relative", zIndex: 1, gap: 12 }}>
             <div style={{ fontSize: 48 }}>📎</div>
             <div style={{ fontFamily: FONT, fontWeight: 600, fontSize: 15, color: "#374151" }}>
-              Cannot preview format <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>{fileExt || "this"}</code>
+              {tr("Cannot preview format")} <code style={{ background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>{fileExt || "this"}</code>
             </div>
-            <div style={{ color: "#6b7280", fontSize: 13 }}>Download to open with a suitable application</div>
+            <div style={{ color: "#6b7280", fontSize: 13 }}>{tr("Download to open with a suitable application")}</div>
             <Button type="primary" icon={DOWNLOAD_ICON} style={{ marginTop: 8 }} onClick={() => window.open(fullUrl, "_blank")}>
-              Download to view
+              {tr("Download to view")}
             </Button>
           </div>
         )}
@@ -1910,10 +2284,10 @@ const getCustomerDisplayName = (record) => {
         });
 
         await Promise.all(createPromises);
-        message.success("Permissions updated successfully");
+        message.success(tr("Permissions updated successfully"));
         onSuccess();
       } catch (e) {
-        message.error("An error occurred while updating permissions");
+        message.error(tr("An error occurred while updating permissions"));
       }
       setSaving(false);
     };
@@ -1948,21 +2322,21 @@ const getCustomerDisplayName = (record) => {
       <Modal
         open={open}
         onCancel={onClose}
-        title={<span style={{ fontFamily: FONT }}>Folder permissions: {folder?.name || ""}</span>}
+        title={<span style={{ fontFamily: FONT }}>{tr("Folder permissions:")} {folder?.name || ""}</span>}
         width={520}
         destroyOnClose
         footer={[
-          <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>Cancel</Button>,
-          <Button key="save" type="primary" loading={saving} onClick={handleSave} style={{ fontFamily: FONT }}>Save</Button>,
+          <Button key="cancel" onClick={onClose} style={{ fontFamily: FONT }}>{tr("Cancel")}</Button>,
+          <Button key="save" type="primary" loading={saving} onClick={handleSave} style={{ fontFamily: FONT }}>{tr("Save")}</Button>,
         ]}
       >
         <div style={{ marginBottom: 16, fontFamily: FONT }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Manager</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>{tr("Manager")}</div>
           <Select
             allowClear
             showSearch
             style={{ width: "100%" }}
-            placeholder="Select manager..."
+            placeholder={tr("Select manager...")}
             options={lawyerOptions}
             value={managerId}
             onChange={(val) => {
@@ -1973,13 +2347,13 @@ const getCustomerDisplayName = (record) => {
           />
         </div>
         <div style={{ marginBottom: 16, fontFamily: FONT }}>
-          <div style={{ marginBottom: 8, fontWeight: 600 }}>Add members</div>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>{tr("Add members")}</div>
           <Select
             mode="multiple"
             showSearch
             allowClear
             style={{ width: "100%" }}
-            placeholder="Search and select multiple people..."
+            placeholder={tr("Search and select multiple people...")}
             options={lawyerOptions.filter((o) => o.value !== managerId && !shares.some((s) => String(s.id) === o.value))}
             value={pendingLawyerIds}
             onChange={handleAddLawyers}
@@ -1987,9 +2361,9 @@ const getCustomerDisplayName = (record) => {
           />
         </div>
         <div style={{ fontFamily: FONT }}>
-          <div style={{ marginBottom: 12, fontWeight: 600 }}>Members</div>
+          <div style={{ marginBottom: 12, fontWeight: 600 }}>{tr("Members")}</div>
           {shares.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No members added yet" />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={tr("No members added yet")} />
           ) : (
             shares.map((s) => {
               const lw = availableLawyers.find((l) => String(extractId(l.id)) === String(s.id)) || s.lawyerData || {};
@@ -2007,7 +2381,7 @@ const getCustomerDisplayName = (record) => {
                     <div>
                       <div style={{ fontWeight: 500, lineHeight: 1.2 }}>{displayName}</div>
                       <div style={{ fontSize: 12, color: "#8c8c8c" }}>
-                        {s.role === "editor" ? "Editor" : s.role === "contributed" ? "Contributed" : "Viewer"}
+                        {s.role === "editor" ? tr("Editor") : s.role === "contributed" ? tr("Contributed") : tr("Viewer")}
                       </div>
                     </div>
                   </div>
@@ -2018,9 +2392,9 @@ const getCustomerDisplayName = (record) => {
                       bordered={false}
                       style={{ width: 150, fontFamily: FONT }}
                       options={[
-                        { value: "viewer", label: "Viewer" },
-                        { value: "editor", label: "Editor" },
-                        { value: "contributed", label: "Contributed" },
+                        { value: "viewer", label: tr("Viewer") },
+                        { value: "editor", label: tr("Editor") },
+                        { value: "contributed", label: tr("Contributed") },
                       ]}
                     />
                     <Button type="text" danger onClick={() => handleRemoveShare(s.id)} style={{ padding: "4px 8px" }}>✕</Button>
@@ -2102,37 +2476,37 @@ const getCustomerDisplayName = (record) => {
         width={640}
         title={
           <span style={{ fontFamily: FONT }}>
-            📎 Document information {files.length > 1 ? `(${files.length} file)` : ""}
+            {tr("📎 Document information")} {files.length > 1 ? tr("({0} file)", { 0: files.length }) : ""}
           </span>
         }
         footer={[
-          <Button key="cancel" onClick={onClose} disabled={submitting} style={{ fontFamily: FONT }}>Cancel</Button>,
-          <Button key="ok" type="primary" loading={submitting} onClick={handleOk} style={{ fontFamily: FONT }}>Upload</Button>,
+          <Button key="cancel" onClick={onClose} disabled={submitting} style={{ fontFamily: FONT }}>{tr("Cancel")}</Button>,
+          <Button key="ok" type="primary" loading={submitting} onClick={handleOk} style={{ fontFamily: FONT }}>{tr("Upload")}</Button>,
         ]}
       >
         <Form form={form} layout="vertical" style={{ fontFamily: FONT }}>
           <div style={{ fontFamily: FONT, marginBottom: 12, fontSize: 12, color: "#6B7280" }}>
-            Selected files: <b>{fileNames || "—"}</b>
+            {tr("Selected files:")} <b>{fileNames || "—"}</b>
             {files.length > 1 && (
               <div style={{ marginTop: 4 }}>
-                The information below will apply to all {files.length} files (document name will default to the file name if left blank).
+                {tr("The information below will apply to all")} {files.length} {tr("files (document name will default to the file name if left blank).")}
               </div>
             )}
           </div>
           {files.length > 1 && (
             <div style={{ marginBottom: 16 }}>
               <Radio.Group value={uploadMode} onChange={(e) => setUploadMode(e.target.value)} style={{ fontFamily: FONT }}>
-                <Radio value="separate">Upload as separate files</Radio>
-                <Radio value="grouped">Group into a new folder</Radio>
+                <Radio value="separate">{tr("Upload as separate files")}</Radio>
+                <Radio value="grouped">{tr("Group into a new folder")}</Radio>
               </Radio.Group>
               {uploadMode === "grouped" && (
                 <Form.Item
                   name="groupFolderName"
-                  label="Folder name"
+                  label={tr("Folder name")}
                   style={{ marginTop: 8, marginBottom: 0 }}
-                  rules={[{ required: true, message: "Please enter a folder name" }]}
+                  rules={[{ required: true, message: tr("Please enter a folder name") }]}
                 >
-                  <Input allowClear placeholder="Enter new folder name..." style={{ fontFamily: FONT }} />
+                  <Input allowClear placeholder={tr("Enter new folder name...")} style={{ fontFamily: FONT }} />
                 </Form.Item>
               )}
             </div>
@@ -2141,54 +2515,54 @@ const getCustomerDisplayName = (record) => {
             <React.Fragment>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="documentType" label="Document type">
-                    <Input allowClear placeholder="e.g. Contract, Meeting minutes..." style={inpStyle} />
+                  <Form.Item name="documentType" label={tr("Document type")}>
+                    <Input allowClear placeholder={tr("e.g. Contract, Meeting minutes...")} style={inpStyle} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="title" label="Document name">
-                    <Input allowClear placeholder="Leave blank to use the file name" style={inpStyle} />
+                  <Form.Item name="title" label={tr("Document name")}>
+                    <Input allowClear placeholder={tr("Leave blank to use the file name")} style={inpStyle} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="documentCode" label="Reference No.">
-                    <Input allowClear placeholder="vd: 123/2024/CT" style={inpStyle} />
+                  <Form.Item name="documentCode" label={tr("Reference No.")}>
+                    <Input allowClear placeholder={tr("vd: 123/2024/CT")} style={inpStyle} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="openingDate" label="Issue date">
+                  <Form.Item name="openingDate" label={tr("Issue date")}>
                     <Input type="date" style={dateStyle} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="signedAt" label="Signed date">
+                  <Form.Item name="signedAt" label={tr("Signed date")}>
                     <Input type="date" style={dateStyle} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="effectiveAt" label="Effective date">
+                  <Form.Item name="effectiveAt" label={tr("Effective date")}>
                     <Input type="date" style={dateStyle} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="senderName" label="Sender">
-                    <Input allowClear placeholder="Sender's name/organization" style={inpStyle} />
+                  <Form.Item name="senderName" label={tr("Sender")}>
+                    <Input allowClear placeholder={tr("Sender's name/organization")} style={inpStyle} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="recipientName" label="Recipient">
-                    <Input allowClear placeholder="Recipient's name/organization" style={inpStyle} />
+                  <Form.Item name="recipientName" label={tr("Recipient")}>
+                    <Input allowClear placeholder={tr("Recipient's name/organization")} style={inpStyle} />
                   </Form.Item>
                 </Col>
               </Row>
-              <Form.Item name="description" label="Description">
-                <Input.TextArea rows={3} allowClear placeholder="Summarize the main content..." />
+              <Form.Item name="description" label={tr("Description")}>
+                <Input.TextArea rows={3} allowClear placeholder={tr("Summarize the main content...")} />
               </Form.Item>
             </React.Fragment>
           )}
@@ -2444,7 +2818,7 @@ const getCustomerDisplayName = (record) => {
         if (ext) exts.add(ext.toUpperCase().replace('.', ''));
       });
       return [
-        { value: "all", label: "All" },
+        { value: "all", label: tr("All") },
         ...Array.from(exts).map(ext => ({ value: ext.toLowerCase(), label: ext }))
       ];
     }, [documents]);
@@ -2543,7 +2917,7 @@ const getCustomerDisplayName = (record) => {
         }
       } catch (e) {
         console.error("loadData error", e);
-        message.error("Failed to load data");
+        message.error(tr("Failed to load data"));
       } finally {
         setLoading(false);
       }
@@ -2614,7 +2988,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "uploaded") {
         return {
           key: "uploaded",
-          label: "Uploaded",
+          label: tr("Uploaded"),
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2631,7 +3005,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "previewed") {
         return {
           key: "previewed",
-          label: "Previewed",
+          label: tr("Previewed"),
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2647,7 +3021,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "downloaded") {
         return {
           key: "downloaded",
-          label: "Downloaded",
+          label: tr("Downloaded"),
           color: "#0C447C",
           bg: "#E6F1FB",
           border: "#B5D4F4",
@@ -2664,7 +3038,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "shared_file") {
         return {
           key: "shared_file",
-          label: "Shared document",
+          label: tr("Shared document"),
           color: "#0891B2",
           bg: "#ECFEFF",
           border: "#A5F3FC",
@@ -2683,7 +3057,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "unshared_file") {
         return {
           key: "unshared_file",
-          label: "Unshared",
+          label: tr("Unshared"),
           color: "#9CA3AF",
           bg: "#F9FAFB",
           border: "#E5E7EB",
@@ -2699,7 +3073,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "permission_updated") {
         return {
           key: "permission_updated",
-          label: "Permissions updated",
+          label: tr("Permissions updated"),
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -2715,7 +3089,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "created") {
         return {
           key: "created",
-          label: "Created",
+          label: tr("Created"),
           color: "#0369A1",
           bg: "#F0F9FF",
           border: "#BAE6FD",
@@ -2731,7 +3105,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "moved") {
         return {
           key: "moved",
-          label: "Moved",
+          label: tr("Moved"),
           color: "#B45309",
           bg: "#FFFBEB",
           border: "#FEF3C7",
@@ -2753,7 +3127,7 @@ const getCustomerDisplayName = (record) => {
           if (newV === true || newV === "true" || newV === 1) {
             return {
               key: "trash_deleted",
-              label: "Moved to Trash",
+              label: tr("Moved to Trash"),
               color: "#B91C1C",
               bg: "#FEF2F2",
               border: "#FEE2E2",
@@ -2767,7 +3141,7 @@ const getCustomerDisplayName = (record) => {
           } else {
             return {
               key: "restored",
-              label: "Restored",
+              label: tr("Restored"),
               color: "#15803D",
               bg: "#F0FDF4",
               border: "#DCFCE7",
@@ -2783,7 +3157,7 @@ const getCustomerDisplayName = (record) => {
         if (field === "folderId" || field === "parentId") {
           return {
             key: "moved",
-            label: "Moved",
+            label: tr("Moved"),
             color: "#B45309",
             bg: "#FFFBEB",
             border: "#FEF3C7",
@@ -2801,7 +3175,7 @@ const getCustomerDisplayName = (record) => {
         }
         return {
           key: "updated",
-          label: "Updated",
+          label: tr("Updated"),
           color: "#4D7C0F",
           bg: "#F7FEE7",
           border: "#ECFCCB",
@@ -2817,7 +3191,7 @@ const getCustomerDisplayName = (record) => {
       if (action === "deleted") {
         return {
           key: "deleted",
-          label: "Deleted",
+          label: tr("Deleted"),
           color: "#451A03",
           bg: "#FFF7ED",
           border: "#FFEDD5",
@@ -2851,45 +3225,45 @@ const getCustomerDisplayName = (record) => {
     const resolveActivityDesc = useCallback((log, foldersList, docsList) => {
       const { action, fieldName: field, oldValue: oldV, newValue: newV, collectionName } = log;
       const isFolder = collectionName === "Folder";
-      const entityName = isFolder ? "folder" : "document";
+      const entityName = isFolder ? tr("folder") : tr("document");
 
       const FIELD_LABELS = {
-        internalTemplateId: "document type",
-        internalTemplate: "document type",
-        internalTemplates: "document type",
-        internalTemplatesId: "document type",
-        legalReferenceId: "linked customer",
-        legalReference: "linked customer",
-        customerId: "linked customer",
-        customer: "linked customer",
-        customers: "linked customer",
+        internalTemplateId: tr("document type"),
+        internalTemplate: tr("document type"),
+        internalTemplates: tr("document type"),
+        internalTemplatesId: tr("document type"),
+        legalReferenceId: tr("linked customer"),
+        legalReference: tr("linked customer"),
+        customerId: tr("linked customer"),
+        customer: tr("linked customer"),
+        customers: tr("linked customer"),
         folderId: "folder",
         folder: "folder",
-        parentId: "parent folder",
-        internalCompanyId: "internal company",
-        internalCompany: "internal company",
+        parentId: tr("parent folder"),
+        internalCompanyId: tr("internal company"),
+        internalCompany: tr("internal company"),
         name: "name",
         title: "title",
         description: "description",
-        googleDriveUrl: "Google Drive link",
-        fileAttachment: "raw file",
-        fileIndex: "sort position",
-        documentType: "document classification",
+        googleDriveUrl: tr("Google Drive link"),
+        fileAttachment: tr("raw file"),
+        fileIndex: tr("sort position"),
+        documentType: tr("document classification"),
         storageType: "storage space",
         status: "status",
-        isDeleted: "deletion status",
-        updatedAt: "updated time",
-        createdAt: "created time",
-        documentCode: "document code",
-        openingDate: "opening date",
+        isDeleted: tr("deletion status"),
+        updatedAt: tr("updated time"),
+        createdAt: tr("created time"),
+        documentCode: tr("document code"),
+        openingDate: tr("opening date"),
         senderName: "sender",
         recipientName: "recipient",
         language: "language",
-        docFormat: "document format",
-        signedAt: "signed date",
-        effectiveAt: "effective date",
+        docFormat: tr("document format"),
+        signedAt: tr("signed date"),
+        effectiveAt: tr("effective date"),
         note: "note",
-        deteledAt: "deleted date",
+        deteledAt: tr("deleted date"),
       };
 
       const ACTION_LABELS = {
@@ -2900,85 +3274,85 @@ const getCustomerDisplayName = (record) => {
         deleted: "deleted",
         previewed: "previewed",
         downloaded: "downloaded",
-        shared_file: "shared document",
-        unshared_file: "unshared document",
-        permission_updated: "permissions updated",
+        shared_file: tr("shared document"),
+        unshared_file: tr("unshared document"),
+        permission_updated: tr("permissions updated"),
       };
 
       if (action === "previewed") {
-        return `Previewed ${entityName}`;
+        return tr("Previewed {0}", { 0: entityName });
       }
 
       if (action === "downloaded") {
-        return `Downloaded ${entityName}`;
+        return tr("Downloaded {0}", { 0: entityName });
       }
 
       if (action === "shared_file") {
         const sharedWith = newV || "";
-        return sharedWith ? `Shared ${entityName} with ${sharedWith}` : `Shared ${entityName}`;
+        return sharedWith ? tr("Shared {0} with {1}", { 0: entityName, 1: sharedWith }) : tr("Shared {0}", { 0: entityName });
       }
 
       if (action === "unshared_file") {
-        return `Unshared ${entityName}`;
+        return tr("Unshared {0}", { 0: entityName });
       }
 
       if (action === "permission_updated") {
-        return `Updated permissions on ${entityName}`;
+        return tr("Updated permissions on {0}", { 0: entityName });
       }
 
       if (action === "uploaded" || action === "created") {
-        return isFolder ? "Created a new folder" : "Uploaded a new document";
+        return isFolder ? tr("Created a new folder") : tr("Uploaded a new document");
       }
 
       if (action === "deleted") {
-        return `Deleted ${entityName}`;
+        return tr("Deleted {0}", { 0: entityName });
       }
 
       if (action === "moved") {
         const getFolderName = (id) => {
-          if (!id || id === "root" || id === "0" || id === 0) return "Root folder";
+          if (!id || id === "root" || id === "0" || id === 0) return tr("Root folder");
           const f = foldersList.find(item => String(extractId(item.id)) === String(id));
-          return f ? f.name : `Folder #${id}`;
+          return f ? f.name : tr("Folder #{0}", { 0: id });
         };
         if (oldV || newV) {
           const oldFolder = getFolderName(oldV);
           const newFolder = getFolderName(newV);
-          return `Moved ${entityName} from "${oldFolder}" to "${newFolder}"`;
+          return tr("Moved {0} from \"{1}\" to \"{2}\"", { 0: entityName, 1: oldFolder, 2: newFolder });
         }
-        return `Moved ${entityName}`;
+        return tr("Moved {0}", { 0: entityName });
       }
 
       if (action === "updated") {
         if (field === "isDeleted") {
           if (newV === true || newV === "true" || newV === 1) {
-            return `Moved ${entityName} to Trash`;
+            return tr("Moved {0} to Trash", { 0: entityName });
           } else {
-            return `Restored ${entityName} from Trash`;
+            return tr("Restored {0} from Trash", { 0: entityName });
           }
         }
         if (field === "name" || field === "title") {
           if (oldV && newV) {
-            return `Renamed ${entityName}: "${oldV}" → "${newV}"`;
+            return tr("Renamed {0}: \"{1}\" → \"{2}\"", { 0: entityName, 1: oldV, 2: newV });
           }
-          return `Renamed ${entityName} to "${newV}"`;
+          return tr("Renamed {0} to \"{1}\"", { 0: entityName, 1: newV });
         }
         if (field === "folderId" || field === "parentId") {
           const getFolderName = (id) => {
-            if (!id || id === "root" || id === "0" || id === 0) return "Root folder";
+            if (!id || id === "root" || id === "0" || id === 0) return tr("Root folder");
             const f = foldersList.find(item => String(extractId(item.id)) === String(id));
-            return f ? f.name : `Folder #${id}`;
+            return f ? f.name : tr("Folder #{0}", { 0: id });
           };
           const oldFolder = getFolderName(oldV);
           const newFolder = getFolderName(newV);
-          return `Moved from "${oldFolder}" to "${newFolder}"`;
+          return tr("Moved from \"{0}\" to \"{1}\"", { 0: oldFolder, 1: newFolder });
         }
 
         const fieldLabel = FIELD_LABELS[field] || field;
-        return `Updated ${fieldLabel} of ${entityName}`;
+        return tr("Updated {0} of {1}", { 0: fieldLabel, 1: entityName });
       }
 
       const actionLabel = ACTION_LABELS[action] || action;
-      return `Action [${actionLabel}] on ${entityName}`;
+      return tr("Action [{0}] on {1}", { 0: actionLabel, 1: entityName });
     }, []);
 
     const filteredActivityLogs = useMemo(() => {
@@ -2992,7 +3366,7 @@ const getCustomerDisplayName = (record) => {
 
         if (activitySearchQuery.trim()) {
           const q = activitySearchQuery.toLowerCase();
-          const userName = (log.changedByName || "System").toLowerCase();
+          const userName = (log.changedByName || tr("System")).toLowerCase();
           const name = (log.resolvedTitle || log.recordTitle || log.newValue || log.oldValue || "").toLowerCase();
           const desc = resolveActivityDesc(log, folders, documents).toLowerCase();
 
@@ -3329,11 +3703,11 @@ const getCustomerDisplayName = (record) => {
     );
 
     const breadcrumbs = useMemo(() => {
-      let rootName = "Home";
+      let rootName = tr("Home");
       if (activeSpace === "personal") {
-        rootName = "My Workspace";
+        rootName = tr("My Workspace");
       } else if (activeSpace === "company_shared") {
-        rootName = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
+        rootName = activeCompany ? getCompanyName(activeCompany) : tr("Shared folder");
       } else if (activeSpace === "customer") {
         // In customer-detail mode the "Documents" tab already establishes
         // the context, so the leading "Customer" crumb is pure clutter —
@@ -3360,9 +3734,9 @@ const getCustomerDisplayName = (record) => {
         }
         return items.concat(path);
       } else if (activeSpace === "recent") {
-        rootName = "Activity log";
+        rootName = tr("Activity log");
       } else if (activeSpace === "trash") {
-        rootName = "Trash";
+        rootName = tr("Trash");
       }
 
       const items = [{ id: "root", name: rootName }];
@@ -3580,19 +3954,19 @@ const getCustomerDisplayName = (record) => {
           })
           .sort(sortByCreatedAt)
           .map((folder) => ({
-            title: folder.name || "Folder",
+            title: folder.name || tr("Folder"),
             value: String(extractId(folder)),
             key: String(extractId(folder)),
             children: build(extractId(folder)),
           }));
 
-      let dynamicRootTitle = "Home";
+      let dynamicRootTitle = tr("Home");
       if (activeSpace === "personal") {
-        dynamicRootTitle = "My Workspace";
+        dynamicRootTitle = tr("My Workspace");
       } else if (activeSpace === "company_shared") {
-        dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
+        dynamicRootTitle = activeCompany ? getCompanyName(activeCompany) : tr("Shared folder");
       } else if (activeSpace === "customer") {
-        dynamicRootTitle = "Customer";
+        dynamicRootTitle = tr("Customer");
       }
 
       const buildRootId =
@@ -3613,7 +3987,7 @@ const getCustomerDisplayName = (record) => {
 
     const requireCompany = () => {
       if (activeCompanyId) return true;
-      message.warning("Please select an internal company first");
+      message.warning(tr("Please select an internal company first"));
       return false;
     };
 
@@ -3696,13 +4070,13 @@ const getCustomerDisplayName = (record) => {
           ...(userId ? { createdById: userId, updatedById: userId } : {}),
         };
         await createCustomerRecord(payload);
-        message.success("Linked customer created successfully!");
+        message.success(tr("Linked customer created successfully!"));
         setIsCreateTemplateOpen(false);
         createTemplateForm.resetFields();
         loadData();
       } catch (e) {
         console.error(e);
-        message.error("Failed to create linked customer");
+        message.error(serverErrorMessage(e, tr("Failed to create linked customer")));
       } finally {
         setCreateTemplateLoading(false);
       }
@@ -3730,18 +4104,18 @@ const getCustomerDisplayName = (record) => {
             success = true;
             break;
           } catch (e) {
-            lastError = e;
+            lastError = keepMeaningfulError(lastError, e);
           }
         }
         if (!success) {
-          throw lastError || new Error("Failed to update customer title");
+          throw lastError || new Error(tr("Failed to update customer title"));
         }
-        message.success("Customer updated successfully!");
+        message.success(tr("Customer updated successfully!"));
         setEditTemplateRecord(null);
         editTemplateForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Update failed");
+        message.error(serverErrorMessage(e, tr("Update failed")));
       } finally {
         setEditTemplateLoading(false);
       }
@@ -3769,7 +4143,7 @@ const getCustomerDisplayName = (record) => {
       try {
         const targetCustomerId = String(extractId(linkCaseRecord) || activeCustomerIdValue || "");
         if (!targetCustomerId) {
-          message.warning("Please select a customer to link");
+          message.warning(tr("Please select a customer to link"));
           return;
         }
         const payload = {
@@ -3795,16 +4169,16 @@ const getCustomerDisplayName = (record) => {
           }
         }
         if (!success) {
-          throw lastError || new Error("Failed to update case links");
+          throw lastError || new Error(tr("Failed to update case links"));
         }
-        message.success("Case link updated successfully");
+        message.success(tr("Case link updated successfully"));
         setIsLinkCaseOpen(false);
         setLinkCaseRecord(null);
         linkCaseForm.resetFields();
         loadData();
       } catch (e) {
         console.error("Case linking error:", e);
-        message.error("Case linking error");
+        message.error(tr("Case linking error"));
       } finally {
         setLinkCaseLoading(false);
       }
@@ -3857,12 +4231,12 @@ const getCustomerDisplayName = (record) => {
         }
 
         await createFolderRecord(payload);
-        message.success("Folder created successfully!");
+        message.success(tr("Folder created successfully!"));
         setIsFolderOpen(false);
         folderForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Failed to create folder");
+        message.error(serverErrorMessage(e, tr("Failed to create folder")));
       } finally {
         setFolderLoading(false);
       }
@@ -3885,7 +4259,7 @@ const getCustomerDisplayName = (record) => {
       const folderRecord = visibleFolders.find((f) => String(extractId(f.id)) === String(targetFolderId));
       const perms = getFolderPermissions(folderRecord || null, currentUserState, visibleFolders, currentLawyerId);
       if (!perms.canCreate) {
-        message.warning("You don't have permission to upload documents to this folder");
+        message.warning(tr("You don't have permission to upload documents to this folder"));
         return;
       }
       setUploadFieldsTarget({ files, folderId: targetFolderId });
@@ -3973,11 +4347,11 @@ const getCustomerDisplayName = (record) => {
           nextIndex += 1;
         }
 
-        message.success(`Uploaded ${filesToUpload.length} file(s) successfully!`);
+        message.success(tr("Uploaded {0} file(s) successfully!", { 0: filesToUpload.length }));
         loadData();
         return true;
       } catch (e) {
-        message.error("Upload failed");
+        message.error(tr("Upload failed"));
         return false;
       } finally {
         setUploadLoading(false);
@@ -4032,12 +4406,12 @@ const getCustomerDisplayName = (record) => {
         try {
           folderRes = await createFolderRecord(folderPayload);
         } catch (e) {
-          message.error("Failed to create folder");
+          message.error(serverErrorMessage(e, tr("Failed to create folder")));
           return;
         }
         targetFolderId = extractId(folderRes?.data?.data);
         if (!targetFolderId) {
-          message.error("Failed to create folder");
+          message.error(tr("Failed to create folder"));
           return;
         }
       }
@@ -4058,7 +4432,7 @@ const getCustomerDisplayName = (record) => {
     const executeFolderUpload = async () => {
       if (activeSpace !== "personal" && !isCustomerDetailMode && !requireCompany()) return;
       setBulkUploading(true);
-      setBulkProgress("Analyzing folder structure...");
+      setBulkProgress(tr("Analyzing folder structure..."));
       setBulkPercent(5);
       try {
         const effectiveBulkTargetId =
@@ -4081,7 +4455,7 @@ const getCustomerDisplayName = (record) => {
 
         const sortedPaths = Array.from(folderPaths).sort((a, b) => a.split("/").length - b.split("/").length);
         const userId = getCurrentUserId();
-        setBulkProgress(`Creating ${sortedPaths.length} folder(s)...`);
+        setBulkProgress(tr("Creating {0} folder(s)...", { 0: sortedPaths.length }));
 
         // Per-parent sibling-name dedup — mirrors the file-loop's usedNames
         // below. Only the batch's own root parent needs seeding from real
@@ -4186,7 +4560,7 @@ const getCustomerDisplayName = (record) => {
 
         for (let index = 0; index < pendingFolderFiles.length; index++) {
           const file = pendingFolderFiles[index];
-          setBulkProgress(`Uploading file ${index + 1}/${pendingFolderFiles.length}...`);
+          setBulkProgress(tr("Uploading file {0}/{1}...", { 0: index + 1, 1: pendingFolderFiles.length }));
           setBulkPercent(30 + Math.round(((index + 1) / Math.max(pendingFolderFiles.length, 1)) * 65));
           const relativePath = getUploadRelativePath(file);
           const parts = relativePath.split("/");
@@ -4241,13 +4615,13 @@ const getCustomerDisplayName = (record) => {
           await createDocumentRecord(filePayload);
         }
 
-        message.success("Folder upload complete!");
+        message.success(tr("Folder upload complete!"));
         setBulkPercent(100);
         setBulkConfirmOpen(false);
         setPendingFolderFiles([]);
         loadData();
       } catch (e) {
-        message.error("Folder upload failed");
+        message.error(tr("Folder upload failed"));
       } finally {
         setBulkUploading(false);
         setBulkProgress("");
@@ -4266,11 +4640,11 @@ const getCustomerDisplayName = (record) => {
         if (record._type === "folder") {
           const folderId = String(extractId(record));
           if (targetId && String(targetId) === folderId) {
-            message.warning("Cannot move a folder into itself");
+            message.warning(tr("Cannot move a folder into itself"));
             return;
           }
           if (targetId && getDescendantIds(folderId).includes(String(targetId))) {
-            message.warning("Cannot move a folder into its own subfolder");
+            message.warning(tr("Cannot move a folder into its own subfolder"));
             return;
           }
           await ctx.api.request({
@@ -4278,7 +4652,7 @@ const getCustomerDisplayName = (record) => {
             method: "POST",
             data: { parentId: targetId },
           });
-          message.success("Folder moved");
+          message.success(tr("Folder moved"));
         } else {
           const oldFolderId = normalizeParentId(record.folderId);
           await ctx.api.request({
@@ -4290,12 +4664,12 @@ const getCustomerDisplayName = (record) => {
             },
           });
           await Promise.all([reindexFolderFiles(oldFolderId), reindexFolderFiles(targetId)]);
-          message.success("Document moved");
+          message.success(tr("Document moved"));
         }
         setMoveRecord(null);
         loadData();
       } catch (e) {
-        message.error("Move failed");
+        message.error(tr("Move failed"));
       }
     };
 
@@ -4327,7 +4701,7 @@ const getCustomerDisplayName = (record) => {
       });
 
       if (allowed.length < keys.length) {
-        message.warning(`Skipped ${keys.length - allowed.length} item(s) you don't have permission to act on`);
+        message.warning(tr("Skipped {0} item(s) you don't have permission to act on", { 0: keys.length - allowed.length }));
       }
       return allowed.map((item) => item.key);
     };
@@ -4335,10 +4709,10 @@ const getCustomerDisplayName = (record) => {
     const handleBulkRestore = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Restore ${selectedRowKeys.length} selected item(s)?`,
-        content: "Folders and documents will be restored to their original space.",
-        okText: "Restore",
-        cancelText: "Cancel",
+        title: tr("Restore {0} selected item(s)?", { 0: selectedRowKeys.length }),
+        content: tr("Folders and documents will be restored to their original space."),
+        okText: tr("Restore"),
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             const keys = getBulkRecordsWithPermission(selectedRowKeys);
@@ -4352,11 +4726,11 @@ const getCustomerDisplayName = (record) => {
                 data: { isDeleted: false, deletedAt: null },
               });
             }));
-            message.success(`Restored ${keys.length} item(s) successfully!`);
+            message.success(tr("Restored {0} item(s) successfully!", { 0: keys.length }));
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Restore failed");
+            message.error(tr("Restore failed"));
           }
         }
       });
@@ -4365,17 +4739,17 @@ const getCustomerDisplayName = (record) => {
     const handleBulkPermanentDelete = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Delete ${selectedRowKeys.length} selected item(s)?`,
-        content: "This action cannot be undone. Files and folders will be permanently deleted from the system.",
-        okText: "Delete",
+        title: tr("Delete {0} selected item(s)?", { 0: selectedRowKeys.length }),
+        content: tr("This action cannot be undone. Files and folders will be permanently deleted from the system."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             // Hard delete is admin-only, absolute — same as the single-item
             // guard in handlePermanentDelete.
             if (!isAdminUser(currentUserState)) {
-              message.warning("Only administrators can permanently delete");
+              message.warning(tr("Only administrators can permanently delete"));
               return;
             }
             const keys = getBulkRecordsWithPermission(selectedRowKeys, { requireAbsoluteAdmin: true });
@@ -4388,11 +4762,11 @@ const getCustomerDisplayName = (record) => {
                 method: "POST",
               });
             }));
-            message.success(`Deleted ${keys.length} item(s) successfully!`);
+            message.success(tr("Deleted {0} item(s) successfully!", { 0: keys.length }));
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         }
       });
@@ -4401,17 +4775,17 @@ const getCustomerDisplayName = (record) => {
     const handleBulkDelete = async () => {
       if (selectedRowKeys.length === 0) return;
       Modal.confirm({
-        title: `Delete ${selectedRowKeys.length} selected item(s)?`,
-        content: "Deleted items will be moved to Trash.",
-        okText: "Delete",
+        title: tr("Delete {0} selected item(s)?", { 0: selectedRowKeys.length }),
+        content: tr("Deleted items will be moved to Trash."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             // Moving to Trash is admin-only outside the Personal space —
             // same as the single-item guard in showDeleteConfirm/handleDeleteFile.
             if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
-              message.warning("Only administrators can delete in this space");
+              message.warning(tr("Only administrators can delete in this space"));
               return;
             }
             const keys = getBulkRecordsWithPermission(selectedRowKeys, { requireAdminOutsidePersonal: true });
@@ -4427,11 +4801,11 @@ const getCustomerDisplayName = (record) => {
                 data: { isDeleted: true, deletedAt: nowIso, ...(deleterId ? { updatedById: deleterId } : {}) },
               });
             }));
-            message.success(`Moved ${keys.length} item(s) to Trash!`);
+            message.success(tr("Moved {0} item(s) to Trash!", { 0: keys.length }));
             setSelectedRowKeys([]);
             loadData();
           } catch (e) {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         }
       });
@@ -4485,12 +4859,12 @@ const getCustomerDisplayName = (record) => {
         if (targetId) {
           await reindexFolderFiles(targetId);
         }
-        message.success(`Moved ${keys.length} item(s) successfully!`);
+        message.success(tr("Moved {0} item(s) successfully!", { 0: keys.length }));
         setIsBulkMoveOpen(false);
         setSelectedRowKeys([]);
         loadData();
       } catch (e) {
-        message.error("Move failed");
+        message.error(tr("Move failed"));
       }
     };
 
@@ -4554,7 +4928,7 @@ const getCustomerDisplayName = (record) => {
           ),
         );
       }
-      message.success("Document reordered");
+      message.success(tr("Document reordered"));
       loadData();
       return true;
     };
@@ -4572,7 +4946,7 @@ const getCustomerDisplayName = (record) => {
     const uploadDroppedItems = async (dataTransfer, targetFolderId) => {
       setExternalDropActive(false);
       if (!canUploadDroppedItems(targetFolderId)) {
-        message.warning("You don't have permission to upload documents to this folder");
+        message.warning(tr("You don't have permission to upload documents to this folder"));
         return false;
       }
 
@@ -4580,13 +4954,13 @@ const getCustomerDisplayName = (record) => {
       try {
         droppedItems = await readDroppedFiles(dataTransfer);
       } catch (error) {
-        message.error("Unable to read the dropped file(s) or folder(s)");
+        message.error(tr("Unable to read the dropped file(s) or folder(s)"));
         return false;
       }
 
       const { files, folderPaths, hasDirectories } = droppedItems;
       if (!files.length && !folderPaths.length) {
-        message.warning("No valid files or folders found");
+        message.warning(tr("No valid files or folders found"));
         return false;
       }
 
@@ -4695,7 +5069,7 @@ const getCustomerDisplayName = (record) => {
     const getTypeConfig = useCallback(
       (value) =>
         documentTypes.find((type) => type.id === String(value || "")) ||
-        decorateDocumentTypeOption({ value: value || "document", label: value || "Document" }),
+        decorateDocumentTypeOption({ value: value || "document", label: value || tr("Document") }),
       [documentTypes],
     );
 
@@ -4723,7 +5097,7 @@ const getCustomerDisplayName = (record) => {
     const startEditTitle = (record) => {
       setEditingTitleId(String(extractId(record)));
       if (record._type === "folder") {
-        setEditingTitleValue(record.name || "Folder");
+        setEditingTitleValue(record.name || tr("Folder"));
       } else {
         const attachment = getAttachment(record);
         setEditingTitleValue(attachment?.title || attachment?.filename || getDocTitle(record));
@@ -4753,7 +5127,7 @@ const getCustomerDisplayName = (record) => {
               ...(userId ? { updatedById: userId } : {}),
             },
           });
-          message.success("Folder name updated");
+          message.success(tr("Folder name updated"));
         } else {
           await ctx.api.request({
             url: `documents:update?filterByTk=${extractId(record)}`,
@@ -4774,12 +5148,14 @@ const getCustomerDisplayName = (record) => {
               })
               .catch(() => { });
           }
-          message.success("Document and file name updated");
+          message.success(tr("Document and file name updated"));
         }
         cancelEditTitle();
         loadData();
       } catch (e) {
-        message.error(record._type === "folder" ? "Failed to update folder name" : "Failed to update document name");
+        message.error(
+          serverErrorMessage(e, record._type === "folder" ? tr("Failed to update folder name") : tr("Failed to update document name")),
+        );
       }
     };
 
@@ -4803,7 +5179,7 @@ const getCustomerDisplayName = (record) => {
         });
         loadData();
       } catch (e) {
-        message.error("Update failed");
+        message.error(serverErrorMessage(e, tr("Update failed")));
         throw e;
       }
     };
@@ -4812,14 +5188,14 @@ const getCustomerDisplayName = (record) => {
       // Root folder can never be moved to Trash (Library.js §7 rule #2) —
       // applies to every kind of root (Customer, Personal, Company Shared).
       if (isFolderTreeRoot(folder)) {
-        message.warning("Cannot delete the root folder");
+        message.warning(tr("Cannot delete the root folder"));
         return;
       }
       // Defense in depth — the Move-to-Trash trigger is already hidden for
       // non-admins outside the Personal space (see canDelete/showFolderDelete
       // above), matching Library.js's admin-outside-Personal rule (§6).
       if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
-        message.warning("Only administrators can delete folders in this space");
+        message.warning(tr("Only administrators can delete folders in this space"));
         return;
       }
       const fId = extractId(folder);
@@ -4830,15 +5206,15 @@ const getCustomerDisplayName = (record) => {
       const subFoldersCount = folderIdsToDelete.length - 1;
 
       let contentElements = [];
-      if (subFoldersCount > 0) contentElements.push(`- ${subFoldersCount} subfolder`);
-      if (filesCount > 0) contentElements.push(`- ${filesCount} file`);
+      if (subFoldersCount > 0) contentElements.push(tr("- {0} subfolder", { 0: subFoldersCount }));
+      if (filesCount > 0) contentElements.push(tr("- {0} file", { 0: filesCount }));
 
       Modal.confirm({
-        title: `Confirm delete folder "${folder.name}"?`,
+        title: tr("Confirm delete folder \"{0}\"?", { 0: folder.name }),
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
         content: (
           <div style={{ fontFamily: FONT, marginTop: 8 }}>
-            <p>You are about to delete this folder. The following data will also be deleted:</p>
+            <p>{tr("You are about to delete this folder. The following data will also be deleted:")}</p>
             {contentElements.length > 0 ? (
               <div
                 style={{
@@ -4857,14 +5233,14 @@ const getCustomerDisplayName = (record) => {
                 ))}
               </div>
             ) : (
-              <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>(Folder is empty)</p>
+              <p style={{ color: "#8c8c8c", fontStyle: "italic" }}>{tr("(Folder is empty)")}</p>
             )}
-            <p>Are you sure you want to delete?</p>
+            <p>{tr("Are you sure you want to delete?")}</p>
           </div>
         ),
-        okText: "Delete",
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             // Stamp updatedById with the deleter — canViewTrashRecord below
@@ -4891,7 +5267,7 @@ const getCustomerDisplayName = (record) => {
                 data: deletePayload
               }).catch(() => { });
             }
-            message.success("Folder and its contents deleted");
+            message.success(tr("Folder and its contents deleted"));
             if (selectedFolderId !== "root" && folderIdsToDelete.includes(String(selectedFolderId))) {
               setSelectedFolderId("root");
             }
@@ -4900,7 +5276,7 @@ const getCustomerDisplayName = (record) => {
             await reindexFolderFiles(getFolderParentId(folder));
             loadData();
           } catch (e) {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         },
       });
@@ -4910,16 +5286,16 @@ const getCustomerDisplayName = (record) => {
       // Defense in depth — the Move-to-Trash trigger is already hidden for
       // non-admins outside the Personal space.
       if (!isAdminUser(currentUserState) && activeSpace !== "personal") {
-        message.warning("Only administrators can delete documents in this space");
+        message.warning(tr("Only administrators can delete documents in this space"));
         return;
       }
       Modal.confirm({
-        title: "Delete this file?",
+        title: tr("Delete this file?"),
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
-        content: "This action will delete the file from the system.",
-        okText: "Delete",
+        content: tr("This action will delete the file from the system."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             const deleterId = getCurrentUserId();
@@ -4932,11 +5308,11 @@ const getCustomerDisplayName = (record) => {
                 ...(deleterId ? { updatedById: deleterId } : {}),
               }
             });
-            message.success("File deleted");
+            message.success(tr("File deleted"));
             await reindexFolderFiles(normalizeParentId(record.folderId));
             loadData();
           } catch {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         },
       });
@@ -4957,10 +5333,10 @@ const getCustomerDisplayName = (record) => {
             data: { isDeleted: false, deletedAt: null }
           });
         }
-        message.success("Restored successfully");
+        message.success(tr("Restored successfully"));
         loadData();
       } catch (e) {
-        message.error("Restore failed");
+        message.error(tr("Restore failed"));
       }
     };
 
@@ -4969,16 +5345,16 @@ const getCustomerDisplayName = (record) => {
       // Library.js §7 rule #4. Defense in depth: the trigger is already
       // hidden for non-admins (context menu + row action buttons above).
       if (!isAdminUser(currentUserState)) {
-        message.warning("Only administrators can permanently delete");
+        message.warning(tr("Only administrators can permanently delete"));
         return;
       }
       Modal.confirm({
-        title: record._type === "folder" ? "Delete this folder?" : "Delete this file?",
+        title: record._type === "folder" ? tr("Delete this folder?") : tr("Delete this file?"),
         icon: React.createElement("span", { style: { color: "#ff4d4f", marginRight: 16 } }, WarningIcon),
-        content: "Warning: This action cannot be undone — the data will be permanently deleted from the database.",
-        okText: "Delete",
+        content: tr("Warning: This action cannot be undone — the data will be permanently deleted from the database."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             if (record._type === "folder") {
@@ -4992,10 +5368,10 @@ const getCustomerDisplayName = (record) => {
                 method: "POST"
               });
             }
-            message.success("Deleted");
+            message.success(tr("Deleted"));
             loadData();
           } catch {
-            message.error("Delete failed");
+            message.error(tr("Delete failed"));
           }
         },
       });
@@ -5005,7 +5381,7 @@ const getCustomerDisplayName = (record) => {
       if (spaceType === "company_shared") {
         const targetCompanyId = companyId || activeCompanyId;
         if (!targetCompanyId) {
-          message.warning("Please select an internal company first");
+          message.warning(tr("Please select an internal company first"));
           return;
         }
         setActiveCompanyId(String(targetCompanyId));
@@ -5019,12 +5395,12 @@ const getCustomerDisplayName = (record) => {
     const handleDeleteTemplate = async (templateRecord) => {
       const isCustomerRecord = !!(templateRecord.customerCode || templateRecord._type === "customer_record" || activeSpace === "customer");
       Modal.confirm({
-        title: isCustomerRecord ? `Confirm delete Customer "${templateRecord.customerName || templateRecord.name || getCustomerDisplayName(templateRecord)}"?` : `Confirm delete document type "${templateRecord.title || templateRecord.name}"?`,
+        title: isCustomerRecord ? tr("Confirm delete Customer \"{0}\"?", { 0: templateRecord.customerName || templateRecord.name || getCustomerDisplayName(templateRecord) }) : tr("Confirm delete document type \"{0}\"?", { 0: templateRecord.title || templateRecord.name }),
         icon: React.createElement("span", { style: { color: "#faad14", marginRight: 16 } }, WarningIcon),
-        content: isCustomerRecord ? "Are you sure you want to delete this customer? Documents and folders belonging to this customer will remain in Trash or become unlinked." : "Are you sure you want to delete this document type? Documents in this category will remain but become unlinked.",
-        okText: "Delete",
+        content: isCustomerRecord ? tr("Deleting this customer moves its folders and documents to Trash (restorable from there). A customer that still has Cases can't be deleted.") : tr("Are you sure you want to delete this document type? Documents in this category will remain but become unlinked."),
+        okText: tr("Delete"),
         okType: "danger",
-        cancelText: "Cancel",
+        cancelText: tr("Cancel"),
         onOk: async () => {
           try {
             if (isCustomerRecord) {
@@ -5039,22 +5415,23 @@ const getCustomerDisplayName = (record) => {
                   await ctx.api.request({ url, method: "POST" });
                   success = true;
                   break;
-                } catch (e) { lastError = e; }
+                } catch (e) { lastError = keepMeaningfulError(lastError, e); }
               }
-              if (!success) throw lastError || new Error("Failed to delete");
+              if (!success) throw lastError || new Error(tr("Failed to delete"));
             } else {
               await ctx.api.request({
                 url: `${INTERNAL_TEMPLATE_COLLECTION}:destroy?filterByTk=${extractId(templateRecord)}`,
                 method: "POST",
               });
             }
-            message.success(isCustomerRecord ? "Customer deleted" : "Document type deleted");
+            message.success(isCustomerRecord ? tr("Customer deleted") : tr("Document type deleted"));
             if (isCustomerRecord && activeCustomerId === String(extractId(templateRecord))) {
               setActiveCustomerId(null);
             }
             loadData();
           } catch (e) {
-            message.error("Delete failed");
+            // e.g. the DB refusing a customer that still has Cases
+            message.error(serverErrorMessage(e, tr("Delete failed")));
           }
         },
       });
@@ -5086,20 +5463,20 @@ const getCustomerDisplayName = (record) => {
               success = true;
               break;
             } catch (e) {
-              lastError = e;
+              lastError = keepMeaningfulError(lastError, e);
             }
           }
           if (!success) {
-            throw lastError || new Error("Failed to rename");
+            throw lastError || new Error(tr("Failed to rename"));
           }
-          message.success("Customer renamed");
+          message.success(tr("Customer renamed"));
         } else if (rType === "template" || rType === "document_type") {
           await ctx.api.request({
             url: `${INTERNAL_TEMPLATE_COLLECTION}:update?filterByTk=${rId}`,
             method: "POST",
             data: { title: newName },
           });
-          message.success("Document type renamed");
+          message.success(tr("Document type renamed"));
         } else {
           if (rType === "folder") {
             await ctx.api.request({
@@ -5107,36 +5484,39 @@ const getCustomerDisplayName = (record) => {
               method: "POST",
               data: { name: newName },
             });
-            message.success("Folder renamed");
+            message.success(tr("Folder renamed"));
           } else {
-            await ctx.api.request({
+            const docRes = await ctx.api.request({
               url: `documents:update?filterByTk=${rId}`,
               method: "POST",
               data: { title: newName },
             });
+            // A duplicate title comes back numbered "Name (1).ext" (DB guard).
+            const savedDoc = Array.isArray(docRes?.data?.data) ? docRes.data.data[0] : docRes?.data?.data;
+            const savedTitle = savedDoc?.title || newName;
             const attachment = getAttachment(renameRecord);
             if (attachment?.id) {
               await ctx.api.request({
                 url: `attachments:update?filterByTk=${attachment.id}`,
                 method: "POST",
-                data: { title: newName },
+                data: { title: savedTitle },
               }).catch(() => { });
             }
-            message.success("Document renamed");
+            message.success(tr("Document renamed"));
           }
         }
         setRenameRecord(null);
         renameForm.resetFields();
         loadData();
       } catch (e) {
-        message.error("Rename failed");
+        message.error(serverErrorMessage(e, tr("Rename failed")));
       }
     };
 
     const openRecordFile = (record) => {
       const fileUrl = getRecordFileUrl(record);
       if (!fileUrl) {
-        message.warning("This document has no file or URL");
+        message.warning(tr("This document has no file or URL"));
         return;
       }
       window.open(fileUrl, "_blank");
@@ -5144,7 +5524,7 @@ const getCustomerDisplayName = (record) => {
 
     const previewRecordFile = (record) => {
       if (!getRecordFileUrl(record)) {
-        message.warning("This document has no file or URL to preview");
+        message.warning(tr("This document has no file or URL to preview"));
         return;
       }
       setPreviewDoc(record);
@@ -5159,7 +5539,7 @@ const getCustomerDisplayName = (record) => {
           return (
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
               <span style={{ color: "#8c6d1f", display: "inline-flex" }}>{TYPE_ICONS.folder}</span>
-              <Text strong style={{ fontFamily: FONT, fontSize: 13, color: "#111827" }}>{record.name || "Folder"}</Text>
+              <Text strong style={{ fontFamily: FONT, fontSize: 13, color: "#111827" }}>{record.name || tr("Folder")}</Text>
             </div>
           );
         }
@@ -5207,10 +5587,10 @@ const getCustomerDisplayName = (record) => {
               }}
             >
               <span style={{ color: "#2563eb", display: "inline-flex" }}>{TYPE_ICONS.folder}</span>
-              {record.name || "Folder"}
+              {record.name || tr("Folder")}
             </button>
             <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginLeft: 8 }}>
-              ({folderSubFolderCount} Folder - {folderFileCount} file)
+              ({folderSubFolderCount} {tr("Folder -")} {folderFileCount} {tr("file)")}
             </span>
           </div>
         );
@@ -5219,7 +5599,7 @@ const getCustomerDisplayName = (record) => {
       // File
       const attachment = getAttachment(record);
       const hasPrefix = !!(isAllFiles && record._displayFileIndex);
-      const displayName = attachment?.title || attachment?.filename || record.googleDriveUrl || record.description || "No attached file";
+      const displayName = attachment?.title || attachment?.filename || record.googleDriveUrl || record.description || tr("No attached file");
       const hasFile = !!getRecordFileUrl(record);
 
       if (isEditing) {
@@ -5245,7 +5625,7 @@ const getCustomerDisplayName = (record) => {
       return (
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
           {hasFile ? (
-            <Tooltip title="Click to preview" placement="topLeft">
+            <Tooltip title={tr("Click to preview")} placement="topLeft">
               <span
                 onClick={(e) => { e.stopPropagation(); previewRecordFile(record); }}
                 style={{
@@ -5354,7 +5734,7 @@ const getCustomerDisplayName = (record) => {
       if (isCustomerRecord) {
         items.push({
           key: "open_detail",
-          label: renderContextMenuItemLabel(EYE_ICON, "Open detail"),
+          label: renderContextMenuItemLabel(EYE_ICON, tr("Open detail")),
           onClick: () => {
             closeContextMenu();
             openCustomerDetail(record);
@@ -5362,7 +5742,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "link_case",
-          label: renderContextMenuItemLabel(LINK_CASE_ICON, "Link Case"),
+          label: renderContextMenuItemLabel(LINK_CASE_ICON, tr("Link Case")),
           onClick: () => {
             closeContextMenu();
             openLinkCaseModal(record);
@@ -5370,7 +5750,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -5379,7 +5759,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -5391,7 +5771,7 @@ const getCustomerDisplayName = (record) => {
       if (isTemplate) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -5400,7 +5780,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             handleDeleteTemplate(record);
@@ -5412,7 +5792,7 @@ const getCustomerDisplayName = (record) => {
       if (activeSpace === "trash") {
         items.push({
           key: "restore",
-          label: renderContextMenuItemLabel(RESTORE_ICON, "Restore"),
+          label: renderContextMenuItemLabel(RESTORE_ICON, tr("Restore")),
           onClick: () => { closeContextMenu(); handleRestoreRecord(record); },
         });
         // Hard delete (permanently destroying the record) is admin-only —
@@ -5420,7 +5800,7 @@ const getCustomerDisplayName = (record) => {
         if (isAdminUser(currentUserState)) {
           items.push({
             key: "permanent_delete",
-            label: renderContextMenuItemLabel(DELETE_ICON, "Permanently delete", "#cf1322"),
+            label: renderContextMenuItemLabel(DELETE_ICON, tr("Permanently delete"), "#cf1322"),
             onClick: () => { closeContextMenu(); handlePermanentDelete(record); },
           });
         }
@@ -5432,12 +5812,12 @@ const getCustomerDisplayName = (record) => {
       if (!isFolder) {
         items.push({
           key: "preview",
-          label: renderContextMenuItemLabel(EYE_ICON, "Preview"),
+          label: renderContextMenuItemLabel(EYE_ICON, tr("Preview")),
           onClick: () => { closeContextMenu(); previewRecordFile(record); },
         });
         items.push({
           key: "download",
-          label: renderContextMenuItemLabel(DOWNLOAD_ICON, "Download"),
+          label: renderContextMenuItemLabel(DOWNLOAD_ICON, tr("Download")),
           onClick: () => { closeContextMenu(); openRecordFile(record); },
         });
       }
@@ -5445,7 +5825,7 @@ const getCustomerDisplayName = (record) => {
       if (canWrite) {
         items.push({
           key: "rename",
-          label: renderContextMenuItemLabel(EDIT_ICON, "Rename"),
+          label: renderContextMenuItemLabel(EDIT_ICON, tr("Rename")),
           onClick: () => {
             closeContextMenu();
             setRenameRecord(record);
@@ -5454,7 +5834,7 @@ const getCustomerDisplayName = (record) => {
         });
         items.push({
           key: "move",
-          label: renderContextMenuItemLabel(MOVE_ICON, "Move"),
+          label: renderContextMenuItemLabel(MOVE_ICON, tr("Move")),
           onClick: () => { closeContextMenu(); setMoveRecord(record); setMoveTargetId("root"); },
         });
       }
@@ -5466,7 +5846,7 @@ const getCustomerDisplayName = (record) => {
       ) {
         items.push({
           key: "permission",
-          label: renderContextMenuItemLabel(LOCK_ICON, "Permissions"),
+          label: renderContextMenuItemLabel(LOCK_ICON, tr("Permissions")),
           onClick: () => { closeContextMenu(); setPermissionFolder(record); },
         });
       }
@@ -5482,7 +5862,7 @@ const getCustomerDisplayName = (record) => {
       if (canDelete) {
         items.push({
           key: "delete",
-          label: renderContextMenuItemLabel(DELETE_ICON, "Delete", "#cf1322"),
+          label: renderContextMenuItemLabel(DELETE_ICON, tr("Delete"), "#cf1322"),
           onClick: () => {
             closeContextMenu();
             if (isFolder) showDeleteConfirm(record);
@@ -5507,27 +5887,27 @@ const getCustomerDisplayName = (record) => {
       while (currentId && currentId !== "root" && folderMap.has(String(currentId))) {
         const folder = folderMap.get(String(currentId));
         if (!activeCustomerRootFolderId || String(currentId) !== String(activeCustomerRootFolderId)) {
-          pathItems.unshift(folder.name || "Folder");
+          pathItems.unshift(folder.name || tr("Folder"));
         }
         currentId = getFolderParentId(folder);
       }
 
-      let rootName = "Home";
+      let rootName = tr("Home");
       const storage = record.storageType || (parentFolderId && folderMap.get(String(parentFolderId))?.storageType);
 
       if (storage === "personal") {
-        rootName = "Personal workspace";
+        rootName = tr("Personal workspace");
       } else if (storage === "company_shared") {
-        rootName = activeCompany ? getCompanyName(activeCompany) : "Shared folder";
+        rootName = activeCompany ? getCompanyName(activeCompany) : tr("Shared folder");
       } else if (getRecordCustomerId(record)) {
-        rootName = "Customer";
+        rootName = tr("Customer");
       } else {
         const typeId = getRecordDocumentType(record) || (parentFolderId && getRecordDocumentType(folderMap.get(String(parentFolderId))));
         if (typeId) {
           const type = documentTypes.find(t => t.id === String(typeId));
-          rootName = type ? `Library / ${type.label}` : "Library";
+          rootName = type ? tr("Library / {0}", { 0: type.label }) : tr("Library");
         } else {
-          rootName = "Shared folder";
+          rootName = tr("Shared folder");
         }
       }
 
@@ -5550,7 +5930,7 @@ const getCustomerDisplayName = (record) => {
         // non-trash branches only, right after Description and before Size.
         const buildDocMetaColumns = () => [
           {
-            title: "Document type",
+            title: tr("Document type"),
             key: "documentType",
             width: 140,
             render: (_, record) =>
@@ -5561,7 +5941,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Reference No.",
+            title: tr("Reference No."),
             key: "documentCode",
             width: 140,
             render: (_, record) =>
@@ -5572,7 +5952,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Issue date",
+            title: tr("Issue date"),
             key: "openingDate",
             width: 120,
             sorter: (a, b) => new Date(a.openingDate || 0) - new Date(b.openingDate || 0),
@@ -5584,7 +5964,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Signed date",
+            title: tr("Signed date"),
             key: "signedAt",
             width: 120,
             sorter: (a, b) => new Date(a.signedAt || 0) - new Date(b.signedAt || 0),
@@ -5596,7 +5976,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Effective date",
+            title: tr("Effective date"),
             key: "effectiveAt",
             width: 130,
             sorter: (a, b) => new Date(a.effectiveAt || 0) - new Date(b.effectiveAt || 0),
@@ -5608,7 +5988,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Sender",
+            title: tr("Sender"),
             key: "senderName",
             width: 150,
             render: (_, record) =>
@@ -5619,7 +5999,7 @@ const getCustomerDisplayName = (record) => {
               ),
           },
           {
-            title: "Recipient",
+            title: tr("Recipient"),
             key: "recipientName",
             width: 150,
             render: (_, record) =>
@@ -5636,7 +6016,7 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Restore">
+                <Tooltip title={tr("Restore")}>
                   <Button
                     size="small"
                     icon={RESTORE_ICON}
@@ -5645,7 +6025,7 @@ const getCustomerDisplayName = (record) => {
                   />
                 </Tooltip>
                 {isAdminUser(currentUser) && (
-                  <Tooltip title="Permanently delete">
+                  <Tooltip title={tr("Permanently delete")}>
                     <Button
                       size="small"
                       danger
@@ -5680,7 +6060,7 @@ const getCustomerDisplayName = (record) => {
             if (showLock) {
               return (
                 <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                  <Tooltip title="Permissions">
+                  <Tooltip title={tr("Permissions")}>
                     <Button
                       size="small"
                       icon={LOCK_ICON}
@@ -5688,7 +6068,7 @@ const getCustomerDisplayName = (record) => {
                     />
                   </Tooltip>
                   {showFolderDelete && (
-                    <Tooltip title="Delete">
+                    <Tooltip title={tr("Delete")}>
                       <Button
                         size="small"
                         danger
@@ -5707,14 +6087,14 @@ const getCustomerDisplayName = (record) => {
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
                 {(showEdit || showMove) && (
                   <React.Fragment>
-                    <Tooltip title="Rename">
+                    <Tooltip title={tr("Rename")}>
                       <Button
                         size="small"
                         icon={EDIT_ICON}
                         onClick={(event) => { event.stopPropagation(); startEditTitle(record); }}
                       />
                     </Tooltip>
-                    <Tooltip title="Move">
+                    <Tooltip title={tr("Move")}>
                       <Button
                         size="small"
                         icon={MOVE_ICON}
@@ -5724,7 +6104,7 @@ const getCustomerDisplayName = (record) => {
                   </React.Fragment>
                 )}
                 {showLock && (
-                  <Tooltip title="Permissions">
+                  <Tooltip title={tr("Permissions")}>
                     <Button
                       size="small"
                       icon={LOCK_ICON}
@@ -5743,7 +6123,7 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return (
               <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-                <Tooltip title="Restore">
+                <Tooltip title={tr("Restore")}>
                   <Button
                     size="small"
                     icon={RESTORE_ICON}
@@ -5752,7 +6132,7 @@ const getCustomerDisplayName = (record) => {
                   />
                 </Tooltip>
                 {isAdminUser(currentUser) && (
-                  <Tooltip title="Permanently delete">
+                  <Tooltip title={tr("Permanently delete")}>
                     <Button
                       size="small"
                       danger
@@ -5766,14 +6146,14 @@ const getCustomerDisplayName = (record) => {
           }
           return (
             <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }}>
-              <Tooltip title="Preview">
+              <Tooltip title={tr("Preview")}>
                 <Button
                   size="small"
                   icon={EYE_ICON}
                   onClick={(event) => { event.stopPropagation(); previewRecordFile(record); }}
                 />
               </Tooltip>
-              <Tooltip title="Download">
+              <Tooltip title={tr("Download")}>
                 <Button
                   size="small"
                   icon={DOWNLOAD_ICON}
@@ -5787,21 +6167,21 @@ const getCustomerDisplayName = (record) => {
         if (activeSpace === "customer" && !activeCustomerIdValue) {
           return [
             {
-              title: "STT",
+              title: tr("No."),
               key: "stt",
               width: 60,
               align: "center",
               render: (_, __, index) => index + 1,
             },
             {
-              title: "Customer code",
+              title: tr("Customer code"),
               key: "customerCode",
               width: 150,
               sorter: (a, b) => (a.customerCode || "").localeCompare(b.customerCode || "", "vi"),
               render: (_, record) => <Text style={{ fontWeight: 600, color: "#111827" }}>{record.customerCode || record.code || "—"}</Text>,
             },
             {
-              title: "Customer name",
+              title: tr("Customer name"),
               key: "customerName",
               minWidth: 250,
               sorter: (a, b) => (a.customerName || a.name || "").localeCompare(b.customerName || b.name || "", "vi"),
@@ -5819,26 +6199,26 @@ const getCustomerDisplayName = (record) => {
               ),
             },
             {
-              title: "Case Summary",
+              title: tr("Case Summary"),
               key: "description",
               minWidth: 200,
               render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
             },
             {
-              title: "Linked cases",
+              title: tr("Linked cases"),
               key: "linkedCases",
               minWidth: 200,
               render: (_, record) => (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
                   {(record.cases || []).length === 0 ? (
-                    <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>Not linked</span>
+                    <span style={{ fontSize: 12, color: "#9CA3AF", fontStyle: "italic" }}>{tr("Not linked")}</span>
                   ) : (() => {
                     const list = record.cases || [];
                     const visibleCount = 2;
                     const visibleItems = list.slice(0, visibleCount);
                     const extraItems = list.slice(visibleCount);
                     const getDisplayName = (project) => {
-                      return project.projectName ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}` : `Case #${extractId(project)}`;
+                      return project.projectName ? `${project.caseCode ? `${project.caseCode} - ` : ""}${project.projectName}` : tr("Case #{0}", { 0: extractId(project) });
                     };
                     return (
                       <React.Fragment>
@@ -5869,13 +6249,13 @@ const getCustomerDisplayName = (record) => {
               ),
             },
             {
-              title: "Actions",
+              title: tr("Actions"),
               key: "actions",
               width: 100,
               align: "right",
               render: (_, record) => (
                 <div style={{ display: "inline-flex", justifyContent: "flex-end", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                  <Tooltip title="Link Case">
+                  <Tooltip title={tr("Link Case")}>
                     <Button
                       size="small"
                       icon={LINK_CASE_ICON}
@@ -5885,7 +6265,7 @@ const getCustomerDisplayName = (record) => {
                       }}
                     />
                   </Tooltip>
-                  <Tooltip title="Delete">
+                  <Tooltip title={tr("Delete")}>
                     <Button
                       size="small"
                       danger
@@ -5903,53 +6283,53 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return [
               {
-                title: "Folder name",
+                title: tr("Folder name"),
                 key: "name",
                 minWidth: 250,
                 render: (_, record) => renderNameCell(record, false),
                 sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
               },
               {
-                title: "Description",
+                title: tr("Description"),
                 key: "description",
                 minWidth: 200,
                 render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
               },
               {
-                title: "Size",
+                title: tr("Size"),
                 key: "size",
                 width: 100,
                 sorter: (a, b) => getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
                 render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
               },
               {
-                title: "Uploaded by",
+                title: tr("Uploaded by"),
                 key: "createdBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
               },
               {
-                title: "Upload date",
+                title: tr("Upload date"),
                 key: "createdAt",
                 width: 150,
                 sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
                 render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
               },
               {
-                title: "Deleted by",
+                title: tr("Deleted by"),
                 key: "deletedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
               },
               {
-                title: "Deleted date",
+                title: tr("Deleted date"),
                 key: "deletedAt",
                 width: 160,
                 sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
               },
               {
-                title: "Actions",
+                title: tr("Actions"),
                 key: "actions",
                 width: 120,
                 align: "right",
@@ -5960,41 +6340,41 @@ const getCustomerDisplayName = (record) => {
 
           return [
             {
-              title: "Folder name",
+              title: tr("Folder name"),
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, false),
               sorter: (a, b) => (a.name || "").localeCompare(b.name || "", "vi"),
             },
             {
-              title: "Description",
+              title: tr("Description"),
               key: "description",
               minWidth: 200,
               render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
             },
             ...buildDocMetaColumns(),
             {
-              title: "Size",
+              title: tr("Size"),
               key: "size",
               width: 100,
               sorter: (a, b) => getFolderSize(extractId(a)) - getFolderSize(extractId(b)),
               render: (_, record) => <Text type="secondary">{formatBytes(getFolderSize(extractId(record)))}</Text>,
             },
             {
-              title: "Created date",
+              title: tr("Created date"),
               key: "createdAt",
               width: 150,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => <Text type="secondary">{formatDate(getValidDate(record))}</Text>,
             },
             {
-              title: "Created by",
+              title: tr("Created by"),
               key: "createdBy",
               width: 180,
               render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
             },
             {
-              title: "Actions",
+              title: tr("Actions"),
               key: "actions",
               width: 120,
               align: "right",
@@ -6007,53 +6387,53 @@ const getCustomerDisplayName = (record) => {
           if (activeSpace === "trash") {
             return [
               {
-                title: "File name",
+                title: tr("File name"),
                 key: "name",
                 minWidth: 250,
                 render: (_, record) => renderNameCell(record, true),
                 sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
               },
               {
-                title: "Description",
+                title: tr("Description"),
                 key: "description",
                 minWidth: 200,
                 render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
               },
               {
-                title: "Size",
+                title: tr("Size"),
                 key: "size",
                 width: 100,
                 sorter: (a, b) => (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
                 render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
               },
               {
-                title: "Uploaded by",
+                title: tr("Uploaded by"),
                 key: "uploadedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
               },
               {
-                title: "Upload date",
+                title: tr("Upload date"),
                 key: "uploadedAt",
                 width: 160,
                 sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
               },
               {
-                title: "Deleted by",
+                title: tr("Deleted by"),
                 key: "deletedBy",
                 width: 180,
                 render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
               },
               {
-                title: "Deleted date",
+                title: tr("Deleted date"),
                 key: "deletedAt",
                 width: 160,
                 sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
                 render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
               },
               {
-                title: "Actions",
+                title: tr("Actions"),
                 key: "actions",
                 width: 120,
                 align: "right",
@@ -6064,41 +6444,41 @@ const getCustomerDisplayName = (record) => {
 
           return [
             {
-              title: "File name",
+              title: tr("File name"),
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, true),
               sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
             },
             {
-              title: "Description",
+              title: tr("Description"),
               key: "description",
               minWidth: 200,
               render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
             },
             ...buildDocMetaColumns(),
             {
-              title: "Size",
+              title: tr("Size"),
               key: "size",
               width: 100,
               sorter: (a, b) => (getAttachment(a)?.size || 0) - (getAttachment(b)?.size || 0),
               render: (_, record) => <Text type="secondary">{formatBytes(getAttachment(record)?.size)}</Text>,
             },
             {
-              title: "Upload date",
+              title: tr("Upload date"),
               key: "uploadedAt",
               width: 160,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => <Text type="secondary">{formatDateTime(getValidDate(record))}</Text>,
             },
             {
-              title: "Uploaded by",
+              title: tr("Uploaded by"),
               key: "uploadedBy",
               width: 180,
               render: (_, record) => <Text type="secondary">{getUploadUserName(record)}</Text>,
             },
             {
-              title: "Actions",
+              title: tr("Actions"),
               key: "actions",
               width: 120,
               align: "right",
@@ -6111,20 +6491,20 @@ const getCustomerDisplayName = (record) => {
         if (activeSpace === "trash") {
           return [
             {
-              title: "Name",
+              title: tr("Name"),
               key: "name",
               minWidth: 250,
               render: (_, record) => renderNameCell(record, true),
               sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
             },
             {
-              title: "Description",
+              title: tr("Description"),
               key: "description",
               minWidth: 200,
               render: (_, record) => <Text type="secondary">{record.description || "—"}</Text>,
             },
             {
-              title: "Size",
+              title: tr("Size"),
               key: "size",
               width: 100,
               sorter: (a, b) => {
@@ -6138,40 +6518,40 @@ const getCustomerDisplayName = (record) => {
               },
             },
             {
-              title: "Created date",
+              title: tr("Created date"),
               key: "createdAt",
               width: 120,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Uploaded by",
+              title: tr("Uploaded by"),
               key: "uploadedBy",
               width: 150,
               render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Upload date",
+              title: tr("Upload date"),
               key: "uploadedAt",
               width: 150,
               sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
               render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
             },
             {
-              title: "Deleted by",
+              title: tr("Deleted by"),
               key: "deletedBy",
               width: 150,
               render: (_, record) => <Text type="secondary">{getDeletedUserName(record)}</Text>,
             },
             {
-              title: "Deleted date",
+              title: tr("Deleted date"),
               key: "deletedAt",
               width: 150,
               sorter: (a, b) => new Date(a.deletedAt || a.updatedAt || 0) - new Date(b.deletedAt || b.updatedAt || 0),
               render: (_, record) => <Text type="secondary">{formatDateTime(record.deletedAt || record.updatedAt || record.deleted_at)}</Text>,
             },
             {
-              title: "Actions",
+              title: tr("Actions"),
               key: "actions",
               width: 120,
               align: "right",
@@ -6182,21 +6562,21 @@ const getCustomerDisplayName = (record) => {
 
         return [
           {
-            title: "Name",
+            title: tr("Name"),
             key: "name",
             minWidth: 250,
             render: (_, record) => renderNameCell(record, true),
             sorter: (a, b) => (a.name || a.title || "").localeCompare(b.name || b.title || "", "vi"),
           },
           {
-            title: "Description",
+            title: tr("Description"),
             key: "description",
             minWidth: 200,
             render: (_, record) => <InlineEditCell type="textarea" value={record.description} canEdit={getRecordPerms(record).canRename} onSave={(v) => saveRecordField(record, "description", v)} />,
           },
           ...buildDocMetaColumns(),
           {
-            title: "Size",
+            title: tr("Size"),
             key: "size",
             width: 100,
             sorter: (a, b) => {
@@ -6210,27 +6590,27 @@ const getCustomerDisplayName = (record) => {
             },
           },
           {
-            title: "Created date",
+            title: tr("Created date"),
             key: "createdAt",
             width: 120,
             sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
             render: (_, record) => (record._type === "folder" ? <Text type="secondary">{formatDate(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Upload date",
+            title: tr("Upload date"),
             key: "uploadedAt",
             width: 150,
             sorter: (a, b) => new Date(getValidDate(a) || 0) - new Date(getValidDate(b) || 0),
             render: (_, record) => (record._type === "file" ? <Text type="secondary">{formatDateTime(getValidDate(record))}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Uploaded by",
+            title: tr("Uploaded by"),
             key: "uploadedBy",
             width: 150,
             render: (_, record) => (record._type === "file" ? <Text type="secondary">{getUploadUserName(record)}</Text> : <Text type="secondary">—</Text>),
           },
           {
-            title: "Actions",
+            title: tr("Actions"),
             key: "actions",
             width: 120,
             align: "right",
@@ -6284,16 +6664,16 @@ const getCustomerDisplayName = (record) => {
 
     const newMenu = {
       items: [
-        { key: "folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Create folder") },
-        { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, "Upload") },
-        { key: "upload_folder", label: renderNewMenuLabel(TYPE_ICONS.folder, "Upload folder") },
+        { key: "folder", label: renderNewMenuLabel(TYPE_ICONS.folder, tr("Create folder")) },
+        { key: "upload", label: renderNewMenuLabel(TYPE_ICONS.upload, tr("Upload")) },
+        { key: "upload_folder", label: renderNewMenuLabel(TYPE_ICONS.folder, tr("Upload folder")) },
       ],
       onClick: handleNewActionClick,
     };
 
     const activityColumns = useMemo(() => [
       {
-        title: "Activity type",
+        title: tr("Activity type"),
         dataIndex: "action",
         key: "action",
         width: 170,
@@ -6322,12 +6702,12 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Performed by",
+        title: tr("Performed by"),
         dataIndex: "changedByName",
         key: "changedByName",
         width: 200,
         render: (name) => {
-          const displayName = name || "System";
+          const displayName = name || tr("System");
           const initials = displayName
             .split(" ")
             .map((w) => w[0])
@@ -6368,7 +6748,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Documents",
+        title: tr("Documents"),
         key: "file",
         width: 280,
         render: (text, log) => {
@@ -6410,7 +6790,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Change description",
+        title: tr("Change description"),
         key: "desc",
         render: (text, log) => {
           const desc = resolveActivityDesc(log, folders, documents);
@@ -6420,7 +6800,7 @@ const getCustomerDisplayName = (record) => {
         }
       },
       {
-        title: "Time",
+        title: tr("Time"),
         dataIndex: "changedAt",
         key: "changedAt",
         width: 160,
@@ -6465,7 +6845,7 @@ const getCustomerDisplayName = (record) => {
 
                 {/* Sidebar toggle */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 2px 16px 2px", borderBottom: "0.5px solid #E5E7EB", marginBottom: 16 }}>
-                  <Tooltip title="Collapse sidebar">
+                  <Tooltip title={tr("Collapse sidebar")}>
                     <Button type="text" icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(true)}
                       style={{ width: 22, height: 22, minWidth: 22, padding: 0, color: "#9CA3AF" }} />
                   </Tooltip>
@@ -6474,7 +6854,7 @@ const getCustomerDisplayName = (record) => {
                 {/* ══ SEARCH BOX ══ */}
                 <div style={{ marginBottom: 16 }}>
                   <Input
-                    placeholder="Search documents..."
+                    placeholder={tr("Search documents...")}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     allowClear
@@ -6507,19 +6887,19 @@ const getCustomerDisplayName = (record) => {
                             }}
                             style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "customer" ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT, cursor: "pointer", userSelect: "none" }}
                           >
-                            Customer
+                            {tr("Customer")}
                           </span>
                         </div>
                         <button type="button"
                           onClick={() => handleCreateFolderFromSidebar("customer")}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Create</button>
+                        >{tr("+ Create")}</button>
                       </div>
                       {libraryExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 1, paddingLeft: 12 }}>
                             {customerRootFolders.length === 0 ? (
-                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>No folders yet</Text>
+                              <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block", fontStyle: "italic" }}>{tr("No folders yet")}</Text>
                             ) : (
                               customerRootFolders.map((folder) => {
                                 const fid = String(extractId(folder.id));
@@ -6571,7 +6951,7 @@ const getCustomerDisplayName = (record) => {
                     {/* ══ SECTION 3: NHANH (Activity logs & Trash) ══ */}
                     <div style={{ order: 3, borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 12 }}>
                       <div style={{ padding: "0 2px 6px 2px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Nhanh</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>{tr("Nhanh")}</span>
                       </div>
 
                       {/* Activity log */}
@@ -6594,7 +6974,7 @@ const getCustomerDisplayName = (record) => {
                               <circle cx="12" cy="12" r="10" />
                               <polyline points="12 6 12 12 16 14" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Activity log</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Activity log")}</span>
                           </button>
                         );
                       })()}
@@ -6620,7 +7000,7 @@ const getCustomerDisplayName = (record) => {
                               <polyline points="3 6 5 6 21 6" />
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Trash</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Trash")}</span>
                             {trashCount > 0 && (
                               <span style={{
                                 fontSize: 11,
@@ -6663,17 +7043,17 @@ const getCustomerDisplayName = (record) => {
                             textTransform: "uppercase",
                             letterSpacing: "0.06em",
                             fontFamily: FONT
-                          }}>Workspace</span>
+                          }}>{tr("Workspace")}</span>
                         </div>
                         <button type="button"
                           onClick={() => handleCreateFolderFromSidebar("company_shared")}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Create</button>
+                        >{tr("+ Create")}</button>
                       </div>
                       {spacesExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           {companies.length === 0 ? (
-                            <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>None yet</Text>
+                            <Text style={{ fontSize: 12, color: "#9CA3AF", padding: "4px 10px", display: "block" }}>{tr("None yet")}</Text>
                           ) : (
                             (showAllCompanies ? companies : companies.slice(0, 5)).map((company) => {
                               const cid = String(extractId(company));
@@ -6776,7 +7156,7 @@ const getCustomerDisplayName = (record) => {
                                 padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
                               }}
                             >
-                              {showAllCompanies ? "Collapse" : `Show more (${companies.length - 5})`}
+                              {showAllCompanies ? tr("Collapse") : tr("Show more ({0})", { 0: companies.length - 5 })}
                             </button>
                           )}
                         </div>
@@ -6800,18 +7180,18 @@ const getCustomerDisplayName = (record) => {
                           >
                             {libraryExpanded ? ChevronDown : ChevronRight}
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "customer" && !activeCustomerId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Customers</span>
+                          <span style={{ fontSize: 10, fontWeight: 600, color: activeSpace === "customer" && !activeCustomerId ? "#185FA5" : "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>{tr("Customers")}</span>
                         </div>
                         <button type="button"
                           onClick={() => { if (!requireCompany()) return; createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
                           style={{ fontSize: 11, color: "#185FA5", fontWeight: 500, border: "none", background: "transparent", cursor: "pointer", padding: "0 2px", fontFamily: FONT }}
-                        >+ Create</button>
+                        >{tr("+ Create")}</button>
                       </div>
                       {libraryExpanded && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           {filteredCustomers.length === 0 ? (
                             <div style={{ padding: "4px 10px" }}>
-                              <Text style={{ fontSize: 11, color: "#9CA3AF" }}>No customers yet</Text>
+                              <Text style={{ fontSize: 11, color: "#9CA3AF" }}>{tr("No customers yet")}</Text>
                             </div>
                           ) : (
                             (showAllCustomers ? filteredCustomers : filteredCustomers.slice(0, 5)).map((ref) => {
@@ -6925,7 +7305,7 @@ const getCustomerDisplayName = (record) => {
                                 padding: "6px 10px", textAlign: "left", fontWeight: 500, fontFamily: FONT
                               }}
                             >
-                              {showAllCustomers ? "Collapse" : `Show more (${filteredCustomers.length - 5})`}
+                              {showAllCustomers ? tr("Collapse") : tr("Show more ({0})", { 0: filteredCustomers.length - 5 })}
                             </button>
                           )}
                         </div>
@@ -6935,7 +7315,7 @@ const getCustomerDisplayName = (record) => {
                     {/* ══ SECTION 4: NHANH (Quick/Recent/Trash) ══ */}
                     <div style={{ borderTop: "0.5px solid #E5E7EB", paddingTop: 12, marginTop: 12 }}>
                       <div style={{ padding: "0 2px 6px 2px" }}>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>Nhanh</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: FONT }}>{tr("Nhanh")}</span>
                       </div>
 
                       {/* ① Activity log */}
@@ -6958,7 +7338,7 @@ const getCustomerDisplayName = (record) => {
                               <circle cx="12" cy="12" r="10" />
                               <polyline points="12 6 12 12 16 14" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Activity log</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Activity log")}</span>
                           </button>
                         );
                       })()}
@@ -6984,7 +7364,7 @@ const getCustomerDisplayName = (record) => {
                               <polyline points="3 6 5 6 21 6" />
                               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Trash</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Trash")}</span>
                             {trashCount > 0 && (
                               <span style={{
                                 fontSize: 11,
@@ -7010,8 +7390,8 @@ const getCustomerDisplayName = (record) => {
             {/* ── TOPBAR ── */}
             <div style={{ padding: "10px 20px", borderBottom: "0.5px solid #E5E7EB", display: "flex", alignItems: "center", gap: 10, flexWrap: "nowrap", background: "#FFFFFF", minWidth: 0, overflowX: "auto" }}>
               {sidebarCollapsed && (
-                <Tooltip title="Expand sidebar">
-                  <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label="Expand sidebar"
+                <Tooltip title={tr("Expand sidebar")}>
+                  <Button icon={SIDEBAR_ICON} onClick={() => setSidebarCollapsed(false)} aria-label={tr("Expand sidebar")}
                     style={{ width: 32, height: 32, display: "inline-flex", alignItems: "center", justifyContent: "center", borderRadius: 8, border: "0.5px solid #E5E7EB", flex: "0 0 auto" }} />
                 </Tooltip>
               )}
@@ -7022,7 +7402,7 @@ const getCustomerDisplayName = (record) => {
               {activeSpace === "recent" ? (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
                   <Input.Search
-                    placeholder="Search activity..."
+                    placeholder={tr("Search activity...")}
                     value={activitySearchQuery}
                     onChange={(e) => {
                       setActivitySearchQuery(e.target.value);
@@ -7039,41 +7419,41 @@ const getCustomerDisplayName = (record) => {
                     }}
                     style={{ width: 180, borderRadius: 8 }}
                     options={[
-                      { value: "all", label: "All activity" },
-                      { value: "uploaded", label: "Uploaded document" },
-                      { value: "previewed", label: "Previewed" },
-                      { value: "downloaded", label: "Downloaded" },
-                      { value: "shared_file", label: "Shared document" },
-                      { value: "unshared_file", label: "Unshared" },
-                      { value: "permission_updated", label: "Permissions updated" },
-                      { value: "created", label: "Created folder" },
-                      { value: "updated", label: "Other update" },
-                      { value: "moved", label: "Moved" },
-                      { value: "trash_deleted", label: "Moved to Trash" },
-                      { value: "restored", label: "Restored" },
-                      { value: "deleted", label: "Permanently delete" },
+                      { value: "all", label: tr("All activity") },
+                      { value: "uploaded", label: tr("Uploaded document") },
+                      { value: "previewed", label: tr("Previewed") },
+                      { value: "downloaded", label: tr("Downloaded") },
+                      { value: "shared_file", label: tr("Shared document") },
+                      { value: "unshared_file", label: tr("Unshared") },
+                      { value: "permission_updated", label: tr("Permissions updated") },
+                      { value: "created", label: tr("Created folder") },
+                      { value: "updated", label: tr("Other update") },
+                      { value: "moved", label: tr("Moved") },
+                      { value: "trash_deleted", label: tr("Moved to Trash") },
+                      { value: "restored", label: tr("Restored") },
+                      { value: "deleted", label: tr("Permanently delete") },
                     ]}
                   />
                 </div>
               ) : (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "0 0 auto", minWidth: "max-content", flexWrap: "nowrap" }}>
-                  <Input.Search placeholder="Search..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 260, borderRadius: 8 }} allowClear />
+                  <Input.Search placeholder={tr("Search...")} value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: 260, borderRadius: 8 }} allowClear />
                   <Select value={sortMode} onChange={setSortMode} style={{ width: 140, borderRadius: 8 }}
                     options={[
-                      { value: "manual", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>STT</span> },
-                      { value: "newest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Newest</span> },
-                      { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Oldest</span> },
-                      { value: "name", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>Name A-Z</span> },
+                      { value: "manual", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>{tr("No.")}</span> },
+                      { value: "newest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>{tr("Newest")}</span> },
+                      { value: "oldest", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>{tr("Oldest")}</span> },
+                      { value: "name", label: <span style={{ display: "inline-flex", alignItems: "center", paddingTop: 1 }}>{tr("Name A-Z")}</span> },
                     ]}
                   />
-                  <Select allowClear placeholder="Format" style={{ width: 140, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
+                  <Select allowClear placeholder={tr("Format")} style={{ width: 140, borderRadius: 8 }} value={selectedExt} onChange={setSelectedExt} options={fileExtOptions} />
                   <div style={{ display: "inline-flex", gap: 3, padding: 3, border: "0.5px solid #E5E7EB", borderRadius: 8, background: "#FAFAFA" }}>
-                    <Tooltip title="Grid">
-                      <Button aria-label="Grid" icon={GRID_ICON} onClick={() => setViewMode("grid")}
+                    <Tooltip title={tr("Grid")}>
+                      <Button aria-label={tr("Grid")} icon={GRID_ICON} onClick={() => setViewMode("grid")}
                         style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "grid" ? "#185FA5" : "transparent", color: viewMode === "grid" ? "#fff" : "#6B7280" }} />
                     </Tooltip>
-                    <Tooltip title="Table">
-                      <Button aria-label="Table" icon={TABLE_ICON} onClick={() => setViewMode("table")}
+                    <Tooltip title={tr("Table")}>
+                      <Button aria-label={tr("Table")} icon={TABLE_ICON} onClick={() => setViewMode("table")}
                         style={{ width: 32, height: 28, borderRadius: 6, border: "none", background: viewMode === "table" ? "#185FA5" : "transparent", color: viewMode === "table" ? "#fff" : "#6B7280" }} />
                     </Tooltip>
                   </div>
@@ -7087,24 +7467,24 @@ const getCustomerDisplayName = (record) => {
                 {activeSpace === "recent" ? (
                   <Button icon={REFRESH_ICON} onClick={fetchActivityLogs} loading={activityLoading}
                     style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    Refresh
+                    {tr("Refresh")}
                   </Button>
                 ) : (
                   <React.Fragment>
                     {activeSpace !== "trash" && (currentFolderPerms.canEdit || currentFolderPerms.isManager || isCustomerRoot) && (
                       <Dropdown menu={isCustomerRoot ? {
-                        items: [{ key: "create_customer", label: renderNewMenuLabel(TYPE_ICONS.folder, "Create customer") }],
+                        items: [{ key: "create_customer", label: renderNewMenuLabel(TYPE_ICONS.folder, tr("Create customer")) }],
                         onClick: () => { if (requireCompany()) { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); } }
                       } : newMenu} trigger={["click"]}>
                         <Button type="primary" icon={PLUS_ICON}
                           style={{ background: "#185FA5", borderColor: "#185FA5", borderRadius: 8, fontWeight: 600 }}>
-                          New
+                          {tr("New")}
                         </Button>
                       </Dropdown>
                     )}
                     <Button icon={REFRESH_ICON} onClick={loadData} loading={loading}
                       style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#185FA5", fontWeight: 500, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      Refresh
+                      {tr("Refresh")}
                     </Button>
                   </React.Fragment>
                 )}
@@ -7148,7 +7528,7 @@ const getCustomerDisplayName = (record) => {
                 >
                   <div style={{ fontSize: 32 }}>{TYPE_ICONS.upload}</div>
                   <div style={{ fontSize: 15, fontWeight: 600, color: "#185FA5" }}>
-                    {externalUploadInProgress ? "Uploading..." : "Drop files or folders here to upload"}
+                    {externalUploadInProgress ? tr("Uploading...") : tr("Drop files or folders here to upload")}
                   </div>
                 </div>
               )}
@@ -7168,13 +7548,13 @@ const getCustomerDisplayName = (record) => {
                       onChange: (page) => setActivityPage(page),
                       showSizeChanger: false,
                       total: filteredActivityLogs.length,
-                      showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} activities`,
+                      showTotal: (total, range) => tr("{0}–{1} / {2} activities", { 0: range[0], 1: range[1], 2: total }),
                     }}
                     locale={{
                       emptyText: (
                         <Empty
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
-                          description="No activity history found"
+                          description={tr("No activity history found")}
                           style={{ padding: "40px 0" }}
                         />
                       )
@@ -7230,7 +7610,7 @@ const getCustomerDisplayName = (record) => {
                       }}
                     >
                       <span>
-                        <span style={{ color: "#9CA3AF" }}>Manager: </span>
+                        <span style={{ color: "#9CA3AF" }}>{tr("Manager:")} </span>
                         <strong style={{ color: "#374151", fontWeight: 500 }}>
                           {currentRootFolderPermissionSummary.managerNames.length
                             ? currentRootFolderPermissionSummary.managerNames.join(", ")
@@ -7238,7 +7618,7 @@ const getCustomerDisplayName = (record) => {
                         </strong>
                       </span>
                       <span>
-                        <span style={{ color: "#9CA3AF" }}>Member: </span>
+                        <span style={{ color: "#9CA3AF" }}>{tr("Member:")} </span>
                         <strong style={{ color: "#374151", fontWeight: 500 }}>
                           {currentRootFolderPermissionSummary.memberNames.length
                             ? currentRootFolderPermissionSummary.memberNames.join(", ")
@@ -7265,7 +7645,7 @@ const getCustomerDisplayName = (record) => {
                     }}>
                       <div style={{ display: "flex", alignItems: "center" }}>
                         <span style={{ fontWeight: 500, color: "#374151", fontSize: 13 }}>
-                          Selected <strong style={{ color: "#111827", fontWeight: 600 }}>{selectedRowKeys.length}</strong> item(s)
+                          {tr("Selected")} <strong style={{ color: "#111827", fontWeight: 600 }}>{selectedRowKeys.length}</strong> {tr("item(s)")}
                         </span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -7275,7 +7655,7 @@ const getCustomerDisplayName = (record) => {
                           onClick={() => setSelectedRowKeys([])}
                           style={{ borderRadius: 6, fontSize: 12, color: "#6B7280", fontFamily: FONT, padding: "4px 8px" }}
                         >
-                          Deselect
+                          {tr("Deselect")}
                         </Button>
                         <div style={{ width: 1, height: 16, background: "#E5E7EB" }} />
                         {activeSpace === "trash" ? (
@@ -7295,7 +7675,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Restore
+                              {tr("Restore")}
                             </Button>
                             <Button
                               size="small"
@@ -7312,7 +7692,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Delete
+                              {tr("Delete")}
                             </Button>
                           </React.Fragment>
                         ) : (
@@ -7332,7 +7712,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Move
+                              {tr("Move")}
                             </Button>
                             <Button
                               size="small"
@@ -7349,7 +7729,7 @@ const getCustomerDisplayName = (record) => {
                                 fontFamily: FONT,
                               }}
                             >
-                              Delete
+                              {tr("Delete")}
                             </Button>
                           </React.Fragment>
                         )}
@@ -7366,29 +7746,29 @@ const getCustomerDisplayName = (record) => {
                             <line x1="12" y1="11" x2="12" y2="17" /><polyline points="9 14 12 17 15 14" />
                           </svg>
                           <div style={{ fontSize: 15, fontWeight: 500, color: "#6B7280", fontFamily: FONT }}>
-                            {isCustomerRoot ? "No customers yet" :
-                              (activeSpace === "trash" ? "Trash is empty" :
-                                (query ? "No results found" : "Folder is empty"))}
+                            {isCustomerRoot ? tr("No customers yet") :
+                              (activeSpace === "trash" ? tr("Trash is empty") :
+                                (query ? tr("No results found") : tr("Folder is empty")))}
                           </div>
                           <div style={{ fontSize: 13, color: "#9CA3AF", fontFamily: FONT }}>
-                            {isCustomerRoot ? "Click + Create customer below to get started" :
-                              (activeSpace === "trash" ? "No deleted files or folders" :
-                                (query ? "Try a different search term" : "Click + New to create a folder or upload your first document"))}
+                            {isCustomerRoot ? tr("Click + Create customer below to get started") :
+                              (activeSpace === "trash" ? tr("No deleted files or folders") :
+                                (query ? tr("Try a different search term") : tr("Click + New to create a folder or upload your first document")))}
                           </div>
                           {isCustomerRoot ? (
                             <button type="button" onClick={() => { createTemplateForm.resetFields(); setIsCreateTemplateOpen(true); }}
                               style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 4 }}>
-                              + Create customer
+                              {tr("+ Create customer")}
                             </button>
                           ) : (activeSpace !== "trash" && !query) && (
                             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                               <button type="button" onClick={() => fileInputRef.current?.click()}
                                 style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                                + Add document
+                                {tr("+ Add document")}
                               </button>
                               <button type="button" onClick={() => { folderForm.resetFields(); setIsFolderOpen(true); }}
                                 style={{ padding: "8px 18px", background: "transparent", color: "#185FA5", border: "1px solid #185FA5", borderRadius: 8, fontFamily: FONT, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-                                + Add folder
+                                {tr("+ Add folder")}
                               </button>
                             </div>
                           )}
@@ -7427,18 +7807,18 @@ const getCustomerDisplayName = (record) => {
                                       </div>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4, fontSize: 12, color: "#6B7280" }}>
                                         <div>
-                                          <span style={{ color: "#9CA3AF" }}>Customer code: </span>
+                                          <span style={{ color: "#9CA3AF" }}>{tr("Customer code:")} </span>
                                           <strong>{record.customerCode || record.code || extractId(record)}</strong>
                                         </div>
                                         <div>
-                                          <span style={{ color: "#9CA3AF" }}>Linked case: </span>
+                                          <span style={{ color: "#9CA3AF" }}>{tr("Linked case:")} </span>
                                           <span>{(record.cases || []).length}</span>
                                         </div>
                                       </div>
                                       <div style={{ marginTop: "auto", paddingTop: 8, borderTop: "0.5px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                        <span style={{ fontSize: 11, color: "#9CA3AF" }}>Resources:</span>
+                                        <span style={{ fontSize: 11, color: "#9CA3AF" }}>{tr("Resources:")}</span>
                                         <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                          {foldersCount} Folder · {filesCount} file
+                                          {foldersCount} {tr("Folder ·")} {filesCount} file
                                         </span>
                                       </div>
                                     </Card>
@@ -7450,7 +7830,7 @@ const getCustomerDisplayName = (record) => {
 
                           {/* ── Section: Folder ── */}
                           {tableData.some(r => r._type === "folder") && (
-                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Folder</div>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>{tr("Folder")}</div>
                           )}
                           <Row gutter={[10, 10]} style={{ marginBottom: tableData.some(r => r._type === "file") && tableData.some(r => r._type === "folder") ? 20 : 0 }}>
                             {tableData.filter(r => r._type === "folder").map((record) => {
@@ -7510,9 +7890,9 @@ const getCustomerDisplayName = (record) => {
                                           <Button size="small" icon={CLOSE_ICON} onClick={(e) => { e.stopPropagation(); cancelEditTitle(); }} />
                                         </div>
                                       ) : (
-                                        <Tooltip title={record.name || "Folder"} placement="top">
+                                        <Tooltip title={record.name || tr("Folder")} placement="top">
                                           <div style={{ fontWeight: 600, fontSize: 12, color: "#111827", whiteSpace: "normal", lineHeight: "1.45", wordBreak: "normal", overflowWrap: "anywhere" }}>
-                                            {record.name || "Folder"}
+                                            {record.name || tr("Folder")}
                                           </div>
                                         </Tooltip>
                                       )}
@@ -7522,36 +7902,36 @@ const getCustomerDisplayName = (record) => {
                                         {activeSpace === "trash" ? (
                                           <React.Fragment>
                                             <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>
-                                              Source: {getRecordPathString(record)}
+                                              {tr("Source:")} {getRecordPathString(record)}
                                             </span>
                                             <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>
-                                              Deleted by: {getDeletedUserName(record)}
+                                              {tr("Deleted by:")} {getDeletedUserName(record)}
                                             </span>
                                             <span style={{ fontSize: 10, color: "#9CA3AF", fontFamily: FONT }}>
-                                              Deleted date: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}
+                                              {tr("Deleted date:")} {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}
                                             </span>
                                           </React.Fragment>
                                         ) : (
                                           <React.Fragment>
                                             {isEmpty ? (
                                               <div onClick={(e) => e.stopPropagation()}>
-                                                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: FONT }}>No documents yet</div>
+                                                <div style={{ fontSize: 11, color: "#9CA3AF", fontFamily: FONT }}>{tr("No documents yet")}</div>
                                                 <button type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                                                   style={{ fontSize: 11, color: "#185FA5", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: FONT }}>
-                                                  + Upload your first file
+                                                  {tr("+ Upload your first file")}
                                                 </button>
                                               </div>
                                             ) : (
                                               <span style={{ fontSize: 11, fontWeight: 600, color: "#185FA5" }}>
-                                                {folderSubFolderCount} Folder · {folderFileCount} file
+                                                {folderSubFolderCount} {tr("Folder ·")} {folderFileCount} file
                                               </span>
                                             )}
                                             <div style={{ display: "flex", flexDirection: "column", marginTop: 2 }}>
                                               <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT }}>
-                                                Created date: {formatDate(record.createdAt || record.updatedAt)}
+                                                {tr("Created date:")} {formatDate(record.createdAt || record.updatedAt)}
                                               </span>
                                               <span style={{ fontSize: 10, color: "#6B7280", fontFamily: FONT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>
-                                                Created by: {getUploadUserName(record)}
+                                                {tr("Created by:")} {getUploadUserName(record)}
                                               </span>
                                             </div>
                                           </React.Fragment>
@@ -7566,12 +7946,12 @@ const getCustomerDisplayName = (record) => {
 
                           {/* ── Section: Documents ── */}
                           {tableData.some(r => r._type === "file") && (
-                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>Documents</div>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: "#6B7280", marginBottom: 10, fontFamily: FONT }}>{tr("Documents")}</div>
                           )}
                           <Row gutter={[10, 10]}>
                             {tableData.filter(r => r._type === "file").map((record) => {
                               const fileIsEditing = editingTitleId === String(extractId(record));
-                              const cardFileName = (() => { const att = getAttachment(record); return att?.title || att?.filename || record.googleDriveUrl || "No attached file"; })();
+                              const cardFileName = (() => { const att = getAttachment(record); return att?.title || att?.filename || record.googleDriveUrl || tr("No attached file"); })();
                               const cardHasFile = !!getRecordFileUrl(record);
                               const ext = getFileExtension(record);
 
@@ -7650,14 +8030,14 @@ const getCustomerDisplayName = (record) => {
                                         )}
                                         {activeSpace === "trash" ? (
                                           <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>Source: {getRecordPathString(record)}</div>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>Deleted by: {getDeletedUserName(record)}</div>
-                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere", color: "#9CA3AF" }}>Deleted date: {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getRecordPathString(record)}>{tr("Source:")} {getRecordPathString(record)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere" }} title={getDeletedUserName(record)}>{tr("Deleted by:")} {getDeletedUserName(record)}</div>
+                                            <div style={{ whiteSpace: "normal", overflowWrap: "anywhere", color: "#9CA3AF" }}>{tr("Deleted date:")} {formatDate(record.deletedAt || record.updatedAt || record.deleted_at)}</div>
                                           </div>
                                         ) : (
                                           <div style={{ fontSize: 10, color: "#6B7280", lineHeight: "14px" }}>
-                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Created date: {formatDate(record.uploadedAt || record.createdAt || getDocDate(record))}</div>
-                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>Created by: {getUploadUserName(record)}</div>
+                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Created date:")} {formatDate(record.uploadedAt || record.createdAt || getDocDate(record))}</div>
+                                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={getUploadUserName(record)}>{tr("Created by:")} {getUploadUserName(record)}</div>
                                           </div>
                                         )}
                                       </div>
@@ -7687,7 +8067,7 @@ const getCustomerDisplayName = (record) => {
                         emptyText: (
                           <div style={{ padding: "40px 0", textAlign: "center" }}>
                             <div style={{ fontSize: 14, color: "#9CA3AF" }}>
-                              {query ? "No results found" : (activeSpace === "trash" ? "Trash is empty" : "Folder is empty")}
+                              {query ? tr("No results found") : (activeSpace === "trash" ? tr("Trash is empty") : tr("Folder is empty"))}
                             </div>
                           </div>
                         )
@@ -7702,23 +8082,23 @@ const getCustomerDisplayName = (record) => {
         </Layout>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Create folder</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Create folder")}</span>}
           open={isFolderOpen}
           onCancel={() => { setIsFolderOpen(false); folderForm.resetFields(); }}
           footer={null}
           destroyOnClose
         >
-          <Text type="secondary">Location: {breadcrumbs.map((item) => item.name).join(" / ")}</Text>
+          <Text type="secondary">{tr("Location:")} {breadcrumbs.map((item) => item.name).join(" / ")}</Text>
           <Form form={folderForm} layout="vertical" onFinish={handleCreateFolder} style={{ marginTop: 16 }}>
-            <Form.Item name="name" label="Folder name" rules={[{ required: true, message: "Please enter a folder name" }]}>
-              <Input placeholder="Enter folder name..." />
+            <Form.Item name="name" label={tr("Folder name")} rules={[{ required: true, message: tr("Please enter a folder name") }]}>
+              <Input placeholder={tr("Enter folder name...")} />
             </Form.Item>
-            <Form.Item name="description" label="Description">
-              <Input.TextArea rows={3} placeholder="Short description..." />
+            <Form.Item name="description" label={tr("Description")}>
+              <Input.TextArea rows={3} placeholder={tr("Short description...")} />
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setIsFolderOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={folderLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Create folder</Button>
+              <Button onClick={() => setIsFolderOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>
+              <Button type="primary" htmlType="submit" loading={folderLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>{tr("Create folder")}</Button>
             </div>
           </Form>
         </Modal>
@@ -7738,17 +8118,17 @@ const getCustomerDisplayName = (record) => {
         />
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Upload folder</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Upload folder")}</span>}
           open={bulkConfirmOpen}
           onCancel={() => { if (bulkUploading) return; setBulkConfirmOpen(false); setPendingFolderFiles([]); }}
           footer={[
-            <Button key="cancel" disabled={bulkUploading} onClick={() => setBulkConfirmOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
-            <Button key="submit" type="primary" loading={bulkUploading} onClick={executeFolderUpload} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Confirm upload</Button>,
+            <Button key="cancel" disabled={bulkUploading} onClick={() => setBulkConfirmOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>,
+            <Button key="submit" type="primary" loading={bulkUploading} onClick={executeFolderUpload} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>{tr("Confirm upload")}</Button>,
           ]}
         >
-          <Text>Selected {pendingFolderFiles.length} file(s) from an external folder.</Text>
+          <Text>{tr("Selected")} {pendingFolderFiles.length} {tr("file(s) from an external folder.")}</Text>
           <div style={{ marginTop: 16 }}>
-            <Text strong>Upload to:</Text>
+            <Text strong>{tr("Upload to:")}</Text>
             <TreeSelect
               value={bulkTargetId}
               onChange={setBulkTargetId}
@@ -7766,15 +8146,15 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Move</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Move")}</span>}
           open={!!moveRecord}
           onCancel={() => setMoveRecord(null)}
           footer={[
-            <Button key="cancel" onClick={() => setMoveRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
-            <Button key="submit" type="primary" onClick={() => handleMoveRecord(moveRecord, moveTargetId)} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Move</Button>,
+            <Button key="cancel" onClick={() => setMoveRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>,
+            <Button key="submit" type="primary" onClick={() => handleMoveRecord(moveRecord, moveTargetId)} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>{tr("Move")}</Button>,
           ]}
         >
-          <Text>Select destination folder for <b>{moveRecord?._type === "folder" ? moveRecord?.name : getDocTitle(moveRecord)}</b></Text>
+          <Text>{tr("Select destination folder for")} <b>{moveRecord?._type === "folder" ? moveRecord?.name : getDocTitle(moveRecord)}</b></Text>
           <TreeSelect
             value={moveTargetId}
             onChange={setMoveTargetId}
@@ -7785,7 +8165,7 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Create customer</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Create customer")}</span>}
           open={isCreateTemplateOpen}
           onCancel={() => { setIsCreateTemplateOpen(false); createTemplateForm.resetFields(); }}
           footer={null}
@@ -7794,21 +8174,21 @@ const getCustomerDisplayName = (record) => {
           <Form form={createTemplateForm} layout="vertical" onFinish={handleCreateCustomer}>
             <Form.Item
               name="title"
-              label="Customer name"
-              rules={[{ required: true, message: "Please enter a customer name" }]}
+              label={tr("Customer name")}
+              rules={[{ required: true, message: tr("Please enter a customer name") }]}
             >
-              <Input placeholder="Enter customer name..." />
+              <Input placeholder={tr("Enter customer name...")} />
             </Form.Item>
-            <Form.Item name="description" label="Note">
-              <Input.TextArea rows={3} placeholder="Short note..." />
+            <Form.Item name="description" label={tr("Note")}>
+              <Input.TextArea rows={3} placeholder={tr("Short note...")} />
             </Form.Item>
             <Form.Item
               name="sourceCaseId"
-              label="Source case / Root case"
-              extra="Select the source case/project related to this customer."
+              label={tr("Source case / Root case")}
+              extra={tr("Select the source case/project related to this customer.")}
             >
               <Select
-                placeholder="Select source case..."
+                placeholder={tr("Select source case...")}
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
@@ -7838,7 +8218,7 @@ const getCustomerDisplayName = (record) => {
               >
                 {projects.filter(p => !usedProjectIds.has(String(extractId(p)))).map((proj) => {
                   const pid = String(extractId(proj));
-                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
+                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -7849,19 +8229,19 @@ const getCustomerDisplayName = (record) => {
             </Form.Item>
             <Form.Item
               name="caseIds"
-              label="Currently linked cases"
-              extra="Select active cases in the system to link with this customer."
+              label={tr("Currently linked cases")}
+              extra={tr("Select active cases in the system to link with this customer.")}
             >
               <Select
                 mode="multiple"
-                placeholder="Select linked cases..."
+                placeholder={tr("Select linked cases...")}
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
               >
                 {projects.filter(p => !usedProjectIds.has(String(extractId(p)))).map((proj) => {
                   const pid = String(extractId(proj));
-                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
+                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -7871,14 +8251,14 @@ const getCustomerDisplayName = (record) => {
               </Select>
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setIsCreateTemplateOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={createTemplateLoading} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Create</Button>
+              <Button onClick={() => setIsCreateTemplateOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>
+              <Button type="primary" htmlType="submit" loading={createTemplateLoading} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>{tr("Create")}</Button>
             </div>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Edit document type</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Edit document type")}</span>}
           open={!!editTemplateRecord}
           onCancel={() => { setEditTemplateRecord(null); editTemplateForm.resetFields(); }}
           footer={null}
@@ -7891,60 +8271,60 @@ const getCustomerDisplayName = (record) => {
           >
             <Form.Item
               name="title"
-              label="Title"
-              rules={[{ required: true, message: "Please enter a title" }]}
+              label={tr("Title")}
+              rules={[{ required: true, message: tr("Please enter a title") }]}
             >
-              <Input placeholder="Enter title..." />
+              <Input placeholder={tr("Enter title...")} />
             </Form.Item>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Button onClick={() => setEditTemplateRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={editTemplateLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>Save</Button>
+              <Button onClick={() => setEditTemplateRecord(null)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>
+              <Button type="primary" htmlType="submit" loading={editTemplateLoading} style={{ borderRadius: 8, background: "#111827", borderColor: "#111827" }}>{tr("Save")}</Button>
             </div>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Rename</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Rename")}</span>}
           open={!!renameRecord}
           onCancel={() => { setRenameRecord(null); renameForm.resetFields(); }}
           onOk={handleRenameSubmit}
-          okText="Save"
-          cancelText="Cancel"
+          okText={tr("Save")}
+          cancelText={tr("Cancel")}
           destroyOnClose
         >
           <Form form={renameForm} layout="vertical">
-            <Form.Item name="name" label="New name" rules={[{ required: true, message: "Please enter a name" }]}>
-              <Input placeholder="Enter new name..." />
+            <Form.Item name="name" label={tr("New name")} rules={[{ required: true, message: tr("Please enter a name") }]}>
+              <Input placeholder={tr("Enter new name...")} />
             </Form.Item>
           </Form>
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Link Reference Case</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Link Reference Case")}</span>}
           open={isLinkCaseOpen}
           onCancel={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }}
           footer={[
-            <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
-            <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Save link</Button>,
+            <Button key="cancel" onClick={() => { setIsLinkCaseOpen(false); setLinkCaseRecord(null); linkCaseForm.resetFields(); }} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>,
+            <Button key="submit" type="primary" loading={linkCaseLoading} onClick={() => linkCaseForm.submit()} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>{tr("Save link")}</Button>,
           ]}
           destroyOnClose
         >
           <Form form={linkCaseForm} layout="vertical" onFinish={handleLinkCaseSubmit}>
             <Form.Item
               name="caseIds"
-              label="Select active Cases/Projects to link"
-              extra="The list is drawn from existing projects in the system."
+              label={tr("Select active Cases/Projects to link")}
+              extra={tr("The list is drawn from existing projects in the system.")}
             >
               <Select
                 mode="multiple"
-                placeholder="Select case..."
+                placeholder={tr("Select case...")}
                 allowClear
                 optionFilterProp="label"
                 style={{ width: "100%" }}
               >
                 {projects.filter(p => !usedProjectIds.has(String(extractId(p))) || activeLinkedIds.has(String(extractId(p)))).map((proj) => {
                   const pid = String(extractId(proj));
-                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : `Case #${pid}`;
+                  const label = proj.projectName ? `${proj.caseCode ? `[${proj.caseCode}] ` : ""}${proj.projectName}` : tr("Case #{0}", { 0: pid });
                   return (
                     <Select.Option key={pid} value={pid} label={label}>
                       {label}
@@ -7957,15 +8337,15 @@ const getCustomerDisplayName = (record) => {
         </Modal>
 
         <Modal
-          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>Move multiple items</span>}
+          title={<span style={{ fontSize: 15, fontWeight: 600, color: "#111827", fontFamily: FONT }}>{tr("Move multiple items")}</span>}
           open={isBulkMoveOpen}
           onCancel={() => setIsBulkMoveOpen(false)}
           footer={[
-            <Button key="cancel" onClick={() => setIsBulkMoveOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>Cancel</Button>,
-            <Button key="submit" type="primary" onClick={handleBulkMoveSubmit} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>Move</Button>,
+            <Button key="cancel" onClick={() => setIsBulkMoveOpen(false)} style={{ borderRadius: 8, border: "0.5px solid #E5E7EB", color: "#6B7280" }}>{tr("Cancel")}</Button>,
+            <Button key="submit" type="primary" onClick={handleBulkMoveSubmit} style={{ borderRadius: 8, background: "#185FA5", borderColor: "#185FA5" }}>{tr("Move")}</Button>,
           ]}
         >
-          <Text>Select destination folder for <b>{selectedRowKeys.length} selected item(s)</b></Text>
+          <Text>{tr("Select destination folder for")} <b>{selectedRowKeys.length} {tr("selected item(s)")}</b></Text>
           <TreeSelect
             value={bulkMoveTargetId}
             onChange={setBulkMoveTargetId}

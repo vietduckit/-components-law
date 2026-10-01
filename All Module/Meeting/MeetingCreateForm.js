@@ -11,6 +11,79 @@
  *   - gọi ctx.modal?.close() để đóng popup
  */
 
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Scheduled": "Đã lên lịch",
+  "Ongoing": "Đang diễn ra",
+  "Completed": "Đã hoàn tất",
+  "Cancelled": "Đã hủy",
+  "Internal": "Nội bộ",
+  "Case review": "Rà soát hồ sơ",
+  "Strategy": "Chiến lược",
+  "Training": "Đào tạo",
+  "Other": "Khác",
+  "User #{0}": "Người dùng #{0}",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Task #{0}": "Công việc #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Quotation #{0}": "Báo giá #{0}",
+  "Discard unsaved meeting?": "Bỏ cuộc họp chưa lưu?",
+  "Changes in this meeting form will be lost if you close it.": "Các thay đổi trong biểu mẫu cuộc họp sẽ bị mất nếu bạn đóng lại.",
+  "Discard": "Bỏ",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Host is required.": "Bắt buộc có người chủ trì.",
+  "Meeting time is invalid.": "Thời gian họp không hợp lệ.",
+  "End time must be after start time.": "Giờ kết thúc phải sau giờ bắt đầu.",
+  "Could not resolve new meeting id.": "Không xác định được ID cuộc họp mới.",
+  "Meeting created, but optional links were not saved. Please check Meeting fields.": "Đã tạo cuộc họp, nhưng các liên kết tùy chọn chưa được lưu. Vui lòng kiểm tra các trường của cuộc họp.",
+  "Meeting created.": "Đã tạo cuộc họp.",
+  "Could not create meeting.": "Không thể tạo cuộc họp.",
+  "Title": "Tiêu đề",
+  "Please enter a title.": "Vui lòng nhập tiêu đề.",
+  "Enter meeting title": "Nhập tiêu đề cuộc họp",
+  "Host": "Chủ trì",
+  "Please select a host.": "Vui lòng chọn người chủ trì.",
+  "Select host": "Chọn người chủ trì",
+  "Attendees": "Người tham dự",
+  "Invite attendees": "Mời người tham dự",
+  "Case": "Hồ sơ",
+  "Select related case (optional)": "Chọn hồ sơ liên quan (không bắt buộc)",
+  "Task": "Công việc",
+  "Select related task (optional)": "Chọn công việc liên quan (không bắt buộc)",
+  "Contract": "Hợp đồng",
+  "Select related contract (optional)": "Chọn hợp đồng liên quan (không bắt buộc)",
+  "Quotation": "Báo giá",
+  "Select related quotation (optional)": "Chọn báo giá liên quan (không bắt buộc)",
+  "Meeting time": "Thời gian họp",
+  "Please select meeting time.": "Vui lòng chọn thời gian họp.",
+  "Start time": "Giờ bắt đầu",
+  "End time": "Giờ kết thúc",
+  "Status": "Trạng thái",
+  "Type": "Loại",
+  "Location / Link": "Địa điểm / Link",
+  "Room, address or online meeting link": "Phòng, địa chỉ hoặc link họp trực tuyến",
+  "Invite attendees (host added automatically)": "Mời người tham dự (tự thêm người chủ trì)",
+  "Agenda / Description": "Chương trình / Mô tả",
+  "Write meeting agenda or notes...": "Viết chương trình họp hoặc ghi chú...",
+  "This meeting will be automatically linked to Task #{0} after creation.": "Cuộc họp sẽ tự động liên kết với Công việc #{0} sau khi tạo.",
+  "Cancel": "Hủy",
+  "Create meeting": "Tạo cuộc họp",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const {
@@ -52,18 +125,18 @@ const FALLBACK_TOKEN = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "scheduled", label: "Scheduled" },
-  { value: "ongoing",   label: "Ongoing" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "scheduled", label: tr("Scheduled") },
+  { value: "ongoing",   label: tr("Ongoing") },
+  { value: "completed", label: tr("Completed") },
+  { value: "cancelled", label: tr("Cancelled") },
 ];
 
 const TYPE_OPTIONS = [
-  { value: "internal",    label: "Internal" },
-  { value: "case_review", label: "Case review" },
-  { value: "strategy",    label: "Strategy" },
-  { value: "training",    label: "Training" },
-  { value: "other",       label: "Other" },
+  { value: "internal",    label: tr("Internal") },
+  { value: "case_review", label: tr("Case review") },
+  { value: "strategy",    label: tr("Strategy") },
+  { value: "training",    label: tr("Training") },
+  { value: "other",       label: tr("Other") },
 ];
 
 const ATTENDANCE_STATUS_CONFIRMED = "confirmed";
@@ -149,31 +222,31 @@ const userLabel = (record) =>
   record?.username ||
   record?.name ||
   record?.email ||
-  (record?.id ? `User #${record.id}` : "");
+  (record?.id ? tr("User #{0}", { 0: record.id }) : "");
 
 const caseLabel = (record) =>
   compact([
     record?.caseCode || record?.projectCode || record?.code,
     record?.projectName || record?.caseName || record?.title || record?.name,
-  ]).join(" - ") || (record?.id ? `Case #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Case #{0}", { 0: record.id }) : "");
 
 const taskLabel = (record) =>
   record?.title ||
   record?.taskName ||
   record?.name ||
-  (record?.id ? `Task #${record.id}` : "");
+  (record?.id ? tr("Task #{0}", { 0: record.id }) : "");
 
 const contractLabel = (record) =>
   compact([
     record?.contractCode || record?.contractNumber || record?.code,
     record?.contractName || record?.name || record?.title,
-  ]).join(" - ") || (record?.id ? `Contract #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Contract #{0}", { 0: record.id }) : "");
 
 const quotationLabel = (record) =>
   compact([
     record?.quotationNumber || record?.quotationCode || record?.code,
     record?.quotationName || record?.name || record?.title,
-  ]).join(" - ") || (record?.id ? `Quotation #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Quotation #{0}", { 0: record.id }) : "");
 
 const customerLabel = (record) =>
   record?.customerName ||
@@ -561,23 +634,23 @@ const MeetingCreateForm = () => {
       const keepEditing = () => {
         confirmCloseOpenRef.current = false;
       };
-      const title = "Discard unsaved meeting?";
-      const content = "Changes in this meeting form will be lost if you close it.";
+      const title = tr("Discard unsaved meeting?");
+      const content = tr("Changes in this meeting form will be lost if you close it.");
 
       if (Modal && typeof Modal.confirm === "function") {
         Modal.confirm({
           title,
           content,
-          okText: "Discard",
+          okText: tr("Discard"),
           okType: "danger",
-          cancelText: "Keep editing",
+          cancelText: tr("Keep editing"),
           onOk: confirmExit,
           onCancel: keepEditing,
         });
         return;
       }
 
-      if (window.confirm(`${title}\n${content}`)) confirmExit();
+      if (((message) => { try { return window.confirm(message); } catch { return false; } })(`${title}\n${content}`)) confirmExit();
       else keepEditing();
     },
     [forceClosePopup],
@@ -769,15 +842,15 @@ const MeetingCreateForm = () => {
     const linkedQuotationId = extractId(values.quotationId);
 
     if (!hostId) {
-      message.error("Host is required.");
+      message.error(tr("Host is required."));
       return;
     }
     if (!startAt || !endAt) {
-      message.error("Meeting time is invalid.");
+      message.error(tr("Meeting time is invalid."));
       return;
     }
     if (endAt < startAt) {
-      message.error("End time must be after start time.");
+      message.error(tr("End time must be after start time."));
       return;
     }
     setSubmitting(true);
@@ -806,7 +879,7 @@ const MeetingCreateForm = () => {
         createRes?.id,
       );
 
-      if (!newMeetingId) throw new Error("Could not resolve new meeting id.");
+      if (!newMeetingId) throw new Error(tr("Could not resolve new meeting id."));
 
       // 2. Tạo attendee records (host + guests)
       const selectedAttendeeIds = uniqueIds(values.attendeeIds || []);
@@ -851,7 +924,7 @@ const MeetingCreateForm = () => {
           });
         } catch (linkErr) {
           console.warn("[MeetingCreateForm] optional meeting links were not saved", linkErr);
-          message.warning("Meeting created, but optional links were not saved. Please check Meeting fields.");
+          message.warning(tr("Meeting created, but optional links were not saved. Please check Meeting fields."));
         }
       }
 
@@ -867,7 +940,7 @@ const MeetingCreateForm = () => {
         });
       }
 
-      message.success("Meeting created.");
+      message.success(tr("Meeting created."));
       emitMeetingChanged({ action: "created", meetingId: newMeetingId });
       await refreshNocoBaseDataBlocks();
 
@@ -876,7 +949,7 @@ const MeetingCreateForm = () => {
 
     } catch (err) {
       console.error("[MeetingCreateForm] submit failed", err);
-      message.error(err?.message || "Could not create meeting.");
+      message.error(err?.message || tr("Could not create meeting."));
     } finally {
       setSubmitting(false);
     }
@@ -932,11 +1005,11 @@ const MeetingCreateForm = () => {
           Form.Item,
           {
             name:  "title",
-            label: "Title",
-            rules: [{ required: true, message: "Please enter a title." }],
+            label: tr("Title"),
+            rules: [{ required: true, message: tr("Please enter a title.") }],
             style: titleFieldStyle,
           },
-          React.createElement(Input, { placeholder: "Enter meeting title", style: { width: "100%" } }),
+          React.createElement(Input, { placeholder: tr("Enter meeting title"), style: { width: "100%" } }),
         ),
 
         // Host
@@ -944,8 +1017,8 @@ const MeetingCreateForm = () => {
           Form.Item,
           {
             name:  "hostId",
-            label: "Host",
-            rules: [{ required: true, message: "Please select a host." }],
+            label: tr("Host"),
+            rules: [{ required: true, message: tr("Please select a host.") }],
             style: fieldStyle,
           },
           React.createElement(Select, {
@@ -953,7 +1026,7 @@ const MeetingCreateForm = () => {
             optionFilterProp: "label",
             filterOption:     selectFilterOption,
             options:          userOptions,
-            placeholder:      "Select host",
+            placeholder:      tr("Select host"),
             style:            selectStyle,
             onChange:         handleHostChange,
           }),
@@ -962,7 +1035,7 @@ const MeetingCreateForm = () => {
           Form.Item,
           {
             name:  "attendeeIds",
-            label: "Attendees",
+            label: tr("Attendees"),
             style: fieldStyle,
           },
           React.createElement(Select, {
@@ -973,7 +1046,7 @@ const MeetingCreateForm = () => {
             optionFilterProp: "label",
             filterOption:     selectFilterOption,
             options:          attendeeOptions,
-            placeholder:      "Invite attendees",
+            placeholder:      tr("Invite attendees"),
             style:            selectStyle,
             onChange:         handleAttendeeChange,
           }),
@@ -984,7 +1057,7 @@ const MeetingCreateForm = () => {
           { style: caseTaskFieldStyle },
           React.createElement(
             Form.Item,
-            { name: "caseId", label: "Case", style: fieldStyle },
+            { name: "caseId", label: tr("Case"), style: fieldStyle },
             React.createElement(Select, {
               allowClear:       true,
               showSearch:       true,
@@ -992,7 +1065,7 @@ const MeetingCreateForm = () => {
               optionLabelProp:  "title",
               filterOption:     selectFilterOption,
               options:          caseOptions,
-              placeholder:      "Select related case (optional)",
+              placeholder:      tr("Select related case (optional)"),
               style:            selectStyle,
               onChange:         handleCaseChange,
             }),
@@ -1001,7 +1074,7 @@ const MeetingCreateForm = () => {
         // Start + End datetime (span toàn bộ chiều rộng)
         React.createElement(
           Form.Item,
-          { name: "taskId", label: "Task", style: fieldStyle },
+          { name: "taskId", label: tr("Task"), style: fieldStyle },
           React.createElement(Select, {
             allowClear: true,
             showSearch: true,
@@ -1009,14 +1082,14 @@ const MeetingCreateForm = () => {
             optionLabelProp: "title",
             filterOption: selectFilterOption,
             options: taskOptions,
-            placeholder: "Select related task (optional)",
+            placeholder: tr("Select related task (optional)"),
             style: selectStyle,
           }),
         ),
         ),
         React.createElement(
           Form.Item,
-          { name: "contractId", label: "Contract", style: fieldStyle },
+          { name: "contractId", label: tr("Contract"), style: fieldStyle },
           React.createElement(Select, {
             allowClear: true,
             showSearch: true,
@@ -1024,13 +1097,13 @@ const MeetingCreateForm = () => {
             optionLabelProp: "title",
             filterOption: selectFilterOption,
             options: contractOptions,
-            placeholder: "Select related contract (optional)",
+            placeholder: tr("Select related contract (optional)"),
             style: selectStyle,
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "quotationId", label: "Quotation", style: fieldStyle },
+          { name: "quotationId", label: tr("Quotation"), style: fieldStyle },
           React.createElement(Select, {
             allowClear: true,
             showSearch: true,
@@ -1038,7 +1111,7 @@ const MeetingCreateForm = () => {
             optionLabelProp: "title",
             filterOption: selectFilterOption,
             options: quotationOptions,
-            placeholder: "Select related quotation (optional)",
+            placeholder: tr("Select related quotation (optional)"),
             style: selectStyle,
           }),
         ),
@@ -1057,14 +1130,14 @@ const MeetingCreateForm = () => {
             Form.Item,
             {
               name:  "meetingRange",
-              label: "Meeting time",
-              rules: [{ required: true, message: "Please select meeting time." }],
+              label: tr("Meeting time"),
+              rules: [{ required: true, message: tr("Please select meeting time.") }],
               style: fieldStyle,
             },
             React.createElement(RangePicker, {
               showTime: { format: "HH:mm", minuteStep: 5 },
               format: "DD/MM/YYYY HH:mm",
-              placeholder: ["Start time", "End time"],
+              placeholder: [tr("Start time"), tr("End time")],
               style: { width: "100%" },
             }),
           ),
@@ -1073,21 +1146,21 @@ const MeetingCreateForm = () => {
         // Status + Type
         React.createElement(
           Form.Item,
-          { name: "status", label: "Status", initialValue: "scheduled", style: fieldStyle },
+          { name: "status", label: tr("Status"), initialValue: "scheduled", style: fieldStyle },
           React.createElement(Select, { options: STATUS_OPTIONS, style: selectStyle }),
         ),
         React.createElement(
           Form.Item,
-          { name: "type", label: "Type", initialValue: "internal", style: fieldStyle },
+          { name: "type", label: tr("Type"), initialValue: "internal", style: fieldStyle },
           React.createElement(Select, { options: TYPE_OPTIONS, style: selectStyle }),
         ),
 
         // Location
         React.createElement(
           Form.Item,
-          { name: "location", label: "Location / Link", style: fieldStyle },
+          { name: "location", label: tr("Location / Link"), style: fieldStyle },
           React.createElement(Input, {
-            placeholder: "Room, address or online meeting link",
+            placeholder: tr("Room, address or online meeting link"),
             style: { width: "100%" },
           }),
         ),
@@ -1098,7 +1171,7 @@ const MeetingCreateForm = () => {
           Form.Item,
           {
             name:  "__legacyAttendeeIds",
-            label: "Attendees",
+            label: tr("Attendees"),
             style: { display: "none" },
           },
           React.createElement(Select, {
@@ -1108,7 +1181,7 @@ const MeetingCreateForm = () => {
             maxTagCount:      "responsive",
             optionFilterProp: "label",
             options:          userOptions,
-            placeholder:      "Invite attendees (host added automatically)",
+            placeholder:      tr("Invite attendees (host added automatically)"),
             style:            selectStyle,
           }),
         ),
@@ -1118,12 +1191,12 @@ const MeetingCreateForm = () => {
           Form.Item,
           {
             name:  "description",
-            label: "Agenda / Description",
+            label: tr("Agenda / Description"),
             style: fullFieldStyle,
           },
           React.createElement(TextArea, {
             rows:        4,
-            placeholder: "Write meeting agenda or notes...",
+            placeholder: tr("Write meeting agenda or notes..."),
             style:       { width: "100%" },
           }),
         ),
@@ -1144,7 +1217,7 @@ const MeetingCreateForm = () => {
                 color:      "#0958d9",
               },
             },
-            `This meeting will be automatically linked to Task #${initialTaskId} after creation.`,
+            tr("This meeting will be automatically linked to Task #{0} after creation.", { 0: initialTaskId }),
           )
         : null,
 
@@ -1164,7 +1237,7 @@ const MeetingCreateForm = () => {
           {
             onClick: () => requestClose(),
           },
-          "Cancel",
+          tr("Cancel"),
         ),
         React.createElement(
           Button,
@@ -1173,7 +1246,7 @@ const MeetingCreateForm = () => {
             loading: submitting,
             onClick: handleSubmit,
           },
-          "Create meeting",
+          tr("Create meeting"),
         ),
       ),
     ),

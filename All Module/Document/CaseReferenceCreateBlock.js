@@ -1,4 +1,57 @@
-  const { React } = ctx;
+  // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Create failed": "Tạo thất bại",
+  "Upload file failed": "Tải tệp lên thất bại",
+  "Company #{0}": "Công ty #{0}",
+  "Company": "Công ty",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Case": "Hồ sơ",
+  "Discard changes?": "Bỏ các thay đổi?",
+  "Your unsaved case study input will be lost.": "Dữ liệu case study chưa lưu sẽ bị mất.",
+  "Discard": "Bỏ",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Could not load create form data.": "Không thể tải dữ liệu biểu mẫu.",
+  "Created Case Study, but could not detect its ID for document upload.": "Đã tạo Case Study nhưng không xác định được ID để tải tài liệu lên.",
+  "Case Study created, but some documents failed to upload.": "Đã tạo Case Study, nhưng một số tài liệu tải lên thất bại.",
+  "Case Study created successfully.": "Đã tạo Case Study.",
+  "Create Case Study failed.": "Tạo Case Study thất bại.",
+  "Title": "Tiêu đề",
+  "Please enter a title": "Vui lòng nhập tiêu đề",
+  "Enter case study title...": "Nhập tiêu đề case study...",
+  "Internal Company": "Công ty nội bộ",
+  "Please select an internal company": "Vui lòng chọn công ty nội bộ",
+  "Select company...": "Chọn công ty...",
+  "Summary": "Tóm tắt",
+  "Summarize the case study content...": "Tóm tắt nội dung case study...",
+  "Linked Cases": "Hồ sơ liên kết",
+  "Link this case study to active cases in the system.": "Liên kết case study này với các hồ sơ đang hoạt động.",
+  "Select linked cases...": "Chọn hồ sơ liên kết...",
+  "Upload documents (optional)": "Tải tài liệu lên (không bắt buộc)",
+  "Choose file": "Chọn tệp",
+  "Choose folder": "Chọn thư mục",
+  "Clear selection": "Bỏ chọn",
+  "{0} file": "{0} tệp",
+  "folder with {0} files": "thư mục gồm {0} tệp",
+  "Cancel": "Hủy",
+  "Submit": "Gửi",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React } = ctx;
   const { useCallback, useEffect, useMemo, useRef, useState } = React;
   const {
     Button,
@@ -188,7 +241,7 @@
         console.warn("[CaseReferenceCreateBlock] create fallback failed", error);
       }
     }
-    throw lastError || new Error("Create failed");
+    throw lastError || new Error(tr("Create failed"));
   };
 
   const legalReferenceScopeVariants = (payload) => {
@@ -238,7 +291,7 @@
       headers: { "Content-Type": "multipart/form-data" },
     });
     const attachment = uploadRes?.data?.data;
-    if (!attachment?.id) throw new Error("Upload file failed");
+    if (!attachment?.id) throw new Error(tr("Upload file failed"));
     return attachment;
   };
 
@@ -251,11 +304,11 @@
 
   const companyLabel = (record) =>
     firstPresent(record, ["shortName", "name", "legalName", "companyName", "title"]) ||
-    (record?.id ? `Company #${record.id}` : "Company");
+    (record?.id ? tr("Company #{0}", { 0: record.id }) : tr("Company"));
 
   const customerLabel = (record) =>
     firstPresent(record, ["shortName", "customerName", "name", "fullName"]) ||
-    (record?.id ? `Customer #${record.id}` : "");
+    (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
   const projectLabel = (record) => {
     const customer = record?.customer || record?.customers;
@@ -264,7 +317,7 @@
         firstPresent(record, ["caseCode", "projectCode", "code"]),
         customer ? customerLabel(customer) : "",
         firstPresent(record, ["projectName", "caseName", "name", "title"]),
-      ]).join(" - ") || (record?.id ? `Case #${record.id}` : "Case")
+      ]).join(" - ") || (record?.id ? tr("Case #{0}", { 0: record.id }) : tr("Case"))
     );
   };
 
@@ -446,10 +499,10 @@
     if (Modal?.confirm) {
       showDiscardConfirm._open = true;
       Modal.confirm({
-        title: "Discard changes?",
-        content: "Your unsaved case study input will be lost.",
-        okText: "Discard",
-        cancelText: "Keep editing",
+        title: tr("Discard changes?"),
+        content: tr("Your unsaved case study input will be lost."),
+        okText: tr("Discard"),
+        cancelText: tr("Keep editing"),
         okButtonProps: { danger: true },
         maskClosable: false,
         onCancel: () => {
@@ -744,7 +797,7 @@
         })
         .catch((error) => {
           console.error("[CaseReferenceCreateBlock] load failed", error);
-          message.error("Could not load create form data.");
+          message.error(tr("Could not load create form data."));
         })
         .finally(() => {
           if (mounted) setLoading(false);
@@ -804,7 +857,7 @@
 
         if ((files.length || folderFiles.length) && !referenceId) {
           uploadFailed = true;
-          message.warning("Created Case Study, but could not detect its ID for document upload.");
+          message.warning(tr("Created Case Study, but could not detect its ID for document upload."));
         }
 
         const uploadContext = {
@@ -825,9 +878,9 @@
         }
 
         if (uploadFailed) {
-          message.warning("Case Study created, but some documents failed to upload.");
+          message.warning(tr("Case Study created, but some documents failed to upload."));
         } else {
-          message.success("Case Study created successfully.");
+          message.success(tr("Case Study created successfully."));
         }
 
         // Flip savingRef before closing so the guarded close patch (which
@@ -840,7 +893,7 @@
         closeCurrentPopup();
       } catch (error) {
         console.error("[CaseReferenceCreateBlock] submit failed", error);
-        message.error(error?.message || "Create Case Study failed.");
+        message.error(error?.message || tr("Create Case Study failed."));
       } finally {
         setSavingState(false);
       }
@@ -904,10 +957,10 @@
               Form.Item,
               {
                 name: "title",
-                label: "Title",
-                rules: [{ required: true, message: "Please enter a title" }],
+                label: tr("Title"),
+                rules: [{ required: true, message: tr("Please enter a title") }],
               },
-              React.createElement(Input, { placeholder: "Enter case study title..." }),
+              React.createElement(Input, { placeholder: tr("Enter case study title...") }),
             ),
           ),
           React.createElement(
@@ -917,13 +970,13 @@
               Form.Item,
               {
                 name: "internalCompanyId",
-                label: "Internal Company",
-                rules: [{ required: true, message: "Please select an internal company" }],
+                label: tr("Internal Company"),
+                rules: [{ required: true, message: tr("Please select an internal company") }],
               },
               React.createElement(Select, {
                 showSearch: true,
                 allowClear: true,
-                placeholder: "Select company...",
+                placeholder: tr("Select company..."),
                 optionFilterProp: "label",
                 options: companyOptions,
               }),
@@ -932,24 +985,24 @@
         ),
         React.createElement(
           Form.Item,
-          { name: "description", label: "Summary" },
+          { name: "description", label: tr("Summary") },
           React.createElement(Input.TextArea, {
             rows: 4,
-            placeholder: "Summarize the case study content...",
+            placeholder: tr("Summarize the case study content..."),
           }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "caseIds",
-            label: "Linked Cases",
-            extra: "Link this case study to active cases in the system.",
+            label: tr("Linked Cases"),
+            extra: tr("Link this case study to active cases in the system."),
           },
           React.createElement(Select, {
             mode: "multiple",
             showSearch: true,
             allowClear: true,
-            placeholder: "Select linked cases...",
+            placeholder: tr("Select linked cases..."),
             filterOption: (input, option) =>
               (option?.searchText || "").toLowerCase().includes(String(input).toLowerCase()),
             options: projectOptions,
@@ -969,7 +1022,7 @@
           React.createElement(
             Typography.Text,
             { strong: true, style: { display: "block", marginBottom: 10, color: "#374151" } },
-            "Upload documents (optional)",
+            tr("Upload documents (optional)"),
           ),
           React.createElement(
             "div",
@@ -977,12 +1030,12 @@
             React.createElement(
               Button,
               { onClick: () => fileInputRef.current?.click() },
-              "Choose file",
+              tr("Choose file"),
             ),
             React.createElement(
               Button,
               { onClick: () => folderInputRef.current?.click() },
-              "Choose folder",
+              tr("Choose folder"),
             ),
             files.length || folderFiles.length
               ? React.createElement(
@@ -995,7 +1048,7 @@
                       setFolderFiles([]);
                     },
                   },
-                  "Clear selection",
+                  tr("Clear selection"),
                 )
               : null,
           ),
@@ -1003,9 +1056,9 @@
             ? React.createElement(
                 "div",
                 { style: { marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" } },
-                files.length ? React.createElement(Tag, { color: "blue" }, `${files.length} file`) : null,
+                files.length ? React.createElement(Tag, { color: "blue" }, tr("{0} file", { 0: files.length })) : null,
                 folderFiles.length
-                  ? React.createElement(Tag, { color: "green" }, `folder with ${folderFiles.length} files`)
+                  ? React.createElement(Tag, { color: "green" }, tr("folder with {0} files", { 0: folderFiles.length }))
                   : null,
               )
             : null,
@@ -1035,11 +1088,11 @@
         React.createElement(
           "div",
           { style: { display: "flex", justifyContent: "flex-end", gap: 8 } },
-          React.createElement(Button, { onClick: handleCancel, disabled: saving }, "Cancel"),
+          React.createElement(Button, { onClick: handleCancel, disabled: saving }, tr("Cancel")),
           React.createElement(
             Button,
             { type: "primary", htmlType: "submit", loading: saving },
-            "Submit",
+            tr("Submit"),
           ),
         ),
       ),

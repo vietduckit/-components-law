@@ -1,3 +1,30 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "No tasks have been created for this case yet": "Chưa có công việc được tạo cho case này",
+  "No tasks": "Không có công việc",
+  "Task progress:": "Tiến độ công việc:",
+  "Done:": "Hoàn thành:",
+  "In progress:": "Đang xử lý:",
+  "To do:": "Chưa thực hiện:",
+  "Other:": "Khác:",
+  "Cancelled:": "Đã hủy:",
+  "(not counted in progress)": "(không tính vào tiến độ)",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { useState, useEffect, useCallback } = ctx.React;
 const { Progress, Spin, Tooltip } = ctx.antd;
 
@@ -153,9 +180,9 @@ function JsColumnCaseProgress() {
         return (
             <div style={{ display: 'flex', alignItems: 'center' }}>
                 <SpinStyle />
-                <Tooltip title="Chưa có công việc được tạo cho case này">
+                <Tooltip title={tr("No tasks have been created for this case yet")}>
                     <span style={{ fontSize: '12px', color: '#bfbfbf', fontStyle: 'italic', display: 'inline-flex', alignItems: 'center' }}>
-                        <InfoIcon /> Không có công việc
+                        <InfoIcon /> {tr("No tasks")}
                     </span>
                 </Tooltip>
                 <RefreshIcon onClick={() => loadData(false)} spinning={refreshing} />
@@ -177,25 +204,25 @@ function JsColumnCaseProgress() {
     const tooltipContent = (
         <div style={{ padding: '4px' }}>
             <div style={{ fontWeight: 600, marginBottom: 8, borderBottom: '1px solid #f0f0f0', paddingBottom: 4 }}>
-                Tiến độ công việc: {percent}%
+                {tr("Task progress:")} {percent}%
             </div>
             <div style={{ fontSize: '11px', lineHeight: '2.0', display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <DoneIcon /> <span>Hoàn thành: <strong>{doneCount}</strong></span>
+                    <DoneIcon /> <span>{tr("Done:")} <strong>{doneCount}</strong></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <InProgressIcon /> <span>Đang xử lý: <strong>{inProgressCount}</strong></span>
+                    <InProgressIcon /> <span>{tr("In progress:")} <strong>{inProgressCount}</strong></span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <ToDoIcon /> <span>Chưa thực hiện: <strong>{toDoCount}</strong></span>
+                    <ToDoIcon /> <span>{tr("To do:")} <strong>{toDoCount}</strong></span>
                 </div>
                 {otherCount > 0 && (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <OtherIcon /> <span>Khác: <strong>{otherCount}</strong></span>
+                        <OtherIcon /> <span>{tr("Other:")} <strong>{otherCount}</strong></span>
                     </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', color: '#8c8c8c', borderTop: '1px dashed #f0f0f0', marginTop: 4, paddingTop: 4 }}>
-                    <CancelledIcon /> <span>Đã hủy: <strong>{cancelledCount}</strong> (không tính vào tiến độ)</span>
+                    <CancelledIcon /> <span>{tr("Cancelled:")} <strong>{cancelledCount}</strong> {tr("(not counted in progress)")}</span>
                 </div>
             </div>
         </div>

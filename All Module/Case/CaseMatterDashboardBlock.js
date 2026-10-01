@@ -4,7 +4,134 @@
       // Data collections: projects/cases, tasks, projectServices,
       // customers, lawyers, contracts.
       // ============================================================
-      const { React, antd } = ctx;
+      // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "New": "Tạo mới",
+  "In progress": "Đang làm",
+  "Waiting response": "Chờ phản hồi",
+  "Completed": "Đã hoàn tất",
+  "Overdue": "Quá hạn",
+  "High": "Cao",
+  "Medium": "Trung bình",
+  "Low": "Thấp",
+  "Case": "Hồ sơ",
+  "Client": "Khách hàng",
+  "Case Manager": "Quản lý hồ sơ",
+  "Internal Company": "Công ty nội bộ",
+  "Services": "Dịch vụ",
+  "Status": "Trạng thái",
+  "Priority": "Ưu tiên",
+  "Start Date": "Ngày bắt đầu",
+  "Deadline": "Hạn",
+  "Closed Date": "Ngày đóng",
+  "Contract": "Hợp đồng",
+  "Task Progress": "Tiến độ công việc",
+  "Revenue": "Doanh thu",
+  "No grouping": "Không nhóm",
+  "Nearest deadline": "Hạn gần nhất",
+  "Lowest progress first": "Tiến độ thấp nhất trước",
+  "Highest priority first": "Ưu tiên cao nhất trước",
+  "Recently updated": "Cập nhật gần đây",
+  "Highest revenue first": "Doanh thu cao nhất trước",
+  "Month": "Tháng",
+  "Case count": "Số hồ sơ",
+  "Average progress": "Tiến độ trung bình",
+  "Overdue cases": "Hồ sơ quá hạn",
+  "Horizontal bar": "Thanh ngang",
+  "Column": "Cột",
+  "Donut": "Donut",
+  "Line": "Dòng",
+  "{0}B VND": "{0} tỷ VND",
+  "{0}M VND": "{0} triệu VND",
+  "Closed": "Đã đóng",
+  "No deadline": "Không có hạn",
+  "{0} days overdue": "Quá hạn {0} ngày",
+  "Due today": "Đến hạn hôm nay",
+  "{0} days left": "Còn {0} ngày",
+  "Unassigned": "Chưa phân công",
+  "No client": "Không có khách hàng",
+  "No service": "Không có dịch vụ",
+  "Unspecified": "Chưa xác định",
+  "All cases": "Tất cả hồ sơ",
+  "T{0}": "T{0}",
+  "No data": "Không có dữ liệu",
+  "No date": "Không có ngày",
+  "Metric": "Chỉ số",
+  "Number of cases": "Số hồ sơ",
+  "Revenue (VND)": "Doanh thu (VND)",
+  "Average task progress (%)": "Tiến độ công việc trung bình (%)",
+  "Number of overdue cases": "Số hồ sơ quá hạn",
+  "Dimension": "Chiều phân tích",
+  "{0} distribution by {1}": "Phân bố {0} theo {1}",
+  "X-axis: {0} · Y-axis: {1}": "Trục X: {0} · Trục Y: {1}",
+  "Donut charts use legend and tooltip instead of X/Y axes.": "Biểu đồ donut dùng chú giải và tooltip thay cho trục X/Y.",
+  "Horizontal bar is recommended for long case, client, lawyer, company, and service names.": "Nên dùng thanh ngang cho tên hồ sơ, khách hàng, luật sư, công ty và dịch vụ dài.",
+  "Line charts work best with Month. For long category names, use Bar to read labels more comfortably.": "Biểu đồ đường phù hợp nhất với Tháng. Với tên danh mục dài, dùng biểu đồ thanh để dễ đọc nhãn.",
+  "Hover a point or bar to view the full label and exact value.": "Rê chuột lên điểm hoặc thanh để xem nhãn đầy đủ và giá trị chính xác.",
+  "Chart.js could not be loaded in this NocoBase environment": "Không tải được Chart.js trong môi trường NocoBase này",
+  "Client #{0}": "Khách hàng #{0}",
+  "User #{0}": "Người dùng #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Service #{0}": "Dịch vụ #{0}",
+  "Service": "Dịch vụ",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Table": "Bảng",
+  "Charts": "Biểu đồ",
+  "Refresh": "Làm mới",
+  "Visible Columns": "Cột hiển thị",
+  "Column Width": "Độ rộng cột",
+  "Reset column width": "Đặt lại độ rộng cột",
+  "Search case code, title, client, lawyer...": "Tìm mã hồ sơ, tiêu đề, khách hàng, luật sư...",
+  "Case List": "Danh sách hồ sơ",
+  "Display settings": "Cài đặt hiển thị",
+  "No cases match the current filters": "Không có hồ sơ nào khớp bộ lọc hiện tại",
+  "Previous": "Trước",
+  "Page": "Trang",
+  "Next": "Kế tiếp",
+  "Cases by Status": "Hồ sơ theo trạng thái",
+  "Based on the current filters": "Theo bộ lọc hiện tại",
+  "Intake and Completion Trend": "Xu hướng tiếp nhận và hoàn thành",
+  "Last 8 months": "8 tháng gần nhất",
+  "Intake": "Tiếp nhận",
+  "Revenue by Client": "Doanh thu theo khách hàng",
+  "Total value from services/contracts": "Tổng giá trị từ dịch vụ/hợp đồng",
+  "No revenue data available": "Không có dữ liệu doanh thu",
+  "Workload by Owner": "Khối lượng theo người phụ trách",
+  "Top 6 lawyers by case count": "6 luật sư có nhiều hồ sơ nhất",
+  "No owner data available": "Không có dữ liệu người phụ trách",
+  "Date Range": "Khoảng thời gian",
+  "cases in chart": "hồ sơ trong biểu đồ",
+  "Chart Configuration": "Cấu hình biểu đồ",
+  "No chart data available": "Không có dữ liệu biểu đồ",
+  "Total Cases": "Tổng hồ sơ",
+  "All case matters": "Tất cả vụ việc",
+  "In Progress": "Đang làm",
+  "{0}% of total cases": "{0}% tổng số hồ sơ",
+  "Needs priority attention": "Cần ưu tiên xử lý",
+  "Due Soon": "Sắp đến hạn",
+  "Within the next 7 days": "Trong 7 ngày tới",
+  "Contract Revenue": "Doanh thu hợp đồng",
+  "From services and contracts": "Từ dịch vụ và hợp đồng",
+  "Loading case data...": "Đang tải dữ liệu hồ sơ...",
+  "No data available for chart display": "Không có dữ liệu để hiển thị biểu đồ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React, antd } = ctx;
       const { useCallback, useEffect, useMemo, useRef, useState } = React;
       const {
         Button,
@@ -42,25 +169,25 @@
 
       const STATUS_META = {
         moi: {
-          label: "New",
+          label: tr("New"),
           text: "#475569",
           bg: "#eef1f5",
           chart: "#94a3b8",
         },
         dangXuLy: {
-          label: "In progress",
+          label: tr("In progress"),
           text: "#1d4ed8",
           bg: "#e8f0ff",
           chart: "#2f6bd8",
         },
         choPhanHoi: {
-          label: "Waiting response",
+          label: tr("Waiting response"),
           text: "#b45309",
           bg: "#fdf3e3",
           chart: "#e0a94b",
         },
         hoanThanh: {
-          label: "Completed",
+          label: tr("Completed"),
           text: "#15803d",
           bg: "#e7f4ec",
           chart: "#2f9e6b",
@@ -68,32 +195,32 @@
       };
 
       const OVERDUE_META = {
-        label: "Overdue",
+        label: tr("Overdue"),
         text: "#b91c1c",
         bg: "#fdeceb",
         chart: "#dc2626",
       };
 
       const PRIORITY_META = {
-        cao: { label: "High", color: "#b91c1c", weight: 3 },
-        trungBinh: { label: "Medium", color: "#b45309", weight: 2 },
-        thap: { label: "Low", color: "#64748b", weight: 1 },
+        cao: { label: tr("High"), color: "#b91c1c", weight: 3 },
+        trungBinh: { label: tr("Medium"), color: "#b45309", weight: 2 },
+        thap: { label: tr("Low"), color: "#64748b", weight: 1 },
       };
 
       const COLUMN_DEFS = [
-        { key: "caseInfo", label: "Case" },
-        { key: "customer", label: "Client" },
-        { key: "projectManager", label: "Case Manager" },
-        { key: "internalCompany", label: "Internal Company" },
-        { key: "services", label: "Services" },
-        { key: "status", label: "Status" },
-        { key: "priority", label: "Priority" },
-        { key: "date", label: "Start Date" },
-        { key: "deadline", label: "Deadline" },
-        { key: "closedDate", label: "Closed Date" },
-        { key: "contract", label: "Contract" },
-        { key: "taskProgress", label: "Task Progress" },
-        { key: "revenue", label: "Revenue" },
+        { key: "caseInfo", label: tr("Case") },
+        { key: "customer", label: tr("Client") },
+        { key: "projectManager", label: tr("Case Manager") },
+        { key: "internalCompany", label: tr("Internal Company") },
+        { key: "services", label: tr("Services") },
+        { key: "status", label: tr("Status") },
+        { key: "priority", label: tr("Priority") },
+        { key: "date", label: tr("Start Date") },
+        { key: "deadline", label: tr("Deadline") },
+        { key: "closedDate", label: tr("Closed Date") },
+        { key: "contract", label: tr("Contract") },
+        { key: "taskProgress", label: tr("Task Progress") },
+        { key: "revenue", label: tr("Revenue") },
       ];
 
       const CONFIGURABLE_COLUMN_DEFS = COLUMN_DEFS.filter(
@@ -134,46 +261,46 @@
       };
 
       const GROUP_OPTIONS = [
-        { value: "none", label: "No grouping" },
-        { value: "status", label: "Status" },
-        { value: "projectManager", label: "Case Manager" },
-        { value: "customer", label: "Client" },
-        { value: "services", label: "Services" },
-        { value: "internalCompany", label: "Internal Company" },
-        { value: "priority", label: "Priority" },
+        { value: "none", label: tr("No grouping") },
+        { value: "status", label: tr("Status") },
+        { value: "projectManager", label: tr("Case Manager") },
+        { value: "customer", label: tr("Client") },
+        { value: "services", label: tr("Services") },
+        { value: "internalCompany", label: tr("Internal Company") },
+        { value: "priority", label: tr("Priority") },
       ];
 
       const SORT_OPTIONS = [
-        { value: "deadline", label: "Nearest deadline" },
-        { value: "taskProgress", label: "Lowest progress first" },
-        { value: "priority", label: "Highest priority first" },
-        { value: "createdAt", label: "Recently updated" },
-        { value: "revenue", label: "Highest revenue first" },
+        { value: "deadline", label: tr("Nearest deadline") },
+        { value: "taskProgress", label: tr("Lowest progress first") },
+        { value: "priority", label: tr("Highest priority first") },
+        { value: "createdAt", label: tr("Recently updated") },
+        { value: "revenue", label: tr("Highest revenue first") },
       ];
 
       const CHART_DIMENSION_OPTIONS = [
-        { value: "case", label: "Case" },
-        { value: "status", label: "Status" },
-        { value: "priority", label: "Priority" },
-        { value: "customer", label: "Client" },
-        { value: "projectManager", label: "Case Manager" },
-        { value: "services", label: "Services" },
-        { value: "internalCompany", label: "Internal Company" },
-        { value: "month", label: "Month" },
+        { value: "case", label: tr("Case") },
+        { value: "status", label: tr("Status") },
+        { value: "priority", label: tr("Priority") },
+        { value: "customer", label: tr("Client") },
+        { value: "projectManager", label: tr("Case Manager") },
+        { value: "services", label: tr("Services") },
+        { value: "internalCompany", label: tr("Internal Company") },
+        { value: "month", label: tr("Month") },
       ];
 
       const CHART_METRIC_OPTIONS = [
-        { value: "count", label: "Case count" },
-        { value: "revenue", label: "Revenue" },
-        { value: "avgProgress", label: "Average progress" },
-        { value: "overdue", label: "Overdue cases" },
+        { value: "count", label: tr("Case count") },
+        { value: "revenue", label: tr("Revenue") },
+        { value: "avgProgress", label: tr("Average progress") },
+        { value: "overdue", label: tr("Overdue cases") },
       ];
 
     const CHART_TYPE_OPTIONS = [
-      { value: "bar", label: "Horizontal bar" },
-      { value: "column", label: "Column" },
-      { value: "donut", label: "Donut" },
-      { value: "line", label: "Line" },
+      { value: "bar", label: tr("Horizontal bar") },
+      { value: "column", label: tr("Column") },
+      { value: "donut", label: tr("Donut") },
+      { value: "line", label: tr("Line") },
       ];
 
       const DEFAULT_CHART_A = {
@@ -1249,14 +1376,14 @@
       function fmtMoney(value) {
         const number = Number(value || 0);
         if (number >= 1000000000) {
-          return `${(number / 1000000000).toLocaleString("en-US", {
+          return tr("{0}B VND", { 0: (number / 1000000000).toLocaleString("en-US", {
             maximumFractionDigits: 1,
-          })}B VND`;
+          }) });
         }
         if (number >= 1000000) {
-          return `${(number / 1000000).toLocaleString("en-US", {
+          return tr("{0}M VND", { 0: (number / 1000000).toLocaleString("en-US", {
             maximumFractionDigits: 1,
-          })}M VND`;
+          }) });
         }
         return `${number.toLocaleString("en-US")} VND`;
       }
@@ -1325,7 +1452,7 @@
       function deadlineMeta(deadline, statusKey) {
         if (statusKey === "hoanThanh") {
           return {
-            label: "Closed",
+            label: tr("Closed"),
             color: STATUS_META.hoanThanh.text,
             isOverdue: false,
             isUpcoming: false,
@@ -1335,7 +1462,7 @@
         const day = startOfDay(deadline);
         if (!day) {
           return {
-            label: "No deadline",
+            label: tr("No deadline"),
             color: TOKENS.muted,
             isOverdue: false,
             isUpcoming: false,
@@ -1345,7 +1472,7 @@
         const diff = Math.round((day.getTime() - TODAY.getTime()) / 86400000);
         if (diff < 0) {
           return {
-            label: `${Math.abs(diff)} days overdue`,
+            label: tr("{0} days overdue", { 0: Math.abs(diff) }),
             color: OVERDUE_META.text,
             isOverdue: true,
             isUpcoming: false,
@@ -1354,7 +1481,7 @@
         }
         if (diff <= 7) {
           return {
-            label: diff === 0 ? "Due today" : `${diff} days left`,
+            label: diff === 0 ? tr("Due today") : tr("{0} days left", { 0: diff }),
             color: PRIORITY_META.trungBinh.color,
             isOverdue: false,
             isUpcoming: true,
@@ -1362,7 +1489,7 @@
           };
         }
         return {
-          label: `${diff} days left`,
+          label: tr("{0} days left", { 0: diff }),
           color: TOKENS.muted,
           isOverdue: false,
           isUpcoming: false,
@@ -1419,7 +1546,15 @@
           },
         );
 
-        const response = await window.fetch(requestUrl.toString(), {
+        // Fallback only (fetchListOnce catches it): window.fetch is blocked in
+        // the RunJS sandbox, where this simply yields no rows.
+        let nativeFetch = null;
+        try {
+          nativeFetch = window.fetch.bind(window);
+        } catch {
+          return [];
+        }
+        const response = await nativeFetch(requestUrl.toString(), {
           method: "GET",
           credentials: "include",
           headers: { Accept: "application/json" },
@@ -1497,7 +1632,7 @@
 
       function statusLabel(key) {
         if (key === "overdue") return OVERDUE_META.label;
-        return STATUS_META[key]?.label || "New";
+        return STATUS_META[key]?.label || tr("New");
       }
 
       function statusColorMeta(key) {
@@ -1508,15 +1643,15 @@
       function groupLabel(groupBy, record) {
         if (groupBy === "status") return statusLabel(statusChipValue(record));
         if (groupBy === "projectManager")
-          return record.projectManagerName || "Unassigned";
+          return record.projectManagerName || tr("Unassigned");
         if (groupBy === "customer")
-          return record.customerName || "No client";
-        if (groupBy === "services") return record.serviceName || "No service";
+          return record.customerName || tr("No client");
+        if (groupBy === "services") return record.serviceName || tr("No service");
         if (groupBy === "internalCompany")
-          return record.internalCompanyName || "Unspecified";
+          return record.internalCompanyName || tr("Unspecified");
         if (groupBy === "priority")
-          return PRIORITY_META[record.priorityKey]?.label || "Medium";
-        return "All cases";
+          return PRIORITY_META[record.priorityKey]?.label || tr("Medium");
+        return tr("All cases");
       }
 
       function compareRecords(sortKey) {
@@ -1566,7 +1701,7 @@
           );
           return {
             key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
-            label: `T${date.getMonth() + 1}`,
+            label: tr("T{0}", { 0: date.getMonth() + 1 }),
             created: 0,
             completed: 0,
           };
@@ -1583,7 +1718,7 @@
         const map = new Map();
         records.forEach((record) => {
           const label = typeof key === "function" ? key(record) : record[key];
-          const normalized = label || "No data";
+          const normalized = label || tr("No data");
           map.set(normalized, (map.get(normalized) || 0) + valueSelector(record));
         });
         return Array.from(map.entries())
@@ -1626,21 +1761,21 @@
       }
       if (dimension === "status") return statusLabel(statusChipValue(record));
         if (dimension === "priority")
-          return PRIORITY_META[record.priorityKey]?.label || "Medium";
+          return PRIORITY_META[record.priorityKey]?.label || tr("Medium");
         if (dimension === "customer")
-          return record.customerName || "No client";
+          return record.customerName || tr("No client");
         if (dimension === "projectManager")
-          return record.projectManagerName || "Unassigned";
-        if (dimension === "services") return record.serviceName || "No service";
+          return record.projectManagerName || tr("Unassigned");
+        if (dimension === "services") return record.serviceName || tr("No service");
         if (dimension === "internalCompany")
-          return record.internalCompanyName || "Unspecified";
+          return record.internalCompanyName || tr("Unspecified");
         if (dimension === "month") {
           const date = toDate(record.createdAt || record.date || record.deadline);
           return date
             ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
-            : "No date";
+            : tr("No date");
         }
-        return "No data";
+        return tr("No data");
       }
 
       function metricValue(record, metric) {
@@ -1674,7 +1809,7 @@
               return order.indexOf(a.label) - order.indexOf(b.label);
             }
             if (config.dimension === "priority") {
-              const order = ["High", "Medium", "Low"];
+              const order = [tr("High"), tr("Medium"), tr("Low")];
               return order.indexOf(a.label) - order.indexOf(b.label);
             }
             return b.value - a.value;
@@ -1693,23 +1828,23 @@
       }
 
       function chartMetricLabel(metric) {
-        if (metric === "count") return "Case count";
-        if (metric === "revenue") return "Revenue";
-        if (metric === "avgProgress") return "Average progress";
-        if (metric === "overdue") return "Overdue cases";
-        return optionLabel(CHART_METRIC_OPTIONS, metric, "Metric");
+        if (metric === "count") return tr("Case count");
+        if (metric === "revenue") return tr("Revenue");
+        if (metric === "avgProgress") return tr("Average progress");
+        if (metric === "overdue") return tr("Overdue cases");
+        return optionLabel(CHART_METRIC_OPTIONS, metric, tr("Metric"));
       }
 
       function chartMetricAxisLabel(metric) {
-        if (metric === "count") return "Number of cases";
-        if (metric === "revenue") return "Revenue (VND)";
-        if (metric === "avgProgress") return "Average task progress (%)";
-        if (metric === "overdue") return "Number of overdue cases";
+        if (metric === "count") return tr("Number of cases");
+        if (metric === "revenue") return tr("Revenue (VND)");
+        if (metric === "avgProgress") return tr("Average task progress (%)");
+        if (metric === "overdue") return tr("Number of overdue cases");
         return chartMetricLabel(metric);
       }
 
       function chartDimensionLabel(dimension) {
-        return optionLabel(CHART_DIMENSION_OPTIONS, dimension, "Dimension");
+        return optionLabel(CHART_DIMENSION_OPTIONS, dimension, tr("Dimension"));
       }
 
       function chartTitleFromConfig(config) {
@@ -1720,17 +1855,17 @@
 
       function chartSubtitleFromConfig(config) {
         if (config.type === "donut") {
-          return `${chartMetricLabel(config.metric)} distribution by ${chartDimensionLabel(
+          return tr("{0} distribution by {1}", { 0: chartMetricLabel(config.metric), 1: chartDimensionLabel(
             config.dimension,
-          )}`;
+          ) });
         }
-        return `X-axis: ${chartDimensionLabel(
+        return tr("X-axis: {0} · Y-axis: {1}", { 0: chartDimensionLabel(
           config.dimension,
-        )} · Y-axis: ${chartMetricAxisLabel(config.metric)}`;
+        ), 1: chartMetricAxisLabel(config.metric) });
       }
 
       function compactAxisLabel(value, dimension, maxLength = 18) {
-        const text = String(value || "No data");
+        const text = String(value || tr("No data"));
         if (dimension === "month" && /^\d{4}-\d{2}$/.test(text)) {
           return `${text.slice(5)}/${text.slice(2, 4)}`;
         }
@@ -1768,8 +1903,8 @@
     }
 
     function wrapChartLabel(value, maxChars = 18, maxLines = 3) {
-      const text = String(value || "No data").trim();
-      if (!text) return ["No data"];
+      const text = String(value || tr("No data")).trim();
+      if (!text) return [tr("No data")];
       const words = text.split(/\s+/);
       const lines = [];
       let current = "";
@@ -1816,15 +1951,15 @@
 
     function chartKindNote(config) {
       if (config.type === "donut") {
-        return "Donut charts use legend and tooltip instead of X/Y axes.";
+        return tr("Donut charts use legend and tooltip instead of X/Y axes.");
       }
       if (config.type === "bar") {
-        return "Horizontal bar is recommended for long case, client, lawyer, company, and service names.";
+        return tr("Horizontal bar is recommended for long case, client, lawyer, company, and service names.");
       }
       if (config.type === "line" && config.dimension !== "month") {
-        return "Line charts work best with Month. For long category names, use Bar to read labels more comfortably.";
+        return tr("Line charts work best with Month. For long category names, use Bar to read labels more comfortably.");
       }
-      return "Hover a point or bar to view the full label and exact value.";
+      return tr("Hover a point or bar to view the full label and exact value.");
     }
 
     function buildChartJsSpec(data, config) {
@@ -2056,7 +2191,7 @@
       if (error) {
         return (
           <div className="cmd-chart-canvas-loading">
-            <Empty description="Chart.js could not be loaded in this NocoBase environment" />
+            <Empty description={tr("Chart.js could not be loaded in this NocoBase environment")} />
           </div>
         );
       }
@@ -2160,7 +2295,7 @@
             const id = extractId(customer.id);
             if (!id) return;
             map[String(id)] =
-              customer.shortName || customer.customerName || `Client #${id}`;
+              customer.shortName || customer.customerName || tr("Client #{0}", { 0: id });
           });
           return map;
         }, [customers]);
@@ -2186,7 +2321,7 @@
           users.forEach((user) => {
             const id = extractId(user.id);
             if (!id || map[String(id)]) return;
-            map[String(id)] = user.nickname || user.name || user.username || `User #${id}`;
+            map[String(id)] = user.nickname || user.name || user.username || tr("User #{0}", { 0: id });
           });
           return map;
         }, [lawyers, users]);
@@ -2215,7 +2350,7 @@
             const label = [contract.contractCode, contract.contractName]
               .filter(Boolean)
               .join(" - ");
-            map[String(id)] = label || `Contract #${id}`;
+            map[String(id)] = label || tr("Contract #{0}", { 0: id });
           });
           return map;
         }, [contracts]);
@@ -2250,7 +2385,7 @@
           projects.forEach((project) => {
             const projectId = extractId(project.id);
             collectIds(project.serviceId).forEach((serviceId) => {
-              addLabel(projectId, `Service #${serviceId}`);
+              addLabel(projectId, tr("Service #{0}", { 0: serviceId }));
             });
             relationList(project.services).forEach((service) => {
               addLabel(
@@ -2280,7 +2415,7 @@
             const label =
               firstPresent(service, ["serviceName", "serviceType"]) ||
               labelFromRecord(service.services, ["serviceName", "name"], "") ||
-              (serviceId ? `Service #${serviceId}` : "Service");
+              (serviceId ? tr("Service #{0}", { 0: serviceId }) : tr("Service"));
             addLabel(projectId, label);
           });
           return map;
@@ -2348,7 +2483,7 @@
                 "",
               ) ||
               customerMap[String(customerId)] ||
-              (customerId ? `Client #${customerId}` : "No client");
+              (customerId ? tr("Client #{0}", { 0: customerId }) : tr("No client"));
             const projectManagerName =
               labelFromRecord(
                 managerRelation,
@@ -2356,7 +2491,7 @@
                 "",
               ) ||
               lawyerMap[String(managerId)] ||
-              (managerId ? `Lawyer #${managerId}` : "Unassigned");
+              (managerId ? tr("Lawyer #{0}", { 0: managerId }) : tr("Unassigned"));
             const internalCompanyName =
               labelFromRecord(
                 companyRelation,
@@ -2364,7 +2499,7 @@
                 "",
               ) ||
               internalCompanyMap[String(internalCompanyId)] ||
-              "Unspecified";
+              tr("Unspecified");
             const contractName =
               labelFromRecord(
                 contractRelation,
@@ -2372,15 +2507,15 @@
                 "",
               ) ||
               contractMap[String(contractId)] ||
-              (contractId ? `Contract #${contractId}` : "-");
-            const serviceName = services.slice(0, 2).join(", ") || "No service";
-            const serviceFullName = services.join(", ") || "No service";
+              (contractId ? tr("Contract #{0}", { 0: contractId }) : "-");
+            const serviceName = services.slice(0, 2).join(", ") || tr("No service");
+            const serviceFullName = services.join(", ") || tr("No service");
 
             return {
               id: project.id,
               caseCode: project.caseCode || `HS-${project.id}`,
               projectName:
-                project.projectName || project.caseCode || `Case #${project.id}`,
+                project.projectName || project.caseCode || tr("Case #{0}", { 0: project.id }),
               customerId,
               customerName,
               projectManagerId: managerId,
@@ -2416,7 +2551,7 @@
               isUpcoming: meta.isUpcoming,
               code: project.caseCode || `HS-${project.id}`,
               title:
-                project.projectName || project.caseCode || `Case #${project.id}`,
+                project.projectName || project.caseCode || tr("Case #{0}", { 0: project.id }),
               customer: customerName,
               service: serviceName,
               serviceFull: serviceFullName,
@@ -2467,12 +2602,12 @@
                   value={viewMode}
                   onChange={setViewMode}
                   options={[
-                    { label: "Table", value: "table" },
-                    { label: "Charts", value: "charts" },
+                    { label: tr("Table"), value: "table" },
+                    { label: tr("Charts"), value: "charts" },
                   ]}
                 />
                 <Button onClick={reload} loading={loading}>
-                  Refresh
+                  {tr("Refresh")}
                 </Button>
               </div>
             </div>
@@ -2502,7 +2637,7 @@
               className="cmd-section"
               style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}
             >
-              <div className="cmd-section-title">Visible Columns</div>
+              <div className="cmd-section-title">{tr("Visible Columns")}</div>
               <div className="cmd-check-list">
                 {CONFIGURABLE_COLUMN_DEFS.map((column) => (
                   <Checkbox
@@ -2522,7 +2657,7 @@
             </section>
 
             <section className="cmd-section">
-              <div className="cmd-section-title">Column Width</div>
+              <div className="cmd-section-title">{tr("Column Width")}</div>
               <div className="cmd-width-list">
                 {CONFIGURABLE_COLUMN_DEFS.filter((column) => visibleColumns[column.key]).map(
                   (column) => (
@@ -2554,7 +2689,7 @@
                 style={{ marginTop: 10 }}
                 onClick={() => setColumnWidths(DEFAULT_COLUMN_WIDTHS)}
               >
-                Reset column width
+                {tr("Reset column width")}
               </Button>
             </section>
           </div>
@@ -2577,7 +2712,7 @@
               <Input.Search
                 className="cmd-search"
                 allowClear
-                placeholder="Search case code, title, client, lawyer..."
+                placeholder={tr("Search case code, title, client, lawyer...")}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -2786,7 +2921,7 @@
           if (!field || !event) return;
           event.preventDefault();
           event.stopPropagation();
-          const ownerWindow = event.view || document.defaultView || window;
+          const ownerWindow = event.view || event.currentTarget?.ownerDocument?.defaultView || null;
           const bodyStyle = ownerWindow?.document?.body?.style;
           const previousCursor = bodyStyle?.cursor;
           const previousUserSelect = bodyStyle?.userSelect;
@@ -2825,7 +2960,7 @@
           <div className="cmd-card cmd-table-card">
             <div className="cmd-table-head">
               <div>
-                <div className="cmd-table-title">Case List</div>
+                <div className="cmd-table-title">{tr("Case List")}</div>
               </div>
               <Popover
                 trigger="click"
@@ -2834,14 +2969,14 @@
                 overlayClassName="cmd-settings-popover"
                 rootClassName="cmd-settings-popover"
               >
-                <Button className="cmd-settings-button" title="Display settings">
+                <Button className="cmd-settings-button" title={tr("Display settings")}>
                   <span className="cmd-settings-icon">⚙</span>
                 </Button>
               </Popover>
             </div>
             {!rows.length ? (
               <div className="cmd-empty">
-                <Empty description="No cases match the current filters" />
+                <Empty description={tr("No cases match the current filters")} />
               </div>
             ) : (
               <>
@@ -2914,12 +3049,12 @@
                         disabled={page <= 1}
                         onClick={() => setPage((value) => Math.max(1, value - 1))}
                       >
-                        Previous
+                        {tr("Previous")}
                       </Button>
                     </div>
                     <div className="cmd-page-center">
                       <div className="cmd-page-status">
-                        Page {page} / {totalPages}
+                        {tr("Page")} {page} / {totalPages}
                       </div>
                       <div className="cmd-page-range">
                         {fmtNumber(pageStart)} - {fmtNumber(pageEnd)} /{" "}
@@ -2933,7 +3068,7 @@
                           setPage((value) => Math.min(totalPages, value + 1))
                         }
                       >
-                        Next
+                        {tr("Next")}
                       </Button>
                     </div>
                   </div>
@@ -2981,8 +3116,8 @@
 
         return (
           <ChartCard
-            title="Cases by Status"
-            subtitle="Based on the current filters"
+            title={tr("Cases by Status")}
+            subtitle={tr("Based on the current filters")}
           >
             <div className="cmd-donut-layout">
               <div
@@ -3053,8 +3188,8 @@
 
         return (
           <ChartCard
-            title="Intake and Completion Trend"
-            subtitle="Last 8 months"
+            title={tr("Intake and Completion Trend")}
+            subtitle={tr("Last 8 months")}
           >
             <svg className="cmd-svg" viewBox={`0 0 ${width} ${height}`} role="img">
               {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
@@ -3113,10 +3248,10 @@
                 );
               })}
               <text x={padX} y="14" fill="#8892a0" fontSize="11">
-                Intake
+                {tr("Intake")}
               </text>
               <text x={padX + 72} y="14" fill="#8892a0" fontSize="11">
-                Completed
+                {tr("Completed")}
               </text>
             </svg>
           </ChartCard>
@@ -3133,8 +3268,8 @@
 
         return (
           <ChartCard
-            title="Revenue by Client"
-            subtitle="Total value from services/contracts"
+            title={tr("Revenue by Client")}
+            subtitle={tr("Total value from services/contracts")}
           >
             {data.length ? (
               <div className="cmd-bars">
@@ -3157,7 +3292,7 @@
               </div>
             ) : (
               <div className="cmd-empty">
-                <Empty description="No revenue data available" />
+                <Empty description={tr("No revenue data available")} />
               </div>
             )}
           </ChartCard>
@@ -3167,7 +3302,7 @@
       function OwnerStackedChart({ records }) {
         const byOwner = new Map();
         records.forEach((record) => {
-          const owner = record.projectManagerName || "Unassigned";
+          const owner = record.projectManagerName || tr("Unassigned");
           if (!byOwner.has(owner)) {
             byOwner.set(owner, {
               owner,
@@ -3189,8 +3324,8 @@
 
         return (
           <ChartCard
-            title="Workload by Owner"
-            subtitle="Top 6 lawyers by case count"
+            title={tr("Workload by Owner")}
+            subtitle={tr("Top 6 lawyers by case count")}
           >
             {rows.length ? (
               <>
@@ -3238,7 +3373,7 @@
               </>
             ) : (
               <div className="cmd-empty">
-                <Empty description="No owner data available" />
+                <Empty description={tr("No owner data available")} />
               </div>
             )}
           </ChartCard>
@@ -3282,7 +3417,7 @@
         return (
           <div className="cmd-card cmd-chart-toolbar">
             <div>
-              <div className="cmd-config-label">Date Range</div>
+              <div className="cmd-config-label">{tr("Date Range")}</div>
               <RangePicker
                 style={{ width: "100%", marginTop: 6 }}
                 value={dateRange && dateRange.length ? dateRange : null}
@@ -3291,11 +3426,11 @@
                 allowClear
               />
               <div className="cmd-count" style={{ marginTop: 8 }}>
-                {fmtNumber(recordCount)} cases in chart
+                {fmtNumber(recordCount)} {tr("cases in chart")}
               </div>
             </div>
             <div className="cmd-chart-configs">
-              {renderChartConfig("Chart Configuration", chart, setChart)}
+              {renderChartConfig(tr("Chart Configuration"), chart, setChart)}
             </div>
           </div>
         );
@@ -3317,7 +3452,7 @@
           return (
             <ChartCard title={chartTitle} subtitle={chartSubtitle}>
               <div className="cmd-empty">
-                <Empty description="No chart data available" />
+                <Empty description={tr("No chart data available")} />
               </div>
             </ChartCard>
           );
@@ -3343,7 +3478,7 @@
           return (
             <ChartCard title={chartTitle} subtitle={chartSubtitle}>
               <div className="cmd-empty">
-                <Empty description="No chart data available" />
+                <Empty description={tr("No chart data available")} />
               </div>
             </ChartCard>
           );
@@ -3840,39 +3975,39 @@
 
               <div className="cmd-kpi-grid">
                 <KpiCard
-                  label="Total Cases"
+                  label={tr("Total Cases")}
                   value={fmtNumber(kpi.total)}
-                  note="All case matters"
+                  note={tr("All case matters")}
                   color={TOKENS.accent}
                 />
                 <KpiCard
-                  label="In Progress"
+                  label={tr("In Progress")}
                   value={fmtNumber(kpi.active)}
-                  note={`${kpi.percent(kpi.active)}% of total cases`}
+                  note={tr("{0}% of total cases", { 0: kpi.percent(kpi.active) })}
                   color={TOKENS.accent}
                 />
                 <KpiCard
-                  label="Overdue"
+                  label={tr("Overdue")}
                   value={fmtNumber(kpi.overdue)}
-                  note="Needs priority attention"
+                  note={tr("Needs priority attention")}
                   color={OVERDUE_META.chart}
                 />
                 <KpiCard
-                  label="Due Soon"
+                  label={tr("Due Soon")}
                   value={fmtNumber(kpi.upcoming)}
-                  note="Within the next 7 days"
+                  note={tr("Within the next 7 days")}
                   color={TOKENS.amber}
                 />
                 <KpiCard
-                  label="Completed"
+                  label={tr("Completed")}
                   value={fmtNumber(kpi.done)}
-                  note={`${kpi.percent(kpi.done)}% of total cases`}
+                  note={tr("{0}% of total cases", { 0: kpi.percent(kpi.done) })}
                   color={TOKENS.green}
                 />
                 <KpiCard
-                  label="Contract Revenue"
+                  label={tr("Contract Revenue")}
                   value={fmtMoney(kpi.revenue)}
-                  note="From services and contracts"
+                  note={tr("From services and contracts")}
                   color="#6d5bd0"
                 />
               </div>
@@ -3902,7 +4037,7 @@
 
                   {loading ? (
                     <div className="cmd-card cmd-loading">
-                      <Spin tip="Loading case data..." />
+                      <Spin tip={tr("Loading case data...")} />
                     </div>
                   ) : viewMode === "table" ? (
                     <CaseTable
@@ -3919,7 +4054,7 @@
                     <ChartsView records={chartRecords} chart={chartA} />
                   ) : (
                     <div className="cmd-card cmd-empty">
-                      <Empty description="No data available for chart display" />
+                      <Empty description={tr("No data available for chart display")} />
                     </div>
                   )}
                 </main>

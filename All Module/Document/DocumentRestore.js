@@ -1,6 +1,94 @@
 // ============================================================
 // DocumentRestore.js — Quản lý Thùng rác tài liệu
 // ============================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Could not load the trash": "Lỗi tải dữ liệu thùng rác",
+  "File": "Tệp",
+  "Download": "Tải về",
+  "Close": "Đóng",
+  "Cannot preview": "Không thể xem trước",
+  "File name": "Tên file",
+  "Document": "Tài liệu",
+  "Size": "Kích thước",
+  "Deleted at": "Ngày xóa",
+  "Restore folder: \"{0}\"": "Khôi phục thư mục: \"{0}\"",
+  "Select the files inside to restore with the folder": "Chọn các file bên trong muốn khôi phục cùng thư mục",
+  "Cancel": "Hủy",
+  "Restore folder{0}": "Khôi phục thư mục{0}",
+  " + {0} file": " + {0} tệp",
+  "This folder has no deleted files": "Thư mục này không có file nào bị xóa",
+  "Restore the empty folder only": "Chỉ khôi phục thư mục trống",
+  " Warning: the original location was deleted": " Cảnh báo: Vị trí gốc đã bị xóa",
+  "File ": "Tệp ",
+  " in folder ": " thuộc thư mục ",
+  " was deleted. What would you like to do?": " đã bị xóa. Bạn muốn xử lý thế nào?",
+  "📁 Restore the parent folder too": "📁 Khôi phục cả thư mục cha",
+  "Restore folder \"{0}\" and put the file back in its original place.": "Tự động khôi phục thư mục \"{0}\" và đặt file về đúng vị trí ban đầu.",
+  "📂 Choose a new target folder": "📂 Chọn folder đích mới",
+  "Put the file in an existing folder.": "Đặt file vào một thư mục đang tồn tại.",
+  "Home (Root)": "Trang chủ (Root)",
+  "Choose a target folder": "Chọn thư mục đích",
+  "Confirm restore": "Xác nhận khôi phục",
+  "Root": "Thư mục gốc",
+  "File restored to Root": "Đã khôi phục file về Root",
+  "File restored to folder \"{0}\"": "Đã khôi phục file về thư mục \"{0}\"",
+  "Folder #{0}": "Thư mục #{0}",
+  "Restore failed: ": "Khôi phục thất bại: ",
+  "Unknown error": "Lỗi không xác định",
+  "Parent folder and file restored": "Đã khôi phục thư mục cha và file thành công",
+  "Restore failed": "Khôi phục thất bại",
+  "File restored to the new folder": "Đã khôi phục file vào thư mục mới",
+  "Folder \"{0}\" and {1} file(s) restored": "Đã khôi phục thư mục \"{0}\" và {1} file",
+  "Permanently deleted": "Đã xóa vĩnh viễn",
+  "Permanent delete failed": "Xóa vĩnh viễn thất bại",
+  "An error occurred during bulk restore": "Có lỗi trong quá trình khôi phục hàng loạt",
+  "{0} items permanently deleted": "Đã xóa vĩnh viễn {0} mục",
+  "An error occurred": "Có lỗi xảy ra",
+  "Preview": "Xem trước",
+  "Restore to the original location": "Khôi phục về vị trí gốc",
+  "Delete permanently": "Xóa vĩnh viễn",
+  "Delete permanently?": "Xóa vĩnh viễn?",
+  "This cannot be undone. Are you sure you want to permanently delete ": "Hành động này không thể hoàn tác. Bạn có chắc muốn xóa vĩnh viễn ",
+  "this file": "file này",
+  "Type": "Loại",
+  "Folder": "Thư mục",
+  "Name / Title": "Tên / Tiêu đề",
+  "Original path": "Đường dẫn gốc",
+  "Deleted by": "Người xóa",
+  "Actions": "Thao tác",
+  "Delete permanently? This cannot be undone.": "Xóa vĩnh viễn? Hành động này không thể hoàn tác.",
+  "Delete permanently from the system": "Xóa vĩnh viễn khỏi hệ thống",
+  "Search by file or folder name...": "Tìm theo tên file, thư mục...",
+  "All": "Tất cả",
+  "Files only": "Chỉ File",
+  "Folders only": "Chỉ Thư mục",
+  "Refresh": "Làm mới",
+  "{0} items selected": "Đã chọn {0} mục",
+  "Restore {0} selected items": "Khôi phục {0} mục đã chọn",
+  "Restore ({0})": "Khôi phục ({0})",
+  "Permanently delete {0} selected items?": "Xóa vĩnh viễn {0} mục đã chọn?",
+  "Delete permanently ({0})": "Xóa vĩnh viễn ({0})",
+  "Deselect": "Bỏ chọn",
+  "ℹ️ You only see your own files. Permanent delete is for administrators only.": "ℹ️ Bạn chỉ thấy file của mình. Chức năng xóa vĩnh viễn chỉ dành cho Quản trị viên.",
+  "{0} items": "{0} mục",
+  "The trash is empty — no deleted files or folders": "Thùng rác trống — không có file hay thư mục nào bị xóa",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo } = React;
 const {
@@ -172,7 +260,7 @@ function useDeletedData(currentUser) {
       setDeletedFolders(foldersRes?.data?.data || []);
       setAllFolders(allFoldersRes?.data?.data || []);
     } catch (e) {
-      message.error("Lỗi tải dữ liệu thùng rác");
+      message.error(tr("Could not load the trash"));
     }
     setLoading(false);
   }, [currentUser]);
@@ -190,7 +278,7 @@ const PreviewModal = ({ doc, onClose }) => {
   let fileExt = attachment?.extname
     ? (attachment.extname.startsWith(".") ? attachment.extname.toLowerCase() : "." + attachment.extname.toLowerCase())
     : "";
-  const rawName = attachment?.title || attachment?.filename || "File";
+  const rawName = attachment?.title || attachment?.filename || tr("File");
   if (!fileExt && rawName.includes(".")) fileExt = "." + rawName.split(".").pop().toLowerCase();
   const isPdf = fileExt === ".pdf";
   const isImage = [".png", ".jpg", ".jpeg", ".gif", ".webp"].includes(fileExt);
@@ -204,8 +292,8 @@ const PreviewModal = ({ doc, onClose }) => {
       fullUrl && React.createElement(Button, {
         key: "dl", type: "primary",
         onClick: () => window.open(fullUrl, "_blank"), style: { fontFamily: FONT },
-      }, "Tải về"),
-      React.createElement(Button, { key: "cl", onClick: onClose, style: { fontFamily: FONT } }, "Đóng"),
+      }, tr("Download")),
+      React.createElement(Button, { key: "cl", onClick: onClose, style: { fontFamily: FONT } }, tr("Close")),
     ].filter(Boolean),
     bodyStyle: { padding: 0, height: "80vh", background: "#f5f5f5", position: "relative" },
   },
@@ -219,7 +307,7 @@ const PreviewModal = ({ doc, onClose }) => {
       src: officeUrl, style: { width: "100%", height: "100%", border: "none" }, title: rawName,
     }),
     !isPdf && !isImage && !isOffice && !fullUrl && React.createElement(Empty, {
-      description: "Không thể xem trước", style: { paddingTop: 80 },
+      description: tr("Cannot preview"), style: { paddingTop: 80 },
     }),
   );
 };
@@ -252,10 +340,10 @@ const FolderContentModal = ({ open, folder, onClose, onConfirmRestore, currentUs
 
   const columns = [
     {
-      title: "Tên file", key: "name",
+      title: tr("File name"), key: "name",
       render: (_, r) => {
         const att = Array.isArray(r.fileAttachment) ? r.fileAttachment[0] : r.fileAttachment;
-        const name = r.title || att?.title || att?.filename || "Tài liệu";
+        const name = r.title || att?.title || att?.filename || tr("Document");
         let ext = att?.extname ? (att.extname.startsWith(".") ? att.extname.toLowerCase() : "." + att.extname.toLowerCase()) : "";
         const extInfo = getExtInfo(ext);
         return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
@@ -268,14 +356,14 @@ const FolderContentModal = ({ open, folder, onClose, onConfirmRestore, currentUs
       },
     },
     {
-      title: "Kích thước", key: "size", width: 100, align: "center",
+      title: tr("Size"), key: "size", width: 100, align: "center",
       render: (_, r) => {
         const att = Array.isArray(r.fileAttachment) ? r.fileAttachment[0] : r.fileAttachment;
         return React.createElement(Text, { style: { fontSize: 12, color: "#8c8c8c" } }, formatBytes(att?.size));
       },
     },
     {
-      title: "Ngày xóa", key: "deletedAt", width: 140,
+      title: tr("Deleted at"), key: "deletedAt", width: 140,
       render: (_, r) => React.createElement(Text, { style: { fontSize: 12, color: "#8c8c8c" } }, formatDateTime(r.updatedAt)),
     },
   ];
@@ -283,27 +371,27 @@ const FolderContentModal = ({ open, folder, onClose, onConfirmRestore, currentUs
   return React.createElement(Modal, {
     open, onCancel: onClose, width: 640,
     title: React.createElement("div", { style: { fontFamily: FONT } },
-      React.createElement("div", null, `Khôi phục thư mục: "${folder?.name}"`),
+      React.createElement("div", null, tr("Restore folder: \"{0}\"", { 0: folder?.name })),
       React.createElement(Text, { type: "secondary", style: { fontSize: 12, fontWeight: 400 } },
-        "Chọn các file bên trong muốn khôi phục cùng thư mục"),
+        tr("Select the files inside to restore with the folder")),
     ),
     footer: [
-      React.createElement(Button, { key: "cancel", onClick: onClose, style: { fontFamily: FONT } }, "Hủy"),
+      React.createElement(Button, { key: "cancel", onClick: onClose, style: { fontFamily: FONT } }, tr("Cancel")),
       React.createElement(Button, {
         key: "confirm", type: "primary",
         disabled: selectedKeys.length === 0,
         onClick: () => onConfirmRestore(folder, selectedKeys),
         style: { fontFamily: FONT },
-      }, `Khôi phục thư mục${selectedKeys.length > 0 ? ` + ${selectedKeys.length} file` : ""}`),
+      }, tr("Restore folder{0}", { 0: selectedKeys.length > 0 ? tr(" + {0} file", { 0: selectedKeys.length }) : "" })),
     ],
   },
     loading ? React.createElement(Spin, { style: { display: "block", margin: "40px auto" } }) :
     files.length === 0
       ? React.createElement("div", { style: { padding: "24px 0" } },
           React.createElement(Empty, { image: Empty.PRESENTED_IMAGE_SIMPLE,
-            description: React.createElement(Text, { type: "secondary" }, "Thư mục này không có file nào bị xóa") }),
+            description: React.createElement(Text, { type: "secondary" }, tr("This folder has no deleted files")) }),
           React.createElement(Text, { style: { display: "block", textAlign: "center", marginTop: 8, fontFamily: FONT } },
-            "Chỉ khôi phục thư mục trống"),
+            tr("Restore the empty folder only")),
         )
       : React.createElement(Table, {
           dataSource: files,
@@ -343,19 +431,19 @@ const RestoreConflictModal = ({ open, record, parentFolder, allLiveFolders, onCl
       }));
 
   const fileName = record?._type === "folder" ? record?.name :
-    (() => { const att = Array.isArray(record?.fileAttachment) ? record?.fileAttachment[0] : record?.fileAttachment; return record?.title || att?.title || att?.filename || "Tài liệu"; })();
+    (() => { const att = Array.isArray(record?.fileAttachment) ? record?.fileAttachment[0] : record?.fileAttachment; return record?.title || att?.title || att?.filename || tr("Document"); })();
 
   return React.createElement(Modal, {
     open, onCancel: onClose, width: 500,
     title: React.createElement("span", { style: { fontFamily: FONT, color: "#faad14" } },
-      WarningIcon, " Cảnh báo: Vị trí gốc đã bị xóa"),
+      WarningIcon, tr(" Warning: the original location was deleted")),
     footer: null,
   },
     React.createElement("div", { style: { fontFamily: FONT } },
       React.createElement("p", null,
-        "File ", React.createElement("strong", null, `"${fileName}"`),
-        " thuộc thư mục ", React.createElement("strong", null, `"${parentFolder?.name}"`),
-        " đã bị xóa. Bạn muốn xử lý thế nào?"),
+        tr("File "), React.createElement("strong", null, `"${fileName}"`),
+        tr(" in folder "), React.createElement("strong", null, `"${parentFolder?.name}"`),
+        tr(" was deleted. What would you like to do?")),
 
       React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12, marginTop: 16 } },
         // Option A: Restore ancestors
@@ -368,9 +456,9 @@ const RestoreConflictModal = ({ open, record, parentFolder, allLiveFolders, onCl
           },
         },
           React.createElement("div", { style: { fontWeight: 600, color: mode === "ancestors" ? "#1890ff" : "#262626" } },
-            "📁 Khôi phục cả thư mục cha"),
+            tr("📁 Restore the parent folder too")),
           React.createElement("div", { style: { fontSize: 12, color: "#8c8c8c", marginTop: 4 } },
-            `Tự động khôi phục thư mục "${parentFolder?.name}" và đặt file về đúng vị trí ban đầu.`),
+            tr("Restore folder \"{0}\" and put the file back in its original place.", { 0: parentFolder?.name })),
         ),
 
         // Option B: Choose new folder
@@ -383,23 +471,23 @@ const RestoreConflictModal = ({ open, record, parentFolder, allLiveFolders, onCl
           },
         },
           React.createElement("div", { style: { fontWeight: 600, color: mode === "new_folder" ? "#1890ff" : "#262626" } },
-            "📂 Chọn folder đích mới"),
+            tr("📂 Choose a new target folder")),
           React.createElement("div", { style: { fontSize: 12, color: "#8c8c8c", marginTop: 4 } },
-            "Đặt file vào một thư mục đang tồn tại."),
+            tr("Put the file in an existing folder.")),
           mode === "new_folder" && React.createElement("div", { style: { marginTop: 10 }, onClick: (e) => e.stopPropagation() },
             React.createElement(TreeSelect, {
               style: { width: "100%", fontFamily: FONT },
-              treeData: [{ title: "Home (Root)", value: "root", children: buildTreeForSelect(allLiveFolders) }],
+              treeData: [{ title: tr("Home (Root)"), value: "root", children: buildTreeForSelect(allLiveFolders) }],
               value: targetFolderId,
               onChange: setTargetFolderId,
               treeDefaultExpandAll: true,
-              placeholder: "Chọn thư mục đích",
+              placeholder: tr("Choose a target folder"),
             }),
           ),
         ),
 
         React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 } },
-          React.createElement(Button, { onClick: onClose, style: { fontFamily: FONT } }, "Hủy"),
+          React.createElement(Button, { onClick: onClose, style: { fontFamily: FONT } }, tr("Cancel")),
           React.createElement(Button, {
             type: "primary", disabled: !mode,
             onClick: () => {
@@ -407,7 +495,7 @@ const RestoreConflictModal = ({ open, record, parentFolder, allLiveFolders, onCl
               else onRestoreWithNewFolder(record, targetFolderId);
             },
             style: { fontFamily: FONT },
-          }, "Xác nhận khôi phục"),
+          }, tr("Confirm restore")),
         ),
       ),
     ),
@@ -467,7 +555,7 @@ const DocumentRestore = () => {
 
   // Build folder path string from allFolders (live folders)
   const getFolderPath = useCallback((folderId) => {
-    if (!folderId) return "Root";
+    if (!folderId) return tr("Root");
     const parts = [];
     let id = extractId(folderId);
     let safety = 0;
@@ -478,12 +566,12 @@ const DocumentRestore = () => {
       id = extractId(f.parentId);
       safety++;
     }
-    return parts.length > 0 ? parts.join(" / ") : "Root";
+    return parts.length > 0 ? parts.join(" / ") : tr("Root");
   }, [allFolders]);
 
   // Build deleted folder path (using deletedFolders)
   const getDeletedFolderPath = useCallback((folderId, deletedFoldersArr) => {
-    if (!folderId) return "Root";
+    if (!folderId) return tr("Root");
     const parts = [];
     let id = extractId(folderId);
     let safety = 0;
@@ -494,7 +582,7 @@ const DocumentRestore = () => {
       id = extractId(f.parentId);
       safety++;
     }
-    return parts.length > 0 ? parts.join(" / ") : "Root";
+    return parts.length > 0 ? parts.join(" / ") : tr("Root");
   }, [allFolders]);
 
   // Combine docs + folders into flat list for table
@@ -559,7 +647,7 @@ const DocumentRestore = () => {
       if (!fId) {
         // No parent folder → restore to root directly
         await doRestoreDoc(extractId(record.id));
-        message.success("Đã khôi phục file về Root");
+        message.success(tr("File restored to Root"));
         refetch();
         return;
       }
@@ -568,7 +656,7 @@ const DocumentRestore = () => {
       const parentAlive = allFolders.find((f) => extractId(f.id) === fId);
       if (parentAlive) {
         await doRestoreDoc(extractId(record.id));
-        message.success(`Đã khôi phục file về thư mục "${parentAlive.name}"`);
+        message.success(tr("File restored to folder \"{0}\"", { 0: parentAlive.name }));
         refetch();
         return;
       }
@@ -590,10 +678,10 @@ const DocumentRestore = () => {
       }
       setConflictModal({
         record,
-        parentFolder: parentFolder || { id: fId, name: `Thư mục #${fId}` },
+        parentFolder: parentFolder || { id: fId, name: tr("Folder #{0}", { 0: fId }) },
       });
     } catch (e) {
-      message.error("Khôi phục thất bại: " + (e?.message || "Lỗi không xác định"));
+      message.error(tr("Restore failed: ") + (e?.message || tr("Unknown error")));
     }
   };
 
@@ -617,10 +705,10 @@ const DocumentRestore = () => {
 
       // Then restore the file
       await doRestoreDoc(extractId(record.id));
-      message.success("Đã khôi phục thư mục cha và file thành công");
+      message.success(tr("Parent folder and file restored"));
       refetch();
     } catch (e) {
-      message.error("Khôi phục thất bại");
+      message.error(tr("Restore failed"));
     }
   };
 
@@ -629,10 +717,10 @@ const DocumentRestore = () => {
     setConflictModal(null);
     try {
       await doRestoreDoc(extractId(record.id), targetFolderId);
-      message.success("Đã khôi phục file vào thư mục mới");
+      message.success(tr("File restored to the new folder"));
       refetch();
     } catch (e) {
-      message.error("Khôi phục thất bại");
+      message.error(tr("Restore failed"));
     }
   };
 
@@ -656,10 +744,10 @@ const DocumentRestore = () => {
       // Restore selected files
       await Promise.all(selectedFileIds.map((id) => doRestoreDoc(id)));
 
-      message.success(`Đã khôi phục thư mục "${folder.name}" và ${selectedFileIds.length} file`);
+      message.success(tr("Folder \"{0}\" and {1} file(s) restored", { 0: folder.name, 1: selectedFileIds.length }));
       refetch();
     } catch (e) {
-      message.error("Khôi phục thất bại");
+      message.error(tr("Restore failed"));
     }
   };
 
@@ -671,9 +759,9 @@ const DocumentRestore = () => {
       } else {
         await ctx.api.request({ url: `documents:destroy?filterByTk=${extractId(record.id)}`, method: "POST" });
       }
-      message.success("Đã xóa vĩnh viễn");
+      message.success(tr("Permanently deleted"));
       refetch();
-    } catch { message.error("Xóa vĩnh viễn thất bại"); }
+    } catch { message.error(tr("Permanent delete failed")); }
   };
 
   const handleBulkRestore = async () => {
@@ -684,7 +772,7 @@ const DocumentRestore = () => {
         if (record) await handleRestoreItem(record);
       }
       setSelectedRowKeys([]);
-    } catch { message.error("Có lỗi trong quá trình khôi phục hàng loạt"); }
+    } catch { message.error(tr("An error occurred during bulk restore")); }
   };
 
   const handleBulkPermanentDelete = async () => {
@@ -699,10 +787,10 @@ const DocumentRestore = () => {
           await ctx.api.request({ url: `documents:destroy?filterByTk=${extractId(record.id)}`, method: "POST" });
         }
       }));
-      message.success(`Đã xóa vĩnh viễn ${selectedRowKeys.length} mục`);
+      message.success(tr("{0} items permanently deleted", { 0: selectedRowKeys.length }));
       setSelectedRowKeys([]);
       refetch();
-    } catch { message.error("Có lỗi xảy ra"); }
+    } catch { message.error(tr("An error occurred")); }
   };
 
   // ---- CONTEXT MENU STATE ----
@@ -718,19 +806,19 @@ const DocumentRestore = () => {
       isFile && {
         key: "preview",
         label: React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 8, fontFamily: FONT } },
-          EyeIcon, "Xem trước"),
+          EyeIcon, tr("Preview")),
         disabled: !fullUrl,
       },
       {
         key: "restore",
         label: React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 8, fontFamily: FONT, color: "#1890ff" } },
-          RestoreIcon, "Khôi phục về vị trí gốc"),
+          RestoreIcon, tr("Restore to the original location")),
       },
       isAdmin && { type: "divider" },
       isAdmin && {
         key: "delete",
         label: React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 8, fontFamily: FONT, color: "#ff4d4f" } },
-          DeleteIcon, "Xóa vĩnh viễn"),
+          DeleteIcon, tr("Delete permanently")),
         danger: true,
       },
     ].filter(Boolean);
@@ -744,13 +832,13 @@ const DocumentRestore = () => {
     if (key === "restore") { handleRestoreItem(r); return; }
     if (key === "delete") {
       Modal.confirm({
-        title: "Xóa vĩnh viễn?",
+        title: tr("Delete permanently?"),
         content: React.createElement("span", { style: { fontFamily: FONT } },
-          "Hành động này không thể hoàn tác. Bạn có chắc muốn xóa vĩnh viễn ",
-          React.createElement("strong", null, r._type === "folder" ? r.name : (r.title || "file này")),
+          tr("This cannot be undone. Are you sure you want to permanently delete "),
+          React.createElement("strong", null, r._type === "folder" ? r.name : (r.title || tr("this file"))),
           "?"
         ),
-        okText: "Xóa vĩnh viễn", okType: "danger", cancelText: "Hủy",
+        okText: tr("Delete permanently"), okType: "danger", cancelText: tr("Cancel"),
         onOk: () => handlePermanentDelete(r),
       });
     }
@@ -759,16 +847,16 @@ const DocumentRestore = () => {
   // ---- TABLE COLUMNS ----
   const columns = [
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Loại"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Type")),
       key: "type", width: 90, align: "center",
       render: (_, r) => r._type === "folder"
         ? React.createElement(Tag, { color: "gold", style: { fontFamily: FONT, fontSize: 11 } },
-            iconLabel(FolderIcon, "Thư mục"))
+            iconLabel(FolderIcon, tr("Folder")))
         : React.createElement(Tag, { color: "blue", style: { fontFamily: FONT, fontSize: 11 } },
-            iconLabel(FileIcon, "File")),
+            iconLabel(FileIcon, tr("File"))),
     },
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Tên / Tiêu đề"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Name / Title")),
       key: "name", width: 260,
       render: (_, r) => {
         if (r._type === "folder") {
@@ -779,7 +867,7 @@ const DocumentRestore = () => {
         }
         const att = Array.isArray(r.fileAttachment) ? r.fileAttachment[0] : r.fileAttachment;
         let ext = att?.extname ? (att.extname.startsWith(".") ? att.extname.toLowerCase() : "." + att.extname.toLowerCase()) : "";
-        const name = r.title || att?.title || att?.filename || "Tài liệu";
+        const name = r.title || att?.title || att?.filename || tr("Document");
         const extInfo = getExtInfo(ext);
         return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
           React.createElement("div", {
@@ -799,7 +887,7 @@ const DocumentRestore = () => {
       },
     },
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Đường dẫn gốc"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Original path")),
       key: "path", width: 200,
       render: (_, r) => {
         const path = r._type === "folder"
@@ -815,7 +903,7 @@ const DocumentRestore = () => {
     },
 
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Ngày xóa"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Deleted at")),
       key: "deletedAt", width: 140, align: "center",
       sorter: (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0),
       defaultSortOrder: "descend",
@@ -825,7 +913,7 @@ const DocumentRestore = () => {
       ),
     },
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Người xóa"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Deleted by")),
       key: "deletedBy", width: 120,
       render: (_, r) => {
         const who = getUserName(r.updatedBy) || r.updatedBy?.email || "—";
@@ -833,7 +921,7 @@ const DocumentRestore = () => {
       },
     },
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Dung lượng"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Size")),
       key: "size", width: 100, align: "center",
       render: (_, r) => {
         if (r._type === "folder") return React.createElement(Text, { style: { color: "#bfbfbf" } }, "—");
@@ -842,10 +930,10 @@ const DocumentRestore = () => {
       },
     },
     {
-      title: React.createElement("span", { style: { fontFamily: FONT } }, "Thao tác"),
+      title: React.createElement("span", { style: { fontFamily: FONT } }, tr("Actions")),
       key: "actions", width: 90, fixed: "right", align: "center",
       render: (_, r) => React.createElement(Space, { size: 6 },
-        React.createElement(Tooltip, { title: "Khôi phục về vị trí gốc" },
+        React.createElement(Tooltip, { title: tr("Restore to the original location") },
           React.createElement(Button, {
             type: "text", size: "small",
             onClick: (e) => { e.stopPropagation(); handleRestoreItem(r); },
@@ -853,11 +941,11 @@ const DocumentRestore = () => {
           }, RestoreIcon),
         ),
         isAdmin && React.createElement(Popconfirm, {
-          title: "Xóa vĩnh viễn? Hành động này không thể hoàn tác.",
-          okText: "Xóa vĩnh viễn", okType: "danger", cancelText: "Hủy",
+          title: tr("Delete permanently? This cannot be undone."),
+          okText: tr("Delete permanently"), okType: "danger", cancelText: tr("Cancel"),
           onConfirm: () => handlePermanentDelete(r),
         },
-          React.createElement(Tooltip, { title: "Xóa vĩnh viễn khỏi hệ thống" },
+          React.createElement(Tooltip, { title: tr("Delete permanently from the system") },
             React.createElement(Button, {
               type: "text", size: "small",
               onClick: (e) => e.stopPropagation(),
@@ -888,7 +976,7 @@ const DocumentRestore = () => {
       style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" },
     },
       React.createElement(Input, {
-        placeholder: "Tìm theo tên file, thư mục...",
+        placeholder: tr("Search by file or folder name..."),
         prefix: SearchIcon,
         value: searchText,
         onChange: (e) => setSearchText(e.target.value),
@@ -900,41 +988,41 @@ const DocumentRestore = () => {
         onChange: setFilterType,
         style: { width: 140, fontFamily: FONT },
         options: [
-          { value: "all", label: "Tất cả" },
-          { value: "file", label: "Chỉ File" },
-          { value: "folder", label: "Chỉ Thư mục" },
+          { value: "all", label: tr("All") },
+          { value: "file", label: tr("Files only") },
+          { value: "folder", label: tr("Folders only") },
         ],
       }),
       React.createElement(Button, {
         onClick: refetch, loading: loading,
         style: { fontFamily: FONT, display: "inline-flex", alignItems: "center", gap: 6 },
-      }, iconLabel(RefreshIcon, "Làm mới")),
+      }, iconLabel(RefreshIcon, tr("Refresh"))),
       selectedRowKeys.length > 0 && React.createElement(Space, { size: 6 },
         React.createElement(Text, { style: { fontSize: 12, color: "#8c8c8c", fontFamily: FONT } },
-          `Đã chọn ${selectedRowKeys.length} mục`),
-        React.createElement(Tooltip, { title: `Khôi phục ${selectedRowKeys.length} mục đã chọn` },
+          tr("{0} items selected", { 0: selectedRowKeys.length })),
+        React.createElement(Tooltip, { title: tr("Restore {0} selected items", { 0: selectedRowKeys.length }) },
           React.createElement(Button, {
             type: "primary", size: "small", ghost: true,
             onClick: handleBulkRestore,
             style: { fontFamily: FONT, display: "inline-flex", alignItems: "center", gap: 4 },
-          }, iconLabel(RestoreIcon, `Khôi phục (${selectedRowKeys.length})`)),
+          }, iconLabel(RestoreIcon, tr("Restore ({0})", { 0: selectedRowKeys.length }))),
         ),
         isAdmin && React.createElement(Popconfirm, {
-          title: `Xóa vĩnh viễn ${selectedRowKeys.length} mục đã chọn?`,
-          okText: "Xóa vĩnh viễn", okType: "danger", cancelText: "Hủy",
+          title: tr("Permanently delete {0} selected items?", { 0: selectedRowKeys.length }),
+          okText: tr("Delete permanently"), okType: "danger", cancelText: tr("Cancel"),
           onConfirm: handleBulkPermanentDelete,
         },
           React.createElement(Button, { danger: true, size: "small", style: { fontFamily: FONT, display: "inline-flex", alignItems: "center", gap: 4 } },
-            iconLabel(DeleteIcon, `Xóa vĩnh viễn (${selectedRowKeys.length})`)),
+            iconLabel(DeleteIcon, tr("Delete permanently ({0})", { 0: selectedRowKeys.length }))),
         ),
-        React.createElement(Button, { size: "small", onClick: () => setSelectedRowKeys([]), style: { fontFamily: FONT } }, "Bỏ chọn"),
+        React.createElement(Button, { size: "small", onClick: () => setSelectedRowKeys([]), style: { fontFamily: FONT } }, tr("Deselect")),
       ),
     ),
 
     // Note for non-admin
     !isAdmin && React.createElement("div", {
       style: { background: "#fffbe6", border: "1px solid #ffe58f", borderRadius: 6, padding: "8px 14px", marginBottom: 14, fontSize: 12, fontFamily: FONT, color: "#8c6d14" },
-    }, "ℹ️ Bạn chỉ thấy file của mình. Chức năng xóa vĩnh viễn chỉ dành cho Quản trị viên."),
+    }, tr("ℹ️ You only see your own files. Permanent delete is for administrators only.")),
 
     // Table
     React.createElement(Table, {
@@ -945,7 +1033,7 @@ const DocumentRestore = () => {
       size: "small",
       scroll: { x: 900 },
       onRow,
-      pagination: { pageSize: 50, showSizeChanger: true, showTotal: (t) => `${t} mục`, style: { fontFamily: FONT } },
+      pagination: { pageSize: 50, showSizeChanger: true, showTotal: (t) => tr("{0} items", { 0: t }), style: { fontFamily: FONT } },
       rowSelection: {
         selectedRowKeys,
         onChange: setSelectedRowKeys,
@@ -956,7 +1044,7 @@ const DocumentRestore = () => {
         emptyText: React.createElement(Empty, {
           image: Empty.PRESENTED_IMAGE_SIMPLE,
           description: React.createElement("span", { style: { fontFamily: FONT, color: "#8c8c8c" } },
-            "Thùng rác trống — không có file hay thư mục nào bị xóa"),
+            tr("The trash is empty — no deleted files or folders")),
         }),
       },
     }),

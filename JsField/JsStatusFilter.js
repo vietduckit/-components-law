@@ -1,3 +1,34 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "To do": "Chưa thực hiện",
+  "In progress": "Đang xử lý",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Filter by company": "Lọc theo Công ty",
+  "Filter by reference": "Lọc theo reference",
+  "Filter by staff": "Lọc theo nhân sự",
+  "All": "Tất cả",
+  "User #{0}": "Người dùng #{0}",
+  "Reference:": "Tham chiếu:",
+  "Company:": "Công ty:",
+  "Company #{0}": "Công ty #{0}",
+  "Staff:": "Nhân sự:",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
     targetBlockUid: 'f0d8c610d00', // Block UID of the table/kanban/list to apply filters on
     tableName: 'legalReference',          // Collection name (e.g. legalReference, tasks, lawyers)
@@ -6,17 +37,17 @@ const CONFIG = {
 
     // Status options to filter by (buttons)
     statuses: [
-        { key: 'toDo', label: 'Chưa thực hiện', color: '#8c8c8c' },
-        { key: 'inProgress', label: 'Đang xử lý', color: '#fa8c16' },
-        { key: 'done', label: 'Hoàn thành', color: '#52c41a' },
-        { key: 'cancelled', label: 'Đã hủy', color: '#ff4d4f' }
+        { key: 'toDo', label: tr("To do"), color: '#8c8c8c' },
+        { key: 'inProgress', label: tr("In progress"), color: '#fa8c16' },
+        { key: 'done', label: tr("Done"), color: '#52c41a' },
+        { key: 'cancelled', label: tr("Cancelled"), color: '#ff4d4f' }
     ],
 
     // Company filter configuration (optional)
     companyFilter: {
         enable: true,
         fieldName: 'internalCompanyId',       // Field in the target collection that references the company
-        placeholder: 'Lọc theo Công ty',      // Placeholder text for the Select dropdown
+        placeholder: tr("Filter by company"),      // Placeholder text for the Select dropdown
         dropdownWidth: 220,                    // Width in pixels of the dropdown
         filterKey: 'legalReference-company-filter', // Filter group name for company filter
     },
@@ -24,13 +55,13 @@ const CONFIG = {
     titleFilter: {
         enable: true,
         fields: ['title'],
-        placeholder: 'Lọc theo reference',
+        placeholder: tr("Filter by reference"),
         filterKey: 'legalReference-title-filter',
     },
 
     userFilter: {
         enable: true,
-        placeholder: 'Lọc theo nhân sự',
+        placeholder: tr("Filter by staff"),
         dropdownWidth: 220,
         filterKey: 'legalReference-user-filter',
         userFields: ['managerId'],
@@ -52,7 +83,7 @@ const { Text } = Typography;
 
 // ==================== Config Buttons & Colors ====================
 const STATS = [
-    { key: 'all', label: 'Tất cả', color: '#1890ff', filter: {} },
+    { key: 'all', label: tr("All"), color: '#1890ff', filter: {} },
     ...CONFIG.statuses.map(s => ({
         key: s.key,
         label: s.label,
@@ -346,7 +377,7 @@ function useUsers() {
                 const rows = (res?.data?.data || []).filter(u => !excludedIds.includes(String(u.id)));
                 setUsers(rows.map(u => ({
                     value: u.id,
-                    label: u.nickname || u.username || u.email || `User #${u.id}`
+                    label: u.nickname || u.username || u.email || tr("User #{0}", { 0: u.id })
                 })));
             } catch (e) {
                 console.error('Lấy danh sách nhân sự thất bại:', e);
@@ -530,7 +561,7 @@ const StatsFilter = () => {
                     {CONFIG.titleFilter.enable && (
                         <div style={{ display: 'grid', gap: '6px' }}>
                             <Text style={{ fontSize: '13px', fontWeight: 500, color: '#595959', whiteSpace: 'nowrap' }}>
-                                Reference:
+                                {tr("Reference:")}
                             </Text>
                             <Input.Search
                                 placeholder={CONFIG.titleFilter.placeholder}
@@ -547,7 +578,7 @@ const StatsFilter = () => {
                     {CONFIG.companyFilter.enable && (
                         <div style={{ display: 'grid', gap: '6px' }}>
                             <Text style={{ fontSize: '13px', fontWeight: 500, color: '#595959', whiteSpace: 'nowrap' }}>
-                                Công ty:
+                                {tr("Company:")}
                             </Text>
                             <Select
                                 placeholder={CONFIG.companyFilter.placeholder}
@@ -558,7 +589,7 @@ const StatsFilter = () => {
                                 loading={companiesLoading}
                                 options={companies.map(c => ({
                                     value: c.id,
-                                    label: c.shortName || c.name || c.legalName || `Company #${c.id}`
+                                    label: c.shortName || c.name || c.legalName || tr("Company #{0}", { 0: c.id })
                                 }))}
                             />
                         </div>
@@ -567,7 +598,7 @@ const StatsFilter = () => {
                     {CONFIG.userFilter.enable && (
                         <div style={{ display: 'grid', gap: '6px' }}>
                             <Text style={{ fontSize: '13px', fontWeight: 500, color: '#595959', whiteSpace: 'nowrap' }}>
-                                Nhân sự:
+                                {tr("Staff:")}
                             </Text>
                             <Select
                                 placeholder={CONFIG.userFilter.placeholder}

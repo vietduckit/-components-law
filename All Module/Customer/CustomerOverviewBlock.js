@@ -1,3 +1,34 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Prospect": "Tiềm năng",
+  "Active": "Đang hoạt động",
+  "Dormant": "Tạm ngưng",
+  "Updated: {0}": "Đã cập nhật: {0}",
+  "Update failed": "Cập nhật thất bại",
+  "Record ID not found": "Không tìm thấy record ID",
+  "Current": "Hiện tại",
+  "Popup UID is not configured for {0}": "Chưa cấu hình Popup UID cho {0}",
+  "Create new quotation": "Tạo báo giá mới",
+  "Create new contract": "Tạo hợp đồng mới",
+  "Create new case": "Tạo hồ sơ mới",
+  "Create new invoice": "Tạo hóa đơn mới",
+  "Create new payment": "Tạo khoản thanh toán mới",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback } = React;
 const { message, Steps, Tag, Space } = ctx.antd;
@@ -17,9 +48,9 @@ const POPUP_UID_PAYMENT = "";
 
 // ==================== STAGE FLOW (customer relationship stepper) ====================
 const STAGES = [
-  { key: "prospect", label: "Prospect" },
-  { key: "active", label: "Active" },
-  { key: "dormant", label: "Dormant" },
+  { key: "prospect", label: tr("Prospect") },
+  { key: "active", label: tr("Active") },
+  { key: "dormant", label: tr("Dormant") },
 ];
 
 const STAGE_COLORS = {
@@ -61,11 +92,11 @@ const CustomerStageFlow = ({ record, onUpdated }) => {
         });
         setLocalStatus(newStatus);
         message.success(
-          `Đã cập nhật: ${STAGES.find((s) => s.key === newStatus)?.label}`,
+          tr("Updated: {0}", { 0: STAGES.find((s) => s.key === newStatus)?.label }),
         );
         if (onUpdated) await onUpdated();
       } catch {
-        message.error("Cập nhật thất bại");
+        message.error(tr("Update failed"));
       }
     },
     [recordId, onUpdated],
@@ -74,7 +105,7 @@ const CustomerStageFlow = ({ record, onUpdated }) => {
   const handleStepClick = useCallback(
     async (stepIndex) => {
       if (!recordId) {
-        message.warning("Không tìm thấy record ID");
+        message.warning(tr("Record ID not found"));
         return;
       }
       // Cho phép click tự do giữa các stage (kể cả lùi)
@@ -101,7 +132,7 @@ const CustomerStageFlow = ({ record, onUpdated }) => {
               color={STAGE_COLORS[localStatus]}
               style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px" }}
             >
-              Hiện tại
+              {tr("Current")}
             </Tag>
           )}
         </Space>
@@ -191,7 +222,7 @@ const CustomerOverviewBlock = () => {
     }
 
     if (!targetUid) {
-      message.warning(`Chưa cấu hình Popup UID cho ${type}`);
+      message.warning(tr("Popup UID is not configured for {0}", { 0: type }));
       return;
     }
 
@@ -206,7 +237,7 @@ const CustomerOverviewBlock = () => {
     return React.createElement(
       "div",
       { style: { padding: 16, color: "#ff4d4f", fontSize: 13 } },
-      "Không tìm thấy Record ID",
+      tr("Record ID not found"),
     );
 
   const actionButton = (type, label) =>
@@ -247,11 +278,11 @@ const CustomerOverviewBlock = () => {
           flexWrap: "wrap",
         },
       },
-      actionButton("quotation", "Create new quotation"),
-      actionButton("contract", "Create new contract"),
-      actionButton("case", "Create new case"),
-      actionButton("invoice", "Create new invoice"),
-      actionButton("payment", "Create new payment"),
+      actionButton("quotation", tr("Create new quotation")),
+      actionButton("contract", tr("Create new contract")),
+      actionButton("case", tr("Create new case")),
+      actionButton("invoice", tr("Create new invoice")),
+      actionButton("payment", tr("Create new payment")),
     ),
   );
 };

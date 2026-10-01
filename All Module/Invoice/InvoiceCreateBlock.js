@@ -1,3 +1,74 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Customer #{0}": "Khách hàng #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Company #{0}": "Công ty #{0}",
+  "Lawyer #{0}": "Luật sư #{0}",
+  "Could not load data for this contract.": "Không thể tải dữ liệu của hợp đồng này.",
+  "Could not load contract.": "Không thể tải hợp đồng.",
+  "Payment request not found.": "Không tìm thấy yêu cầu thanh toán.",
+  "This payment request has no linked contract.": "Yêu cầu thanh toán này chưa liên kết hợp đồng.",
+  "Payment request #{0}": "Yêu cầu thanh toán #{0}",
+  "Could not load payment request.": "Không thể tải yêu cầu thanh toán.",
+  "Please select a contract.": "Vui lòng chọn hợp đồng.",
+  "Please select a payment request.": "Vui lòng chọn yêu cầu thanh toán.",
+  "Please select at least one payment.": "Vui lòng chọn ít nhất một khoản thanh toán.",
+  "Please enter an invoice name.": "Vui lòng nhập tên hóa đơn.",
+  "Please enter the issued date.": "Vui lòng nhập ngày xuất hóa đơn.",
+  "Please enter a total amount.": "Vui lòng nhập tổng số tiền.",
+  "Invoice was created but its id could not be read back.": "Đã tạo hóa đơn nhưng không đọc lại được ID.",
+  "Invoice created, but {0} payment(s) could not be linked ({1}). Link them manually.": "Đã tạo hóa đơn, nhưng {0} khoản thanh toán chưa liên kết được ({1}). Vui lòng liên kết thủ công.",
+  "Invoice created and payments linked successfully.": "Đã tạo hóa đơn và liên kết các khoản thanh toán.",
+  "Invoice created successfully.": "Đã tạo hóa đơn.",
+  "Could not create invoice.": "Không thể tạo hóa đơn.",
+  "Payment request": "Yêu cầu thanh toán",
+  "Create invoice": "Tạo hóa đơn",
+  "Mode": "Cách tạo",
+  "From Payment Request": "Từ yêu cầu thanh toán",
+  "From Payment(s)": "Từ khoản thanh toán",
+  "Contract": "Hợp đồng",
+  "Select contract": "Chọn hợp đồng",
+  "Internal company": "Công ty nội bộ",
+  "Select internal company": "Chọn công ty nội bộ",
+  "Customer": "Khách hàng",
+  "Payment requests": "Yêu cầu thanh toán",
+  "Selected request": "Yêu cầu đã chọn",
+  "Requested amount": "Số tiền yêu cầu",
+  "No payment requests for this contract.": "Hợp đồng này chưa có yêu cầu thanh toán.",
+  "Requested": "Đã yêu cầu",
+  "Status": "Trạng thái",
+  "Payments to invoice": "Khoản thanh toán cần xuất hóa đơn",
+  "{0} payment(s) selected": "Đã chọn {0} khoản thanh toán",
+  "No uninvoiced payments for this contract.": "Hợp đồng này không có khoản thanh toán chưa xuất hóa đơn.",
+  "Payment": "Thanh toán",
+  "Payment #{0}": "Thanh toán #{0}",
+  "Date": "Ngày",
+  "Amount": "Số tiền",
+  "Invoice details": "Chi tiết hóa đơn",
+  "Invoice name": "Tên hóa đơn",
+  "Issued date": "Ngày xuất",
+  "Deadline": "Hạn",
+  "Assignee": "Người phụ trách",
+  "Select lawyer": "Chọn luật sư",
+  "Total amount": "Tổng số tiền",
+  "Description": "Mô tả",
+  "Submit": "Gửi",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useRef } = React;
 const {
@@ -151,20 +222,20 @@ const customerLabel = (record) =>
   compact([
     firstPresent(record, ["customerName", "name", "fullName", "displayName", "companyName"]),
     firstPresent(record, ["customerCode", "code"]) ? `(${firstPresent(record, ["customerCode", "code"])})` : "",
-  ]).join(" ") || (record?.id ? `Customer #${record.id}` : "-");
+  ]).join(" ") || (record?.id ? tr("Customer #{0}", { 0: record.id }) : "-");
 
 const contractLabel = (record) =>
   compact([
     firstPresent(record, ["contractCode", "contractNumber", "code"]),
     firstPresent(record, ["contractName", "name", "title"]),
-  ]).join(" - ") || (record?.id ? `Contract #${record.id}` : "-");
+  ]).join(" - ") || (record?.id ? tr("Contract #{0}", { 0: record.id }) : "-");
 
 // Field priority verified against Lead/LeadFormContextTest.js's proven
 // internalCompanyLabel() — this collection's real name field is
 // "shortName", not "name" (which InvoiceCreateBlock originally guessed).
 const companyLabel = (record) =>
   compact([firstPresent(record, ["shortName", "name", "legalName", "companyCode"])]).join(" ") ||
-  (record?.id ? `Company #${record.id}` : "-");
+  (record?.id ? tr("Company #{0}", { 0: record.id }) : "-");
 
 // Field priority verified against Contract/ContractCreateForm.js's proven
 // lawyerLabel() — the lawyers collection's real name field is "lawyerName",
@@ -172,7 +243,7 @@ const companyLabel = (record) =>
 // every option falling through to the "Lawyer #<id>" placeholder.
 const lawyerLabel = (record) =>
   compact([firstPresent(record, ["lawyerName", "fullName", "nickname", "username", "name", "displayName"])]).join(" ") ||
-  (record?.id ? `Lawyer #${record.id}` : "-");
+  (record?.id ? tr("Lawyer #{0}", { 0: record.id }) : "-");
 
 const capitalizeFirst = (value) => {
   const s = String(value || "");
@@ -386,7 +457,7 @@ const InvoiceCreateBlock = () => {
       }
     } catch (error) {
       console.error("[InvoiceCreateBlock] load mode data failed", error);
-      if (loadRequestIdRef.current === requestId) message.error("Could not load data for this contract.");
+      if (loadRequestIdRef.current === requestId) message.error(tr("Could not load data for this contract."));
     } finally {
       if (loadRequestIdRef.current === requestId) setLoading(false);
     }
@@ -424,7 +495,7 @@ const InvoiceCreateBlock = () => {
       }));
     } catch (error) {
       console.error("[InvoiceCreateBlock] load contract failed", error);
-      if (loadRequestIdRef.current === requestId) message.error("Could not load contract.");
+      if (loadRequestIdRef.current === requestId) message.error(tr("Could not load contract."));
       return;
     }
     await loadModeSpecificData(safeId, requestMode, requestId);
@@ -440,15 +511,15 @@ const InvoiceCreateBlock = () => {
     setLoading(true);
     try {
       const request = await getAny(PAYMENT_REQUEST_RESOURCES, safeRequestId, { appends: ["contracts"] });
-      if (!request) throw new Error("Payment request not found.");
+      if (!request) throw new Error(tr("Payment request not found."));
       const contractId = extractId(request?.contractId) || extractId(relationRecord(request?.contracts));
-      if (!contractId) throw new Error("This payment request has no linked contract.");
+      if (!contractId) throw new Error(tr("This payment request has no linked contract."));
       const contract = await getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany"] });
       setSelectedContract(contract || null);
       const requestedAmount = parseNum(request?.requestedAmount);
       setActivePaymentRequest({
         id: safeRequestId,
-        title: firstPresent(request || {}, ["title"]) || `Payment request #${safeRequestId}`,
+        title: firstPresent(request || {}, ["title"]) || tr("Payment request #{0}", { 0: safeRequestId }),
         requestedAmount,
       });
       setForm((prev) => ({
@@ -461,7 +532,7 @@ const InvoiceCreateBlock = () => {
       }));
     } catch (error) {
       console.error("[InvoiceCreateBlock] load seeded payment request failed", error);
-      message.error(error?.message || "Could not load payment request.");
+      message.error(error?.message || tr("Could not load payment request."));
     } finally {
       setLoading(false);
     }
@@ -490,13 +561,13 @@ const InvoiceCreateBlock = () => {
   };
 
   const validate = () => {
-    if (!form.contractId) return "Please select a contract.";
-    if (mode === MODE.paymentRequest && !activePaymentRequest) return "Please select a payment request.";
-    if (mode === MODE.payments && !selectedPaymentIds.length) return "Please select at least one payment.";
-    if (!form.invoiceName.trim()) return "Please enter an invoice name.";
-    if (!form.issuedDate) return "Please enter the issued date.";
+    if (!form.contractId) return tr("Please select a contract.");
+    if (mode === MODE.paymentRequest && !activePaymentRequest) return tr("Please select a payment request.");
+    if (mode === MODE.payments && !selectedPaymentIds.length) return tr("Please select at least one payment.");
+    if (!form.invoiceName.trim()) return tr("Please enter an invoice name.");
+    if (!form.issuedDate) return tr("Please enter the issued date.");
     const amount = parseNum(form.totalAmount);
-    if (amount <= 0) return "Please enter a total amount.";
+    if (amount <= 0) return tr("Please enter a total amount.");
     return "";
   };
 
@@ -560,7 +631,7 @@ const InvoiceCreateBlock = () => {
       const payload = buildInvoicePayload();
       const created = unwrapRecord(await apiRequestAny(INVOICE_RESOURCES, "create", { method: "POST", data: payload }));
       const invoiceId = extractId(created);
-      if (!invoiceId) throw new Error("Invoice was created but its id could not be read back.");
+      if (!invoiceId) throw new Error(tr("Invoice was created but its id could not be read back."));
 
       if (mode === MODE.payments && selectedPaymentIds.length) {
         const failedIds = [];
@@ -578,14 +649,14 @@ const InvoiceCreateBlock = () => {
             return row?.paymentNumber || `#${id}`;
           });
           message.warning(
-            `Invoice created, but ${failedIds.length} payment(s) could not be linked (${failedLabels.join(", ")}). Link them manually.`,
+            tr("Invoice created, but {0} payment(s) could not be linked ({1}). Link them manually.", { 0: failedIds.length, 1: failedLabels.join(", ") }),
             8,
           );
         } else {
-          message.success("Invoice created and payments linked successfully.");
+          message.success(tr("Invoice created and payments linked successfully."));
         }
       } else {
-        message.success("Invoice created successfully.");
+        message.success(tr("Invoice created successfully."));
       }
       // Prevent a duplicate invoice on re-submit (double-click, or the user
       // trying again once the toast fades) — the form and every selection
@@ -594,7 +665,7 @@ const InvoiceCreateBlock = () => {
       resetSelectionState();
     } catch (submitError) {
       console.error("[InvoiceCreateBlock] submit failed", submitError);
-      message.error(submitError?.message || "Could not create invoice.");
+      message.error(submitError?.message || tr("Could not create invoice."));
     } finally {
       setSaving(false);
     }
@@ -605,7 +676,7 @@ const InvoiceCreateBlock = () => {
     const requestedAmount = parseNum(request?.requestedAmount);
     setActivePaymentRequest({
       id: requestId,
-      title: firstPresent(request || {}, ["title"]) || (requestId ? `Payment request #${requestId}` : "Payment request"),
+      title: firstPresent(request || {}, ["title"]) || (requestId ? tr("Payment request #{0}", { 0: requestId }) : tr("Payment request")),
       requestedAmount,
     });
     setForm((prev) => ({
@@ -621,7 +692,7 @@ const InvoiceCreateBlock = () => {
     React.createElement("style", null, FIELD_GRID_STYLE),
     React.createElement(
       Card,
-      { size: "small", title: "Create invoice" },
+      { size: "small", title: tr("Create invoice") },
       React.createElement(
         Form,
         { layout: "vertical" },
@@ -633,24 +704,24 @@ const InvoiceCreateBlock = () => {
           null,
           React.createElement(
             Form.Item,
-            { label: "Mode", required: true, style: { marginBottom: 0 } },
+            { label: tr("Mode"), required: true, style: { marginBottom: 0 } },
             React.createElement(Select, {
               value: mode,
               onChange: handleModeChange,
               options: [
-                { label: "From Payment Request", value: MODE.paymentRequest },
-                { label: "From Payment(s)", value: MODE.payments },
+                { label: tr("From Payment Request"), value: MODE.paymentRequest },
+                { label: tr("From Payment(s)"), value: MODE.payments },
               ],
             }),
           ),
           React.createElement(
             Form.Item,
-            { label: "Contract", required: true, style: { marginBottom: 0 } },
+            { label: tr("Contract"), required: true, style: { marginBottom: 0 } },
             React.createElement(Select, {
               showSearch: true,
               allowClear: true,
               value: form.contractId || undefined,
-              placeholder: "Select contract",
+              placeholder: tr("Select contract"),
               optionFilterProp: "label",
               onChange: loadContractContext,
               options: contracts.map((item) => ({ value: extractId(item), label: contractLabel(item) })),
@@ -658,12 +729,12 @@ const InvoiceCreateBlock = () => {
           ),
           React.createElement(
             Form.Item,
-            { label: "Internal company", style: { marginBottom: 0 } },
+            { label: tr("Internal company"), style: { marginBottom: 0 } },
             React.createElement(Select, {
               showSearch: true,
               allowClear: true,
               value: form.internalCompanyId || undefined,
-              placeholder: "Select internal company",
+              placeholder: tr("Select internal company"),
               optionFilterProp: "label",
               onChange: (value) => setF("internalCompanyId", value || ""),
               options: internalCompanies.map((item) => ({ value: extractId(item), label: companyLabel(item) })),
@@ -674,8 +745,8 @@ const InvoiceCreateBlock = () => {
         React.createElement(
           FieldRow,
           null,
-          React.createElement(InfoLine, { label: "Contract", value: contractLabel(selectedContract), minWidth: 200 }),
-          React.createElement(InfoLine, { label: "Customer", value: customerLabel(relationRecord(selectedContract.customers)), minWidth: 160 }),
+          React.createElement(InfoLine, { label: tr("Contract"), value: contractLabel(selectedContract), minWidth: 200 }),
+          React.createElement(InfoLine, { label: tr("Customer"), value: customerLabel(relationRecord(selectedContract.customers)), minWidth: 160 }),
         ),
         mode === MODE.paymentRequest &&
         React.createElement(
@@ -684,13 +755,13 @@ const InvoiceCreateBlock = () => {
           form.contractId &&
           React.createElement(
             Section,
-            { title: "Payment requests" },
+            { title: tr("Payment requests") },
             activePaymentRequest
               ? React.createElement(
                   FieldRow,
                   null,
-                  React.createElement(InfoLine, { label: "Selected request", value: activePaymentRequest.title, minWidth: 220 }),
-                  React.createElement(InfoLine, { label: "Requested amount", value: formatMoney(activePaymentRequest.requestedAmount) }),
+                  React.createElement(InfoLine, { label: tr("Selected request"), value: activePaymentRequest.title, minWidth: 220 }),
+                  React.createElement(InfoLine, { label: tr("Requested amount"), value: formatMoney(activePaymentRequest.requestedAmount) }),
                 )
               : null,
             React.createElement(Table, {
@@ -699,7 +770,7 @@ const InvoiceCreateBlock = () => {
               pagination: false,
               loading,
               dataSource: contractPaymentRequests,
-              locale: { emptyText: "No payment requests for this contract." },
+              locale: { emptyText: tr("No payment requests for this contract.") },
               rowSelection: {
                 type: "radio",
                 selectedRowKeys: activePaymentRequest?.id ? [activePaymentRequest.id] : [],
@@ -707,9 +778,9 @@ const InvoiceCreateBlock = () => {
               },
               onRow: (row) => ({ onClick: () => handleContractPaymentRequestSelect(row) }),
               columns: [
-                { title: "Payment request", dataIndex: "title", render: (value, row) => value || `Payment request #${extractId(row.id)}` },
-                { title: "Requested", dataIndex: "requestedAmount", width: 140, align: "right", render: formatMoney },
-                { title: "Status", dataIndex: "status", width: 100 },
+                { title: tr("Payment request"), dataIndex: "title", render: (value, row) => value || tr("Payment request #{0}", { 0: extractId(row.id) }) },
+                { title: tr("Requested"), dataIndex: "requestedAmount", width: 140, align: "right", render: formatMoney },
+                { title: tr("Status"), dataIndex: "status", width: 100 },
               ],
             }),
           ),
@@ -721,10 +792,10 @@ const InvoiceCreateBlock = () => {
           form.contractId &&
           React.createElement(
             Section,
-            { title: "Payments to invoice" },
+            { title: tr("Payments to invoice") },
             selectedPaymentIds.length
               ? React.createElement(InfoLine, {
-                  label: `${selectedPaymentIds.length} payment(s) selected`,
+                  label: tr("{0} payment(s) selected", { 0: selectedPaymentIds.length }),
                   value: formatMoney(sumSelectedPayments(contractPayments, selectedPaymentIds)),
                 })
               : null,
@@ -734,35 +805,35 @@ const InvoiceCreateBlock = () => {
               pagination: false,
               loading,
               dataSource: contractPayments,
-              locale: { emptyText: "No uninvoiced payments for this contract." },
+              locale: { emptyText: tr("No uninvoiced payments for this contract.") },
               rowSelection: {
                 type: "checkbox",
                 selectedRowKeys: selectedPaymentIds,
                 onChange: handlePaymentSelectionChange,
               },
               columns: [
-                { title: "Payment", dataIndex: "paymentNumber", render: (value, row) => value || `Payment #${extractId(row.id)}` },
-                { title: "Date", dataIndex: "paymentDate", width: 110, render: formatDate },
-                { title: "Status", dataIndex: "paymentStatus", width: 100 },
-                { title: "Amount", dataIndex: "amount", width: 140, align: "right", render: formatMoney },
+                { title: tr("Payment"), dataIndex: "paymentNumber", render: (value, row) => value || tr("Payment #{0}", { 0: extractId(row.id) }) },
+                { title: tr("Date"), dataIndex: "paymentDate", width: 110, render: formatDate },
+                { title: tr("Status"), dataIndex: "paymentStatus", width: 100 },
+                { title: tr("Amount"), dataIndex: "amount", width: 140, align: "right", render: formatMoney },
               ],
             }),
           ),
         ),
         React.createElement(
           Section,
-          { title: "Invoice details" },
+          { title: tr("Invoice details") },
           React.createElement(
             FieldGrid,
             null,
             React.createElement(
               Form.Item,
-              { label: "Invoice name", required: true, style: { marginBottom: 0 } },
+              { label: tr("Invoice name"), required: true, style: { marginBottom: 0 } },
               React.createElement(Input, { value: form.invoiceName, onChange: (e) => setF("invoiceName", e.target.value) }),
             ),
             React.createElement(
               Form.Item,
-              { label: "Status", required: true, style: { marginBottom: 0 } },
+              { label: tr("Status"), required: true, style: { marginBottom: 0 } },
               React.createElement(Select, {
                 value: form.status,
                 onChange: (value) => setF("status", value),
@@ -771,22 +842,22 @@ const InvoiceCreateBlock = () => {
             ),
             React.createElement(
               Form.Item,
-              { label: "Issued date", required: true, style: { marginBottom: 0 } },
+              { label: tr("Issued date"), required: true, style: { marginBottom: 0 } },
               React.createElement(Input, { type: "datetime-local", value: form.issuedDate, onChange: (e) => setF("issuedDate", e.target.value) }),
             ),
             React.createElement(
               Form.Item,
-              { label: "Deadline", style: { marginBottom: 0 } },
+              { label: tr("Deadline"), style: { marginBottom: 0 } },
               React.createElement(Input, { type: "datetime-local", value: form.deadline, onChange: (e) => setF("deadline", e.target.value) }),
             ),
             React.createElement(
               Form.Item,
-              { label: "Assignee", style: { marginBottom: 0 } },
+              { label: tr("Assignee"), style: { marginBottom: 0 } },
               React.createElement(Select, {
                 showSearch: true,
                 allowClear: true,
                 value: form.assignees || undefined,
-                placeholder: "Select lawyer",
+                placeholder: tr("Select lawyer"),
                 optionFilterProp: "label",
                 onChange: (value) => setF("assignees", value || ""),
                 options: lawyers.map((item) => ({ value: extractId(item), label: lawyerLabel(item) })),
@@ -794,12 +865,12 @@ const InvoiceCreateBlock = () => {
             ),
             React.createElement(
               Form.Item,
-              { label: "Total amount", required: true, style: { marginBottom: 0 } },
+              { label: tr("Total amount"), required: true, style: { marginBottom: 0 } },
               React.createElement(Input, { value: form.totalAmount ?? "", inputMode: "numeric", addonAfter: "VND", onChange: (e) => handleTotalAmountChange(e.target.value) }),
             ),
             React.createElement(
               Form.Item,
-              { label: "Description", style: { marginBottom: 0, gridColumn: "1 / -1" } },
+              { label: tr("Description"), style: { marginBottom: 0, gridColumn: "1 / -1" } },
               React.createElement(Input.TextArea, { rows: 3, value: form.description, onChange: (e) => setF("description", e.target.value) }),
             ),
           ),
@@ -807,7 +878,7 @@ const InvoiceCreateBlock = () => {
         React.createElement(
           "div",
           { style: { display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 12 } },
-          React.createElement(Button, { type: "primary", loading: saving, onClick: handleSubmit }, "Submit"),
+          React.createElement(Button, { type: "primary", loading: saving, onClick: handleSubmit }, tr("Submit")),
         ),
         ),
       ),

@@ -61,6 +61,42 @@
 // ===================================================================
 // CONFIG — EDIT THIS SECTION PER MODULE. Nothing below this needs editing.
 // ===================================================================
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Status": "Trạng thái",
+  "Not Start": "Chưa bắt đầu",
+  "In Progress": "Đang làm",
+  "Pending": "Chờ gửi",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã hủy",
+  "Priority": "Ưu tiên",
+  "Low": "Thấp",
+  "Medium": "Trung bình",
+  "High": "Cao",
+  "Internal Company": "Công ty nội bộ",
+  "All": "Tất cả",
+  "Customer": "Khách hàng",
+  "Manager": "Quản lý",
+  "Members": "Thành viên",
+  "Search": "Tìm kiếm",
+  "Search by case code, name, description...": "Tìm theo mã hồ sơ, tên, mô tả...",
+  "Search...": "Tìm kiếm...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const CONFIG = {
   targetBlockUid: '', // TODO: fill in — see file header note
   tableName: 'projects',
@@ -71,13 +107,13 @@ const CONFIG = {
       type: 'status',
       key: 'status',
       field: 'status',
-      label: 'Status',
+      label: tr("Status"),
       options: [
-        { value: 'toDo', label: 'Not Start' },
-        { value: 'inProgress', label: 'In Progress' },
-        { value: 'pending', label: 'Pending' },
-        { value: 'done', label: 'Done' },
-        { value: 'cancelled', label: 'Cancelled' },
+        { value: 'toDo', label: tr("Not Start") },
+        { value: 'inProgress', label: tr("In Progress") },
+        { value: 'pending', label: tr("Pending") },
+        { value: 'done', label: tr("Done") },
+        { value: 'cancelled', label: tr("Cancelled") },
       ],
       showCounts: true,
     },
@@ -85,11 +121,11 @@ const CONFIG = {
       type: 'status',
       key: 'priority',
       field: 'priority',
-      label: 'Priority',
+      label: tr("Priority"),
       options: [
-        { value: 'low', label: 'Low' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'high', label: 'High' },
+        { value: 'low', label: tr("Low") },
+        { value: 'medium', label: tr("Medium") },
+        { value: 'high', label: tr("High") },
       ],
       showCounts: true,
     },
@@ -97,8 +133,8 @@ const CONFIG = {
       type: 'relation',
       key: 'company',
       field: 'internalCompanyId',
-      label: 'Internal Company',
-      placeholder: 'All',
+      label: tr("Internal Company"),
+      placeholder: tr("All"),
       source: {
         collection: 'internalCompany',
         labelFields: ['shortName', 'name'],
@@ -109,8 +145,8 @@ const CONFIG = {
       type: 'relation',
       key: 'customer',
       field: 'customerId',
-      label: 'Customer',
-      placeholder: 'All',
+      label: tr("Customer"),
+      placeholder: tr("All"),
       source: {
         collection: 'customers',
         labelFields: ['shortName', 'customerName'],
@@ -128,8 +164,8 @@ const CONFIG = {
       type: 'relation',
       key: 'projectManager',
       field: 'projectManagerId',
-      label: 'Manager',
-      placeholder: 'All',
+      label: tr("Manager"),
+      placeholder: tr("All"),
       source: {
         collection: 'users',
         labelFields: ['nickname', 'name', 'username'],
@@ -141,8 +177,8 @@ const CONFIG = {
       key: 'assignees',
       field: 'assignees',
       relationKey: 'id', // many-to-many, no flat FK column, only the association
-      label: 'Members',
-      placeholder: 'All',
+      label: tr("Members"),
+      placeholder: tr("All"),
       source: {
         collection: 'lawyers',
         labelFields: ['lawyerName'],
@@ -152,9 +188,9 @@ const CONFIG = {
     {
       type: 'search',
       key: 'search',
-      label: 'Search',
+      label: tr("Search"),
       fields: ['caseCode', 'projectName', 'description'],
-      placeholder: 'Search by case code, name, description...',
+      placeholder: tr("Search by case code, name, description..."),
     },
   ],
 
@@ -252,7 +288,7 @@ const buildFilterFor = (filterDef, value) => {
   }
 };
 
-const getDisplayOptions = (filterDef) => [{ value: 'all', label: 'All' }, ...(filterDef.options || [])];
+const getDisplayOptions = (filterDef) => [{ value: 'all', label: tr("All") }, ...(filterDef.options || [])];
 
 // ---- current-user scope filter (pure) ----
 const buildCurrentUserScopeFilter = ({ userId, validUserFields = [], validRelationFields = [], emptyWhenUnknown = true }) => {
@@ -651,7 +687,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Select, {
         value: value || undefined,
-        placeholder: filterDef.placeholder || 'All',
+        placeholder: filterDef.placeholder || tr("All"),
         allowClear: true,
         showSearch: true,
         optionFilterProp: 'label',
@@ -669,7 +705,7 @@ const FilterControl = ({ filterDef, value, onChange, counts, currentUserScope })
       'div', { style: { ...wrapStyle, gridColumn: 'span 2' } },
       React.createElement(Text, { style: labelStyle }, `${filterDef.label}:`),
       React.createElement(Input.Search, {
-        placeholder: filterDef.placeholder || 'Search...',
+        placeholder: filterDef.placeholder || tr("Search..."),
         allowClear: true,
         enterButton: true,
         size: 'small',

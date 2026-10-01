@@ -1,4 +1,123 @@
-  const { React } = ctx;
+  // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Every {0} · {1} {2} total": "Mỗi {0} · tổng {1} {2}",
+  "Every {0} · open-ended": "Mỗi {0} · không thời hạn",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Customer": "Khách hàng",
+  "Company #{0}": "Công ty #{0}",
+  "Company": "Công ty",
+  "User #{0}": "Người dùng #{0}",
+  "User": "Người dùng",
+  "Invoice #{0}": "Hóa đơn #{0}",
+  "Invoice": "Hóa đơn",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Contract": "Hợp đồng",
+  "Update failed.": "Cập nhật thất bại.",
+  "Discard unsaved payment?": "Bỏ khoản thanh toán chưa lưu?",
+  "Changes in this payment form will be lost if you close it.": "Các thay đổi trong biểu mẫu thanh toán sẽ bị mất nếu bạn đóng lại.",
+  "Discard": "Bỏ",
+  "Keep editing": "Tiếp tục chỉnh sửa",
+  "Discard unsaved payment?\nChanges in this payment form will be lost if you close it.": "Bỏ khoản thanh toán chưa lưu?\nCác thay đổi trong biểu mẫu thanh toán sẽ bị mất nếu bạn đóng lại.",
+  "Unpaid": "Chưa thanh toán",
+  "Partial": "Thanh toán một phần",
+  "Paid": "Đã thanh toán",
+  "Unknown": "Không xác định",
+  "Could not load contract payment information.": "Không thể tải thông tin thanh toán của hợp đồng.",
+  "Service #{0}": "Dịch vụ #{0}",
+  "No contract linked to this payment request.": "Yêu cầu thanh toán này chưa liên kết hợp đồng.",
+  "Payment request #{0}": "Yêu cầu thanh toán #{0}",
+  "Payment request": "Yêu cầu thanh toán",
+  "Could not load payment request context.": "Không thể tải thông tin yêu cầu thanh toán.",
+  "Payment request not found.": "Không tìm thấy yêu cầu thanh toán.",
+  "This payment request has already been fully paid.": "Yêu cầu thanh toán này đã được thanh toán đủ.",
+  "Please select an invoice.": "Vui lòng chọn hóa đơn.",
+  "Please select a contract.": "Vui lòng chọn hợp đồng.",
+  "Please select a payment request to pay.": "Vui lòng chọn yêu cầu thanh toán cần thanh toán.",
+  "Please select a customer for manual payment.": "Vui lòng chọn khách hàng cho khoản thanh toán thủ công.",
+  "Please select internal company.": "Vui lòng chọn công ty nội bộ.",
+  "Please select payment method.": "Vui lòng chọn phương thức thanh toán.",
+  "Please select payment status.": "Vui lòng chọn trạng thái thanh toán.",
+  "Please enter received amount.": "Vui lòng nhập số tiền đã nhận.",
+  "Please enter payment date.": "Vui lòng nhập ngày thanh toán.",
+  "Received amount cannot exceed invoice remaining amount.": "Số tiền đã nhận không được vượt quá số tiền còn lại của hóa đơn.",
+  "Received amount cannot exceed the payment request's remaining amount.": "Số tiền đã nhận không được vượt quá số tiền còn lại của yêu cầu thanh toán.",
+  "This contract has already been fully paid.": "Hợp đồng này đã được thanh toán đủ.",
+  "Received amount cannot exceed contract remaining amount.": "Số tiền đã nhận không được vượt quá số tiền còn lại của hợp đồng.",
+  "A payment with the same reference already exists for this payment request.": "Yêu cầu thanh toán này đã có khoản thanh toán cùng mã tham chiếu.",
+  "A payment with the same reference already exists for this contract.": "Hợp đồng này đã có khoản thanh toán cùng mã tham chiếu.",
+  "Payment saved successfully.": "Đã lưu khoản thanh toán.",
+  "Could not save payment.": "Không thể lưu khoản thanh toán.",
+  "This request": "Yêu cầu này",
+  "Requested": "Đã yêu cầu",
+  "Already received": "Đã thu",
+  "Remaining on this request": "Còn lại của yêu cầu này",
+  "Create payment": "Tạo khoản thanh toán",
+  "Mode": "Cách tạo",
+  "By invoice": "Theo hóa đơn",
+  "By contract": "Theo hợp đồng",
+  "Manual": "Thủ công",
+  "Select invoice": "Chọn hóa đơn",
+  "Select contract": "Chọn hợp đồng",
+  "Select customer": "Chọn khách hàng",
+  "Internal company": "Công ty nội bộ",
+  "Select company": "Chọn công ty",
+  "Accounting": "Kế toán",
+  "Select accounting user": "Chọn người phụ trách kế toán",
+  "Payment requests": "Yêu cầu thanh toán",
+  "Contract payment": "Thanh toán hợp đồng",
+  "Select a contract to load payment information.": "Chọn hợp đồng để tải thông tin thanh toán.",
+  "Contract outstanding: {0}": "Hợp đồng còn phải thu: {0}",
+  "Service(s):": "Dịch vụ:",
+  "Due date": "Hạn",
+  "Received": "Đã nhận",
+  "Remaining": "Còn lại",
+  "Status": "Trạng thái",
+  "Planned": "Dự kiến",
+  "Contract value": "Giá trị hợp đồng",
+  "Next payment": "Thanh toán tiếp theo",
+  "Actual payment": "Thanh toán thực tế",
+  "Payment method": "Phương thức thanh toán",
+  "Payment status": "Trạng thái thanh toán",
+  "Payment date": "Ngày thanh toán",
+  "Amount": "Số tiền",
+  "Payment reference": "Mã tham chiếu thanh toán",
+  "Bank transaction code, receipt code, note...": "Mã giao dịch ngân hàng, mã biên nhận, ghi chú...",
+  "Cancel": "Hủy",
+  "Submit": "Gửi",
+  "Cash": "Tiền mặt",
+  "Bank transfer": "Chuyển khoản",
+  "Credit card": "Thẻ tín dụng",
+  "Other": "Khác",
+  "Cancelled": "Đã hủy",
+  "day": "ngày",
+  "days": "ngày",
+  "week": "tuần",
+  "weeks": "tuần",
+  "month": "tháng",
+  "months": "tháng",
+  "quarter": "quý",
+  "quarters": "quý",
+  "year": "năm",
+  "years": "năm",
+  "cycle": "kỳ",
+  "cycles": "kỳ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React } = ctx;
   const { useCallback, useEffect, useMemo, useRef, useState } = React;
   const {
     Button,
@@ -32,8 +151,10 @@
   };
 
   const MONEY_TOLERANCE = 0;
-  const FINAL_STATUSES = ["received", "paid", "completed"];
-  const ACTUAL_PAYMENT_STATUSES = ["received", "paid", "completed", "partial"];
+  // 2026-09-28: a payment is Received or Cancelled (spec
+  // docs/superpowers/specs/2026-09-28-case-finance-tab-business-rules-design.md §6).
+  const FINAL_STATUSES = ["received"];
+  const ACTUAL_PAYMENT_STATUSES = ["received"];
   const NON_ACTIVE_STATUSES = ["cancelled", "canceled", "void"];
 
   const contextRecord =
@@ -99,12 +220,9 @@
   const isActualPaidStatus = (status) => ACTUAL_PAYMENT_STATUSES.includes(normalizeStatus(status));
   const isInactiveStatus = (status) => NON_ACTIVE_STATUSES.includes(normalizeStatus(status));
 
-  const deriveActualPaymentStatus = (amount, remainingBefore) => {
-    const received = parseNum(amount);
-    const remaining = parseNum(remainingBefore);
-    if (remaining > MONEY_TOLERANCE && received + MONEY_TOLERANCE < remaining) return "Partial";
-    return "Received";
-  };
+  // Whether a payment settles its request/invoice in full is derived by the
+  // database (pgsql/finance_foundation.sql), not stored on the payment.
+  const deriveActualPaymentStatus = () => "Received";
 
   const toIsoDateTime = (value) => {
     if (!value) return null;
@@ -246,12 +364,12 @@
 
   const retainerDurationSuffix = (retainerPeriod, durationValue) => {
     const singular = parseNum(durationValue) === 1;
-    if (retainerPeriod === "day") return singular ? "day" : "days";
-    if (retainerPeriod === "week") return singular ? "week" : "weeks";
-    if (retainerPeriod === "month") return singular ? "month" : "months";
-    if (retainerPeriod === "quarter") return singular ? "quarter" : "quarters";
-    if (retainerPeriod === "year") return singular ? "year" : "years";
-    return singular ? "cycle" : "cycles";
+    if (retainerPeriod === "day") return singular ? tr("day") : tr("days");
+    if (retainerPeriod === "week") return singular ? tr("week") : tr("weeks");
+    if (retainerPeriod === "month") return singular ? tr("month") : tr("months");
+    if (retainerPeriod === "quarter") return singular ? tr("quarter") : tr("quarters");
+    if (retainerPeriod === "year") return singular ? tr("year") : tr("years");
+    return singular ? tr("cycle") : tr("cycles");
   };
 
   // Replaces recomputing "startDate + 1 unit" blind to actual progress —
@@ -267,8 +385,8 @@
         cyclesBilled,
         totalCycles,
         displayText: totalCycles
-          ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
-          : `Every ${plan.retainerUnit} · open-ended`,
+          ? tr("Every {0} · {1} {2} total", { 0: retainerDurationSuffix(plan.retainerUnit, 1), 1: totalCycles, 2: retainerDurationSuffix(plan.retainerUnit, totalCycles) })
+          : tr("Every {0} · open-ended", { 0: retainerDurationSuffix(plan.retainerUnit, 1) }),
       };
     }
     return {
@@ -276,8 +394,8 @@
       cyclesBilled,
       totalCycles,
       displayText: totalCycles
-        ? `Every ${plan.retainerUnit} · ${totalCycles} ${retainerDurationSuffix(plan.retainerUnit, totalCycles)} total`
-        : `Every ${plan.retainerUnit} · open-ended`,
+        ? tr("Every {0} · {1} {2} total", { 0: retainerDurationSuffix(plan.retainerUnit, 1), 1: totalCycles, 2: retainerDurationSuffix(plan.retainerUnit, totalCycles) })
+        : tr("Every {0} · open-ended", { 0: retainerDurationSuffix(plan.retainerUnit, 1) }),
     };
   };
 
@@ -319,12 +437,12 @@
     compact([
       firstPresent(record, ["customerName", "name", "fullName", "displayName", "companyName"]),
       firstPresent(record, ["customerCode", "code"]) ? `(${firstPresent(record, ["customerCode", "code"])})` : "",
-    ]).join(" ") || (record?.id ? `Customer #${record.id}` : "Customer");
+    ]).join(" ") || (record?.id ? tr("Customer #{0}", { 0: record.id }) : tr("Customer"));
 
   const companyLabel = (record) =>
     compact([
       firstPresent(record, ["name", "companyName", "shortName", "displayName"]),
-    ]).join(" ") || (record?.id ? `Company #${record.id}` : "Company");
+    ]).join(" ") || (record?.id ? tr("Company #{0}", { 0: record.id }) : tr("Company"));
 
   const userLabel = (record) =>
     compact([
@@ -333,7 +451,7 @@
       firstPresent(record, ["email"]) !== firstPresent(record, ["nickname", "displayName", "username", "email"])
         ? `(${firstPresent(record, ["email"])})`
         : "",
-    ]).join(" ") || (record?.id ? `User #${record.id}` : "User");
+    ]).join(" ") || (record?.id ? tr("User #{0}", { 0: record.id }) : tr("User"));
 
   const invoiceLabel = (record) =>
     compact([
@@ -342,7 +460,7 @@
       parseNum(firstPresent(record, ["remainingAmount", "balanceAmount", "totalAmount", "amount"]))
         ? formatMoney(firstPresent(record, ["remainingAmount", "balanceAmount", "totalAmount", "amount"]))
         : "",
-    ]).join(" - ") || (record?.id ? `Invoice #${record.id}` : "Invoice");
+    ]).join(" - ") || (record?.id ? tr("Invoice #{0}", { 0: record.id }) : tr("Invoice"));
 
   const invoiceRemainingAmount = (record) =>
     parseNum(firstPresent(record, ["remainingAmount", "balanceAmount", "unpaidAmount", "outstandingAmount", "amountDue"])) ||
@@ -353,7 +471,7 @@
       firstPresent(record, ["contractCode", "contractNumber", "code"]),
       firstPresent(record, ["contractName", "name", "title"]),
       relationRecord(record?.customers) ? customerLabel(relationRecord(record.customers)) : "",
-    ]).join(" - ") || (record?.id ? `Contract #${record.id}` : "Contract");
+    ]).join(" - ") || (record?.id ? tr("Contract #{0}", { 0: record.id }) : tr("Contract"));
 
   const normalizeSourceKeyPart = (value) =>
     String(value || "")
@@ -437,7 +555,7 @@
         console.warn("[PaymentCreateBlock] update fallback failed", error);
       }
     }
-    throw lastError || new Error("Update failed.");
+    throw lastError || new Error(tr("Update failed."));
   };
 
   const savePaymentWithRequestFallback = async ({ updateExistingId, payload }) => {
@@ -531,10 +649,10 @@
     if (Modal?.confirm) {
       showDiscardConfirm._open = true;
       Modal.confirm({
-        title: "Discard unsaved payment?",
-        content: "Changes in this payment form will be lost if you close it.",
-        okText: "Discard",
-        cancelText: "Keep editing",
+        title: tr("Discard unsaved payment?"),
+        content: tr("Changes in this payment form will be lost if you close it."),
+        okText: tr("Discard"),
+        cancelText: tr("Keep editing"),
         okButtonProps: { danger: true },
         maskClosable: false,
         onCancel: () => {
@@ -545,7 +663,7 @@
       return;
     }
 
-    if (window.confirm("Discard unsaved payment?\nChanges in this payment form will be lost if you close it.")) {
+    if (((message) => { try { return window.confirm(message); } catch { return false; } })(tr("Discard unsaved payment?\nChanges in this payment form will be lost if you close it."))) {
       run();
     }
   };
@@ -658,7 +776,27 @@
       .toLowerCase()
       .replace(/[\s-]+/g, "_");
 
+  // ---- retainer contract value (pure; tested by scripts/tests/retainer-per-period.test.js) ----
+  // JS twin of contract_retainer_value (pgsql/contract_payment_status_workflow.sql,
+  // 2026-09-30): a retainer's totalAmount is the fee of EVERY period, so the
+  // contract is worth fee × the plan's periods (open-ended: the periods billed
+  // so far, at least 1). The active plan wins, else the newest. 0 = not a
+  // retainer, or no plan yet.
+  const retainerContractValue = (contract) => {
+    if (String(contract?.contractType || "") !== "retainer") return 0;
+    const plans = (contract?.billingPlans || [])
+      .filter((p) => String(p?.planType || "") === "retainer")
+      .sort((a, b) => (b.status === "active") - (a.status === "active") || parseNum(b.id) - parseNum(a.id));
+    const plan = plans[0];
+    if (!plan) return 0;
+    const periods = parseNum(plan.retainerTotalCycles) || Math.max(parseNum(plan.retainerCyclesBilled), 1);
+    return Math.round(parseNum(plan.totalAmount)) * periods;
+  };
+  // ---- end retainer contract value ----
   const contractTotalAmount = (contract) => {
+    const retainerValue = retainerContractValue(contract);
+    if (retainerValue > MONEY_TOLERANCE) return retainerValue;
+
     const directTotal = parseNum(firstPresent(contract, [
       "totalAmount",
       "packageTotalAmount",
@@ -754,13 +892,13 @@
   };
 
   const CONTRACT_PAYMENT_STATUS_META = {
-    unpaid: { color: "default", label: "Unpaid" },
-    partial: { color: "warning", label: "Partial" },
-    paid: { color: "success", label: "Paid" },
+    unpaid: { color: "default", label: tr("Unpaid") },
+    partial: { color: "warning", label: tr("Partial") },
+    paid: { color: "success", label: tr("Paid") },
   };
 
   const contractPaymentStatusMeta = (status) =>
-    CONTRACT_PAYMENT_STATUS_META[String(status || "").toLowerCase()] || { color: "default", label: "Unknown" };
+    CONTRACT_PAYMENT_STATUS_META[String(status || "").toLowerCase()] || { color: "default", label: tr("Unknown") };
 
   const ContractSummaryItem = ({ label, value, strong }) =>
     React.createElement(
@@ -1035,7 +1173,7 @@
         }));
       } catch (error) {
         console.error("[PaymentCreateBlock] load contract failed", error);
-        message.error("Could not load contract payment information.");
+        message.error(tr("Could not load contract payment information."));
       } finally {
         setLoading(false);
       }
@@ -1058,7 +1196,7 @@
             filter: JSON.stringify({ id: { $in: csIds } }),
             fields: ["id", "serviceName"],
           }).then((serviceRows) => {
-            setRequestServiceNames((serviceRows || []).map((row) => row.serviceName || `Service #${extractId(row.id)}`));
+            setRequestServiceNames((serviceRows || []).map((row) => row.serviceName || tr("Service #{0}", { 0: extractId(row.id) })));
           });
         })
         .catch(() => setRequestServiceNames([]));
@@ -1077,7 +1215,7 @@
         resolveContractId(item || {}) ||
         resolveContractId(request || {}) ||
         extractId(request?.contractId);
-      if (!contractId) throw new Error("No contract linked to this payment request.");
+      if (!contractId) throw new Error(tr("No contract linked to this payment request."));
 
       const [contract, payments] = await Promise.all([
         getAny(CONTRACT_RESOURCES, contractId, { appends: ["customers", "internalCompany", "billingPlans"] }),
@@ -1118,7 +1256,7 @@
       setContractPaymentRequests([]);
       setActivePaymentRequest({
         id: requestId,
-        title: firstPresent(request || {}, ["title"]) || (requestId ? `Payment request #${requestId}` : "Payment request"),
+        title: firstPresent(request || {}, ["title"]) || (requestId ? tr("Payment request #{0}", { 0: requestId }) : tr("Payment request")),
         requestedAmount,
         paidAmount: requestPaidAmount,
         remainingAmount: requestRemainingAmount,
@@ -1166,7 +1304,7 @@
         await finishLoadingPaymentRequest(request, item);
       } catch (error) {
         console.error("[PaymentCreateBlock] load payment request context failed", error);
-        message.error(error?.message || "Could not load payment request context.");
+        message.error(error?.message || tr("Could not load payment request context."));
         setRequestContextLoaded(true);
       } finally {
         setLoading(false);
@@ -1185,11 +1323,11 @@
         const request = await getAny(PAYMENT_REQUEST_RESOURCES, safeRequestId, {
           appends: ["contracts", "customers", "internalCompany"],
         });
-        if (!request) throw new Error("Payment request not found.");
+        if (!request) throw new Error(tr("Payment request not found."));
         await finishLoadingPaymentRequest(request, null);
       } catch (error) {
         console.error("[PaymentCreateBlock] load payment request (by id) context failed", error);
-        message.error(error?.message || "Could not load payment request context.");
+        message.error(error?.message || tr("Could not load payment request context."));
         setRequestContextLoaded(true);
       } finally {
         setLoading(false);
@@ -1230,7 +1368,7 @@
     const handleContractPaymentRequestSelect = (request) => {
       const remaining = paymentRequestRemainingAmount(request);
       if (remaining <= MONEY_TOLERANCE) {
-        message.info("This payment request has already been fully paid.");
+        message.info(tr("This payment request has already been fully paid."));
         return;
       }
       markDirty();
@@ -1239,7 +1377,7 @@
       fetchAndSetRequestServiceNames(requestId);
       setActivePaymentRequest({
         id: requestId,
-        title: firstPresent(request || {}, ["title"]) || (requestId ? `Payment request #${requestId}` : "Payment request"),
+        title: firstPresent(request || {}, ["title"]) || (requestId ? tr("Payment request #{0}", { 0: requestId }) : tr("Payment request")),
         requestedAmount: parseNum(request?.requestedAmount),
         paidAmount: paid,
         remainingAmount: remaining,
@@ -1296,36 +1434,36 @@
     };
 
     const validate = () => {
-      if (mode === SOURCE_TYPES.invoice && !form.invoiceId) return "Please select an invoice.";
-      if (mode === SOURCE_TYPES.contract && !form.contractId) return "Please select a contract.";
+      if (mode === SOURCE_TYPES.invoice && !form.invoiceId) return tr("Please select an invoice.");
+      if (mode === SOURCE_TYPES.contract && !form.contractId) return tr("Please select a contract.");
       if (mode === SOURCE_TYPES.contract && showPaymentRequestPicker && !activePaymentRequest) {
-        return "Please select a payment request to pay.";
+        return tr("Please select a payment request to pay.");
       }
-      if (mode === SOURCE_TYPES.manual && !form.customerId) return "Please select a customer for manual payment.";
-      if (!form.internalCompanyId) return "Please select internal company.";
-      if (!form.paymentMethod) return "Please select payment method.";
-      if (mode === SOURCE_TYPES.manual && !form.paymentStatus) return "Please select payment status.";
+      if (mode === SOURCE_TYPES.manual && !form.customerId) return tr("Please select a customer for manual payment.");
+      if (!form.internalCompanyId) return tr("Please select internal company.");
+      if (!form.paymentMethod) return tr("Please select payment method.");
+      if (mode === SOURCE_TYPES.manual && !form.paymentStatus) return tr("Please select payment status.");
       const amount = parseNum(form.amount);
-      if (amount <= 0) return "Please enter received amount.";
-      if (!form.paymentDate) return "Please enter payment date.";
+      if (amount <= 0) return tr("Please enter received amount.");
+      if (!form.paymentDate) return tr("Please enter payment date.");
       if (mode === SOURCE_TYPES.invoice) {
         const invoiceRemaining = invoiceRemainingAmount(selectedInvoice);
         if (invoiceRemaining > MONEY_TOLERANCE && amount > invoiceRemaining + MONEY_TOLERANCE) {
-          return "Received amount cannot exceed invoice remaining amount.";
+          return tr("Received amount cannot exceed invoice remaining amount.");
         }
       }
       if (mode === SOURCE_TYPES.contract) {
         if (activePaymentRequest) {
           if (activePaymentRequest.remainingAmount <= MONEY_TOLERANCE) {
-            return "This payment request has already been fully paid.";
+            return tr("This payment request has already been fully paid.");
           }
           if (amount > activePaymentRequest.remainingAmount + MONEY_TOLERANCE) {
-            return "Received amount cannot exceed the payment request's remaining amount.";
+            return tr("Received amount cannot exceed the payment request's remaining amount.");
           }
         } else if (selectedContractTotalAmount > MONEY_TOLERANCE) {
-          if (contractOutstandingAmount <= MONEY_TOLERANCE) return "This contract has already been fully paid.";
+          if (contractOutstandingAmount <= MONEY_TOLERANCE) return tr("This contract has already been fully paid.");
           if (amount > contractOutstandingAmount + MONEY_TOLERANCE) {
-            return "Received amount cannot exceed contract remaining amount.";
+            return tr("Received amount cannot exceed contract remaining amount.");
           }
         }
       }
@@ -1386,10 +1524,10 @@
         );
         const remainingBefore = Math.max(activePaymentRequest.requestedAmount - latestRequestPaid, 0);
         if (remainingBefore <= MONEY_TOLERANCE) {
-          throw new Error("This payment request has already been fully paid.");
+          throw new Error(tr("This payment request has already been fully paid."));
         }
         if (amount > remainingBefore + MONEY_TOLERANCE) {
-          throw new Error("Received amount cannot exceed the payment request's remaining amount.");
+          throw new Error(tr("Received amount cannot exceed the payment request's remaining amount."));
         }
         const paymentStatus = deriveActualPaymentStatus(amount, remainingBefore);
         const baseKey = basePaymentRequestSourceKey(requestId);
@@ -1401,7 +1539,7 @@
         const existingActual = hasBaseActual ? await findPaymentBySourceKey(sourceKey) : null;
 
         if (existingActual) {
-          throw new Error("A payment with the same reference already exists for this payment request.");
+          throw new Error(tr("A payment with the same reference already exists for this payment request."));
         }
 
         return {
@@ -1429,10 +1567,10 @@
         : 0;
       if (totalAmount > MONEY_TOLERANCE) {
         if (remainingBefore <= MONEY_TOLERANCE) {
-          throw new Error("This contract has already been fully paid.");
+          throw new Error(tr("This contract has already been fully paid."));
         }
         if (amount > remainingBefore + MONEY_TOLERANCE) {
-          throw new Error("Received amount cannot exceed contract remaining amount.");
+          throw new Error(tr("Received amount cannot exceed contract remaining amount."));
         }
       }
       const paymentStatus = remainingBefore > MONEY_TOLERANCE
@@ -1442,7 +1580,7 @@
       const existingDirect = await findPaymentBySourceKey(sourceKey);
 
       if (existingDirect) {
-        throw new Error("A payment with the same reference already exists for this contract.");
+        throw new Error(tr("A payment with the same reference already exists for this contract."));
       }
 
       return {
@@ -1465,7 +1603,7 @@
         const { payload, updateExistingId } = await buildPaymentPayload();
         const savedPayment = await savePaymentWithRequestFallback({ updateExistingId, payload });
         await syncPaymentRequestItemAfterPayment({ payment: savedPayment || { id: updateExistingId }, form });
-        message.success("Payment saved successfully.");
+        message.success(tr("Payment saved successfully."));
         isDirtyRef.current = false;
         setForm((prev) => ({
           ...prev,
@@ -1483,7 +1621,7 @@
         setTimeout(closeCurrentModal, 250);
       } catch (error) {
         console.error("[PaymentCreateBlock] submit failed", error);
-        message.error(error?.message || "Could not save payment.");
+        message.error(error?.message || tr("Could not save payment."));
       } finally {
         setSaving(false);
       }
@@ -1509,19 +1647,19 @@
           },
         },
         React.createElement(ContractSummaryItem, {
-          label: "This request",
+          label: tr("This request"),
           value: activePaymentRequest.title,
         }),
         React.createElement(ContractSummaryItem, {
-          label: "Requested",
+          label: tr("Requested"),
           value: formatMoney(activePaymentRequest.requestedAmount),
         }),
         React.createElement(ContractSummaryItem, {
-          label: "Already received",
+          label: tr("Already received"),
           value: formatMoney(activePaymentRequest.paidAmount),
         }),
         React.createElement(ContractSummaryItem, {
-          label: "Remaining on this request",
+          label: tr("Remaining on this request"),
           value: formatMoney(activePaymentRequest.remainingAmount),
           strong: true,
         }),
@@ -1533,7 +1671,7 @@
       { style: { width: "100%" }, onChange: markDirty, onInput: markDirty },
       React.createElement(
         Card,
-        { size: "small", title: "Create payment" },
+        { size: "small", title: tr("Create payment") },
         React.createElement(
           Space,
           { direction: "vertical", size: 16, style: { width: "100%" } },
@@ -1545,26 +1683,26 @@
               { style: { display: "flex", flexWrap: "wrap", gap: 16 } },
               React.createElement(
                 Form.Item,
-                { label: "Mode", required: true, style: { flex: "0 1 200px", minWidth: 160, marginBottom: 0 } },
+                { label: tr("Mode"), required: true, style: { flex: "0 1 200px", minWidth: 160, marginBottom: 0 } },
                 React.createElement(Select, {
                   value: mode,
                   onChange: handleModeChange,
                   options: [
-                    { label: "By invoice", value: SOURCE_TYPES.invoice },
-                    { label: "By contract", value: SOURCE_TYPES.contract },
-                    { label: "Manual", value: SOURCE_TYPES.manual },
+                    { label: tr("By invoice"), value: SOURCE_TYPES.invoice },
+                    { label: tr("By contract"), value: SOURCE_TYPES.contract },
+                    { label: tr("Manual"), value: SOURCE_TYPES.manual },
                   ],
                 }),
               ),
               mode === SOURCE_TYPES.invoice &&
               React.createElement(
                 Form.Item,
-                { label: "Invoice", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                { label: tr("Invoice"), required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
                 React.createElement(Select, {
                   showSearch: true,
                   allowClear: true,
                   value: form.invoiceId || undefined,
-                  placeholder: "Select invoice",
+                  placeholder: tr("Select invoice"),
                   optionFilterProp: "label",
                   onChange: handleInvoiceChange,
                   options: invoices.map((item) => ({
@@ -1576,12 +1714,12 @@
               mode === SOURCE_TYPES.contract &&
               React.createElement(
                 Form.Item,
-                { label: "Contract", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                { label: tr("Contract"), required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
                 React.createElement(Select, {
                   showSearch: true,
                   allowClear: true,
                   value: form.contractId || undefined,
-                  placeholder: "Select contract",
+                  placeholder: tr("Select contract"),
                   optionFilterProp: "label",
                   onChange: loadContractContext,
                   options: contracts.map((item) => ({
@@ -1593,12 +1731,12 @@
               mode === SOURCE_TYPES.manual &&
               React.createElement(
                 Form.Item,
-                { label: "Customer", required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
+                { label: tr("Customer"), required: true, style: { flex: "1 1 280px", minWidth: 220, marginBottom: 0 } },
                 React.createElement(Select, {
                   showSearch: true,
                   allowClear: true,
                   value: form.customerId || undefined,
-                  placeholder: "Select customer",
+                  placeholder: tr("Select customer"),
                   optionFilterProp: "label",
                   onChange: (value) => setF("customerId", value || ""),
                   options: customers.map((item) => ({
@@ -1621,7 +1759,7 @@
               mode !== SOURCE_TYPES.manual &&
               React.createElement(
                 Form.Item,
-                { label: "Customer" },
+                { label: tr("Customer") },
                 React.createElement(Input, {
                   value: selectedCustomer ? customerLabel(selectedCustomer) : form.customerId || "",
                   disabled: true,
@@ -1629,12 +1767,12 @@
               ),
               React.createElement(
                 Form.Item,
-                { label: "Internal company", required: true },
+                { label: tr("Internal company"), required: true },
                 React.createElement(Select, {
                   showSearch: true,
                   allowClear: true,
                   value: form.internalCompanyId || undefined,
-                  placeholder: "Select company",
+                  placeholder: tr("Select company"),
                   optionFilterProp: "label",
                   onChange: (value) => setF("internalCompanyId", value || ""),
                   options: companies.map((item) => ({
@@ -1645,12 +1783,12 @@
               ),
               React.createElement(
                 Form.Item,
-                { label: "Accounting" },
+                { label: tr("Accounting") },
                 React.createElement(Select, {
                   showSearch: true,
                   allowClear: true,
                   value: form.accountingUserId || undefined,
-                  placeholder: "Select accounting user",
+                  placeholder: tr("Select accounting user"),
                   optionFilterProp: "label",
                   onChange: (value) => setF("accountingUserId", value || ""),
                   options: accountingUsers.map((item) => ({
@@ -1667,13 +1805,13 @@
               React.createElement(
                 Divider,
                 { orientation: "left" },
-                showPaymentRequestPicker ? "Payment requests" : activePaymentRequest ? "Payment request" : "Contract payment",
+                showPaymentRequestPicker ? tr("Payment requests") : activePaymentRequest ? tr("Payment request") : tr("Contract payment"),
               ),
               !form.contractId
                 ? React.createElement(
                   Typography.Text,
                   { type: "secondary" },
-                  "Select a contract to load payment information.",
+                  tr("Select a contract to load payment information."),
                 )
                 : React.createElement(
                   React.Fragment,
@@ -1698,14 +1836,14 @@
                       ? React.createElement(
                         Typography.Text,
                         { type: "secondary" },
-                        `Contract outstanding: ${formatMoney(contractOutstandingAmount)}`,
+                        tr("Contract outstanding: {0}", { 0: formatMoney(contractOutstandingAmount) }),
                       )
                       : null,
                     requestServiceNames.length
                       ? React.createElement(
                         Space,
                         { size: 4, wrap: true },
-                        React.createElement(Typography.Text, { type: "secondary" }, "Service(s):"),
+                        React.createElement(Typography.Text, { type: "secondary" }, tr("Service(s):")),
                         requestServiceNames.map((name) => React.createElement(Tag, { key: name }, name)),
                       )
                       : null,
@@ -1745,44 +1883,44 @@
                   }),
                   columns: [
                     {
-                      title: "Payment request",
+                      title: tr("Payment request"),
                       dataIndex: "title",
                       width: 200,
-                      render: (value, row) => value || `Payment request #${extractId(row.id)}`,
+                      render: (value, row) => value || tr("Payment request #{0}", { 0: extractId(row.id) }),
                     },
                     {
-                      title: "Due date",
+                      title: tr("Due date"),
                       dataIndex: "dueDate",
                       width: 100,
                       render: formatDate,
                     },
                     {
-                      title: "Requested",
+                      title: tr("Requested"),
                       dataIndex: "requestedAmount",
                       width: 120,
                       align: "right",
                       render: formatMoney,
                     },
                     {
-                    title: "Received",
+                    title: tr("Received"),
                     width: 120,
                     align: "right",
                     render: (_, row) => formatMoney(paymentRequestPaidAmount(row)),
                   },
                   {
-                    title: "Remaining",
+                    title: tr("Remaining"),
                     width: 120,
                     align: "right",
                     render: (_, row) => formatMoney(paymentRequestRemainingAmount(row)),
                   },
                   {
-                    title: "Status",
+                    title: tr("Status"),
                     width: 90,
                     render: (_, row) => {
                       const paid = paymentRequestPaidAmount(row);
                       const remaining = paymentRequestRemainingAmount(row);
                       const color = remaining <= 0 ? "success" : paid > 0 ? "warning" : "default";
-                      const label = remaining <= 0 ? "Received" : paid > 0 ? "Partial" : "Planned";
+                      const label = remaining <= 0 ? tr("Received") : paid > 0 ? tr("Partial") : tr("Planned");
                       return React.createElement(Tag, { color }, label);
                       },
                     },
@@ -1802,28 +1940,28 @@
                     },
                   },
                   React.createElement(ContractSummaryItem, {
-                    label: "Contract value",
+                    label: tr("Contract value"),
                     value: selectedContractTotalAmount > MONEY_TOLERANCE ? formatMoney(selectedContractTotalAmount) : "-",
                   }),
                   React.createElement(ContractSummaryItem, {
-                    label: "Received",
+                    label: tr("Received"),
                     value: formatMoney(contractPaidAmount),
                   }),
                   React.createElement(ContractSummaryItem, {
-                    label: "Remaining",
+                    label: tr("Remaining"),
                     value: selectedContractTotalAmount > MONEY_TOLERANCE ? formatMoney(contractOutstandingAmount) : "-",
                     strong: true,
                   }),
                   isSelectedRetainerPayment
                     ? React.createElement(ContractSummaryItem, {
-                        label: "Next payment",
+                        label: tr("Next payment"),
                         value: formatDate(selectedRetainerNextPaymentDate),
                       })
                     : null,
                 ),
               ),
             ),
-            React.createElement(Divider, { orientation: "left" }, "Actual payment"),
+            React.createElement(Divider, { orientation: "left" }, tr("Actual payment")),
             React.createElement(
               "div",
               {
@@ -1835,26 +1973,26 @@
               },
               React.createElement(
                 Form.Item,
-                { label: "Payment method", required: true },
+                { label: tr("Payment method"), required: true },
                 React.createElement(Select, {
                   value: form.paymentMethod || undefined,
                   onChange: (value) => setF("paymentMethod", value || ""),
-                  options: ["Cash", "Bank transfer", "Credit card", "Other"].map((value) => ({ value, label: value })),
+                  options: ["Cash", "Bank transfer", "Credit card", "Other"].map((value) => ({ value, label: tr(value) })),
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { label: "Payment status", required: true },
+                { label: tr("Payment status"), required: true },
                 React.createElement(Select, {
                   value: form.paymentStatus || undefined,
                   onChange: (value) => setF("paymentStatus", value || ""),
                   disabled: mode !== SOURCE_TYPES.manual,
-                  options: ["Received", "Pending", "Partial", "Planned", "Cancelled"].map((value) => ({ value, label: value })),
+                  options: ["Received", "Cancelled"].map((value) => ({ value, label: tr(value) })),
                 }),
               ),
               React.createElement(
                 Form.Item,
-                { label: "Payment date", required: true },
+                { label: tr("Payment date"), required: true },
                 React.createElement(Input, {
                   type: "datetime-local",
                   value: form.paymentDate || "",
@@ -1863,7 +2001,7 @@
               ),
               React.createElement(
                 Form.Item,
-                { label: "Amount", required: true },
+                { label: tr("Amount"), required: true },
                 React.createElement(Input, {
                   value: amountDraft,
                   inputMode: "numeric",
@@ -1876,10 +2014,10 @@
             ),
             React.createElement(
               Form.Item,
-              { label: "Payment reference" },
+              { label: tr("Payment reference") },
               React.createElement(Input, {
                 value: form.paymentRefer || "",
-                placeholder: "Bank transaction code, receipt code, note...",
+                placeholder: tr("Bank transaction code, receipt code, note..."),
                 onChange: (event) => setF("paymentRefer", event.target.value),
               }),
             ),
@@ -1891,12 +2029,12 @@
                 { wrap: true },
                 React.createElement(Button, {
                   onClick: () => requestClose(),
-                }, "Cancel"),
+                }, tr("Cancel")),
                 React.createElement(Button, {
                   type: "primary",
                   loading: saving,
                   onClick: handleSubmit,
-                }, "Submit"),
+                }, tr("Submit")),
               ),
             ),
           ),

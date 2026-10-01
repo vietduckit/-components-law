@@ -1,3 +1,49 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Uploaded": "Tải lên",
+  "Created": "Tạo mới",
+  "Updated": "Cập nhật",
+  "Moved": "Di chuyển",
+  "Deleted": "Đã xóa",
+  "Type": "Loại",
+  "By": "Người thực hiện",
+  "Document": "Tài liệu",
+  "Change": "Mô tả thay đổi",
+  "Time": "Thời gian",
+  "System": "Hệ thống",
+  "folder": "thư mục",
+  "document": "tài liệu",
+  "Created a new folder": "Đã tạo thư mục mới",
+  "Uploaded a new document": "Đã tải lên tài liệu mới",
+  "Moved {0} to": "Di chuyển {0} sang",
+  "Deleted {0}": "Đã xóa {0}",
+  "title": "tiêu đề",
+  "content": "nội dung",
+  "Updated {1} {0}": "Cập nhật {0} {1}",
+  "{0}–{1} / {2} activities": "{0}–{1} / {2} hoạt động",
+  "Activity history": "Lịch sử hoạt động",
+  "Loading...": "Đang tải...",
+  "{0} activities": "{0} hoạt động",
+  "Refreshing...": "Đang làm mới...",
+  "Refresh": "Làm mới",
+  "No activity yet": "Chưa có lịch sử hoạt động",
+  "Updated at ": "Cập nhật lúc ",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect } = React;
 const { Spin, Empty, Button, Typography, Tag, Avatar } = ctx.antd;
@@ -46,35 +92,35 @@ const EXCLUDED_FIELDS = ["fileIndex", "folderIndex"];
 
 const ACTION_CONFIG = {
   uploaded: {
-    label: "Tải lên",
+    label: tr("Uploaded"),
     color: "#0C447C",
     bg: "#E6F1FB",
     border: "#B5D4F4",
     icon: IconUpload,
   },
   created: {
-    label: "Tạo mới",
+    label: tr("Created"),
     color: "#0C447C",
     bg: "#E6F1FB",
     border: "#B5D4F4",
     icon: IconUpload,
   },
   updated: {
-    label: "Cập nhật",
+    label: tr("Updated"),
     color: "#27500A",
     bg: "#EAF3DE",
     border: "#C0DD97",
     icon: IconEdit,
   },
   moved: {
-    label: "Di chuyển",
+    label: tr("Moved"),
     color: "#633806",
     bg: "#FAEEDA",
     border: "#FAC775",
     icon: IconMove,
   },
   deleted: {
-    label: "Đã xóa",
+    label: tr("Deleted"),
     color: "#791F1F",
     bg: "#FCEBEB",
     border: "#F7C1C1",
@@ -86,11 +132,11 @@ const ACTION_CONFIG = {
 const GRID = "120px 160px 1fr 1fr 150px";
 
 const COLUMNS = [
-  { key: "action", label: "Loại" },
-  { key: "who", label: "Người thực hiện" },
-  { key: "file", label: "Tài liệu" },
-  { key: "desc", label: "Mô tả thay đổi" },
-  { key: "time", label: "Thời gian" },
+  { key: "action", label: tr("Type") },
+  { key: "who", label: tr("By") },
+  { key: "file", label: tr("Document") },
+  { key: "desc", label: tr("Change") },
+  { key: "time", label: tr("Time") },
 ];
 
 const AVATAR_PALETTES = [
@@ -154,7 +200,7 @@ function AvatarCell({ name }) {
           whiteSpace: "nowrap",
         },
       },
-      name || "Hệ thống",
+      name || tr("System"),
     ),
   );
 }
@@ -202,21 +248,21 @@ function DescCell({ log }) {
   let secondary = null;
 
   const isFolder = collectionName === "Folder";
-  const entityName = isFolder ? "thư mục" : "tài liệu";
+  const entityName = isFolder ? tr("folder") : tr("document");
 
   if (action === "uploaded" || action === "created") {
-    primary = isFolder ? "Đã tạo thư mục mới" : "Đã tải lên tài liệu mới";
+    primary = isFolder ? tr("Created a new folder") : tr("Uploaded a new document");
     if (isFolder && newV) secondary = newV;
   } else if (action === "moved") {
-    primary = `Di chuyển ${entityName} sang`;
+    primary = tr("Moved {0} to", { 0: entityName });
     secondary = newV || null;
   } else if (action === "deleted") {
-    primary = `Đã xóa ${entityName}`;
+    primary = tr("Deleted {0}", { 0: entityName });
     secondary = oldV || null;
   } else if (action === "updated") {
     const fieldLabel =
-      field === "title" || field === "name" ? "tiêu đề" : field || "nội dung";
-    primary = `Cập nhật ${fieldLabel} ${entityName}`;
+      field === "title" || field === "name" ? tr("title") : field || tr("content");
+    primary = tr("Updated {1} {0}", { 0: fieldLabel, 1: entityName });
     if (oldV && newV) secondary = `"${oldV}" → "${newV}"`;
     else if (newV) secondary = newV;
   } else {
@@ -373,7 +419,7 @@ function Pagination({ page, total, totalPages, onChange }) {
     React.createElement(
       "span",
       { style: { fontSize: 12, color: "#aaa" } },
-      `${start}–${end} / ${total} hoạt động`,
+      tr("{0}–{1} / {2} activities", { 0: start, 1: end, 2: total }),
     ),
     React.createElement(
       "div",
@@ -536,11 +582,11 @@ const DocumentActivityLog = ({ recordId = null, collectionName = null }) => {
       React.createElement(
         "div",
         null,
-        React.createElement("p", { style: s.title }, "Lịch sử hoạt động"),
+        React.createElement("p", { style: s.title }, tr("Activity history")),
         React.createElement(
           "p",
           { style: s.subtitle },
-          loading ? "Đang tải..." : `${logs.length} hoạt động`,
+          loading ? tr("Loading...") : tr("{0} activities", { 0: logs.length }),
         ),
       ),
       React.createElement(
@@ -562,7 +608,7 @@ const DocumentActivityLog = ({ recordId = null, collectionName = null }) => {
           },
           "↻",
         ),
-        refreshing ? "Đang làm mới..." : "Làm mới",
+        refreshing ? tr("Refreshing...") : tr("Refresh"),
       ),
     ),
 
@@ -578,7 +624,7 @@ const DocumentActivityLog = ({ recordId = null, collectionName = null }) => {
     !loading &&
       logs.length === 0 &&
       React.createElement(Empty, {
-        description: "Chưa có lịch sử hoạt động",
+        description: tr("No activity yet"),
         style: { padding: "40px 0" },
       }),
 
@@ -656,7 +702,7 @@ const DocumentActivityLog = ({ recordId = null, collectionName = null }) => {
       React.createElement(
         "p",
         { style: s.lastUpd },
-        "Cập nhật lúc " + fmtDate(lastUpdated),
+        tr("Updated at ") + fmtDate(lastUpdated),
       ),
   );
 };

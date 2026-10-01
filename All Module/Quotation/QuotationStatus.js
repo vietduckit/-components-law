@@ -1,3 +1,47 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "New Quotation": "Báo giá mới",
+  "New quotation": "Báo giá mới",
+  "Pending": "Chờ gửi",
+  "Waiting for review": "Đang chờ xem xét",
+  "Approved": "Đã duyệt",
+  "Reviewed": "Đã xét duyệt",
+  "Rejected": "Bị từ chối",
+  "Quotation Sent": "Đã gửi báo giá",
+  "Quotation sent": "Đã gửi báo giá",
+  "Order": "Đơn hàng",
+  "Order placed": "Đơn hàng",
+  "Cancelled": "Đã hủy",
+  "Updated: {0}": "Đã cập nhật: {0}",
+  "Update failed": "Cập nhật thất bại",
+  "Record ID not found": "Không tìm thấy record ID",
+  "Please enter a rejection reason": "Vui lòng nhập lý do từ chối",
+  "Must be reviewed (Approved) first": "Cần được xét duyệt (Approved) trước",
+  "Current": "Hiện tại",
+  "🎉 Order closed!": "🎉 Đã chốt đơn hàng!",
+  "❌ Quotation cancelled": "❌ Báo giá đã bị huỷ",
+  "🚫 Quotation rejected with reason{0}": "🚫 Báo giá bị từ chối với lý do{0}",
+  "Reject quotation": "Từ chối báo giá",
+  "Confirm rejection": "Xác nhận từ chối",
+  "Cancel": "Huỷ",
+  "Enter a rejection reason to continue.": "Vui lòng nhập lý do từ chối để tiếp tục.",
+  "Enter a rejection reason...": "Nhập lý do từ chối...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useCallback, useEffect } = React;
 const { Steps, Tag, Space, message, Modal, Input } = ctx.antd;
@@ -5,44 +49,44 @@ const { Steps, Tag, Space, message, Modal, Input } = ctx.antd;
 const ALL_STAGES = [
   {
     key: "new",
-    label: "New Quotation",
-    description: "Báo giá mới",
+    label: tr("New Quotation"),
+    description: tr("New quotation"),
     requireApproval: false,
   },
   {
     key: "pending",
-    label: "Pending",
-    description: "Đang chờ xem xét",
+    label: tr("Pending"),
+    description: tr("Waiting for review"),
     requireApproval: true,
   },
   {
     key: "approval",
-    label: "Approved",
-    description: "Đã xét duyệt",
+    label: tr("Approved"),
+    description: tr("Reviewed"),
     requireApproval: true,
   },
   {
     key: "rejected",
-    label: "Rejected",
-    description: "Đã từ chối",
+    label: tr("Rejected"),
+    description: tr("Rejected"),
     requireApproval: true,
   },
   {
     key: "sent",
-    label: "Quotation Sent",
-    description: "Đã gửi báo giá",
+    label: tr("Quotation Sent"),
+    description: tr("Quotation sent"),
     requireApproval: false,
   },
   {
     key: "order",
-    label: "Order",
-    description: "Đơn hàng",
+    label: tr("Order"),
+    description: tr("Order placed"),
     requireApproval: false,
   },
   {
     key: "cancelled",
-    label: "Cancelled",
-    description: "Đã huỷ",
+    label: tr("Cancelled"),
+    description: tr("Cancelled"),
     requireApproval: false,
   },
 ];
@@ -139,11 +183,11 @@ const ProjectStageFlow = () => {
 
         setLocalStatus(newStatus);
         message.success(
-          `Đã cập nhật: ${ALL_STAGES.find((s) => s.key === newStatus)?.label}`,
+          tr("Updated: {0}", { 0: ALL_STAGES.find((s) => s.key === newStatus)?.label }),
         );
         if (ctx.refresh) ctx.refresh();
       } catch {
-        message.error("Cập nhật thất bại");
+        message.error(tr("Update failed"));
       }
     },
     [recordId],
@@ -153,7 +197,7 @@ const ProjectStageFlow = () => {
     (targetKey) => {
       if (!canTransition(targetKey)) return;
       if (!recordId) {
-        message.warning("Không tìm thấy record ID");
+        message.warning(tr("Record ID not found"));
         return;
       }
 
@@ -171,7 +215,7 @@ const ProjectStageFlow = () => {
 
   const handleConfirmReject = useCallback(async () => {
     if (!rejectionReason.trim()) {
-      setRejectError("Vui lòng nhập lý do từ chối");
+      setRejectError(tr("Please enter a rejection reason"));
       return;
     }
     setPendingReject(true);
@@ -214,7 +258,7 @@ const ProjectStageFlow = () => {
         !isApproved &&
         BLOCKED_UNTIL_APPROVAL.includes(stage.key)
       ) {
-        lockedReason = "Cần được xét duyệt (Approved) trước";
+        lockedReason = tr("Must be reviewed (Approved) first");
       }
     }
 
@@ -235,7 +279,7 @@ const ProjectStageFlow = () => {
               color={STAGE_COLORS[localStatus]}
               style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px" }}
             >
-              Hiện tại
+              {tr("Current")}
             </Tag>
           )}
           {lockedReason && (
@@ -303,33 +347,33 @@ const ProjectStageFlow = () => {
             color: localStatus === "order" ? "#52c41a" : "#ff4d4f",
           }}
         >
-          {localStatus === "order" && "🎉 Đã chốt đơn hàng!"}
-          {localStatus === "cancelled" && "❌ Báo giá đã bị huỷ"}
+          {localStatus === "order" && tr("🎉 Order closed!")}
+          {localStatus === "cancelled" && tr("❌ Quotation cancelled")}
           {localStatus === "rejected" &&
-            `🚫 Báo giá bị từ chối với lý do${record.rejectionReason ? `: ${record.rejectionReason}` : ""}`}
+            tr("🚫 Quotation rejected with reason{0}", { 0: record.rejectionReason ? `: ${record.rejectionReason}` : "" })}
         </div>
       )}
 
       {/* Modal từ chối */}
       <Modal
-        title="Từ chối báo giá"
+        title={tr("Reject quotation")}
         open={rejectModalOpen}
         onOk={handleConfirmReject}
         onCancel={() => {
           setRejectModalOpen(false);
           setRejectError("");
         }}
-        okText="Xác nhận từ chối"
-        cancelText="Huỷ"
+        okText={tr("Confirm rejection")}
+        cancelText={tr("Cancel")}
         okButtonProps={{ danger: true, loading: pendingReject }}
         destroyOnClose
       >
         <p style={{ marginBottom: 8, fontSize: 13, color: "#595959" }}>
-          Vui lòng nhập lý do từ chối để tiếp tục.
+          {tr("Enter a rejection reason to continue.")}
         </p>
         <Input.TextArea
           rows={4}
-          placeholder="Nhập lý do từ chối..."
+          placeholder={tr("Enter a rejection reason...")}
           value={rejectionReason}
           onChange={(e) => {
             setRejectionReason(e.target.value);

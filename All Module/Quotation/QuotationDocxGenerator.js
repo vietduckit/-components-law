@@ -1,4 +1,66 @@
-  const { React } = ctx;
+  // ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "New Quotation": "Báo giá mới",
+  "Pending": "Chờ duyệt",
+  "Approved": "Đã duyệt",
+  "Rejected": "Bị từ chối",
+  "Quotation Sent": "Đã gửi báo giá",
+  "Order": "Đơn hàng",
+  "Cancelled": "Đã hủy",
+  "Updated: {0}": "Đã cập nhật: {0}",
+  "Update failed": "Cập nhật thất bại",
+  "Record ID not found": "Không tìm thấy record ID",
+  "Please enter a rejection reason": "Vui lòng nhập lý do từ chối",
+  "Current": "Hiện tại",
+  "Reject quotation": "Từ chối báo giá",
+  "Confirm rejection": "Xác nhận từ chối",
+  "Cancel": "Huỷ",
+  "Enter a rejection reason to continue.": "Vui lòng nhập lý do từ chối để tiếp tục.",
+  "Enter a rejection reason...": "Nhập lý do từ chối...",
+  "Please enter a summary of the changes": "Vui lòng nhập tóm tắt nội dung điều chỉnh",
+  "Document Generation Error Analysis": "Phân tích lỗi tạo tài liệu",
+  "Quotation data is missing.": "Thiếu dữ liệu báo giá.",
+  "Failed to load document processing libraries.": "Không thể tải thư viện xử lý tài liệu.",
+  "Missing VND exchange rate for: {0} — the amounts stay in the original currency in the file.": "Thiếu tỷ giá quy đổi sang VND cho: {0} — số tiền được giữ nguyên theo tiền tệ gốc trong file.",
+  "No template assigned to this quotation. Please update the quotation record first.": "Báo giá chưa gán mẫu. Vui lòng cập nhật báo giá trước.",
+  "Assigned template could not be found in the database!": "Không tìm thấy mẫu đã gán trong cơ sở dữ liệu!",
+  "Template has no attached file ('{0}')!": "Mẫu chưa có tệp đính kèm ('{0}')!",
+  "Failed to upload temporary file for preview.": "Không thể tải tệp tạm lên để xem trước.",
+  "Popup UID is not configured": "Chưa cấu hình Popup UID",
+  "Failed to upload the generated file.": "Không thể tải tệp đã tạo lên.",
+  "Document generated and saved successfully!": "Đã tạo và lưu tài liệu!",
+  "Record ID not found.": "Không tìm thấy Record ID.",
+  "Failed to load data.": "Không thể tải dữ liệu.",
+  "Generating...": "Đang tạo...",
+  "Preview Quotation": "Xem trước báo giá",
+  "Saving...": "Đang lưu...",
+  "Save to Documents": "Lưu vào Tài liệu",
+  "+ New Contract": "+ Hợp đồng mới",
+  "Preview Quotation Document (Microsoft Office Online)": "Xem trước tài liệu báo giá (Microsoft Office Online)",
+  "Close": "Đóng",
+  "Download DOCX": "Tải DOCX",
+  "Save to System": "Lưu vào hệ thống",
+  "Document already exists — enter a summary of the changes": "Tài liệu đã tồn tại — nhập tóm tắt điều chỉnh",
+  "Save as new version": "Xác nhận lưu phiên bản mới",
+  "This document already exists. Enter a summary of the changes to save it as a new version.": "Tài liệu này đã tồn tại trong hệ thống. Vui lòng nhập tóm tắt nội dung điều chỉnh để lưu thành phiên bản mới.",
+  "E.g. Updated the service fee in item 2, fixed customer details...": "Ví dụ: Cập nhật lại phí dịch vụ mục 2, sửa thông tin khách hàng...",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
+const { React } = ctx;
   const { useState, useEffect, useCallback, useRef } = React;
   const { Spin, message, Modal, Steps, Tag, Space, Input } = ctx.antd;
 
@@ -298,13 +360,13 @@
 
   // ==================== STAGE FLOW (quotation status stepper) ====================
   const ALL_STAGES = [
-    { key: "new", label: "New Quotation", requireApproval: false },
-    { key: "pending", label: "Pending", requireApproval: true },
-    { key: "approval", label: "Approved", requireApproval: true },
-    { key: "rejected", label: "Rejected", requireApproval: true },
-    { key: "sent", label: "Quotation Sent", requireApproval: false },
-    { key: "order", label: "Order", requireApproval: false },
-    { key: "cancelled", label: "Cancelled", requireApproval: false },
+    { key: "new", label: tr("New Quotation"), requireApproval: false },
+    { key: "pending", label: tr("Pending"), requireApproval: true },
+    { key: "approval", label: tr("Approved"), requireApproval: true },
+    { key: "rejected", label: tr("Rejected"), requireApproval: true },
+    { key: "sent", label: tr("Quotation Sent"), requireApproval: false },
+    { key: "order", label: tr("Order"), requireApproval: false },
+    { key: "cancelled", label: tr("Cancelled"), requireApproval: false },
   ];
 
   const STAGE_COLORS = {
@@ -428,7 +490,7 @@
           setLocalStatus(newStatus);
           syncStatusToForm(payload);
           message.success(
-            `Đã cập nhật: ${ALL_STAGES.find((s) => s.key === newStatus)?.label}`,
+            tr("Updated: {0}", { 0: ALL_STAGES.find((s) => s.key === newStatus)?.label }),
           );
           // Refetch the shared quotation record instead of the previous
           // ctx.refresh() call — that API isn't confirmed available in this
@@ -436,7 +498,7 @@
           // `data` (and isOrderStatus) in sync in the same round trip.
           if (onUpdated) await onUpdated();
         } catch {
-          message.error("Cập nhật thất bại");
+          message.error(tr("Update failed"));
         }
       },
       [recordId, syncStatusToForm, onUpdated],
@@ -446,7 +508,7 @@
       (targetKey) => {
         if (!canTransition(targetKey)) return;
         if (!recordId) {
-          message.warning("Không tìm thấy record ID");
+          message.warning(tr("Record ID not found"));
           return;
         }
 
@@ -464,7 +526,7 @@
 
     const handleConfirmReject = useCallback(async () => {
       if (!rejectionReason.trim()) {
-        setRejectError("Vui lòng nhập lý do từ chối");
+        setRejectError(tr("Please enter a rejection reason"));
         return;
       }
       setPendingReject(true);
@@ -510,7 +572,7 @@
                 color={STAGE_COLORS[localStatus]}
                 style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px" }}
               >
-                Hiện tại
+                {tr("Current")}
               </Tag>
             )}
           </Space>
@@ -541,24 +603,24 @@
 
         {/* Modal từ chối */}
         <Modal
-          title="Từ chối báo giá"
+          title={tr("Reject quotation")}
           open={rejectModalOpen}
           onOk={handleConfirmReject}
           onCancel={() => {
             setRejectModalOpen(false);
             setRejectError("");
           }}
-          okText="Xác nhận từ chối"
-          cancelText="Huỷ"
+          okText={tr("Confirm rejection")}
+          cancelText={tr("Cancel")}
           okButtonProps={{ danger: true, loading: pendingReject }}
           destroyOnClose
         >
           <p style={{ marginBottom: 8, fontSize: 13, color: "#595959" }}>
-            Vui lòng nhập lý do từ chối để tiếp tục.
+            {tr("Enter a rejection reason to continue.")}
           </p>
           <Input.TextArea
             rows={4}
-            placeholder="Nhập lý do từ chối..."
+            placeholder={tr("Enter a rejection reason...")}
             value={rejectionReason}
             onChange={(e) => {
               setRejectionReason(e.target.value);
@@ -616,7 +678,7 @@
     const handleConfirmVersionNote = () => {
       const trimmed = versionNoteValue.trim();
       if (!trimmed) {
-        setVersionNoteError("Vui lòng nhập tóm tắt nội dung điều chỉnh");
+        setVersionNoteError(tr("Please enter a summary of the changes"));
         return;
       }
       setVersionNoteModalOpen(false);
@@ -691,7 +753,7 @@
       }
 
       Modal.error({
-        title: "Document Generation Error Analysis",
+        title: tr("Document Generation Error Analysis"),
         content: React.createElement(
           "div",
           {
@@ -714,7 +776,7 @@
 
     // 3. Core Logic: Generate Blob
     const buildDocxBlob = async () => {
-      if (!data) throw new Error("Quotation data is missing.");
+      if (!data) throw new Error(tr("Quotation data is missing."));
 
       // Load External Libs
       const PizZipModule = await ctx.importAsync("https://esm.sh/pizzip@3.1.4");
@@ -726,7 +788,7 @@
       const Docxtemplater = DocxModule.default || DocxModule;
 
       if (!PizZip || !Docxtemplater) {
-        throw new Error("Failed to load document processing libraries.");
+        throw new Error(tr("Failed to load document processing libraries."));
       }
 
       // Map Variables
@@ -879,7 +941,7 @@
 
       if (missingRateNames.length) {
         message.warning(
-          `Thiếu tỷ giá quy đổi sang VND cho: ${missingRateNames.join(", ")} — số tiền được giữ nguyên theo tiền tệ gốc trong file.`,
+          tr("Missing VND exchange rate for: {0} — the amounts stay in the original currency in the file.", { 0: missingRateNames.join(", ") }),
         );
       }
 
@@ -949,7 +1011,7 @@
       // Fetch Template Blob
       if (!data.templateId) {
         throw new Error(
-          "No template assigned to this quotation. Please update the quotation record first.",
+          tr("No template assigned to this quotation. Please update the quotation record first."),
         );
       }
 
@@ -963,7 +1025,7 @@
 
       const selectedTmpl = tmplRes?.data?.data;
       if (!selectedTmpl) {
-        throw new Error("Assigned template could not be found in the database!");
+        throw new Error(tr("Assigned template could not be found in the database!"));
       }
 
       const attachmentObj = selectedTmpl[TEMPLATE_FILE_FIELD];
@@ -973,7 +1035,7 @@
 
       if (!templateUrl)
         throw new Error(
-          `Template has no attached file ('${TEMPLATE_FILE_FIELD}')!`,
+          tr("Template has no attached file ('{0}')!", { 0: TEMPLATE_FILE_FIELD }),
         );
 
       const response = await ctx.api.request({
@@ -1023,7 +1085,7 @@
 
         let attUrl = uploadRes?.data?.data?.url;
         if (!attUrl)
-          throw new Error("Failed to upload temporary file for preview.");
+          throw new Error(tr("Failed to upload temporary file for preview."));
 
         // Ensure URL is absolute for Microsoft Viewer to parse
         let fullUrl = attUrl;
@@ -1048,7 +1110,7 @@
     // fill them in once the corresponding Nocobase views are set up.
     const handleNewContract = async () => {
       if (!POPUP_UID_CONTRACT) {
-        message.warning("Chưa cấu hình Popup UID");
+        message.warning(tr("Popup UID is not configured"));
         return;
       }
       await ctx.openView(POPUP_UID_CONTRACT, {
@@ -1060,7 +1122,7 @@
 
     const handleNewCase = async () => {
       if (!POPUP_UID_CASE) {
-        message.warning("Chưa cấu hình Popup UID");
+        message.warning(tr("Popup UID is not configured"));
         return;
       }
       await ctx.openView(POPUP_UID_CASE, {
@@ -1092,7 +1154,7 @@
           });
 
           attId = uploadRes?.data?.data?.id;
-          if (!attId) throw new Error("Failed to upload the generated file.");
+          if (!attId) throw new Error(tr("Failed to upload the generated file."));
         }
 
         // Fetch Folder ID, User & Save to Documents
@@ -1213,7 +1275,7 @@
           },
         });
 
-        message.success("Document generated and saved successfully!");
+        message.success(tr("Document generated and saved successfully!"));
 
         // Close preview if open
         setPreviewUrl(null);
@@ -1252,7 +1314,7 @@
       return React.createElement(
         "div",
         { style: { padding: 16 } },
-        "Record ID not found.",
+        tr("Record ID not found."),
       );
     if (loading)
       return React.createElement(
@@ -1264,7 +1326,7 @@
       return React.createElement(
         "div",
         { style: { padding: 16 } },
-        "Failed to load data.",
+        tr("Failed to load data."),
       );
 
     // "+ New Contract"/"+ New Case" only make sense once the quotation has
@@ -1319,7 +1381,7 @@
               disabled: generating || saving,
               style: btnPreview,
             },
-            generating ? "Generating..." : "Preview Quotation",
+            generating ? tr("Generating...") : tr("Preview Quotation"),
           ),
         hasTemplate &&
           React.createElement(
@@ -1329,7 +1391,7 @@
               disabled: generating || saving,
               style: btnSave,
             },
-            saving ? "Saving..." : "Save to Documents",
+            saving ? tr("Saving...") : tr("Save to Documents"),
           ),
         isOrderStatus &&
           React.createElement(
@@ -1339,7 +1401,7 @@
               disabled: generating || saving,
               style: btnStyle,
             },
-            "+ New Contract",
+            tr("+ New Contract"),
           ),
         
         // React.createElement(
@@ -1357,7 +1419,7 @@
       React.createElement(
         Modal,
         {
-          title: "Preview Quotation Document (Microsoft Office Online)",
+          title: tr("Preview Quotation Document (Microsoft Office Online)"),
           open: !!previewUrl,
           onCancel: resetPreview,
           width: "85%",
@@ -1370,7 +1432,7 @@
                 onClick: resetPreview,
                 style: Object.assign({}, btnStyle, { marginRight: 8 }),
               },
-              "Close",
+              tr("Close"),
             ),
             React.createElement(
               "button",
@@ -1391,7 +1453,7 @@
                   marginRight: 8,
                 }),
               },
-              "Download DOCX",
+              tr("Download DOCX"),
             ),
             React.createElement(
               "button",
@@ -1401,7 +1463,7 @@
                 disabled: saving,
                 style: btnSave,
               },
-              saving ? "Saving..." : "Save to System",
+              saving ? tr("Saving...") : tr("Save to System"),
             ),
           ],
           bodyStyle: { padding: 0, height: "70vh" },
@@ -1420,22 +1482,22 @@
       React.createElement(
         Modal,
         {
-          title: "Tài liệu đã tồn tại — nhập tóm tắt điều chỉnh",
+          title: tr("Document already exists — enter a summary of the changes"),
           open: versionNoteModalOpen,
           onOk: handleConfirmVersionNote,
           onCancel: handleCancelVersionNote,
-          okText: "Xác nhận lưu phiên bản mới",
-          cancelText: "Huỷ",
+          okText: tr("Save as new version"),
+          cancelText: tr("Cancel"),
           destroyOnClose: true,
         },
         React.createElement(
           "p",
           { style: { marginBottom: 8, fontSize: 13, color: "#595959" } },
-          "Tài liệu này đã tồn tại trong hệ thống. Vui lòng nhập tóm tắt nội dung điều chỉnh để lưu thành phiên bản mới.",
+          tr("This document already exists. Enter a summary of the changes to save it as a new version."),
         ),
         React.createElement(Input.TextArea, {
           rows: 4,
-          placeholder: "Ví dụ: Cập nhật lại phí dịch vụ mục 2, sửa thông tin khách hàng...",
+          placeholder: tr("E.g. Updated the service fee in item 2, fixed customer details..."),
           value: versionNoteValue,
           onChange: (e) => {
             setVersionNoteValue(e.target.value);

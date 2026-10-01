@@ -1,3 +1,62 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Case": "Hồ sơ",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Legal Reference": "Legal Reference",
+  "Legal Reference #{0}": "Legal Reference #{0}",
+  "Legal Study": "Legal Study",
+  "Legal Study #{0}": "Legal Study #{0}",
+  "Failed to create relation link": "Không tạo được liên kết",
+  "Missing Legal Study or Case ID": "Thiếu ID Legal Study hoặc Hồ sơ",
+  "Missing Legal Study or Legal Reference ID": "Thiếu ID Legal Study hoặc Legal Reference",
+  "Unable to load linked data.": "Không thể tải dữ liệu liên kết.",
+  "This case is already linked.": "Hồ sơ này đã được liên kết.",
+  "Linked case successfully.": "Đã liên kết hồ sơ.",
+  "This Legal Reference is already linked.": "Legal Reference này đã được liên kết.",
+  "Linked Legal Reference successfully.": "Đã liên kết Legal Reference.",
+  "Failed to add link.": "Không thể thêm liên kết.",
+  "Record ID not found.": "Không tìm thấy Record ID.",
+  "Please allow pop-ups to open details.": "Vui lòng cho phép pop-up để mở chi tiết.",
+  "Linked Case": "Hồ sơ liên kết",
+  "Add link": "Thêm liên kết",
+  "Cancel": "Hủy",
+  "Found {0} cases": "Tìm thấy {0} hồ sơ",
+  "Please select a case": "Vui lòng chọn hồ sơ",
+  "Search case...": "Tìm hồ sơ...",
+  "No case found": "Không tìm thấy hồ sơ",
+  "Found {0} Legal References": "Tìm thấy {0} Legal Reference",
+  "Please select a Legal Reference": "Vui lòng chọn Legal Reference",
+  "Search Legal Reference...": "Tìm Legal Reference...",
+  "No Legal Reference found": "Không tìm thấy Legal Reference",
+  "Open details": "Mở chi tiết",
+  "Current Legal Study not found": "Không tìm thấy Legal Study hiện tại",
+  "Unable to load links": "Không thể tải liên kết",
+  "Reload": "Tải lại",
+  "All": "Tất cả",
+  "Search...": "Tìm kiếm...",
+  "Type": "Loại",
+  "Code/Name": "Mã/Tên",
+  "Description": "Mô tả",
+  "Creator": "Người tạo",
+  "Updated": "Cập nhật",
+  "No matching links found.": "Không tìm thấy liên kết phù hợp.",
+  "No linked Cases or Legal References yet.": "Chưa có hồ sơ hoặc Legal Reference liên kết.",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const React = ctx.React;
 const h = React.createElement;
 const antd = ctx.antd || {};
@@ -341,25 +400,23 @@ const getCreatedByName = (record, userLabelMap = null) => {
 };
 
 const getCaseTitle = (record) => {
-  if (!record) return "Case";
+  if (!record) return tr("Case");
   const code = record.caseCode || record.projectCode || record.code || "";
   const title =
     record.projectName || record.caseName || record.title || record.name || "";
   if (code && title && String(code) !== String(title))
     return `${code} - ${title}`;
-  return title || code || `Case #${extractId(record) || ""}`;
+  return title || code || tr("Case #{0}", { 0: extractId(record) || "" });
 };
 
 const getLegalReferenceTitle = (record) => {
-  if (!record) return "Legal Reference";
+  if (!record) return tr("Legal Reference");
   const title = record.title || record.name || record.referenceName || "";
-  if ( title && String(code) !== String(title))
-    return `${title}`;
-  return title || `Legal Reference #${extractId(record) || ""}`;
+  return title || tr("Legal Reference #{0}", { 0: extractId(record) || "" });
 };
 
 const getLegalStudyTitle = (record) => {
-  if (!record) return "Legal Study";
+  if (!record) return tr("Legal Study");
   const code = record.studyCode || record.legalStudyCode || record.code || "";
   const title =
     record.title ||
@@ -369,7 +426,7 @@ const getLegalStudyTitle = (record) => {
     "";
   if (code && title && String(code) !== String(title))
     return `${code} - ${title}`;
-  return title || code || `Legal Study #${extractId(record) || ""}`;
+  return title || code || tr("Legal Study #{0}", { 0: extractId(record) || "" });
 };
 
 const getRelationRowsByFields = (record, fields) =>
@@ -560,14 +617,14 @@ const postRelationCandidates = async (candidates) => {
       }
     }
   }
-  throw lastError || new Error("Failed to create relation link");
+  throw lastError || new Error(tr("Failed to create relation link"));
 };
 
 const addCaseLinkToLegalStudy = (legalStudyId, caseId) => {
   const studyId = idValue(legalStudyId);
   const cId = idValue(caseId);
   if (!hasUsableId(studyId) || !hasUsableId(cId)) {
-    throw new Error("Missing Legal Study or Case ID");
+    throw new Error(tr("Missing Legal Study or Case ID"));
   }
   return postRelationCandidates([
     { url: `projects/${encodeURIComponent(cId)}/legalStudy:add`, targetId: studyId },
@@ -589,7 +646,7 @@ const addLegalReferenceLinkToLegalStudy = (legalStudyId, legalReferenceId) => {
   const studyId = idValue(legalStudyId);
   const refId = idValue(legalReferenceId);
   if (!hasUsableId(studyId) || !hasUsableId(refId)) {
-    throw new Error("Missing Legal Study or Legal Reference ID");
+    throw new Error(tr("Missing Legal Study or Legal Reference ID"));
   }
   return postRelationCandidates([
     { url: `legalReference/${encodeURIComponent(refId)}/legalStudy:add`, targetId: studyId },
@@ -774,7 +831,7 @@ function LegalStudyLinksViewer() {
       setLinks(await resolveLinkCreatorLabels(nextLinks));
     } catch (loadError) {
       console.error("[JsLegalStudyLinks] load failed", loadError);
-      setError(loadError?.message || "Unable to load linked data.");
+      setError(loadError?.message || tr("Unable to load linked data."));
     } finally {
       setLoading(false);
     }
@@ -915,16 +972,16 @@ function LegalStudyLinksViewer() {
       if (linkMode === "case") {
         const caseId = values.caseId;
         if (linkedCaseIds.has(String(caseId))) {
-          message?.info?.("This case is already linked.");
+          message?.info?.(tr("This case is already linked."));
           closeLinkModal();
           return;
         }
         await addCaseLinkToLegalStudy(legalStudyId, caseId);
-        message?.success?.("Linked case successfully.");
+        message?.success?.(tr("Linked case successfully."));
       } else {
         const legalReferenceId = values.legalReferenceId;
         if (linkedLegalReferenceIds.has(String(legalReferenceId))) {
-          message?.info?.("This Legal Reference is already linked.");
+          message?.info?.(tr("This Legal Reference is already linked."));
           closeLinkModal();
           return;
         }
@@ -932,7 +989,7 @@ function LegalStudyLinksViewer() {
           legalStudyId,
           legalReferenceId,
         );
-        message?.success?.("Linked Legal Reference successfully.");
+        message?.success?.(tr("Linked Legal Reference successfully."));
       }
 
       closeLinkModal();
@@ -940,7 +997,7 @@ function LegalStudyLinksViewer() {
     } catch (submitError) {
       if (submitError?.errorFields) return;
       console.error("[JsLegalStudyLinks] add link failed", submitError);
-      message?.error?.("Failed to add link.");
+      message?.error?.(tr("Failed to add link."));
     } finally {
       setLinkLoading(false);
     }
@@ -969,7 +1026,7 @@ function LegalStudyLinksViewer() {
 
   const openLinkedRecord = (link) => {
     if (!link?.recordId) {
-      message?.warning?.("Record ID not found.");
+      message?.warning?.(tr("Record ID not found."));
       return;
     }
     const template =
@@ -981,7 +1038,7 @@ function LegalStudyLinksViewer() {
       "_blank",
       "noopener,noreferrer",
     );
-    if (!opened) message?.warning?.("Please allow pop-ups to open details.");
+    if (!opened) message?.warning?.(tr("Please allow pop-ups to open details."));
   };
 
   const renderSegmentButton = (key, label, count) => {
@@ -1038,7 +1095,7 @@ function LegalStudyLinksViewer() {
         color: type === "legal_reference" ? "geekblue" : "blue",
         style: { margin: 0, borderRadius: 4, fontWeight: 600 },
       },
-      type === "legal_reference" ? "Legal Reference" : "Linked Case",
+      type === "legal_reference" ? tr("Legal Reference") : tr("Linked Case"),
     );
 
   const renderLinkModeButton = (key, label) => {
@@ -1077,13 +1134,13 @@ function LegalStudyLinksViewer() {
     h(
       Modal,
       {
-        title: "Add link",
+        title: tr("Add link"),
         open: linkModalOpen,
         width: 720,
         onCancel: closeLinkModal,
         onOk: handleLinkSubmit,
-        okText: "Add link",
-        cancelText: "Cancel",
+        okText: tr("Add link"),
+        cancelText: tr("Cancel"),
         confirmLoading: linkLoading,
         destroyOnClose: true,
       },
@@ -1107,8 +1164,8 @@ function LegalStudyLinksViewer() {
               marginBottom: 20,
             },
           },
-          renderLinkModeButton("case", "Linked Case"),
-          renderLinkModeButton("legal_reference", "Legal Reference"),
+          renderLinkModeButton("case", tr("Linked Case")),
+          renderLinkModeButton("legal_reference", tr("Legal Reference")),
         ),
         linkMode === "case"
           ? [
@@ -1118,22 +1175,22 @@ function LegalStudyLinksViewer() {
                   key: "caseCount",
                   style: { marginBottom: 8, color: color.muted, fontSize: 12 },
                 },
-                `Found ${filteredCaseOptions.length} cases`,
+                tr("Found {0} cases", { 0: filteredCaseOptions.length }),
               ),
               h(
                 Form.Item,
                 {
                   key: "caseId",
                   name: "caseId",
-                  label: "Case",
-                  rules: [{ required: true, message: "Please select a case" }],
+                  label: tr("Case"),
+                  rules: [{ required: true, message: tr("Please select a case") }],
                 },
                 h(
                   Select,
                   {
                     showSearch: true,
                     loading: optionLoading,
-                    placeholder: "Search case...",
+                    placeholder: tr("Search case..."),
                     searchValue: caseOptionSearch,
                     onSearch: setCaseOptionSearch,
                     onChange: () => setCaseOptionSearch(""),
@@ -1141,7 +1198,7 @@ function LegalStudyLinksViewer() {
                     filterOption: false,
                     notFoundContent: optionLoading
                       ? h(Spin, { size: "small" })
-                      : "No case found",
+                      : tr("No case found"),
                   },
                   filteredCaseOptions.slice(0, 100).map((item) => {
                     const label = getCaseTitle(item);
@@ -1165,18 +1222,18 @@ function LegalStudyLinksViewer() {
                   key: "referenceCount",
                   style: { marginBottom: 8, color: color.muted, fontSize: 12 },
                 },
-                `Found ${filteredLegalReferenceOptions.length} Legal References`,
+                tr("Found {0} Legal References", { 0: filteredLegalReferenceOptions.length }),
               ),
               h(
                 Form.Item,
                 {
                   key: "legalReferenceId",
                   name: "legalReferenceId",
-                  label: "Legal Reference",
+                  label: tr("Legal Reference"),
                   rules: [
                     {
                       required: true,
-                      message: "Please select a Legal Reference",
+                      message: tr("Please select a Legal Reference"),
                     },
                   ],
                 },
@@ -1185,7 +1242,7 @@ function LegalStudyLinksViewer() {
                   {
                     showSearch: true,
                     loading: optionLoading,
-                    placeholder: "Search Legal Reference...",
+                    placeholder: tr("Search Legal Reference..."),
                     searchValue: legalReferenceOptionSearch,
                     onSearch: setLegalReferenceOptionSearch,
                     onChange: () => setLegalReferenceOptionSearch(""),
@@ -1193,7 +1250,7 @@ function LegalStudyLinksViewer() {
                     filterOption: false,
                     notFoundContent: optionLoading
                       ? h(Spin, { size: "small" })
-                      : "No Legal Reference found",
+                      : tr("No Legal Reference found"),
                   },
                   filteredLegalReferenceOptions.slice(0, 100).map((item) => {
                     const label = getLegalReferenceTitle(item);
@@ -1309,7 +1366,7 @@ function LegalStudyLinksViewer() {
       ),
       h(
         Tooltip,
-        { title: "Open details" },
+        { title: tr("Open details") },
         h(Button, {
           type: "link",
           size: "small",
@@ -1324,7 +1381,7 @@ function LegalStudyLinksViewer() {
     return h(Alert, {
       type: "warning",
       showIcon: true,
-      message: "Current Legal Study not found",
+      message: tr("Current Legal Study not found"),
     });
   }
 
@@ -1340,9 +1397,9 @@ function LegalStudyLinksViewer() {
     return h(Alert, {
       type: "error",
       showIcon: true,
-      message: "Unable to load links",
+      message: tr("Unable to load links"),
       description: error,
-      action: h(Button, { size: "small", onClick: loadLinks }, "Reload"),
+      action: h(Button, { size: "small", onClick: loadLinks }, tr("Reload")),
     });
   }
 
@@ -1388,11 +1445,11 @@ function LegalStudyLinksViewer() {
               border: `1px solid ${color.borderDark}`,
             },
           },
-          renderSegmentButton("all", "All", links.length),
-          renderSegmentButton("case", "Linked Case", caseCount),
+          renderSegmentButton("all", tr("All"), links.length),
+          renderSegmentButton("case", tr("Linked Case"), caseCount),
           renderSegmentButton(
             "legal_reference",
-            "Legal Reference",
+            tr("Legal Reference"),
             legalReferenceCount,
           ),
         ),
@@ -1413,7 +1470,7 @@ function LegalStudyLinksViewer() {
           },
           h(Input.Search, {
             allowClear: true,
-            placeholder: "Search...",
+            placeholder: tr("Search..."),
             value: searchText,
             onChange: (event) => setSearchText(event.target.value),
             style: {
@@ -1430,7 +1487,7 @@ function LegalStudyLinksViewer() {
               onClick: openLinkModal,
               style: { flex: "0 0 auto", whiteSpace: "nowrap" },
             },
-            "Add link",
+            tr("Add link"),
           ),
           h(
             Button,
@@ -1439,7 +1496,7 @@ function LegalStudyLinksViewer() {
               onClick: loadLinks,
               style: { flex: "0 0 auto", whiteSpace: "nowrap" },
             },
-            "Reload",
+            tr("Reload"),
           ),
         ),
       ),
@@ -1462,11 +1519,11 @@ function LegalStudyLinksViewer() {
                   fontWeight: 700,
                 },
               },
-              h("div", null, "Type"),
-              h("div", null, "Code/Name"),
-              h("div", null, "Description"),
-              h("div", null, "Creator"),
-              h("div", null, "Updated"),
+              h("div", null, tr("Type")),
+              h("div", null, tr("Code/Name")),
+              h("div", null, tr("Description")),
+              h("div", null, tr("Creator")),
+              h("div", null, tr("Updated")),
               h("div", null, ""),
             ),
             filteredLinks.map(renderRow),
@@ -1474,8 +1531,8 @@ function LegalStudyLinksViewer() {
         : h(Empty, {
             image: Empty.PRESENTED_IMAGE_SIMPLE,
             description: links.length
-              ? "No matching links found."
-              : "No linked Cases or Legal References yet.",
+              ? tr("No matching links found.")
+              : tr("No linked Cases or Legal References yet."),
             style: { padding: "46px 0" },
           }),
     ),

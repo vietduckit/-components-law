@@ -1,3 +1,101 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Scheduled": "Đã lên lịch",
+  "Ongoing": "Đang diễn ra",
+  "Completed": "Đã hoàn tất",
+  "Cancelled": "Đã hủy",
+  "Internal": "Nội bộ",
+  "Case review": "Rà soát hồ sơ",
+  "Strategy": "Chiến lược",
+  "Training": "Đào tạo",
+  "Other": "Khác",
+  "Pending": "Chờ gửi",
+  "Confirmed": "Đã xác nhận",
+  "Absent": "Vắng mặt",
+  "Excused": "Vắng có phép",
+  "User #{0}": "Người dùng #{0}",
+  "Unassigned": "Chưa phân công",
+  "Case #{0}": "Hồ sơ #{0}",
+  "Task #{0}": "Công việc #{0}",
+  "Contract #{0}": "Hợp đồng #{0}",
+  "Quotation #{0}": "Báo giá #{0}",
+  "Customer #{0}": "Khách hàng #{0}",
+  "Only the meeting host can edit this meeting.": "Chỉ người chủ trì mới sửa được cuộc họp này.",
+  "Meeting is missing.": "Không có cuộc họp.",
+  "Host is required.": "Bắt buộc có người chủ trì.",
+  "Meeting time is invalid.": "Thời gian họp không hợp lệ.",
+  "End time must be after start time.": "Giờ kết thúc phải sau giờ bắt đầu.",
+  "Meeting updated.": "Đã cập nhật cuộc họp.",
+  "Could not update meeting.": "Không thể cập nhật cuộc họp.",
+  "Edit meeting": "Sửa cuộc họp",
+  "Save": "Lưu",
+  "Title": "Tiêu đề",
+  "Title is required.": "Bắt buộc có tiêu đề.",
+  "Meeting title": "Tiêu đề cuộc họp",
+  "Host": "Chủ trì",
+  "Select host": "Chọn người chủ trì",
+  "Start time": "Giờ bắt đầu",
+  "Start time is required.": "Bắt buộc có giờ bắt đầu.",
+  "End time": "Giờ kết thúc",
+  "End time is required.": "Bắt buộc có giờ kết thúc.",
+  "Case": "Hồ sơ",
+  "Select case": "Chọn hồ sơ",
+  "Status": "Trạng thái",
+  "Type": "Loại",
+  "Location": "Địa điểm",
+  "Room, address or meeting link": "Phòng, địa chỉ hoặc link họp",
+  "Agenda / Description": "Chương trình / Mô tả",
+  "Write meeting agenda or notes...": "Viết chương trình họp hoặc ghi chú...",
+  "Could not load meeting detail.": "Không thể tải chi tiết cuộc họp.",
+  "Only the meeting host can add attendees.": "Chỉ người chủ trì mới thêm được người tham dự.",
+  "Selected users are already attendees.": "Người đã chọn đã là người tham dự.",
+  "Attendees added.": "Đã thêm người tham dự.",
+  "Could not add attendees.": "Không thể thêm người tham dự.",
+  "You can only update your own attendance status.": "Bạn chỉ cập nhật được trạng thái tham dự của mình.",
+  "Attendee updated.": "Đã cập nhật người tham dự.",
+  "Could not update attendee.": "Không thể cập nhật người tham dự.",
+  "Only the meeting host can remove attendees.": "Chỉ người chủ trì mới gỡ được người tham dự.",
+  "Edit host before removing the host attendee.": "Hãy đổi người chủ trì trước khi gỡ người chủ trì khỏi danh sách tham dự.",
+  "Attendee removed.": "Đã gỡ người tham dự.",
+  "Could not remove attendee.": "Không thể gỡ người tham dự.",
+  "Meeting id was not provided.": "Chưa có ID cuộc họp.",
+  "Meeting was not found.": "Không tìm thấy cuộc họp.",
+  "Task": "Công việc",
+  "Contract": "Hợp đồng",
+  "Quotation": "Báo giá",
+  "User": "Người dùng",
+  "Attendance": "Tham dự",
+  "Content": "Nội dung",
+  "Remove attendee?": "Gỡ người tham dự?",
+  "Remove": "Gỡ",
+  "Cancel": "Hủy",
+  "Delete": "Xóa",
+  "Date": "Ngày",
+  "Time": "Thời gian",
+  "Customer": "Khách hàng",
+  "No agenda yet.": "Chưa có chương trình họp.",
+  "Meeting": "Cuộc họp",
+  "Refresh": "Làm mới",
+  "Overview": "Tổng quan",
+  "Attendees ({0})": "Người tham dự ({0})",
+  "Add attendees": "Thêm người tham dự",
+  "Add": "Thêm",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useCallback, useEffect, useMemo, useState } = React;
 const {
@@ -56,26 +154,26 @@ const FALLBACK_TOKEN = {
 };
 
 const STATUS_CFG = {
-  scheduled: { label: "Scheduled", color: "processing" },
-  ongoing: { label: "Ongoing", color: "warning" },
-  completed: { label: "Completed", color: "success" },
-  cancelled: { label: "Cancelled", color: "default" },
-  canceled: { label: "Cancelled", color: "default" },
+  scheduled: { label: tr("Scheduled"), color: "processing" },
+  ongoing: { label: tr("Ongoing"), color: "warning" },
+  completed: { label: tr("Completed"), color: "success" },
+  cancelled: { label: tr("Cancelled"), color: "default" },
+  canceled: { label: tr("Cancelled"), color: "default" },
 };
 
 const TYPE_CFG = {
-  internal: { label: "Internal", color: "blue" },
-  case_review: { label: "Case review", color: "purple" },
-  strategy: { label: "Strategy", color: "cyan" },
-  training: { label: "Training", color: "green" },
-  other: { label: "Other", color: "default" },
+  internal: { label: tr("Internal"), color: "blue" },
+  case_review: { label: tr("Case review"), color: "purple" },
+  strategy: { label: tr("Strategy"), color: "cyan" },
+  training: { label: tr("Training"), color: "green" },
+  other: { label: tr("Other"), color: "default" },
 };
 
 const ATTENDANCE_CFG = {
-  pending: { label: "Pending", color: "default" },
-  confirmed: { label: "Confirmed", color: "success" },
-  absent: { label: "Absent", color: "error" },
-  excused: { label: "Excused", color: "warning" },
+  pending: { label: tr("Pending"), color: "default" },
+  confirmed: { label: tr("Confirmed"), color: "success" },
+  absent: { label: tr("Absent"), color: "error" },
+  excused: { label: tr("Excused"), color: "warning" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CFG).map(([value, cfg]) => ({
@@ -301,11 +399,11 @@ const userLabel = (record) =>
   record?.username ||
   record?.name ||
   record?.email ||
-  (record?.id ? `User #${record.id}` : "Unassigned");
+  (record?.id ? tr("User #{0}", { 0: record.id }) : tr("Unassigned"));
 
 const userInitial = (record) => {
   const label = userLabel(record);
-  return label && label !== "Unassigned" ? label.charAt(0).toUpperCase() : "?";
+  return label && label !== tr("Unassigned") ? label.charAt(0).toUpperCase() : "?";
 };
 
 const isSelectableUser = (record) => extractId(record?.id) !== 1;
@@ -314,25 +412,25 @@ const caseLabel = (record) =>
   compact([
     record?.caseCode || record?.projectCode || record?.code,
     record?.projectName || record?.caseName || record?.title || record?.name,
-  ]).join(" - ") || (record?.id ? `Case #${record.id}` : "-");
+  ]).join(" - ") || (record?.id ? tr("Case #{0}", { 0: record.id }) : "-");
 
 const taskLabel = (record) =>
   record?.title ||
   record?.taskName ||
   record?.name ||
-  (record?.id ? `Task #${record.id}` : "");
+  (record?.id ? tr("Task #{0}", { 0: record.id }) : "");
 
 const contractLabel = (record) =>
   compact([
     record?.contractCode || record?.contractNumber || record?.code,
     record?.contractName || record?.name || record?.title,
-  ]).join(" - ") || (record?.id ? `Contract #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Contract #{0}", { 0: record.id }) : "");
 
 const quotationLabel = (record) =>
   compact([
     record?.quotationNumber || record?.quotationCode || record?.code,
     record?.quotationName || record?.name || record?.title,
-  ]).join(" - ") || (record?.id ? `Quotation #${record.id}` : "");
+  ]).join(" - ") || (record?.id ? tr("Quotation #{0}", { 0: record.id }) : "");
 
 const customerLabel = (record) =>
   record?.customerName ||
@@ -340,7 +438,7 @@ const customerLabel = (record) =>
   record?.name ||
   record?.fullName ||
   record?.companyName ||
-  (record?.id ? `Customer #${record.id}` : "");
+  (record?.id ? tr("Customer #{0}", { 0: record.id }) : "");
 
 const caseCustomerLabel = (record, customerMap = {}) => {
   const directCustomer = record?.customer || record?.customers;
@@ -600,7 +698,7 @@ const MeetingEditModal = ({
 
   const handleSubmit = async () => {
     if (!canEdit) {
-      message.warning("Only the meeting host can edit this meeting.");
+      message.warning(tr("Only the meeting host can edit this meeting."));
       return;
     }
     let values;
@@ -616,19 +714,19 @@ const MeetingEditModal = ({
     const endAt = toNativeDate(values.endDateTime);
 
     if (!meetingId) {
-      message.error("Meeting is missing.");
+      message.error(tr("Meeting is missing."));
       return;
     }
     if (!hostId) {
-      message.error("Host is required.");
+      message.error(tr("Host is required."));
       return;
     }
     if (!startAt || !endAt) {
-      message.error("Meeting time is invalid.");
+      message.error(tr("Meeting time is invalid."));
       return;
     }
     if (endAt < startAt) {
-      message.error("End time must be after start time.");
+      message.error(tr("End time must be after start time."));
       return;
     }
 
@@ -687,12 +785,12 @@ const MeetingEditModal = ({
         });
       }
 
-      message.success("Meeting updated.");
+      message.success(tr("Meeting updated."));
       emitMeetingChanged({ action: "updated", meetingId });
       onSaved?.();
     } catch (error) {
       console.error("[MeetingDetailView] update meeting failed", error);
-      message.error(error?.message || "Could not update meeting.");
+      message.error(error?.message || tr("Could not update meeting."));
     } finally {
       setSubmitting(false);
     }
@@ -702,10 +800,10 @@ const MeetingEditModal = ({
     Modal,
     {
       open,
-      title: "Edit meeting",
+      title: tr("Edit meeting"),
       onCancel,
       onOk: handleSubmit,
-      okText: "Save",
+      okText: tr("Save"),
       okButtonProps: { disabled: !canEdit },
       confirmLoading: submitting,
       destroyOnClose: true,
@@ -727,23 +825,23 @@ const MeetingEditModal = ({
           Form.Item,
           {
             name: "title",
-            label: "Title",
-            rules: [{ required: true, message: "Title is required." }],
+            label: tr("Title"),
+            rules: [{ required: true, message: tr("Title is required.") }],
           },
-          React.createElement(Input, { placeholder: "Meeting title" }),
+          React.createElement(Input, { placeholder: tr("Meeting title") }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "hostId",
-            label: "Host",
-            rules: [{ required: true, message: "Host is required." }],
+            label: tr("Host"),
+            rules: [{ required: true, message: tr("Host is required.") }],
           },
           React.createElement(Select, {
             showSearch: true,
             optionFilterProp: "label",
             options: userOptions,
-            placeholder: "Select host",
+            placeholder: tr("Select host"),
           }),
         ),
         React.createElement(
@@ -760,8 +858,8 @@ const MeetingEditModal = ({
             Form.Item,
             {
               name: "startDateTime",
-              label: "Start time",
-              rules: [{ required: true, message: "Start time is required." }],
+              label: tr("Start time"),
+              rules: [{ required: true, message: tr("Start time is required.") }],
             },
             React.createElement(Input, { type: "datetime-local", step: 300 }),
           ),
@@ -769,48 +867,48 @@ const MeetingEditModal = ({
             Form.Item,
             {
               name: "endDateTime",
-              label: "End time",
-              rules: [{ required: true, message: "End time is required." }],
+              label: tr("End time"),
+              rules: [{ required: true, message: tr("End time is required.") }],
             },
             React.createElement(Input, { type: "datetime-local", step: 300 }),
           ),
         ),
         React.createElement(
           Form.Item,
-          { name: "caseId", label: "Case" },
+          { name: "caseId", label: tr("Case") },
           React.createElement(Select, {
             allowClear: true,
             showSearch: true,
             optionFilterProp: "searchText",
             options: caseOptions,
-            placeholder: "Select case",
+            placeholder: tr("Select case"),
           }),
         ),
         React.createElement(
           Form.Item,
-          { name: "status", label: "Status", initialValue: "scheduled" },
+          { name: "status", label: tr("Status"), initialValue: "scheduled" },
           React.createElement(Select, { options: STATUS_OPTIONS }),
         ),
         React.createElement(
           Form.Item,
-          { name: "type", label: "Type", initialValue: "internal" },
+          { name: "type", label: tr("Type"), initialValue: "internal" },
           React.createElement(Select, { options: TYPE_OPTIONS }),
         ),
         React.createElement(
           Form.Item,
-          { name: "location", label: "Location" },
-          React.createElement(Input, { placeholder: "Room, address or meeting link" }),
+          { name: "location", label: tr("Location") },
+          React.createElement(Input, { placeholder: tr("Room, address or meeting link") }),
         ),
         React.createElement(
           Form.Item,
           {
             name: "description",
-            label: "Agenda / Description",
+            label: tr("Agenda / Description"),
             style: { gridColumn: "1 / -1" },
           },
           React.createElement(TextArea, {
             rows: 4,
-            placeholder: "Write meeting agenda or notes...",
+            placeholder: tr("Write meeting agenda or notes..."),
           }),
         ),
       ),
@@ -946,7 +1044,7 @@ const MeetingDetailView = () => {
       });
     } catch (error) {
       console.error("[MeetingDetailView] reload failed", error);
-      message.error(error?.message || "Could not load meeting detail.");
+      message.error(error?.message || tr("Could not load meeting detail."));
     } finally {
       setLoading(false);
     }
@@ -961,7 +1059,7 @@ const MeetingDetailView = () => {
     const meetingSafeId = extractId(meeting?.id) || meetingId;
     if (!meetingSafeId || !selectedIds.length) return;
     if (!isCurrentUserHost) {
-      message.warning("Only the meeting host can add attendees.");
+      message.warning(tr("Only the meeting host can add attendees."));
       return;
     }
 
@@ -970,7 +1068,7 @@ const MeetingDetailView = () => {
     );
     const nextIds = selectedIds.filter((id) => !existingIds.has(id));
     if (!nextIds.length) {
-      message.info("Selected users are already attendees.");
+      message.info(tr("Selected users are already attendees."));
       return;
     }
 
@@ -989,12 +1087,12 @@ const MeetingDetailView = () => {
         });
       }
       setAttendeeUserIds([]);
-      message.success("Attendees added.");
+      message.success(tr("Attendees added."));
       emitMeetingChanged({ action: "attendees_added", meetingId: meetingSafeId });
       reload();
     } catch (error) {
       console.error("[MeetingDetailView] add attendees failed", error);
-      message.error(error?.message || "Could not add attendees.");
+      message.error(error?.message || tr("Could not add attendees."));
     } finally {
       setSavingAttendees(false);
     }
@@ -1004,7 +1102,7 @@ const MeetingDetailView = () => {
     const rowId = extractId(row?.id);
     if (!rowId) return;
     if (!canUpdateAttendeeRow(row, patch)) {
-      message.warning("You can only update your own attendance status.");
+      message.warning(tr("You can only update your own attendance status."));
       return;
     }
     setUpdatingKey(`attendee:${rowId}`);
@@ -1014,12 +1112,12 @@ const MeetingDetailView = () => {
         method: "POST",
         data: patch,
       });
-      message.success("Attendee updated.");
+      message.success(tr("Attendee updated."));
       emitMeetingChanged({ action: "attendee_updated", meetingId });
       reload();
     } catch (error) {
       console.error("[MeetingDetailView] update attendee failed", error);
-      message.error(error?.message || "Could not update attendee.");
+      message.error(error?.message || tr("Could not update attendee."));
     } finally {
       setUpdatingKey(null);
     }
@@ -1029,11 +1127,11 @@ const MeetingDetailView = () => {
     const rowId = extractId(row?.id);
     if (!rowId) return;
     if (!isCurrentUserHost) {
-      message.warning("Only the meeting host can remove attendees.");
+      message.warning(tr("Only the meeting host can remove attendees."));
       return;
     }
     if (row?.isHost) {
-      message.warning("Edit host before removing the host attendee.");
+      message.warning(tr("Edit host before removing the host attendee."));
       return;
     }
     setUpdatingKey(`attendee:${rowId}`);
@@ -1042,12 +1140,12 @@ const MeetingDetailView = () => {
         url: `meetingAttendees:destroy?filterByTk=${rowId}`,
         method: "POST",
       });
-      message.success("Attendee removed.");
+      message.success(tr("Attendee removed."));
       emitMeetingChanged({ action: "attendee_removed", meetingId });
       reload();
     } catch (error) {
       console.error("[MeetingDetailView] delete attendee failed", error);
-      message.error(error?.message || "Could not remove attendee.");
+      message.error(error?.message || tr("Could not remove attendee."));
     } finally {
       setUpdatingKey(null);
     }
@@ -1056,7 +1154,7 @@ const MeetingDetailView = () => {
   if (!meetingId) {
     return React.createElement(Empty, {
       image: Empty.PRESENTED_IMAGE_SIMPLE,
-      description: "Meeting id was not provided.",
+      description: tr("Meeting id was not provided."),
       style: { padding: 60 },
     });
   }
@@ -1072,7 +1170,7 @@ const MeetingDetailView = () => {
   if (!meeting) {
     return React.createElement(Empty, {
       image: Empty.PRESENTED_IMAGE_SIMPLE,
-      description: "Meeting was not found.",
+      description: tr("Meeting was not found."),
       style: { padding: 60 },
     });
   }
@@ -1106,21 +1204,21 @@ const MeetingDetailView = () => {
     linkedTasks.length
       ? React.createElement(InfoBox, {
           key: "task",
-          label: "Task",
+          label: tr("Task"),
           value: joinLabels(linkedTasks, taskLabel) || "-",
         })
       : null,
     linkedContracts.length
       ? React.createElement(InfoBox, {
           key: "contract",
-          label: "Contract",
+          label: tr("Contract"),
           value: joinLabels(linkedContracts, contractLabel) || "-",
         })
       : null,
     linkedQuotations.length
       ? React.createElement(InfoBox, {
           key: "quotation",
-          label: "Quotation",
+          label: tr("Quotation"),
           value: joinLabels(linkedQuotations, quotationLabel) || "-",
         })
       : null,
@@ -1137,7 +1235,7 @@ const MeetingDetailView = () => {
 
   const attendeeColumns = [
     {
-      title: "User",
+      title: tr("User"),
       dataIndex: "userId",
       render: (value, row) => {
         const user = usersById[extractId(value)];
@@ -1146,12 +1244,12 @@ const MeetingDetailView = () => {
           { size: 8 },
           React.createElement(Avatar, { size: 24 }, userInitial(user)),
           React.createElement(Text, null, userLabel(user)),
-          row.isHost ? React.createElement(Tag, { color: "blue" }, "Host") : null,
+          row.isHost ? React.createElement(Tag, { color: "blue" }, tr("Host")) : null,
         );
       },
     },
     {
-      title: "Attendance",
+      title: tr("Attendance"),
       dataIndex: "attendanceStatus",
       width: 160,
       render: (value, row) => {
@@ -1169,7 +1267,7 @@ const MeetingDetailView = () => {
         });
       },
     },
-    { title: "Content", dataIndex: "content", render: (value) => stripHtml(value) || "-" },
+    { title: tr("Content"), dataIndex: "content", render: (value) => stripHtml(value) || "-" },
     {
       title: "",
       key: "actions",
@@ -1179,9 +1277,9 @@ const MeetingDetailView = () => {
         return React.createElement(
           Popconfirm,
           {
-            title: "Remove attendee?",
-            okText: "Remove",
-            cancelText: "Cancel",
+            title: tr("Remove attendee?"),
+            okText: tr("Remove"),
+            cancelText: tr("Cancel"),
             disabled: !!row.isHost,
             onConfirm: () => deleteAttendee(row),
           },
@@ -1193,7 +1291,7 @@ const MeetingDetailView = () => {
               disabled: !!row.isHost,
               loading: updatingKey === `attendee:${extractId(row.id)}`,
             },
-            "Delete",
+            tr("Delete"),
           ),
         );
       },
@@ -1212,22 +1310,22 @@ const MeetingDetailView = () => {
           gap: token.marginSM,
         },
       },
-      React.createElement(InfoBox, { label: "Date", value: formatDate(meeting.meetingDate) }),
-      React.createElement(InfoBox, { label: "Time", value: formatTimeRange(meeting.startTime, meeting.endTime) }),
-      React.createElement(InfoBox, { label: "Host", value: userLabel(host) }),
-      React.createElement(InfoBox, { label: "Case", value: caseLabel(caseRecord) }),
-      React.createElement(InfoBox, { label: "Customer", value: customer || "-" }),
+      React.createElement(InfoBox, { label: tr("Date"), value: formatDate(meeting.meetingDate) }),
+      React.createElement(InfoBox, { label: tr("Time"), value: formatTimeRange(meeting.startTime, meeting.endTime) }),
+      React.createElement(InfoBox, { label: tr("Host"), value: userLabel(host) }),
+      React.createElement(InfoBox, { label: tr("Case"), value: caseLabel(caseRecord) }),
+      React.createElement(InfoBox, { label: tr("Customer"), value: customer || "-" }),
       ...relationInfoBoxes,
       React.createElement(InfoBox, {
-        label: "Location",
+        label: tr("Location"),
         value: meeting.location || "-",
         href: isUrl(meeting.location) ? meeting.location : undefined,
       }),
     ),
     React.createElement(
       Card,
-      { size: "small", title: "Agenda / Description" },
-      React.createElement(Text, null, stripHtml(meeting.description) || "No agenda yet."),
+      { size: "small", title: tr("Agenda / Description") },
+      React.createElement(Text, null, stripHtml(meeting.description) || tr("No agenda yet.")),
     ),
   );
 
@@ -1244,7 +1342,7 @@ const MeetingDetailView = () => {
           React.createElement(
             Space,
             { size: 8, wrap: true },
-            React.createElement(Title, { level: 5, style: { margin: 0 } }, meeting.title || "Meeting"),
+            React.createElement(Title, { level: 5, style: { margin: 0 } }, meeting.title || tr("Meeting")),
             statusTag(meeting.status),
             typeTag(meeting.type),
           ),
@@ -1263,19 +1361,19 @@ const MeetingDetailView = () => {
           Space,
           { size: 8 },
           isCurrentUserHost
-            ? React.createElement(Button, { onClick: () => setEditOpen(true) }, "Edit meeting")
+            ? React.createElement(Button, { onClick: () => setEditOpen(true) }, tr("Edit meeting"))
             : null,
-          React.createElement(Button, { loading, onClick: reload }, "Refresh"),
+          React.createElement(Button, { loading, onClick: reload }, tr("Refresh")),
         ),
         bodyStyle: { padding: token.paddingSM },
       },
       React.createElement(Tabs, {
         defaultActiveKey: "overview",
         items: [
-          { key: "overview", label: "Overview", children: overview },
+          { key: "overview", label: tr("Overview"), children: overview },
           {
             key: "attendees",
-            label: `Attendees (${attendees.length})`,
+            label: tr("Attendees ({0})", { 0: attendees.length }),
             children: React.createElement(
               "div",
               { style: { display: "grid", gap: token.marginSM } },
@@ -1298,7 +1396,7 @@ const MeetingDetailView = () => {
                       optionFilterProp: "label",
                       value: attendeeUserIds,
                       options: attendeeUserOptions,
-                      placeholder: "Add attendees",
+                      placeholder: tr("Add attendees"),
                       onChange: setAttendeeUserIds,
                     }),
                     React.createElement(
@@ -1309,7 +1407,7 @@ const MeetingDetailView = () => {
                         disabled: !attendeeUserIds.length,
                         onClick: addAttendees,
                       },
-                      "Add",
+                      tr("Add"),
                     ),
                   )
                 : null,

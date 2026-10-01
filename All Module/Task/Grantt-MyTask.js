@@ -10,6 +10,101 @@
 // Paste toàn bộ file vào 1 JS block mới, không cần block cũ.
 // ═══════════════════════════════════════════════════════════════════
 
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "Not started": "Chưa làm",
+  "In progress": "Đang xử lý",
+  "Blocked": "Bị chặn",
+  "Pending approval": "Chờ duyệt",
+  "Approved": "Đã phê duyệt",
+  "Done": "Hoàn thành",
+  "Cancelled": "Đã huỷ",
+  "High": "Cao",
+  "Medium": "Trung",
+  "Low": "Thấp",
+  "Week": "Tuần",
+  "Month": "Tháng",
+  "Quarter": "Quý",
+  "January": "Tháng 1",
+  "February": "Tháng 2",
+  "March": "Tháng 3",
+  "April": "Tháng 4",
+  "May": "Tháng 5",
+  "June": "Tháng 6",
+  "July": "Tháng 7",
+  "August": "Tháng 8",
+  "September": "Tháng 9",
+  "October": "Tháng 10",
+  "November": "Tháng 11",
+  "December": "Tháng 12",
+
+
+
+
+
+
+
+
+
+
+
+
+  "Partner": "Luật sư đối tác",
+  "Lawyer": "Luật sư",
+  "Associate": "Luật sư cộng sự",
+  "Legal Assistant": "Trợ lý pháp lý",
+  "⚠ Overdue": "⚠ Quá hạn",
+  "↳ Subtask": "↳ CV phụ",
+  "⚡ Priority": "⚡ Ưu tiên",
+  "👤 Lawyer": "👤 Luật sư",
+  "📅 Start": "📅 Bắt đầu",
+  "🏁 Deadline": "🏁 Hạn chót",
+  "✅ Completed": "✅ Hoàn thành",
+  "⏱ Estimate": "⏱ Dự kiến",
+  "📁 Case": "📁 Vụ việc",
+  "🔧 Service": "🔧 Dịch vụ",
+  "📝 Description": "📝 Mô tả",
+  "👣 Next step": "👣 Bước tiếp theo",
+  "Open the Task Manager block to edit details": "Mở block Task Manager để chỉnh sửa chi tiết",
+  "{0} task": "{0} công việc",
+  "Task": "Công việc",
+  "No project linked": "Chưa gắn dự án",
+  "Unassigned": "Chưa phân công",
+  "No lawyer profile is linked to this account": "Không tìm thấy hồ sơ luật sư liên kết với tài khoản này",
+  "Admin": "Admin",
+  "Administrator": "Quản trị viên",
+  "🔑 Full view access": "🔑 Toàn quyền xem",
+  "Total tasks": "Tổng công việc",
+  "Done ({0}%)": "Hoàn thành ({0}%)",
+  "Overdue": "Quá hạn",
+  "Today": "Hôm nay",
+  "🔍 Search tasks...": "🔍 Tìm công việc...",
+  "Active": "Đang làm",
+  "All": "Tất cả",
+  "Lawyer:": "Luật sư:",
+  "— All lawyers —": "— Tất cả luật sư —",
+  "📍 Today": "📍 Hôm nay",
+  "↻ Reload": "↻ Tải lại",
+  "Group: Project → Lawyer → Task": "Nhóm: Project → Luật sư → Task",
+  "Group: Project → Task": "Nhóm: Project → Task",
+  "No matching results": "Không tìm thấy kết quả phù hợp",
+  "No tasks yet": "Chưa có công việc nào",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { React } = ctx;
 const { useState, useEffect, useCallback, useMemo, useRef, memo } = React;
 const { Spin, Typography, message } = ctx.antd;
@@ -21,49 +116,49 @@ const G_FONT =
 
 const G_STATUS = {
   toDo: {
-    label: "Chưa làm",
+    label: tr("Not started"),
     color: "#595959",
     bg: "#f5f5f5",
     border: "#d9d9d9",
     bar: "#B4B2A9",
   },
   inProgress: {
-    label: "Đang xử lý",
+    label: tr("In progress"),
     color: "#1890ff",
     bg: "#e6f4ff",
     border: "#91caff",
     bar: "#378ADD",
   },
   blocked: {
-    label: "Bị chặn",
+    label: tr("Blocked"),
     color: "#722ed1",
     bg: "#f9f0ff",
     border: "#d3adf7",
     bar: "#7F77DD",
   },
   pending: {
-    label: "Chờ duyệt",
+    label: tr("Pending approval"),
     color: "#d46b08",
     bg: "#fff7e6",
     border: "#ffd591",
     bar: "#EF9F27",
   },
   approval: {
-    label: "Đã phê duyệt",
+    label: tr("Approved"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
     bar: "#52c41a",
   },
   done: {
-    label: "Hoàn thành",
+    label: tr("Done"),
     color: "#389e0d",
     bg: "#f6ffed",
     border: "#b7eb8f",
     bar: "#639922",
   },
   cancelled: {
-    label: "Đã huỷ",
+    label: tr("Cancelled"),
     color: "#cf1322",
     bg: "#fff1f0",
     border: "#ffa39e",
@@ -72,9 +167,9 @@ const G_STATUS = {
 };
 
 const G_PRIORITY = {
-  high: { label: "Cao", color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
-  medium: { label: "Trung", color: "#d46b08", bg: "#fff7e6", icon: "↑" },
-  low: { label: "Thấp", color: "#389e0d", bg: "#f6ffed", icon: "↓" },
+  high: { label: tr("High"), color: "#cf1322", bg: "#fff1f0", icon: "↑↑" },
+  medium: { label: tr("Medium"), color: "#d46b08", bg: "#fff7e6", icon: "↑" },
+  low: { label: tr("Low"), color: "#389e0d", bg: "#f6ffed", icon: "↓" },
 };
 
 const G_LAWYER_COLORS = [
@@ -93,9 +188,9 @@ const G_LAWYER_COLORS = [
 ];
 
 const G_ZOOM = {
-  week: { dayW: 52, label: "Tuần" },
-  month: { dayW: 28, label: "Tháng" },
-  quarter: { dayW: 14, label: "Quý" },
+  week: { dayW: 52, label: tr("Week") },
+  month: { dayW: 28, label: tr("Month") },
+  quarter: { dayW: 14, label: tr("Quarter") },
 };
 
 const G_LEFT_W = 300;
@@ -105,39 +200,28 @@ const G_LAW_H = 36;
 const G_HDR_H = 42;
 
 const MONTH_FULL = [
-  "Tháng 1",
-  "Tháng 2",
-  "Tháng 3",
-  "Tháng 4",
-  "Tháng 5",
-  "Tháng 6",
-  "Tháng 7",
-  "Tháng 8",
-  "Tháng 9",
-  "Tháng 10",
-  "Tháng 11",
-  "Tháng 12",
+  tr("January"),
+  tr("February"),
+  tr("March"),
+  tr("April"),
+  tr("May"),
+  tr("June"),
+  tr("July"),
+  tr("August"),
+  tr("September"),
+  tr("October"),
+  tr("November"),
+  tr("December"),
 ];
-const MONTH_SHORT = [
-  "T1",
-  "T2",
-  "T3",
-  "T4",
-  "T5",
-  "T6",
-  "T7",
-  "T8",
-  "T9",
-  "T10",
-  "T11",
-  "T12",
-];
+const MONTH_SHORT = MONTH_FULL.map((m, i) =>
+  /^Tháng /.test(m) ? `T${i + 1}` : m.slice(0, 3),
+);
 
 const LAWYER_TYPE_LABEL = {
-  partner: "Luật sư đối tác",
-  lawyer: "Luật sư",
-  associate: "Luật sư cộng sự",
-  suppliant: "Trợ lý pháp lý",
+  partner: tr("Partner"),
+  lawyer: tr("Lawyer"),
+  associate: tr("Associate"),
+  suppliant: tr("Legal Assistant"),
 };
 
 const PROJECT_PALETTE = [
@@ -438,7 +522,7 @@ const GTooltip = ({ data, x, y }) => {
               borderRadius: 3,
             },
           },
-          "⚠ Quá hạn",
+          tr("⚠ Overdue"),
         ),
     ),
     data.start &&
@@ -810,7 +894,7 @@ const GDetailModal = ({ item, onClose }) => {
                     border: "1px solid #d3adf7",
                   },
                 },
-                "↳ CV phụ",
+                tr("↳ Subtask"),
               ),
             od &&
               React.createElement(
@@ -826,7 +910,7 @@ const GDetailModal = ({ item, onClose }) => {
                     fontWeight: 600,
                   },
                 },
-                "⚠ Quá hạn",
+                tr("⚠ Overdue"),
               ),
           ),
           React.createElement(
@@ -860,7 +944,7 @@ const GDetailModal = ({ item, onClose }) => {
       pr &&
         React.createElement(
           Row,
-          { label: "⚡ Ưu tiên" },
+          { label: tr("⚡ Priority") },
           React.createElement(
             "span",
             {
@@ -878,7 +962,7 @@ const GDetailModal = ({ item, onClose }) => {
       item._lawyerName &&
         React.createElement(
           Row,
-          { label: "👤 Luật sư" },
+          { label: tr("👤 Lawyer") },
           React.createElement(
             "div",
             { style: { display: "flex", alignItems: "center", gap: 6 } },
@@ -892,14 +976,14 @@ const GDetailModal = ({ item, onClose }) => {
         ),
       React.createElement(
         Row,
-        { label: "📅 Bắt đầu" },
+        { label: tr("📅 Start") },
         start
           ? gFmt(start, "full")
           : React.createElement("span", { style: { color: "#bfbfbf" } }, "—"),
       ),
       React.createElement(
         Row,
-        { label: "🏁 Deadline" },
+        { label: tr("🏁 Deadline") },
         React.createElement(
           "span",
           {
@@ -914,7 +998,7 @@ const GDetailModal = ({ item, onClose }) => {
       item.closedDate &&
         React.createElement(
           Row,
-          { label: "✅ Hoàn thành" },
+          { label: tr("✅ Completed") },
           React.createElement(
             "span",
             { style: { color: "#389e0d" } },
@@ -924,21 +1008,21 @@ const GDetailModal = ({ item, onClose }) => {
       item.estimatedDuration > 0 &&
         React.createElement(
           Row,
-          { label: "⏱ Dự kiến" },
+          { label: tr("⏱ Estimate") },
           gFmtH(item.estimatedDuration),
         ),
       (item._caseCode || item._projectName) &&
         React.createElement(
           Row,
-          { label: "📁 Vụ việc" },
+          { label: tr("📁 Case") },
           [item._caseCode, item._projectName].filter(Boolean).join(" — "),
         ),
       item._serviceName &&
-        React.createElement(Row, { label: "🔧 Dịch vụ" }, item._serviceName),
+        React.createElement(Row, { label: tr("🔧 Service") }, item._serviceName),
       item.description &&
         React.createElement(
           Row,
-          { label: "📝 Mô tả" },
+          { label: tr("📝 Description") },
           React.createElement(
             "div",
             {
@@ -955,7 +1039,7 @@ const GDetailModal = ({ item, onClose }) => {
       item.nextStepDescription &&
         React.createElement(
           Row,
-          { label: "👣 Next step" },
+          { label: tr("👣 Next step") },
           React.createElement(
             "div",
             { style: { fontSize: 12, color: "#096dd9", lineHeight: 1.7 } },
@@ -974,7 +1058,7 @@ const GDetailModal = ({ item, onClose }) => {
             textAlign: "center",
           },
         },
-        "Mở block Task Manager để chỉnh sửa chi tiết",
+        tr("Open the Task Manager block to edit details"),
       ),
     ),
   );
@@ -1140,7 +1224,7 @@ const GanttChart = ({
               flexShrink: 0,
             },
           },
-          badge?.count !== undefined ? `${badge.count} task` : undefined,
+          badge?.count !== undefined ? tr("{0} task", { 0: badge.count }) : undefined,
         ),
       ),
       React.createElement(
@@ -1194,7 +1278,7 @@ const GanttChart = ({
             typeLabel:
               LAWYER_TYPE_LABEL[lawyer.lawyerType] ||
               lawyer.lawyerType ||
-              "Luật sư",
+              tr("Lawyer"),
             count: tasks.length,
           },
           1,
@@ -1354,7 +1438,7 @@ const GanttChart = ({
             letterSpacing: 0.5,
           },
         },
-        "Công việc",
+        tr("Task"),
       ),
       React.createElement(
         "div",
@@ -1718,7 +1802,7 @@ const GanttView = () => {
         map[pk] = {
           label:
             [t._caseCode, t._projectName].filter(Boolean).join(" — ") ||
-            "Chưa gắn dự án",
+            tr("No project linked"),
           color: PROJECT_PALETTE[pIdx++ % PROJECT_PALETTE.length],
           tasks: [],
           lawyers: {},
@@ -1733,7 +1817,7 @@ const GanttView = () => {
         if (!map[pk].lawyers[lk]) {
           const lw = lawyers.find((l) => String(l.id) === lk) || {
             id: lk,
-            lawyerName: "Chưa phân công",
+            lawyerName: tr("Unassigned"),
             lawyerType: "",
             _color: "#8c8c8c",
           };
@@ -1816,16 +1900,16 @@ const GanttView = () => {
       React.createElement(
         "div",
         { style: { fontSize: 14, color: "#bfbfbf" } },
-        "Không tìm thấy hồ sơ luật sư liên kết với tài khoản này",
+        tr("No lawyer profile is linked to this account"),
       ),
     );
 
   const whoLabel = isAdmin
-    ? currentUser?.nickname || currentUser?.username || "Admin"
+    ? currentUser?.nickname || currentUser?.username || tr("Admin")
     : myLawyer?.lawyerName || "—";
   const whoRole = isAdmin
-    ? "Quản trị viên"
-    : LAWYER_TYPE_LABEL[myLawyer?.lawyerType] || "Luật sư";
+    ? tr("Administrator")
+    : LAWYER_TYPE_LABEL[myLawyer?.lawyerType] || tr("Lawyer");
   const whoColor = isAdmin
     ? "#cf1322"
     : myLawyer
@@ -1923,7 +2007,7 @@ const GanttView = () => {
                     fontWeight: 700,
                   },
                 },
-                "🔑 Toàn quyền xem",
+                tr("🔑 Full view access"),
               ),
           ),
         ),
@@ -1939,14 +2023,14 @@ const GanttView = () => {
           },
           React.createElement(GStatCard, {
             icon: "📋",
-            label: "Tổng công việc",
+            label: tr("Total tasks"),
             value: `${nTotal}`,
             color: "#1890ff",
             bg: "#e6f4ff",
           }),
           React.createElement(GStatCard, {
             icon: "✅",
-            label: `Hoàn thành (${pct}%)`,
+            label: tr("Done ({0}%)", { 0: pct }),
             value: `${nDone}`,
             color: "#389e0d",
             bg: "#f6ffed",
@@ -1954,7 +2038,7 @@ const GanttView = () => {
           nPend > 0 &&
             React.createElement(GStatCard, {
               icon: "⏳",
-              label: "Chờ duyệt",
+              label: tr("Pending approval"),
               value: `${nPend}`,
               color: "#d46b08",
               bg: "#fff7e6",
@@ -1962,7 +2046,7 @@ const GanttView = () => {
           nOD > 0 &&
             React.createElement(GStatCard, {
               icon: "⚠",
-              label: "Quá hạn",
+              label: tr("Overdue"),
               value: `${nOD}`,
               color: "#cf1322",
               bg: "#fff1f0",
@@ -1970,7 +2054,7 @@ const GanttView = () => {
           nTod > 0 &&
             React.createElement(GStatCard, {
               icon: "📅",
-              label: "Hôm nay",
+              label: tr("Today"),
               value: `${nTod}`,
               color: "#d46b08",
               bg: "#fff7e6",
@@ -1993,7 +2077,7 @@ const GanttView = () => {
         React.createElement("input", {
           value: search,
           onChange: (e) => setSearch(e.target.value),
-          placeholder: "🔍 Tìm công việc...",
+          placeholder: tr("🔍 Search tasks..."),
           style: {
             padding: "5px 12px",
             borderRadius: 6,
@@ -2011,9 +2095,9 @@ const GanttView = () => {
           "div",
           { style: { display: "flex", gap: 4 } },
           [
-            ["active", "Đang làm"],
-            ["all", "Tất cả"],
-            ["done", "Hoàn thành"],
+            ["active", tr("Active")],
+            ["all", tr("All")],
+            ["done", tr("Done")],
           ].map(([k, l]) =>
             React.createElement(
               "div",
@@ -2042,7 +2126,7 @@ const GanttView = () => {
                   flexShrink: 0,
                 },
               },
-              "Luật sư:",
+              tr("Lawyer:"),
             ),
             React.createElement(
               "select",
@@ -2065,7 +2149,7 @@ const GanttView = () => {
               React.createElement(
                 "option",
                 { value: "all" },
-                "— Tất cả luật sư —",
+                tr("— All lawyers —"),
               ),
               lawyers.map((l) =>
                 React.createElement(
@@ -2126,7 +2210,7 @@ const GanttView = () => {
               cursor: "pointer",
             },
           },
-          "📍 Hôm nay",
+          tr("📍 Today"),
         ),
         React.createElement(
           "div",
@@ -2143,7 +2227,7 @@ const GanttView = () => {
               cursor: "pointer",
             },
           },
-          "↻ Tải lại",
+          tr("↻ Reload"),
         ),
       ),
     ),
@@ -2174,7 +2258,7 @@ const GanttView = () => {
               flexShrink: 0,
             },
           },
-          "Nhóm: Project → Luật sư → Task",
+          tr("Group: Project → Lawyer → Task"),
         ),
       !isAdmin &&
         React.createElement(
@@ -2188,7 +2272,7 @@ const GanttView = () => {
               flexShrink: 0,
             },
           },
-          "Nhóm: Project → Task",
+          tr("Group: Project → Task"),
         ),
       React.createElement(
         "div",
@@ -2261,8 +2345,8 @@ const GanttView = () => {
               "div",
               { style: { fontSize: 14, color: "#bfbfbf" } },
               search || stFilter !== "all"
-                ? "Không tìm thấy kết quả phù hợp"
-                : "Chưa có công việc nào",
+                ? tr("No matching results")
+                : tr("No tasks yet"),
             ),
           )
         : React.createElement(

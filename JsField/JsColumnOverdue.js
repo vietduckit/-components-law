@@ -1,3 +1,26 @@
+// ---- ui language (pure; tested by scripts/tests/i18n-blocks.test.js) ----
+// Labels follow the language NocoBase's UI runs in (ctx.i18n.language: the
+// user's appLang, else the system default; changing it reloads the page):
+// Vietnamese for "vi-*", English otherwise. The English text is the key, so a
+// label missing from VI shows in English; {name} placeholders are filled from
+// vars. Stored data is not translated. Tool: scripts/i18n/ui-strings.js.
+const pickLang = (locale) => (/^vi\b/i.test(String(locale || "").trim()) ? "vi" : "en");
+const makeTr = (lang, dict) => (text, vars) => {
+  const template = (lang === "vi" && dict[text]) || text;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match))
+    : template;
+};
+const VI = {
+  "No Deadline": "Không có hạn",
+  "Not Started": "Chưa bắt đầu",
+  "Overdue": "Quá hạn",
+  "Nearly Overdue": "Sắp quá hạn",
+  "On Time": "Đúng hạn",
+};
+// ---- end ui language ----
+const tr = makeTr(pickLang(ctx.i18n?.language || ctx.auth?.locale), VI);
+
 const { useState, useEffect } = ctx.React;
 
 function JsColumnOverdue() {
@@ -29,7 +52,7 @@ function JsColumnOverdue() {
     if (!deadline) {
         return (
             <span style={{ color: '#8c8c8c', fontStyle: 'italic', fontSize: '13px' }}>
-                No Deadline
+                {tr("No Deadline")}
             </span>
         );
     }
@@ -52,7 +75,7 @@ function JsColumnOverdue() {
     // 1. Trạng thái: CHƯA BẮT ĐẦU
     if (start && now < start) {
         config = {
-            text: 'Not Started',
+            text: tr("Not Started"),
             bg: '#f5f5f5',
             color: '#595959',
             border: '#d9d9d9',
@@ -68,7 +91,7 @@ function JsColumnOverdue() {
     // 2. Trạng thái: QUÁ HẠN
     else if (diffDays < 0) {
         config = {
-            text: 'Overdue',
+            text: tr("Overdue"),
             bg: '#fff1f0',
             color: '#cf1322',
             border: '#ffa39e',
@@ -84,7 +107,7 @@ function JsColumnOverdue() {
     // 3. Trạng thái: SẮP HẾT HẠN (Còn <= 3 ngày)
     else if (diffDays <= 4) {
         config = {
-            text: 'Nearly Overdue',
+            text: tr("Nearly Overdue"),
             bg: '#fff7e6',
             color: '#d46b08',
             border: '#ffd591',
@@ -99,7 +122,7 @@ function JsColumnOverdue() {
     // 4. Trạng thái: TRONG HẠN
     else {
         config = {
-            text: 'On Time',
+            text: tr("On Time"),
             bg: '#f6ffed',
             color: '#389e0d',
             border: '#b7eb8f',
